@@ -34,6 +34,10 @@ rbext <- function(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5) {
     stop("pex must be between 0 and 1")
   if (bex < 0 || bex > 1)
     stop("bex must be between 0 and 1")
+  if (mu < 0 || mu > 1)
+    stop("mu must be between 0 and 1")
+  if (phi <= 0)
+    stop("phi must be positive")
 
   # Compute kright and kleft from pex and bex
   kright <- pex * bex       # Proportion of `pex` allocated to ones
