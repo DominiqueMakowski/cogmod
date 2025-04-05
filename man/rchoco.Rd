@@ -105,9 +105,7 @@ Positive values increase the probability of extreme values on the right side rel
 
 \item{link_mu, link_muleft, link_mud, link_phileft, link_phid, link_kleft, link_kd, link_muright, link_phiright, link_kright}{Character strings specifying the link functions for the parameters.}
 
-\item{i}{Index of the observation.}
-
-\item{prep}{A \code{brms} preparation object.}
+\item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
 \item{...}{Additional arguments.}
 

@@ -235,8 +235,7 @@ choco7 <- function(link_mu = "logit", link_muleft = "logit", link_muright = "log
 # Predict -----------------------------------------------------------------
 
 #' @rdname rchoco
-#' @param i Index of the observation.
-#' @param prep A `brms` preparation object.
+#' @param i,prep For brms' functions to run: index of the observation and a `brms` preparation object.
 #' @param ... Additional arguments.
 #' @export
 posterior_predict_choco7 <- function(i, prep, ...) {

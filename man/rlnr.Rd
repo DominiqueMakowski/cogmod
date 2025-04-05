@@ -64,11 +64,9 @@ Determines how \code{sigmad} is transformed in the model. Default: "identity".}
 \item{link_tau}{Link function for the \code{tau} parameter in the custom family.
 Ensures \code{tau} remains non-negative. Default: "softplus".}
 
-\item{i}{Index of the draw for posterior predictions. Must be a positive integer.}
+\item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
-\item{prep}{A \code{brms} preparation object containing the model and data.}
-
-\item{...}{Additional arguments passed to the function.}
+\item{...}{Additional arguments.}
 
 \item{y}{The observed reaction time (RT).}
 

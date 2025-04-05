@@ -121,9 +121,7 @@ lnr <- function(link_mu = "identity", link_mud = "identity",
 }
 
 #' @rdname rlnr
-#' @param i Index of the draw for posterior predictions. Must be a positive integer.
-#' @param prep A `brms` preparation object containing the model and data.
-#' @param ... Additional arguments passed to the function.
+#' @inheritParams choco
 #' @export
 posterior_predict_lnr <- function(i, prep, ...) {
   # Extract distributional parameters for draw i
