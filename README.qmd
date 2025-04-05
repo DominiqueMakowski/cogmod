@@ -1,11 +1,20 @@
-# cogmod
-
+---
+title: "cogmod"
+format: gfm
+execute:
+  echo: true
+  warning: false
+  message: false
+---
 
 Cognitive Models for Subjective Scales and Decision Making Tasks in R
 
 ## Installation
 
-``` r
+```{r}
+#| eval: false
+
 if(!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
+
 remotes::install_github("DominiqueMakowski/cogmod")
 ```
