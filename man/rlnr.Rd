@@ -5,6 +5,8 @@
 \alias{lnr_stanvars}
 \alias{lnr}
 \alias{posterior_predict_lnr}
+\alias{dlnr}
+\alias{log_lik_lnr}
 \title{Log-Normal Race (LNR) Model}
 \usage{
 rlnr(n, mu = 1, mud = 0, sigmazero = 1, sigmad = 0, tau = 0.2)
@@ -20,6 +22,10 @@ lnr(
 )
 
 posterior_predict_lnr(i, prep, ...)
+
+dlnr(y, mu, mud, sigmazero, sigmad, tau, dec, log = TRUE)
+
+log_lik_lnr(i, prep)
 }
 \arguments{
 \item{n}{Number of simulated trials. Must be a positive integer.}
@@ -63,6 +69,12 @@ Ensures \code{tau} remains non-negative. Default: "softplus".}
 \item{prep}{A \code{brms} preparation object containing the model and data.}
 
 \item{...}{Additional arguments passed to the function.}
+
+\item{y}{The observed reaction time (RT).}
+
+\item{dec}{The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.}
+
+\item{log}{Logical; if TRUE, returns the log-density. Default: TRUE.}
 }
 \description{
 The Log-Normal Race (LNR) model is useful for modeling reaction times and errors in decision-making tasks.
@@ -72,9 +84,11 @@ The winning accumulator (minimum draw) determines the observed reaction time and
 Functions:
 \itemize{
 \item \code{rlnr()}: Simulates random draws from the LNR model.
-\item \code{lnr_stanvars()}: Generates a \code{stanvars} object to pass custom functions to \code{brms}.
+\item \code{dlnr()}: Computes the log-likelihood of observed reaction times under the LNR model.
 \item \code{lnr()}: Creates a custom family to be used with \code{brms}.
-\item \code{posterior_predict_lnr()}: Simulates predicted outcomes using sampled parameters.
+\item \code{lnr_stanvars()}: For \code{brms}, generates a \code{stanvars} object to pass to \code{brm()} when fitting the model.
+\item \code{posterior_predict_lnr()}: For \code{brms}, simulates predicted outcomes using sampled parameters.
+\item \code{log_lik_lnr()}: For \code{brms}, computes the log-likelihood of observed data.
 }
 }
 \examples{

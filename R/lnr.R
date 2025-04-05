@@ -7,24 +7,26 @@
 #'
 #' Functions:
 #' - `rlnr()`: Simulates random draws from the LNR model.
-#' - `lnr_stanvars()`: Generates a `stanvars` object to pass custom functions to `brms`.
+#' - `dlnr()`: Computes the log-likelihood of observed reaction times under the LNR model.
 #' - `lnr()`: Creates a custom family to be used with `brms`.
-#' - `posterior_predict_lnr()`: Simulates predicted outcomes using sampled parameters.
+#' - `lnr_stanvars()`: For `brms`, generates a `stanvars` object to pass to `brm()` when fitting the model.
+#' - `posterior_predict_lnr()`: For `brms`, simulates predicted outcomes using sampled parameters.
+#' - `log_lik_lnr()`: For `brms`, computes the log-likelihood of observed data.
 #'
 #' @param n Number of simulated trials. Must be a positive integer.
-#' @param mu The log-space mean (ν) for the baseline accumulator (choice 0). 
-#'   Determines the central tendency of the reaction time for choice 0. 
+#' @param mu The log-space mean (ν) for the baseline accumulator (choice 0).
+#'   Determines the central tendency of the reaction time for choice 0.
 #'   Plausible range: (-Inf, Inf).
-#' @param mud The additive deviation (in log-space) from `mu` to obtain the mean for accumulator 1 (choice 1). 
-#'   Positive values make choice 1 faster on average, while negative values make it slower. 
+#' @param mud The additive deviation (in log-space) from `mu` to obtain the mean for accumulator 1 (choice 1).
+#'   Positive values make choice 1 faster on average, while negative values make it slower.
 #'   Plausible range: (-Inf, Inf).
-#' @param sigmazero The log-space standard deviation for the baseline accumulator (choice 0). 
-#'   Controls the variability of reaction times for choice 0. Must be positive. 
+#' @param sigmazero The log-space standard deviation for the baseline accumulator (choice 0).
+#'   Controls the variability of reaction times for choice 0. Must be positive.
 #'   Plausible range: (0, Inf).
-#' @param sigmad The log-deviation for the standard deviation so that the standard deviation for accumulator 1 is `sigmazero * exp(sigmad)`. 
-#'   Positive values increase variability for choice 1, while negative values decrease it. 
+#' @param sigmad The log-deviation for the standard deviation so that the standard deviation for accumulator 1 is `sigmazero * exp(sigmad)`.
+#'   Positive values increase variability for choice 1, while negative values decrease it.
 #'   Plausible range: (-Inf, Inf).
-#' @param tau A non-decision time (shift), τ. Represents the time taken for processes unrelated to the decision (e.g., motor response). 
+#' @param tau A non-decision time (shift), τ. Represents the time taken for processes unrelated to the decision (e.g., motor response).
 #'   Must be non-negative. Plausible range: [0, Inf).
 #'
 #' @examples
@@ -61,9 +63,11 @@ lnr_stanvars <- function() {
 // sigmad: log-deviation for the standard deviation of choice 1.
 // tau: non-decision time (shift).
 real lnr_lpdf(real y, real mu, real mud, real sigmazero, real sigmad, real tau, int dec) {
-  real eps = 1e-8;
+  real eps = 1e-6;  // A small constant to prevent underflow
   real t_adj = y - tau;
-  if (t_adj <= 0)
+
+  // If t_adj is too small, return a very low log probability
+  if (t_adj < eps)
     return negative_infinity();
 
   // Convert 0-based decision to 1-based indexing for Stan.
@@ -74,16 +78,19 @@ real lnr_lpdf(real y, real mu, real mud, real sigmazero, real sigmad, real tau, 
   vector[2] sigma;
   nu[1] = mu;
   nu[2] = mu + mud;
-  sigma[1] = sigmazero;
-  sigma[2] = sigmazero * exp(sigmad);
+  sigma[1] = fmax(sigmazero, eps);
+  sigma[2] = fmax(sigmazero * exp(sigmad), eps);
 
   real lp = 0;
   // Sum contributions across both accumulators.
   for (i in 1:2) {
     if (i == dec_stan)
       lp += lognormal_lpdf(t_adj | nu[i], sigma[i]);
-    else
-      lp += log1m_exp(lognormal_lcdf(t_adj | nu[i], sigma[i]));
+    else {
+      // Use lognormal_lcdf, then compute the log survival probability safely.
+      real log_cdf = lognormal_lcdf(t_adj | nu[i], sigma[i]);
+      lp += log1m_exp(log_cdf);
+    }
   }
   return lp;
 }
@@ -91,15 +98,15 @@ real lnr_lpdf(real y, real mu, real mud, real sigmazero, real sigmad, real tau, 
 }
 
 #' @rdname rlnr
-#' @param link_mu Link function for the `mu` parameter in the custom family. 
+#' @param link_mu Link function for the `mu` parameter in the custom family.
 #'   Determines how `mu` is transformed in the model. Default: "identity".
-#' @param link_mud Link function for the `mud` parameter in the custom family. 
+#' @param link_mud Link function for the `mud` parameter in the custom family.
 #'   Determines how `mud` is transformed in the model. Default: "identity".
-#' @param link_sigmazero Link function for the `sigmazero` parameter in the custom family. 
+#' @param link_sigmazero Link function for the `sigmazero` parameter in the custom family.
 #'   Ensures `sigmazero` remains positive. Default: "softplus".
-#' @param link_sigmad Link function for the `sigmad` parameter in the custom family. 
+#' @param link_sigmad Link function for the `sigmad` parameter in the custom family.
 #'   Determines how `sigmad` is transformed in the model. Default: "identity".
-#' @param link_tau Link function for the `tau` parameter in the custom family. 
+#' @param link_tau Link function for the `tau` parameter in the custom family.
 #'   Ensures `tau` remains non-negative. Default: "softplus".
 #' @export
 lnr <- function(link_mu = "identity", link_mud = "identity",
@@ -135,4 +142,68 @@ posterior_predict_lnr <- function(i, prep, ...) {
 
   # Convert to matrix
   as.matrix(sim_data)
+}
+
+
+
+
+# dlnr: computes the log-density for one observation from the LNR model.
+#' @rdname rlnr
+#' @param y The observed reaction time (RT).
+#' @param dec The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.
+#' @param log Logical; if TRUE, returns the log-density. Default: TRUE.
+dlnr <- function(y, mu, mud, sigmazero, sigmad, tau, dec, log = TRUE) {
+  eps <- 1e-6
+  # Compute the adjusted reaction time for each draw
+  t_adj <- y - tau
+  # Precompute accumulator parameters (vectorized over draws)
+  nu0 <- mu
+  nu1 <- mu + mud
+  sigma0 <- sigmazero
+  sigma1 <- sigmazero * exp(sigmad)
+
+  # For each draw, compute the log-density and survival probability depending on dec.
+  log_pdf_win <- if (dec == 0) {
+    stats::dlnorm(t_adj, meanlog = nu0, sdlog = sigma0, log = TRUE)
+  } else if (dec == 1) {
+    stats::dlnorm(t_adj, meanlog = nu1, sdlog = sigma1, log = TRUE)
+  } else {
+    stop("dec must be 0 or 1")
+  }
+
+  log_cdf_loss <- if (dec == 0) {
+    stats::plnorm(t_adj, meanlog = nu1, sdlog = sigma1, lower.tail = TRUE, log.p = TRUE)
+  } else {
+    stats::plnorm(t_adj, meanlog = nu0, sdlog = sigma0, lower.tail = TRUE, log.p = TRUE)
+  }
+
+  # Compute log survival probability in a stable way
+  log_surv_loss <- .log1m_exp(log_cdf_loss)
+
+  # For draws with t_adj < eps, return -Inf
+  out <- ifelse(t_adj < eps, -Inf, log_pdf_win + log_surv_loss)
+
+  if (log) out else exp(out)
+}
+
+# log_lik_lnr: a function to be used in brms to compute the log likelihood for observation i.
+#' @rdname rlnr
+log_lik_lnr <- function(i, prep) {
+  # Extract the i-th observed reaction time (a scalar)
+  y <- prep$data$Y[i]
+
+  # Extract the posterior draws for each parameter for observation i.
+  # These will be vectors, one entry per draw.
+  mu        <- brms::get_dpar(prep, "mu", i = i)
+  mud       <- brms::get_dpar(prep, "mud", i = i)
+  sigmazero <- brms::get_dpar(prep, "sigmazero", i = i)
+  sigmad    <- brms::get_dpar(prep, "sigmad", i = i)
+  tau       <- brms::get_dpar(prep, "tau", i = i)
+
+  # Extract the decision indicator (should be a scalar, 0 or 1)
+  dec <- prep$data[["dec"]][i]
+
+  # Compute and return a vector of log likelihoods, one per posterior draw.
+  dlnr(y = y, mu = mu, mud = mud, sigmazero = sigmazero,
+       sigmad = sigmad, tau = tau, dec = dec, log = TRUE)
 }

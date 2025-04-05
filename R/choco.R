@@ -13,7 +13,7 @@
 #'
 #' The CHOCO model is available following two different parametrizations:
 #' - **CHOCO7**: A 7-parameter model where the right-side parameters (`muright`, `phiright`, `kright`) are independent of the left-side parameters.
-#' - **CHOCO7d**: A deviation-based 7-parameter model where the right-side parameters are derived as deviations from the left-side parameters (`mud`, `phid`, `kd`).
+#' - **CHOCO "7d"** (default CHOCO): A deviation-based 7-parameter model where the right-side parameters are derived as deviations from the left-side parameters (`mud`, `phid`, `kd`).
 #'
 #' Functions:
 #' - `rchoco()`: simulates random draws from the CHOCO distribution, which models bimodal analog/Likert scale data.
@@ -103,11 +103,11 @@ rchoco <- function(n, mu = 0.5, muleft = 0.5, phileft = 3, kleft = 0.95,
 
 # Stan --------------------------------------------------------------------
 #' @rdname rchoco
-#' @param type The type of CHOCO model ("choco7" or "choco7d").
+#' @param type The type of CHOCO model. "choco" is the deviation based model and "choco7" the independent parametrization.
 #' @examples
 #' choco_stanvars("choco7")
 #' @export
-choco_stanvars <- function(type = "choco7d") {
+choco_stanvars <- function(type = "choco") {
   if (type == "choco7") { # 7-parameter model with independent right-side parameters
     stancode <- brms::stanvar(scode = "
 real choco7_lpdf(real y, real mu, real muleft, real phileft,
@@ -147,9 +147,9 @@ real choco7_lpdf(real y, real mu, real muleft, real phileft,
   }
 }
 ", block = "functions")
-  } else if (type == "choco7d") { # 7-parameter deviation-based model
+  } else if (type == "choco") { # 7-parameter deviation-based model
     stancode <- brms::stanvar(scode = "
-real choco7d_lpdf(real y, real mu, real muleft, real mud, real phileft, real phid, real kleft, real kd) {
+real choco_lpdf(real y, real mu, real muleft, real mud, real phileft, real phid, real kleft, real kd) {
   real eps = 1e-8;
   real p_left = 1 - mu;
   real p_right = mu;
@@ -190,7 +190,7 @@ real choco7d_lpdf(real y, real mu, real muleft, real mud, real phileft, real phi
 }
 ", block = "functions")
   } else {
-    stop("Invalid type. Choose either 'choco7' or 'choco7d'.")
+    stop("Invalid type. Choose either 'choco7' or 'choco'.")
   }
   stancode
 }
@@ -200,13 +200,13 @@ real choco7d_lpdf(real y, real mu, real muleft, real mud, real phileft, real phi
 #' @rdname rchoco
 #' @param link_mu,link_muleft,link_mud,link_phileft,link_phid,link_kleft,link_kd,link_muright,link_phiright,link_kright Character strings specifying the link functions for the parameters.
 #' @examples
-#' choco7d()
+#' choco()
 #' @export
-choco7d <- function(link_mu = "logit", link_muleft = "logit", link_mud = "identity",
+choco <- function(link_mu = "logit", link_muleft = "logit", link_mud = "identity",
                     link_phileft = "softplus", link_phid = "identity",
                     link_kleft = "logit", link_kd = "identity") {
   brms::custom_family(
-    "choco7d",
+    "choco",
     dpars = c("mu", "muleft", "mud", "phileft", "phid", "kleft", "kd"),
     links = c(link_mu, link_muleft, link_mud,
               link_phileft, link_phid,
@@ -214,9 +214,6 @@ choco7d <- function(link_mu = "logit", link_muleft = "logit", link_mud = "identi
   )
 }
 
-#' @rdname rchoco
-#' @export
-choco <- choco7d
 
 #' @rdname rchoco
 #' @examples
@@ -267,7 +264,7 @@ posterior_predict_choco7 <- function(i, prep, ...) {
 
 #' @rdname rchoco
 #' @export
-posterior_predict_choco7d <- function(i, prep, ...) {
+posterior_predict_choco <- function(i, prep, ...) {
   mu      <- brms::get_dpar(prep, "mu", i = i)
   muleft  <- brms::get_dpar(prep, "muleft", i = i)
   mud     <- brms::get_dpar(prep, "mud", i = i)
@@ -288,4 +285,60 @@ posterior_predict_choco7d <- function(i, prep, ...) {
   }, mu, muleft, mud, phileft, phid, kleft, kd)
 
   yrep
+}
+
+
+#' @rdname rchoco
+#' @param y The observed response value. Must be in the range 0-1.
+#' @param log Logical. If TRUE, returns the log-density. Default: TRUE.
+#' @export
+dchoco <- function(y, mu, muleft, phileft, kleft, muright = NULL, phiright = NULL, kright = NULL,
+                   mud = 0, phid = 0, kd = 0, log = TRUE) {
+  eps <- 1e-6
+
+  # Compute right-side parameters if not provided
+  if (is.null(muright)) muright <- stats::plogis(stats::qlogis(muleft) + mud)
+  if (is.null(phiright)) phiright <- phileft * exp(phid)
+  if (is.null(kright)) kright <- stats::plogis(stats::qlogis(kleft) + kd)
+
+  # Compute probabilities for left and right sides
+  p_left <- 1 - mu
+  p_right <- mu
+
+  # Compute densities
+  if (y < eps) {
+    log_density <- log(p_left) + log(1 - stats::plogis(stats::qlogis(muleft) - stats::qlogis(1 - kleft)))
+  } else if (y > (1 - eps)) {
+    log_density <- log(p_right) + log(stats::plogis(stats::qlogis(muright) - stats::qlogis(kright)))
+  } else if (y < 0.5) {
+    x0 <- 2 * (0.5 - y)
+    log_density <- log(p_left) + log(1 - stats::plogis(stats::qlogis(muleft) - stats::qlogis(1 - kleft))) +
+      log(2) + stats::dbeta(x0, shape1 = muleft * phileft, shape2 = (1 - muleft) * phileft, log = TRUE)
+  } else {
+    x1 <- 2 * (y - 0.5)
+    log_density <- log(p_right) + log(stats::plogis(stats::qlogis(muright) - stats::qlogis(kright))) +
+      log(2) + stats::dbeta(x1, shape1 = muright * phiright, shape2 = (1 - muright) * phiright, log = TRUE)
+  }
+
+  if (log) log_density else exp(log_density)
+}
+
+#' @rdname rchoco
+#' @export
+log_lik_choco <- function(i, prep) {
+  # Extract the i-th observed response
+  y <- prep$data$Y[i]
+
+  # Extract posterior draws for each parameter for observation i
+  mu      <- brms::get_dpar(prep, "mu", i = i)
+  muleft  <- brms::get_dpar(prep, "muleft", i = i)
+  phileft <- brms::get_dpar(prep, "phileft", i = i)
+  kleft   <- brms::get_dpar(prep, "kleft", i = i)
+  mud     <- brms::get_dpar(prep, "mud", i = i)
+  phid    <- brms::get_dpar(prep, "phid", i = i)
+  kd      <- brms::get_dpar(prep, "kd", i = i)
+
+  # Compute log-likelihood using dchoco
+  dchoco(y = y, mu = mu, muleft = muleft, phileft = phileft, kleft = kleft,
+         mud = mud, phid = phid, kd = kd, log = TRUE)
 }

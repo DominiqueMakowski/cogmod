@@ -3,11 +3,12 @@
 \name{rchoco}
 \alias{rchoco}
 \alias{choco_stanvars}
-\alias{choco7d}
 \alias{choco}
 \alias{choco7}
 \alias{posterior_predict_choco7}
-\alias{posterior_predict_choco7d}
+\alias{posterior_predict_choco}
+\alias{dchoco}
+\alias{log_lik_choco}
 \title{Choice-Confidence (CHOCO) Model}
 \usage{
 rchoco(
@@ -24,17 +25,7 @@ rchoco(
   kd = 0
 )
 
-choco_stanvars(type = "choco7d")
-
-choco7d(
-  link_mu = "logit",
-  link_muleft = "logit",
-  link_mud = "identity",
-  link_phileft = "softplus",
-  link_phid = "identity",
-  link_kleft = "logit",
-  link_kd = "identity"
-)
+choco_stanvars(type = "choco")
 
 choco(
   link_mu = "logit",
@@ -58,7 +49,24 @@ choco7(
 
 posterior_predict_choco7(i, prep, ...)
 
-posterior_predict_choco7d(i, prep, ...)
+posterior_predict_choco(i, prep, ...)
+
+dchoco(
+  y,
+  mu,
+  muleft,
+  phileft,
+  kleft,
+  muright = NULL,
+  phiright = NULL,
+  kright = NULL,
+  mud = 0,
+  phid = 0,
+  kd = 0,
+  log = TRUE
+)
+
+log_lik_choco(i, prep)
 }
 \arguments{
 \item{n}{Number of random draws. Must be a positive integer.}
@@ -93,7 +101,7 @@ Positive values increase the precision of the right-side responses relative to t
 \item{kd}{Deviation for \code{kright} on the logit scale relative to \code{kleft}.
 Positive values increase the probability of extreme values on the right side relative to the left side. Plausible range: (-Inf, Inf).}
 
-\item{type}{The type of CHOCO model ("choco7" or "choco7d").}
+\item{type}{The type of CHOCO model. "choco" is the deviation based model and "choco7" the independent parametrization.}
 
 \item{link_mu, link_muleft, link_mud, link_phileft, link_phid, link_kleft, link_kd, link_muright, link_phiright, link_kright}{Character strings specifying the link functions for the parameters.}
 
@@ -102,6 +110,10 @@ Positive values increase the probability of extreme values on the right side rel
 \item{prep}{A \code{brms} preparation object.}
 
 \item{...}{Additional arguments.}
+
+\item{y}{The observed response value. Must be in the range 0-1.}
+
+\item{log}{Logical. If TRUE, returns the log-density. Default: TRUE.}
 }
 \description{
 The Choice-Confidence (CHOCO) model is useful to model data from subjective scales, such as Likert-type or analog scales, in which the left and the right side correspond to different processes or higher order categorical responses (e.g., "disagree" vs. "agree", "true" vs. "false"). They can be used to jointly model choice (left or right) and confidence (the degree of left or right).
@@ -117,7 +129,7 @@ Regarding Ordered Beta distributions, see:
 The CHOCO model is available following two different parametrizations:
 \itemize{
 \item \strong{CHOCO7}: A 7-parameter model where the right-side parameters (\code{muright}, \code{phiright}, \code{kright}) are independent of the left-side parameters.
-\item \strong{CHOCO7d}: A deviation-based 7-parameter model where the right-side parameters are derived as deviations from the left-side parameters (\code{mud}, \code{phid}, \code{kd}).
+\item \strong{CHOCO "7d"} (default CHOCO): A deviation-based 7-parameter model where the right-side parameters are derived as deviations from the left-side parameters (\code{mud}, \code{phid}, \code{kd}).
 }
 
 Functions:
@@ -133,6 +145,6 @@ hist(rchoco(3000, mu=0.6, muleft=0.5, phileft=5, kleft=0.99), breaks=100)
 hist(rchoco(3000, mu=0.4, muleft=0.5, phileft=3, kleft=0.85), breaks=100)
 
 choco_stanvars("choco7")
-choco7d()
+choco()
 choco7()
 }

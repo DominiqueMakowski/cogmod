@@ -135,10 +135,70 @@ m_ddm <- readRDS("man/figures/m_ddm.rds")
 
 parameters::parameters(m_ddm, component = "all")
 
-# insight::get_predicted(m_ddm)
-brms::posterior_predict(m_ddm, ndraws=5, newdata = df[1:4, ], negative_rt = TRUE)
+# library(brms)
+# library(cmdstanr)
+# 
+# m_ddm <- readRDS(url("https://raw.github.com/DominiqueMakowski/cogmod/main/man/figures/m_ddm.rds"))
+# # m_ddm
+# 
+# insight::get_predicted(m_ddm, iterations = 5, data = insight::get_data(m_ddm)[1:4,]) |> 
+#   as.data.frame()
+# 
+# brms::posterior_predict(m_ddm, ndraws=5, newdata = insight::get_data(m_ddm)[1:4,], negative_rt = TRUE)
 ```
 
+### LogNormal Race (LNR)
 
+```{r}
+#| eval: false
 
+f <- bf(
+  rt | dec(choice) ~ 1,
+  mud ~ 1,
+  sigmazero ~ 1,
+  sigmad ~ 1,
+  tau ~ 1
+)
 
+m_lnr <- brm(f,
+  data = df,
+  family = lnr(
+    link_mu = "identity",
+    link_mud = "identity",
+    link_sigmazero = "softplus",
+    link_sigmad = "identity",
+    link_tau = "softplus"
+  ),
+  stanvars = lnr_stanvars(),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+saveRDS(m_lnr, file = "man/figures/m_lnr.rds")
+```
+
+```{r}
+#| eval: false
+
+m_lnr <- readRDS("man/figures/m_lnr.rds")
+
+parameters::parameters(m_lnr, component = "all")
+
+# library(brms)
+# library(cmdstanr)
+# 
+# m_ddm <- readRDS(url("https://raw.github.com/DominiqueMakowski/cogmod/main/man/figures/m_ddm.rds"))
+# # m_ddm
+# 
+# insight::get_predicted(m_ddm, iterations = 5, data = insight::get_data(m_ddm)[1:4,]) |> 
+#   as.data.frame()
+# 
+# brms::posterior_predict(m_ddm, ndraws=5, newdata = insight::get_data(m_ddm)[1:4,], negative_rt = TRUE)
+```
+
+### Model Comparison
+
+```{r}
+#| eval: false
+
+loo::loo_compare(loo::loo(m_ddm), loo::loo(m_lnr))
+```
