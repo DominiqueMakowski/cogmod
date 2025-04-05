@@ -3,6 +3,15 @@
 
 Cognitive Models for Subjective Scales and Decision Making Tasks in R
 
+## Status
+
+**This package is very much totally exploratory - currently made for my
+own needs.** It’s not meant to be stable and robust at this stage. Use
+at your own risks.
+
+**Please get in touch if you have suggestions for improvement, I am new
+to this!**
+
 ## Installation
 
 ``` r

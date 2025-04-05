@@ -20,18 +20,27 @@
 #' - `choco_stanvars()`: Generates a `stanvars` object to pass custom functions to `brms`.
 #' - `choco()`: Creates a custom family to be used with `brms`.
 #'
-#'
-#' @param n Number of random draws.
-#' @param mu Probability of choosing the right side (relative to the left side). Note that this argument should be better named `pright` to avoid confusion with the `mu` parameter of the beta distribution, but it has to be named `mu` as it is a requirement by Stan to have the "main" parameter named like so.
-#' @param muleft The center of the left side beta distribution.
-#' @param phileft The shape parameter of the left side beta distribution.
-#' @param kleft The cutoff parameter for the left side beta distribution.
-#' @param muright The center of the right side beta distribution (overridden by `mud` if NULL).
-#' @param phiright The shape parameter of the right side beta distribution (overridden by `phid` if NULL).
-#' @param kright The cutoff parameter for the right side beta distribution (overridden by `kd` if NULL).
-#' @param mud Deviation for `muright` on the logit scale relative to `muleft` (used if `muright` is NULL).
-#' @param phid Deviation for `phiright` as a log-multiplier relative to `phileft` (used if `phiright` is NULL).
-#' @param kd Deviation for `kright` on the logit scale relative to `kleft` (used if `kright` is NULL).
+#' @param n Number of random draws. Must be a positive integer.
+#' @param mu Probability of choosing the right side (relative to the left side).
+#'   Determines the overall bias toward the right side. Must be in the range 0-1.
+#' @param muleft The center of the left-side beta distribution.
+#'   Determines the central tendency of the left-side responses. Must be in the range 0-1.
+#' @param phileft The shape parameter of the left-side beta distribution.
+#'   Controls the precision (inverse variance) of the left-side responses. Must be positive. Plausible range: (0, Inf).
+#' @param kleft The cutoff parameter for the left-side beta distribution.
+#'   Determines the probability of extreme values (close to 0) on the left side. Must be in the range 0-1.
+#' @param muright The center of the right-side beta distribution.
+#'   Determines the central tendency of the right-side responses. Overridden by `mud` if NULL. Must be in the range 0-1.
+#' @param phiright The shape parameter of the right-side beta distribution.
+#'   Controls the precision (inverse variance) of the right-side responses. Overridden by `phid` if NULL. Must be positive. Plausible range: (0, Inf).
+#' @param kright The cutoff parameter for the right-side beta distribution.
+#'   Determines the probability of extreme values (close to 1) on the right side. Overridden by `kd` if NULL. Must be in the range 0-1.
+#' @param mud Deviation for `muright` on the logit scale relative to `muleft`.
+#'   Positive values shift the right-side center further from the left-side center. Plausible range: (-Inf, Inf).
+#' @param phid Deviation for `phiright` as a log-multiplier relative to `phileft`.
+#'   Positive values increase the precision of the right-side responses relative to the left side. Plausible range: (-Inf, Inf).
+#' @param kd Deviation for `kright` on the logit scale relative to `kleft`.
+#'   Positive values increase the probability of extreme values on the right side relative to the left side. Plausible range: (-Inf, Inf).
 #'
 #' @examples
 #' hist(rchoco(3000, mu=0.5, muleft=0.5, phileft=3, kleft=0.95), breaks=100)
