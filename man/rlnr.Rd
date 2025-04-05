@@ -22,29 +22,43 @@ lnr(
 posterior_predict_lnr(i, prep, ...)
 }
 \arguments{
-\item{n}{Number of simulated trials.}
+\item{n}{Number of simulated trials. Must be a positive integer.}
 
-\item{mu}{The log-space mean (ν) for the baseline accumulator (choice 0).}
+\item{mu}{The log-space mean (ν) for the baseline accumulator (choice 0).
+Determines the central tendency of the reaction time for choice 0.
+Plausible range: (-Inf, Inf).}
 
-\item{mud}{The additive deviation (in log-space) from mu to obtain the mean for accumulator 1 (choice 1).}
+\item{mud}{The additive deviation (in log-space) from \code{mu} to obtain the mean for accumulator 1 (choice 1).
+Positive values make choice 1 faster on average, while negative values make it slower.
+Plausible range: (-Inf, Inf).}
 
-\item{sigmazero}{The log-space standard deviation for the baseline accumulator (choice 0).}
+\item{sigmazero}{The log-space standard deviation for the baseline accumulator (choice 0).
+Controls the variability of reaction times for choice 0. Must be positive.
+Plausible range: (0, Inf).}
 
-\item{sigmad}{The log-deviation for the standard deviation so that the standard deviation for accumulator 1 is sigmazero * exp(sigmad).}
+\item{sigmad}{The log-deviation for the standard deviation so that the standard deviation for accumulator 1 is \code{sigmazero * exp(sigmad)}.
+Positive values increase variability for choice 1, while negative values decrease it.
+Plausible range: (-Inf, Inf).}
 
-\item{tau}{A non-decision time (shift), τ (must be >= 0).}
+\item{tau}{A non-decision time (shift), τ. Represents the time taken for processes unrelated to the decision (e.g., motor response).
+Must be non-negative. Plausible range: [0, Inf).}
 
-\item{link_mu}{Link function for the \code{mu} parameter in the custom family.}
+\item{link_mu}{Link function for the \code{mu} parameter in the custom family.
+Determines how \code{mu} is transformed in the model. Default: "identity".}
 
-\item{link_mud}{Link function for the \code{mud} parameter in the custom family.}
+\item{link_mud}{Link function for the \code{mud} parameter in the custom family.
+Determines how \code{mud} is transformed in the model. Default: "identity".}
 
-\item{link_sigmazero}{Link function for the \code{sigmazero} parameter in the custom family.}
+\item{link_sigmazero}{Link function for the \code{sigmazero} parameter in the custom family.
+Ensures \code{sigmazero} remains positive. Default: "softplus".}
 
-\item{link_sigmad}{Link function for the \code{sigmad} parameter in the custom family.}
+\item{link_sigmad}{Link function for the \code{sigmad} parameter in the custom family.
+Determines how \code{sigmad} is transformed in the model. Default: "identity".}
 
-\item{link_tau}{Link function for the \code{tau} parameter in the custom family.}
+\item{link_tau}{Link function for the \code{tau} parameter in the custom family.
+Ensures \code{tau} remains non-negative. Default: "softplus".}
 
-\item{i}{Index of the draw for posterior predictions.}
+\item{i}{Index of the draw for posterior predictions. Must be a positive integer.}
 
 \item{prep}{A \code{brms} preparation object containing the model and data.}
 

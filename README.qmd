@@ -71,7 +71,7 @@ The Log-Normal Race (LNR) model is useful for modeling reaction times and errors
 #| fig-height: 7
 #| code-fold: true
 
-# Simulate data using rlnr() with two parameter sets
+# Simulate data using rlnr()
 lnr_data <- rlnr(n = 5000, mu = 1, mud = 0.5, sigmazero = 1, sigmad = -0.5, tau = 0.2)
 
 # Create histograms for each choice
@@ -84,6 +84,8 @@ ggplot(lnr_data, aes(x = rt, fill = factor(choice))) +
 
 
 ## Usage with `brms`
+
+### Simulate Data
 
 ```{r}
 #| fig-width: 10
@@ -108,6 +110,7 @@ df |>
   scale_fill_manual(values = c("#009688", "#E91E63"))
 ```
 
+### Drift Diffusion Model (DDM)
 
 ```{r}
 #| eval: false
