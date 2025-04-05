@@ -10,6 +10,10 @@ own needs.** It’s not meant to be stable and robust at this stage. Use
 at your own risks.
 
 - If you have suggestions for improvement, please get in touch!
+- I’ve been seeking the best way to implement various sequential models
+  for a long time, initially trying and failing in R, then developing a
+  lot of hopes for a Julia solution - but that’s not there *yet*, so I’m
+  back at making some new attempts in R.
 - If you are interested in Sequential Sampling Models, see this amazing
   [Julia
   package](https://github.com/itsdfish/SequentialSamplingModels.jl)
