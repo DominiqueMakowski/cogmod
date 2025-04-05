@@ -3,8 +3,9 @@
 #' @title Choice-Confidence (CHOCO) Model
 #'
 #' @description
-#' Choice-Confidence (CHOCO) distribution to model bimodal analog/Likert scale data (with zeros and ones).
-#' The idea is to have two separate ordered beta distributions (see Kubinec, 2023) modeling the left and the right hand side of the scale.
+#' The Choice-Confidence (CHOCO) model is useful to model data from subjective scales, such as Likert-type or analog scales, in which the left and the right side correspond to different processes or higher order categorical responses (e.g., "disagree" vs. "agree", "true" vs. "false"). They can be used to jointly model choice (left or right) and confidence (the degree of left or right).
+#'
+#' To better represent potentially bimodal bounded data with zeros and ones, CHOCO models consist of two separate ordered beta distributions (see Kubinec, 2023) modeling the left and the right hand side of the scale.
 #'
 #' Regarding Ordered Beta distributions, see:
 #' - Stan code: https://github.com/saudiwin/ordbetareg/blob/master/beta_logit.stan
@@ -21,7 +22,7 @@
 #'
 #'
 #' @param n Number of random draws.
-#' @param mu Probability of choosing the right side (relative to the left side).
+#' @param mu Probability of choosing the right side (relative to the left side). Note that this argument should be better named `pright` to avoid confusion with the `mu` parameter of the beta distribution, but it has to be named `mu` as it is a requirement by Stan to have the "main" parameter named like so.
 #' @param muleft The center of the left side beta distribution.
 #' @param phileft The shape parameter of the left side beta distribution.
 #' @param kleft The cutoff parameter for the left side beta distribution.
