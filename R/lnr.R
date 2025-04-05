@@ -50,6 +50,55 @@ rlnr <- function(n, mu = 1, mud = 0, sigmazero = 1, sigmad = 0, tau = 0.2) {
   data.frame(rt = rt, choice = choice)
 }
 
+
+
+# dlnr: computes the log-density for one observation from the LNR model.
+#' @rdname rlnr
+#' @param y The observed reaction time (RT).
+#' @param dec The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.
+#' @param log Logical; if TRUE, returns the log-density. Default: TRUE.
+dlnr <- function(y, mu, mud, sigmazero, sigmad, tau, dec, log = TRUE) {
+  eps <- 1e-6
+  # Compute the adjusted reaction time for each draw
+  t_adj <- y - tau
+  # Precompute accumulator parameters (vectorized over draws)
+  nu0 <- mu
+  nu1 <- mu + mud
+  sigma0 <- sigmazero
+  sigma1 <- sigmazero * exp(sigmad)
+
+  # For each draw, compute the log-density and survival probability depending on dec.
+  log_pdf_win <- if (dec == 0) {
+    stats::dlnorm(t_adj, meanlog = nu0, sdlog = sigma0, log = TRUE)
+  } else if (dec == 1) {
+    stats::dlnorm(t_adj, meanlog = nu1, sdlog = sigma1, log = TRUE)
+  } else {
+    stop("dec must be 0 or 1")
+  }
+
+  log_cdf_loss <- if (dec == 0) {
+    stats::plnorm(t_adj, meanlog = nu1, sdlog = sigma1, lower.tail = TRUE, log.p = TRUE)
+  } else {
+    stats::plnorm(t_adj, meanlog = nu0, sdlog = sigma0, lower.tail = TRUE, log.p = TRUE)
+  }
+
+  # Compute log survival probability in a stable way
+  log_surv_loss <- .log1m_exp(log_cdf_loss)
+
+  # For draws with t_adj < eps, return -Inf
+  out <- ifelse(t_adj < eps, -Inf, log_pdf_win + log_surv_loss)
+
+  if (log) out else exp(out)
+}
+
+
+
+
+
+
+# Stanvars ----------------------------------------------------------------
+
+
 #' @rdname rlnr
 #' @export
 lnr_stanvars <- function() {
@@ -120,6 +169,9 @@ lnr <- function(link_mu = "identity", link_mud = "identity",
   )
 }
 
+# brms --------------------------------------------------------------------
+
+
 #' @rdname rlnr
 #' @inheritParams choco
 #' @export
@@ -145,44 +197,6 @@ posterior_predict_lnr <- function(i, prep, ...) {
 
 
 
-# dlnr: computes the log-density for one observation from the LNR model.
-#' @rdname rlnr
-#' @param y The observed reaction time (RT).
-#' @param dec The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.
-#' @param log Logical; if TRUE, returns the log-density. Default: TRUE.
-dlnr <- function(y, mu, mud, sigmazero, sigmad, tau, dec, log = TRUE) {
-  eps <- 1e-6
-  # Compute the adjusted reaction time for each draw
-  t_adj <- y - tau
-  # Precompute accumulator parameters (vectorized over draws)
-  nu0 <- mu
-  nu1 <- mu + mud
-  sigma0 <- sigmazero
-  sigma1 <- sigmazero * exp(sigmad)
-
-  # For each draw, compute the log-density and survival probability depending on dec.
-  log_pdf_win <- if (dec == 0) {
-    stats::dlnorm(t_adj, meanlog = nu0, sdlog = sigma0, log = TRUE)
-  } else if (dec == 1) {
-    stats::dlnorm(t_adj, meanlog = nu1, sdlog = sigma1, log = TRUE)
-  } else {
-    stop("dec must be 0 or 1")
-  }
-
-  log_cdf_loss <- if (dec == 0) {
-    stats::plnorm(t_adj, meanlog = nu1, sdlog = sigma1, lower.tail = TRUE, log.p = TRUE)
-  } else {
-    stats::plnorm(t_adj, meanlog = nu0, sdlog = sigma0, lower.tail = TRUE, log.p = TRUE)
-  }
-
-  # Compute log survival probability in a stable way
-  log_surv_loss <- .log1m_exp(log_cdf_loss)
-
-  # For draws with t_adj < eps, return -Inf
-  out <- ifelse(t_adj < eps, -Inf, log_pdf_win + log_surv_loss)
-
-  if (log) out else exp(out)
-}
 
 # log_lik_lnr: a function to be used in brms to compute the log likelihood for observation i.
 #' @rdname rlnr

@@ -8,7 +8,7 @@
 \alias{log_lik_bext}
 \title{Beta-Extreme (BEXT) Model}
 \usage{
-rbext(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5)
+rbext(n, mu = 0.5, phi = 3, pex = 0.5, bex = 0.5)
 
 bext_stanvars()
 
@@ -25,9 +25,9 @@ log_lik_bext(i, prep)
 
 \item{phi}{Precision parameter (positive).}
 
-\item{pex}{Total probability of extreme values (zeros and ones). Must be in the range 0-1.}
+\item{pex}{Likelihood of extreme values (zeros and ones). Must be in the range 0-1.}
 
-\item{bex}{Balance of extreme values (identity link, between 0 and 1). Represents the proportion of ones relative to zeros. Default: 0.5.}
+\item{bex}{Balance of extreme values. Represents the proportion of ones relative to zeros. Default: 0.5.}
 
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
@@ -44,7 +44,7 @@ with a Beta distribution on the interval 0-1 with additional point masses at 0 a
 
 The BeXt model corresponds to a reparametrized ordered beta model.
 Instead of defining the left and right cutpoints, the BeXt parametrization
-uses the total probability of extreme values (0 and 1) and their balance (i.e., the
+uses the likelihood of extreme values (0 and 1) and their balance (i.e., the
 relative proportion of zeros and ones).
 }
 \examples{

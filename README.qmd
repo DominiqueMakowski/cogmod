@@ -170,7 +170,7 @@ saveRDS(m_xbx, file = "man/figures/m_xbx.rds")
 
 The BeXt model corresponds to a reparametrized ordered beta model ([Kubinec, 2023](https://doi.org/10.1017/pan.2022.20)).
 Instead of defining the left and right cutpoints, the BeXt parametrization
-uses the total probability of extreme values (0 and 1) and their balance (i.e., the
+uses the likelihood of extreme values (0 and 1) and their balance (i.e., the
 relative proportion of zeros and ones).
 
 ```{r}
