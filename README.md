@@ -32,7 +32,7 @@ remotes::install_github("DominiqueMakowski/cogmod")
 ## CHOCO Model
 
 The Choice-Confidence (CHOCO) model is useful to model data from
-subjective scales, such as Likert-type or analog scales, in which the
+subjective ratings, such as Likert-type or analog scales, in which the
 left and the right side correspond to different processes or higher
 order categorical responses (e.g., “disagree” vs. “agree”, “true”
 vs. “false”). They can be used to jointly model choice (left or right)
@@ -46,8 +46,8 @@ library(ggplot2)
 library(cogmod)
 
 # Simulate data using rchoco() with two parameter sets
-df1 <- rchoco(n = 5000, mu = 0.5, muleft = 0.4, phileft = 3, kleft = 0.9)
-df2 <- rchoco(n = 5000, mu = 0.7, muleft = 0.6, phileft = 5, kleft = 0.95)
+df1 <- rchoco(n = 5000, mu = 0.5, muleft = 0.4, phileft = 3, pex = 0.1)
+df2 <- rchoco(n = 5000, mu = 0.7, muleft = 0.6, phileft = 5, pex = 0.05)
 
 # Combine data into a single data frame
 df <- data.frame(
@@ -86,7 +86,7 @@ the observed reaction time and choice.
 lnr_data <- rlnr(n = 5000, mu = 1, mud = 0.5, sigmazero = 1, sigmad = -0.5, tau = 0.2)
 
 # Create histograms for each choice
-ggplot(lnr_data, aes(x = rt, fill = factor(choice))) +
+ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
   geom_histogram(alpha = 0.8, position = "identity", bins = 50) +
   labs(title = "LNR Distribution", x = "Reaction Time", y = "Frequency", fill = "Choice") +
   theme_minimal() +
@@ -110,14 +110,13 @@ library(easystats)
 library(brms)
 library(cmdstanr)
 
-df <- data.frame(score = rchoco(n = 1000, mu = 0.6, muleft = 0.4, phileft = 3, kleft = 0.95, kd = -0.1))
+df <- data.frame(score = rchoco(n = 1000, mu = 0.6, muleft = 0.6, phileft = 3, pex = 0.03, bex = 0.6))
 
-p <- df |>
+df |>
   ggplot(aes(x = score, y = after_stat(density))) +
   geom_histogram(bins = 100, fill = "#2196F3") +
   labs(title = "Rating Distribution", x = "Score", y = "Density") +
   theme_minimal()
-p
 ```
 
 ![](man/figures/unnamed-chunk-4-1.png)
@@ -138,9 +137,11 @@ f <- bf(
 )
 
 m_zoib <- brm(f,
-  data = df, family = zero_one_inflated_beta(),
+  data = df, family = zero_one_inflated_beta(), init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
+
+m_zoib <- brms::add_criterion(m_zoib, "loo")  # For later model comparison
 
 saveRDS(m_zoib, file = "man/figures/m_zoib.rds")
 ```
@@ -163,20 +164,22 @@ f <- bf(
 )
 
 m_xbx <- brm(f,
-  data = df, family = xbeta(),
+  data = df, family = xbeta(), init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
+
+m_xbx <- brms::add_criterion(m_xbx, "loo")  # For later model comparison
 
 saveRDS(m_xbx, file = "man/figures/m_xbx.rds")
 ```
 
-#### BeXt Model
+#### BEXT Model
 
 The BeXt model corresponds to a reparametrized ordered beta model
 ([Kubinec, 2023](https://doi.org/10.1017/pan.2022.20)). Instead of
 defining the left and right cutpoints, the BeXt parametrization uses the
-total probability of extreme values (0 and 1) and their balance (i.e.,
-the relative proportion of zeros and ones).
+likelihood of extreme values (0 and 1) and their balance (i.e., the
+relative proportion of zeros and ones).
 
 ``` r
 f <- bf(
@@ -187,11 +190,36 @@ f <- bf(
 )
 
 m_bext <- brm(f,
-  data = df, family = bext(), stanvars = bext_stanvars(),
+  data = df, family = bext(), stanvars = bext_stanvars(), init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
+m_bext <- brms::add_criterion(m_bext, "loo")  # For later model comparison
+
 saveRDS(m_bext, file = "man/figures/m_bext.rds")
+```
+
+#### CHOCO Model
+
+``` r
+f <- bf(
+  score ~ 1,
+  muleft ~ 1,
+  mudelta ~ 1,
+  phileft ~ 1,
+  phidelta ~ 1,
+  pex ~ 1,
+  bex ~ 1
+)
+
+m_choco <- brm(f,
+  data = df, family = choco(), stanvars = choco_stanvars(), init = 0,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_choco <- brms::add_criterion(m_choco, "loo")  # For later model comparison
+
+saveRDS(m_choco, file = "man/figures/m_choco.rds")
 ```
 
 #### Model Comparison
@@ -200,18 +228,20 @@ saveRDS(m_bext, file = "man/figures/m_bext.rds")
 m_zoib <- readRDS("man/figures/m_zoib.rds")
 m_xbx <- readRDS("man/figures/m_xbx.rds")
 m_bext <- readRDS("man/figures/m_bext.rds")
+m_choco <- readRDS("man/figures/m_choco.rds")
 
-loo::loo_compare(loo::loo(m_zoib), loo::loo(m_xbx), loo::loo(m_bext)) |> 
+loo::loo_compare(m_zoib, m_xbx, m_bext, m_choco) |> 
   parameters(include_ENP = TRUE)
 ```
 
     # Fixed Effects
 
-    Name   |  LOOIC |  ENP |    ELPD | Difference | Difference_SE |     p
-    ---------------------------------------------------------------------
-    m_zoib | 281.09 | 3.87 | -140.54 |       0.00 |          0.00 |      
-    m_bext | 281.65 | 4.00 | -140.82 |      -0.28 |         40.38 | 0.994
-    m_xbx  | 307.04 | 2.81 | -153.52 |     -12.98 |          5.50 | 0.018
+    Name    | LOOIC |  ENP |   ELPD | Difference | Difference_SE |     p
+    --------------------------------------------------------------------
+    m_choco | 64.89 | 7.11 | -32.45 |       0.00 |          0.00 |      
+    m_zoib  | 74.12 | 3.87 | -37.06 |      -4.61 |          4.23 | 0.276
+    m_bext  | 74.20 | 3.92 | -37.10 |      -4.65 |          4.23 | 0.271
+    m_xbx   | 93.92 | 2.98 | -46.96 |     -14.51 |          5.10 | 0.004
 
 ``` r
 pred <- rbind(
@@ -223,54 +253,58 @@ pred <- rbind(
     data_modify(Model = "XBX"),
   estimate_prediction(m_bext, keep_iterations = 100) |>
     reshape_iterations() |>
-    data_modify(Model = "BEXT")
+    data_modify(Model = "BEXT"),
+  estimate_prediction(m_choco, keep_iterations = 100) |>
+    reshape_iterations() |>
+    data_modify(Model = "CHOCO")
 )
 
-p + geom_histogram(
-  data = pred, aes(x = iter_value, group = as.factor(iter_group)),
-  bins = 100, alpha = 0.03, position = "identity", fill = "#FF5722"
-) +
+insight::get_data(m_zoib) |>
+  ggplot(aes(x = score, y = after_stat(density))) +
+  geom_histogram(bins = 100, fill = "#2196F3") +
+  labs(title = "Rating Distribution", x = "Score", y = "Density") +
+  theme_minimal() + 
+  geom_histogram(
+    data = pred, aes(x = iter_value, group = as.factor(iter_group)),
+    bins = 100, alpha = 0.03, position = "identity", fill = "#FF5722"
+  ) +
   facet_wrap(~Model)
 ```
 
-![](man/figures/unnamed-chunk-8-1.png)
+![](man/figures/unnamed-chunk-9-1.png)
 
 ### Decision Making (Choice + RT)
 
 #### Simulate Data
 
 ``` r
-options(mc.cores = parallel::detectCores() - 2)
-
-library(brms)
-library(cmdstanr)
-
 df <- brms::rwiener(n = 5000, delta = 0.5, alpha = 1, beta = .3, tau = .25) |>
-  datawizard::data_rename(replacement = c("rt", "choice")) |>
+  datawizard::data_rename(replacement = c("rt", "response")) |>
   datawizard::data_filter(rt < 2)
 
 df |>
-  ggplot(aes(x = rt, fill = factor(choice))) +
+  ggplot(aes(x = rt, fill = factor(response))) +
   geom_histogram(alpha = 0.8, position = "identity", bins = 100) +
   labs(title = "RT Distribution", x = "Reaction Time", y = "Frequency", fill = "Choice") +
   theme_minimal() +
   scale_fill_manual(values = c("#009688", "#E91E63"))
 ```
 
-![](man/figures/unnamed-chunk-9-1.png)
+![](man/figures/unnamed-chunk-10-1.png)
 
 #### Drift Diffusion Model (DDM)
 
 ``` r
 f <- bf(
-  rt | dec(choice) ~ 1,
+  rt | dec(response) ~ 1,
   bs ~ 1,
   bias ~ 1,
   ndt ~ 1
 )
 
 m_ddm <- brm(f,
-  data = df, family = wiener(link = "identity", link_bs = "log", link_bias = "logit", link_ndt = "log"),
+  data = df, family = wiener(), 
+  init = \() list(Intercept = 0, Intercept_bs = 0, Intercept_bias = 0, Intercept_ndt = log(0.2)),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -299,9 +333,9 @@ parameters::parameters(m_ddm, component = "all")
 ``` r
 f <- bf(
   rt | dec(choice) ~ 1,
-  mud ~ 1,
+  mudelta ~ 1,
   sigmazero ~ 1,
-  sigmad ~ 1,
+  sigmadelta ~ 1,
   tau ~ 1
 )
 
@@ -309,9 +343,9 @@ m_lnr <- brm(f,
   data = df,
   family = lnr(
     link_mu = "identity",
-    link_mud = "identity",
+    link_mudelta = "identity",
     link_sigmazero = "softplus",
-    link_sigmad = "identity",
+    link_sigmadelta = "identity",
     link_tau = "softplus"
   ),
   stanvars = lnr_stanvars(),

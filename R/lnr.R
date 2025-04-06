@@ -43,11 +43,11 @@ rlnr <- function(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, tau = 0.
   # Generate log-normal draws for both accumulators across all trials
   draws <- matrix(stats::rlnorm(2 * n, meanlog = rep(nu, each = n), sdlog = rep(sigma, each = n)), nrow = n, ncol = 2) + tau
 
-  # Determine choices and reaction times
-  choice <- apply(draws, 1, which.min) - 1  # 0-based index
-  rt <- draws[cbind(seq_len(n), choice + 1)]
+  # Determine responses and reaction times
+  response <- apply(draws, 1, which.min) - 1  # 0-based index
+  rt <- draws[cbind(seq_len(n), response + 1)]
 
-  data.frame(rt = rt, choice = choice)
+  data.frame(rt = rt, response = response)
 }
 
 
@@ -55,42 +55,51 @@ rlnr <- function(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, tau = 0.
 # dlnr: computes the log-density for one observation from the LNR model.
 #' @rdname rlnr
 #' @param y The observed reaction time (RT).
-#' @param dec The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.
-#' @param log Logical; if TRUE, returns the log-density. Default: TRUE.
-dlnr <- function(y, mu, mudelta, sigmazero, sigmadelta, tau, dec, log = TRUE) {
+#' @param response The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.
+#' @param log Logical; if TRUE, returns the log-density. Default: FALSE.
+dlnr <- function(y, mu, mudelta, sigmazero, sigmadelta, tau, response, log = FALSE) {
   eps <- 1e-6
+  if (!response %in% c(0, 1)) {
+    stop("response must be 0 or 1")
+  }
   # Compute the adjusted reaction time for each draw
   t_adj <- y - tau
-  # Precompute accumulator parameters (vectorized over draws)
+  if (t_adj < eps) {
+    return(if (log) -Inf else 0)
+  }
+
+  # Precompute accumulator parameters
   nu0 <- mu
   nu1 <- mu + mudelta
   sigma0 <- sigmazero
   sigma1 <- sigmazero * exp(sigmadelta)
 
-  # For each draw, compute the log-density and survival probability depending on dec.
-  log_pdf_win <- if (dec == 0) {
+  # Compute log-density for the winning accumulator
+  log_pdf_win <- if (response == 0) {
     stats::dlnorm(t_adj, meanlog = nu0, sdlog = sigma0, log = TRUE)
-  } else if (dec == 1) {
-    stats::dlnorm(t_adj, meanlog = nu1, sdlog = sigma1, log = TRUE)
   } else {
-    stop("dec must be 0 or 1")
+    stats::dlnorm(t_adj, meanlog = nu1, sdlog = sigma1, log = TRUE)
   }
 
-  log_cdf_loss <- if (dec == 0) {
+  # Compute log-survival probability for the losing accumulator
+  log_cdf_loss <- if (response == 0) {
     stats::plnorm(t_adj, meanlog = nu1, sdlog = sigma1, lower.tail = TRUE, log.p = TRUE)
   } else {
     stats::plnorm(t_adj, meanlog = nu0, sdlog = sigma0, lower.tail = TRUE, log.p = TRUE)
   }
 
-  # Compute log survival probability in a stable way
+  # Use .log1m_exp for numerically stable computation
   log_surv_loss <- .log1m_exp(log_cdf_loss)
 
-  # For draws with t_adj < eps, return -Inf
-  out <- ifelse(t_adj < eps, -Inf, log_pdf_win + log_surv_loss)
+  # Combine log-density and log-survival probability
+  log_density <- log_pdf_win + log_surv_loss
 
-  if (log) out else exp(out)
+  if (log) {
+    return(log_density)
+  } else {
+    return(exp(log_density))
+  }
 }
-
 
 
 
@@ -103,47 +112,47 @@ dlnr <- function(y, mu, mudelta, sigmazero, sigmadelta, tau, dec, log = TRUE) {
 #' @export
 lnr_stanvars <- function() {
   brms::stanvar(scode = "
-// Log-likelihood for a single observation from the reparameterized Log-Normal Race model.
-// y: observed reaction time.
-// dec: decision indicator (0 or 1).
-// mu: baseline accumulator mean (in log-space) for choice 0.
-// mudelta: additive deviation for the mean of choice 1.
-// sigmazero: baseline accumulator standard deviation (in log-space) for choice 0.
-// sigmadelta: log-deviation for the standard deviation of choice 1.
-// tau: non-decision time (shift).
-real lnr_lpdf(real y, real mu, real mudelta, real sigmazero, real sigmadelta, real tau, int dec) {
-  real eps = 1e-6;  // A small constant to prevent underflow
-  real t_adj = y - tau;
+  // Log-likelihood for a single observation from the reparameterized Log-Normal Race model.
+  // y: observed reaction time.
+  // dec: decision indicator (0 or 1).
+  // mu: baseline accumulator mean (in log-space) for choice 0.
+  // mudelta: additive deviation for the mean of choice 1.
+  // sigmazero: baseline accumulator standard deviation (in log-space) for choice 0.
+  // sigmadelta: log-deviation for the standard deviation of choice 1.
+  // tau: non-decision time (shift).
+  real lnr_lpdf(real y, real mu, real mudelta, real sigmazero, real sigmadelta, real tau, int dec) {
+    real eps = 1e-6;  // A small constant to prevent underflow
+    real t_adj = y - tau;
 
-  // If t_adj is too small, return a very low log probability
-  if (t_adj < eps)
-    return negative_infinity();
+    // If t_adj is too small, return a very low log probability
+    if (t_adj < eps)
+      return negative_infinity();
 
-  // Convert 0-based decision to 1-based indexing for Stan.
-  int dec_stan = dec + 1;
+    // Convert 0-based decision to 1-based indexing for Stan.
+    int dec_stan = dec + 1;
 
-  // Construct means and standard deviations for the two accumulators.
-  vector[2] nu;
-  vector[2] sigma;
-  nu[1] = mu;
-  nu[2] = mu + mudelta;
-  sigma[1] = fmax(sigmazero, eps);
-  sigma[2] = fmax(sigmazero * exp(sigmadelta), eps);
+    // Construct means and standard deviations for the two accumulators.
+    vector[2] nu;
+    vector[2] sigma;
+    nu[1] = mu;
+    nu[2] = mu + mudelta;
+    sigma[1] = fmax(sigmazero, eps);
+    sigma[2] = fmax(sigmazero * exp(sigmadelta), eps);
 
-  real lp = 0;
-  // Sum contributions across both accumulators.
-  for (i in 1:2) {
-    if (i == dec_stan)
-      lp += lognormal_lpdf(t_adj | nu[i], sigma[i]);
-    else {
-      // Use lognormal_lcdf, then compute the log survival probability safely.
-      real log_cdf = lognormal_lcdf(t_adj | nu[i], sigma[i]);
-      lp += log1m_exp(log_cdf);
+    real lp = 0;
+    // Sum contributions across both accumulators.
+    for (i in 1:2) {
+      if (i == dec_stan)
+        lp += lognormal_lpdf(t_adj | nu[i], sigma[i]);
+      else {
+        // Use lognormal_lcdf, then compute the log survival probability safely.
+        real log_cdf = lognormal_lcdf(t_adj | nu[i], sigma[i]);
+        lp += log1m_exp(log_cdf);
+      }
     }
+    return lp;
   }
-  return lp;
-}
-", block = "functions")
+  ", block = "functions")
 }
 
 #' @rdname rlnr
@@ -207,15 +216,15 @@ log_lik_lnr <- function(i, prep) {
   # Extract the posterior draws for each parameter for observation i.
   # These will be vectors, one entry per draw.
   mu        <- brms::get_dpar(prep, "mu", i = i)
-  mudelta       <- brms::get_dpar(prep, "mudelta", i = i)
+  mudelta   <- brms::get_dpar(prep, "mudelta", i = i)
   sigmazero <- brms::get_dpar(prep, "sigmazero", i = i)
-  sigmadelta    <- brms::get_dpar(prep, "sigmadelta", i = i)
+  sigmadelta <- brms::get_dpar(prep, "sigmadelta", i = i)
   tau       <- brms::get_dpar(prep, "tau", i = i)
 
   # Extract the decision indicator (should be a scalar, 0 or 1)
-  dec <- prep$data[["dec"]][i]
+  response <- prep$data[["dec"]][i]
 
   # Compute and return a vector of log likelihoods, one per posterior draw.
   dlnr(y = y, mu = mu, mudelta = mudelta, sigmazero = sigmazero,
-       sigmadelta = sigmadelta, tau = tau, dec = dec, log = TRUE)
+       sigmadelta = sigmadelta, tau = tau, response = response, log = TRUE)
 }
