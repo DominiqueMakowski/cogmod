@@ -208,17 +208,24 @@ real choco_lpdf(real y, real mu, real muleft, real mudelta, real phileft, real p
   real logit_muright = -logit_muleft + mudelta;
   real muright = exp(logit_muright) / (1 + exp(logit_muright));
 
-  // Validate muright
-  if (muright <= eps || muright >= 1 - eps)
-    return negative_infinity();
+  // Clamp muright to avoid numerical issues
+  muright = fmax(fmin(muright, 1 - eps), eps);
 
   // Compute phiright
   real phiright = phileft * exp(phidelta);
+
+  // Clamp phiright to avoid numerical issues
+  phiright = fmax(phiright, eps);
 
   // Compute probability masses
   real p0 = pex * (1 - bex);  // Mass at 0
   real p1 = pex * bex;        // Mass at 1
   real p_cont = 1 - pex;      // Mass for continuous outcomes
+
+  // Clamp probabilities to avoid invalid values
+  p0 = fmax(fmin(p0, 1 - eps), eps);
+  p1 = fmax(fmin(p1, 1 - eps), eps);
+  p_cont = fmax(fmin(p_cont, 1 - eps), eps);
 
   // Precompute log values for efficiency
   real log_p0 = log(p0);
@@ -228,7 +235,7 @@ real choco_lpdf(real y, real mu, real muleft, real mudelta, real phileft, real p
   real log1m_mu = log1m(mu);
 
   // Check valid parameterization
-  if (p0 < 0 || p0 > 1 || p1 < 0 || p1 > 1 || abs(p0 + p_cont + p1 - 1) > tol)
+  if (abs(p0 + p_cont + p1 - 1) > tol)
     return negative_infinity();  // Invalid parameterization
 
   if (y < eps) {
@@ -241,12 +248,12 @@ real choco_lpdf(real y, real mu, real muleft, real mudelta, real phileft, real p
     // Log-density for left-hand side Beta distribution
     return log_p_cont + log1m_mu +
            beta_lpdf(y / threshold | muleft * phileft, (1 - muleft) * phileft) -
-           log(threshold);
+           log(fmax(threshold, eps));
   } else {
     // Log-density for right-hand side Beta distribution
     return log_p_cont + log_mu +
            beta_lpdf((y - threshold) / (1 - threshold) | muright * phiright, (1 - muright) * phiright) -
-           log(1 - threshold);
+           log(fmax(1 - threshold, eps));
   }
 }
 ", block = "functions")
