@@ -369,6 +369,11 @@ parameters::parameters(m_lnr, component = "all")
 #   as.data.frame()
 #
 # brms::posterior_predict(m_ddm, ndraws=5, newdata = insight::get_data(m_ddm)[1:4,], negative_rt = TRUE)
+
+# d <- data.frame(y = rlnorm(100, 7, 2))
+# brms::make_stancode(y ~ 1,
+#               family = brms::shifted_lognormal(),
+#               data = d)
 ```
 
 #### Model Comparison

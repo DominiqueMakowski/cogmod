@@ -266,10 +266,10 @@ test_that("lnr recovery works with brms", {
     data = df,
     family = lnr(),
     stanvars = lnr_stanvars(),
-    init = 1,
+    init = 0,
     algorithm = "sampling",  # Use VI for speed
     iter = 500,
-    refresh = 0,
+    # refresh = 0,
     backend = "cmdstanr"
   )
 

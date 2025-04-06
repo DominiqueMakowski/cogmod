@@ -48,6 +48,10 @@ lnr_stanvars <- function() {
   ", block = "functions")
 }
 
+
+
+
+
 #' @rdname rlnr
 #' @param link_mu Link function for the `mu` parameter in the custom family.
 #'   Determines how `mu` is transformed in the model. Default: "identity".
@@ -80,11 +84,10 @@ lnr <- function(link_mu = "identity", link_mudelta = "identity",
 #' @export
 posterior_predict_lnr <- function(i, prep, ...) {
   # Extract distributional parameters for draw i
-  mu        <- brms::get_dpar(prep, "mu", i = i)
-  mudelta       <- brms::get_dpar(prep, "mudelta", i = i)
+  mu <- brms::get_dpar(prep, "mu", i = i)
+  mudelta <- brms::get_dpar(prep, "mudelta", i = i)
   sigmazero <- brms::get_dpar(prep, "sigmazero", i = i)
-  sigmadelta    <- brms::get_dpar(prep, "sigmadelta", i = i)
-  tau       <- brms::get_dpar(prep, "tau", i = i)
+  sigmadelta <- brms::get_dpar(prep, "sigmadelta", i = i)
 
   # Number of draws (here, each draw produces one simulated trial)
   n_draws <- length(tau)
@@ -100,8 +103,6 @@ posterior_predict_lnr <- function(i, prep, ...) {
 
 
 
-
-# log_lik_lnr: a function to be used in brms to compute the log likelihood for observation i.
 #' @rdname rlnr
 log_lik_lnr <- function(i, prep) {
   # Extract the i-th observed reaction time
@@ -122,13 +123,37 @@ log_lik_lnr <- function(i, prep) {
   # Extract the decision indicator (should be a scalar, 0 or 1)
   response <- prep$data[["dec"]][i]
   
+  # Initialize result vector
+  ll <- rep(NA_real_, length(mu))
+  
   # Validate response
   if (!response %in% c(0, 1)) {
     warning("Response must be 0 or 1. Got: ", response)
     return(rep(-Inf, length(mu)))
   }
   
-  # Compute log likelihoods
-  dlnr(y = y, mu = mu, mudelta = mudelta, sigmazero = sigmazero,
-       sigmadelta = sigmadelta, tau = tau, response = response, log = TRUE)
+  # Basic parameter validation
+  valid_idx <- which(sigmazero > 0 & tau >= 0 & y > tau)
+  
+  if (length(valid_idx) == 0) {
+    return(rep(-Inf, length(mu)))
+  }
+  
+  # For valid parameter sets, compute log-likelihood
+  if (length(valid_idx) < length(mu)) {
+    # Some invalid parameter sets exist
+    ll[-valid_idx] <- -Inf
+  }
+  
+  # Compute log likelihoods for valid parameter sets
+  ll[valid_idx] <- dlnr(y = y, 
+                      mu = mu[valid_idx], 
+                      mudelta = mudelta[valid_idx], 
+                      sigmazero = sigmazero[valid_idx], 
+                      sigmadelta = sigmadelta[valid_idx], 
+                      tau = tau[valid_idx], 
+                      response = response, 
+                      log = TRUE)
+  
+  ll
 }
