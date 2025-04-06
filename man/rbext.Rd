@@ -2,13 +2,16 @@
 % Please edit documentation in R/bext.R
 \name{rbext}
 \alias{rbext}
+\alias{dbext}
 \alias{bext_stanvars}
 \alias{bext}
 \alias{posterior_predict_bext}
 \alias{log_lik_bext}
 \title{Beta-Extreme (BEXT) Model}
 \usage{
-rbext(n, mu = 0.5, phi = 3, pex = 0.5, bex = 0.5)
+rbext(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5)
+
+dbext(x, mu = 0.5, phi = 1, pex = 0.1, bex = 0.5, log = FALSE)
 
 bext_stanvars()
 
@@ -29,6 +32,10 @@ log_lik_bext(i, prep)
 
 \item{bex}{Balance of extreme values. Represents the proportion of ones relative to zeros. Default: 0.5.}
 
+\item{x}{A vector of values for which to compute the density.}
+
+\item{log}{Logical; if TRUE, returns the log-density.}
+
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
 \item{...}{Additional arguments.}
@@ -46,10 +53,14 @@ The BeXt model corresponds to a reparametrized ordered beta model.
 Instead of defining the left and right cutpoints, the BeXt parametrization
 uses the likelihood of extreme values (0 and 1) and their balance (i.e., the
 relative proportion of zeros and ones).
+
+It differs from the Zero-One-Inflated Beta (ZOIB) model in that the ZOIB model has \code{zoi}
+and \code{coi} parameters, directly controlling the likelihood of extreme values. Instead,
+BeXt uses \code{pex} and \code{bex} to define "cutpoints" after which extreme values become likely.
 }
 \examples{
 # Simulate data with different parameterizations
-x <- rbext(10000, mu = 0.5, phi = 3, pex = 0.5, bex = 0.5)
+x <- rbext(10000, mu = 0.5, phi = 3, pex = 0.05, bex = 0.5)
 hist(x, breaks = 50, main = "Simulated Outcomes", xlab = "y")
 
 }

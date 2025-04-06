@@ -2,28 +2,28 @@
 % Please edit documentation in R/lnr.R
 \name{rlnr}
 \alias{rlnr}
+\alias{dlnr}
 \alias{lnr_stanvars}
 \alias{lnr}
 \alias{posterior_predict_lnr}
-\alias{dlnr}
 \alias{log_lik_lnr}
 \title{Log-Normal Race (LNR) Model}
 \usage{
-rlnr(n, mu = 1, mud = 0, sigmazero = 1, sigmad = 0, tau = 0.2)
+rlnr(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, tau = 0.2)
+
+dlnr(y, mu, mudelta, sigmazero, sigmadelta, tau, dec, log = TRUE)
 
 lnr_stanvars()
 
 lnr(
   link_mu = "identity",
-  link_mud = "identity",
+  link_mudelta = "identity",
   link_sigmazero = "softplus",
-  link_sigmad = "identity",
+  link_sigmadelta = "identity",
   link_tau = "softplus"
 )
 
 posterior_predict_lnr(i, prep, ...)
-
-dlnr(y, mu, mud, sigmazero, sigmad, tau, dec, log = TRUE)
 
 log_lik_lnr(i, prep)
 }
@@ -34,7 +34,7 @@ log_lik_lnr(i, prep)
 Determines the central tendency of the reaction time for choice 0.
 Plausible range: (-Inf, Inf).}
 
-\item{mud}{The additive deviation (in log-space) from \code{mu} to obtain the mean for accumulator 1 (choice 1).
+\item{mudelta}{The additive deviation (in log-space) from \code{mu} to obtain the mean for accumulator 1 (choice 1).
 Positive values make choice 1 faster on average, while negative values make it slower.
 Plausible range: (-Inf, Inf).}
 
@@ -42,24 +42,30 @@ Plausible range: (-Inf, Inf).}
 Controls the variability of reaction times for choice 0. Must be positive.
 Plausible range: (0, Inf).}
 
-\item{sigmad}{The log-deviation for the standard deviation so that the standard deviation for accumulator 1 is \code{sigmazero * exp(sigmad)}.
+\item{sigmadelta}{The log-deviation for the standard deviation so that the standard deviation for accumulator 1 is \code{sigmazero * exp(sigmadelta)}.
 Positive values increase variability for choice 1, while negative values decrease it.
 Plausible range: (-Inf, Inf).}
 
 \item{tau}{A non-decision time (shift), τ. Represents the time taken for processes unrelated to the decision (e.g., motor response).
 Must be non-negative. Plausible range: [0, Inf).}
 
+\item{y}{The observed reaction time (RT).}
+
+\item{dec}{The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.}
+
+\item{log}{Logical; if TRUE, returns the log-density. Default: TRUE.}
+
 \item{link_mu}{Link function for the \code{mu} parameter in the custom family.
 Determines how \code{mu} is transformed in the model. Default: "identity".}
 
-\item{link_mud}{Link function for the \code{mud} parameter in the custom family.
-Determines how \code{mud} is transformed in the model. Default: "identity".}
+\item{link_mudelta}{Link function for the \code{mudelta} parameter in the custom family.
+Determines how \code{mudelta} is transformed in the model. Default: "identity".}
 
 \item{link_sigmazero}{Link function for the \code{sigmazero} parameter in the custom family.
 Ensures \code{sigmazero} remains positive. Default: "softplus".}
 
-\item{link_sigmad}{Link function for the \code{sigmad} parameter in the custom family.
-Determines how \code{sigmad} is transformed in the model. Default: "identity".}
+\item{link_sigmadelta}{Link function for the \code{sigmadelta} parameter in the custom family.
+Determines how \code{sigmadelta} is transformed in the model. Default: "identity".}
 
 \item{link_tau}{Link function for the \code{tau} parameter in the custom family.
 Ensures \code{tau} remains non-negative. Default: "softplus".}
@@ -67,12 +73,6 @@ Ensures \code{tau} remains non-negative. Default: "softplus".}
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
 \item{...}{Additional arguments.}
-
-\item{y}{The observed reaction time (RT).}
-
-\item{dec}{The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.}
-
-\item{log}{Logical; if TRUE, returns the log-density. Default: TRUE.}
 }
 \description{
 The Log-Normal Race (LNR) model is useful for modeling reaction times and errors in decision-making tasks.
@@ -91,7 +91,7 @@ Functions:
 }
 \examples{
 # Simulate data
-data <- rlnr(1000, mu = 1, mud = 0.5, sigmazero = 1, sigmad = -0.5, tau = 0.2)
+data <- rlnr(1000, mu = 1, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, tau = 0.2)
 hist(data$rt, breaks = 50, main = "Reaction Times", xlab = "RT")
 
 }

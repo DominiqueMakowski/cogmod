@@ -17,13 +17,13 @@
 #' @param mu The log-space mean (ν) for the baseline accumulator (choice 0).
 #'   Determines the central tendency of the reaction time for choice 0.
 #'   Plausible range: (-Inf, Inf).
-#' @param mud The additive deviation (in log-space) from `mu` to obtain the mean for accumulator 1 (choice 1).
+#' @param mudelta The additive deviation (in log-space) from `mu` to obtain the mean for accumulator 1 (choice 1).
 #'   Positive values make choice 1 faster on average, while negative values make it slower.
 #'   Plausible range: (-Inf, Inf).
 #' @param sigmazero The log-space standard deviation for the baseline accumulator (choice 0).
 #'   Controls the variability of reaction times for choice 0. Must be positive.
 #'   Plausible range: (0, Inf).
-#' @param sigmad The log-deviation for the standard deviation so that the standard deviation for accumulator 1 is `sigmazero * exp(sigmad)`.
+#' @param sigmadelta The log-deviation for the standard deviation so that the standard deviation for accumulator 1 is `sigmazero * exp(sigmadelta)`.
 #'   Positive values increase variability for choice 1, while negative values decrease it.
 #'   Plausible range: (-Inf, Inf).
 #' @param tau A non-decision time (shift), τ. Represents the time taken for processes unrelated to the decision (e.g., motor response).
@@ -31,14 +31,14 @@
 #'
 #' @examples
 #' # Simulate data
-#' data <- rlnr(1000, mu = 1, mud = 0.5, sigmazero = 1, sigmad = -0.5, tau = 0.2)
+#' data <- rlnr(1000, mu = 1, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, tau = 0.2)
 #' hist(data$rt, breaks = 50, main = "Reaction Times", xlab = "RT")
 #'
 #' @export
-rlnr <- function(n, mu = 1, mud = 0, sigmazero = 1, sigmad = 0, tau = 0.2) {
+rlnr <- function(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, tau = 0.2) {
   # Compute the means and standard deviations for both accumulators
-  nu <- c(mu, mu + mud)
-  sigma <- c(sigmazero, sigmazero * exp(sigmad))
+  nu <- c(mu, mu + mudelta)
+  sigma <- c(sigmazero, sigmazero * exp(sigmadelta))
 
   # Generate log-normal draws for both accumulators across all trials
   draws <- matrix(stats::rlnorm(2 * n, meanlog = rep(nu, each = n), sdlog = rep(sigma, each = n)), nrow = n, ncol = 2) + tau
@@ -57,15 +57,15 @@ rlnr <- function(n, mu = 1, mud = 0, sigmazero = 1, sigmad = 0, tau = 0.2) {
 #' @param y The observed reaction time (RT).
 #' @param dec The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.
 #' @param log Logical; if TRUE, returns the log-density. Default: TRUE.
-dlnr <- function(y, mu, mud, sigmazero, sigmad, tau, dec, log = TRUE) {
+dlnr <- function(y, mu, mudelta, sigmazero, sigmadelta, tau, dec, log = TRUE) {
   eps <- 1e-6
   # Compute the adjusted reaction time for each draw
   t_adj <- y - tau
   # Precompute accumulator parameters (vectorized over draws)
   nu0 <- mu
-  nu1 <- mu + mud
+  nu1 <- mu + mudelta
   sigma0 <- sigmazero
-  sigma1 <- sigmazero * exp(sigmad)
+  sigma1 <- sigmazero * exp(sigmadelta)
 
   # For each draw, compute the log-density and survival probability depending on dec.
   log_pdf_win <- if (dec == 0) {
@@ -107,11 +107,11 @@ lnr_stanvars <- function() {
 // y: observed reaction time.
 // dec: decision indicator (0 or 1).
 // mu: baseline accumulator mean (in log-space) for choice 0.
-// mud: additive deviation for the mean of choice 1.
+// mudelta: additive deviation for the mean of choice 1.
 // sigmazero: baseline accumulator standard deviation (in log-space) for choice 0.
-// sigmad: log-deviation for the standard deviation of choice 1.
+// sigmadelta: log-deviation for the standard deviation of choice 1.
 // tau: non-decision time (shift).
-real lnr_lpdf(real y, real mu, real mud, real sigmazero, real sigmad, real tau, int dec) {
+real lnr_lpdf(real y, real mu, real mudelta, real sigmazero, real sigmadelta, real tau, int dec) {
   real eps = 1e-6;  // A small constant to prevent underflow
   real t_adj = y - tau;
 
@@ -126,9 +126,9 @@ real lnr_lpdf(real y, real mu, real mud, real sigmazero, real sigmad, real tau, 
   vector[2] nu;
   vector[2] sigma;
   nu[1] = mu;
-  nu[2] = mu + mud;
+  nu[2] = mu + mudelta;
   sigma[1] = fmax(sigmazero, eps);
-  sigma[2] = fmax(sigmazero * exp(sigmad), eps);
+  sigma[2] = fmax(sigmazero * exp(sigmadelta), eps);
 
   real lp = 0;
   // Sum contributions across both accumulators.
@@ -149,22 +149,22 @@ real lnr_lpdf(real y, real mu, real mud, real sigmazero, real sigmad, real tau, 
 #' @rdname rlnr
 #' @param link_mu Link function for the `mu` parameter in the custom family.
 #'   Determines how `mu` is transformed in the model. Default: "identity".
-#' @param link_mud Link function for the `mud` parameter in the custom family.
-#'   Determines how `mud` is transformed in the model. Default: "identity".
+#' @param link_mudelta Link function for the `mudelta` parameter in the custom family.
+#'   Determines how `mudelta` is transformed in the model. Default: "identity".
 #' @param link_sigmazero Link function for the `sigmazero` parameter in the custom family.
 #'   Ensures `sigmazero` remains positive. Default: "softplus".
-#' @param link_sigmad Link function for the `sigmad` parameter in the custom family.
-#'   Determines how `sigmad` is transformed in the model. Default: "identity".
+#' @param link_sigmadelta Link function for the `sigmadelta` parameter in the custom family.
+#'   Determines how `sigmadelta` is transformed in the model. Default: "identity".
 #' @param link_tau Link function for the `tau` parameter in the custom family.
 #'   Ensures `tau` remains non-negative. Default: "softplus".
 #' @export
-lnr <- function(link_mu = "identity", link_mud = "identity",
-                link_sigmazero = "softplus", link_sigmad = "identity",
+lnr <- function(link_mu = "identity", link_mudelta = "identity",
+                link_sigmazero = "softplus", link_sigmadelta = "identity",
                 link_tau = "softplus") {
   brms::custom_family(
     name = "lnr",
-    dpars = c("mu", "mud", "sigmazero", "sigmad", "tau"),  # Distributional parameters
-    links = c(link_mu, link_mud, link_sigmazero, link_sigmad, link_tau),  # Link functions
+    dpars = c("mu", "mudelta", "sigmazero", "sigmadelta", "tau"),  # Distributional parameters
+    links = c(link_mu, link_mudelta, link_sigmazero, link_sigmadelta, link_tau),  # Link functions
     vars = "dec[n]"  # Additional variable for decision
   )
 }
@@ -178,17 +178,17 @@ lnr <- function(link_mu = "identity", link_mud = "identity",
 posterior_predict_lnr <- function(i, prep, ...) {
   # Extract distributional parameters for draw i
   mu        <- brms::get_dpar(prep, "mu", i = i)
-  mud       <- brms::get_dpar(prep, "mud", i = i)
+  mudelta       <- brms::get_dpar(prep, "mudelta", i = i)
   sigmazero <- brms::get_dpar(prep, "sigmazero", i = i)
-  sigmad    <- brms::get_dpar(prep, "sigmad", i = i)
+  sigmadelta    <- brms::get_dpar(prep, "sigmadelta", i = i)
   tau       <- brms::get_dpar(prep, "tau", i = i)
 
   # Number of draws (here, each draw produces one simulated trial)
   n_draws <- length(tau)
 
   # Generate all predictions at once using the vectorized simulation function rlnr.
-  sim_data <- rlnr(n_draws, mu = mu, mud = mud, sigmazero = sigmazero,
-                   sigmad = sigmad, tau = tau)
+  sim_data <- rlnr(n_draws, mu = mu, mudelta = mudelta, sigmazero = sigmazero,
+                   sigmadelta = sigmadelta, tau = tau)
 
   # Convert to matrix
   as.matrix(sim_data)
@@ -207,15 +207,15 @@ log_lik_lnr <- function(i, prep) {
   # Extract the posterior draws for each parameter for observation i.
   # These will be vectors, one entry per draw.
   mu        <- brms::get_dpar(prep, "mu", i = i)
-  mud       <- brms::get_dpar(prep, "mud", i = i)
+  mudelta       <- brms::get_dpar(prep, "mudelta", i = i)
   sigmazero <- brms::get_dpar(prep, "sigmazero", i = i)
-  sigmad    <- brms::get_dpar(prep, "sigmad", i = i)
+  sigmadelta    <- brms::get_dpar(prep, "sigmadelta", i = i)
   tau       <- brms::get_dpar(prep, "tau", i = i)
 
   # Extract the decision indicator (should be a scalar, 0 or 1)
   dec <- prep$data[["dec"]][i]
 
   # Compute and return a vector of log likelihoods, one per posterior draw.
-  dlnr(y = y, mu = mu, mud = mud, sigmazero = sigmazero,
-       sigmad = sigmad, tau = tau, dec = dec, log = TRUE)
+  dlnr(y = y, mu = mu, mudelta = mudelta, sigmazero = sigmazero,
+       sigmadelta = sigmadelta, tau = tau, dec = dec, log = TRUE)
 }

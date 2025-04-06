@@ -2,147 +2,111 @@
 % Please edit documentation in R/choco.R
 \name{rchoco}
 \alias{rchoco}
+\alias{dchoco}
 \alias{choco_stanvars}
 \alias{choco}
-\alias{choco7}
-\alias{posterior_predict_choco7}
 \alias{posterior_predict_choco}
-\alias{dchoco}
 \alias{log_lik_choco}
 \title{Choice-Confidence (CHOCO) Model}
 \usage{
 rchoco(
   n,
   mu = 0.5,
-  muleft = 0.5,
-  phileft = 3,
-  kleft = 0.95,
-  muright = NULL,
-  phiright = NULL,
-  kright = NULL,
-  mud = 0,
-  phid = 0,
-  kd = 0
+  muleft = 0.3,
+  mudelta = 0,
+  phileft = 4,
+  phidelta = 0,
+  pex = 0.1,
+  bex = 0.5,
+  threshold = 0.5
 )
 
-choco_stanvars(type = "choco")
+dchoco(
+  x,
+  mu = 0.5,
+  muleft = 0.3,
+  mudelta = 0,
+  phileft = 5,
+  phidelta = 0.5,
+  pex = 0.1,
+  bex = 0.5,
+  threshold = 0.5,
+  log = FALSE
+)
+
+choco_stanvars()
 
 choco(
   link_mu = "logit",
   link_muleft = "logit",
-  link_mud = "identity",
+  link_mudelta = "identity",
   link_phileft = "softplus",
-  link_phid = "identity",
-  link_kleft = "logit",
-  link_kd = "identity"
+  link_phidelta = "identity",
+  link_pex = "logit",
+  link_bex = "logit"
 )
-
-choco7(
-  link_mu = "logit",
-  link_muleft = "logit",
-  link_muright = "logit",
-  link_phileft = "softplus",
-  link_phiright = "softplus",
-  link_kleft = "logit",
-  link_kright = "logit"
-)
-
-posterior_predict_choco7(i, prep, ...)
 
 posterior_predict_choco(i, prep, ...)
-
-dchoco(
-  y,
-  mu,
-  muleft,
-  phileft,
-  kleft,
-  muright = NULL,
-  phiright = NULL,
-  kright = NULL,
-  mud = 0,
-  phid = 0,
-  kd = 0,
-  log = TRUE
-)
 
 log_lik_choco(i, prep)
 }
 \arguments{
-\item{n}{Number of random draws. Must be a positive integer.}
+\item{n}{Number of simulated trials. Must be a positive integer.}
 
-\item{mu}{Probability of choosing the right side (relative to the left side).
-Determines the overall bias toward the right side. Must be in the range 0-1.}
+\item{mu}{General proportion of data on the right-hand side of the threshold. Must be in the range \verb{[0, 1]}.
+If \code{mu = 0.3}, 30\% of the data will be on the right-hand side.}
 
-\item{muleft}{The center of the left-side beta distribution.
-Determines the central tendency of the left-side responses. Must be in the range 0-1.}
+\item{muleft}{Mean of the Beta distribution for the left-hand side (range \verb{[0, threshold]}).
+Higher values push the mass toward \code{threshold}.}
 
-\item{phileft}{The shape parameter of the left-side beta distribution.
-Controls the precision (inverse variance) of the left-side responses. Must be positive. Plausible range: (0, Inf).}
+\item{mudelta}{Deviation in mean for the right-hand side relative to the left-hand side.}
 
-\item{kleft}{The cutoff parameter for the left-side beta distribution.
-Determines the probability of extreme values (close to 0) on the left side. Must be in the range 0-1.}
+\item{phileft}{Precision parameter of the Beta distribution for the left-hand side (positive).}
 
-\item{muright}{The center of the right-side beta distribution.
-Determines the central tendency of the right-side responses. Overridden by \code{mud} if NULL. Must be in the range 0-1.}
+\item{phidelta}{Deviation in precision for the right-hand side relative to the left-hand side,
+expressed on the log scale.}
 
-\item{phiright}{The shape parameter of the right-side beta distribution.
-Controls the precision (inverse variance) of the right-side responses. Overridden by \code{phid} if NULL. Must be positive. Plausible range: (0, Inf).}
+\item{pex}{Likelihood of extreme values (zeros and ones). Must be in the range \verb{[0, 1]}.}
 
-\item{kright}{The cutoff parameter for the right-side beta distribution.
-Determines the probability of extreme values (close to 1) on the right side. Overridden by \code{kd} if NULL. Must be in the range 0-1.}
+\item{bex}{Balance of extreme values. Represents the proportion of ones relative to zeros. Default: 0.5.}
 
-\item{mud}{Deviation for \code{muright} on the logit scale relative to \code{muleft}.
-Positive values shift the right-side center further from the left-side center. Plausible range: (-Inf, Inf).}
+\item{threshold}{The threshold separating the two Beta distributions. Default: 0.5.}
 
-\item{phid}{Deviation for \code{phiright} as a log-multiplier relative to \code{phileft}.
-Positive values increase the precision of the right-side responses relative to the left side. Plausible range: (-Inf, Inf).}
+\item{x}{A vector of values for which to compute the density.}
 
-\item{kd}{Deviation for \code{kright} on the logit scale relative to \code{kleft}.
-Positive values increase the probability of extreme values on the right side relative to the left side. Plausible range: (-Inf, Inf).}
+\item{log}{Logical; if TRUE, returns the log-density.}
 
-\item{type}{The type of CHOCO model. "choco" is the deviation based model and "choco7" the independent parametrization.}
-
-\item{link_mu, link_muleft, link_mud, link_phileft, link_phid, link_kleft, link_kd, link_muright, link_phiright, link_kright}{Character strings specifying the link functions for the parameters.}
+\item{link_mu, link_muleft, link_mudelta, link_phileft, link_phidelta, link_pex, link_bex}{Link functions for the parameters.}
 
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
 \item{...}{Additional arguments.}
-
-\item{y}{The observed response value. Must be in the range 0-1.}
-
-\item{log}{Logical. If TRUE, returns the log-density. Default: TRUE.}
+}
+\value{
+A vector of simulated outcomes in the range \verb{[0, 1]}.
 }
 \description{
-The Choice-Confidence (CHOCO) model is useful to model data from subjective scales, such as Likert-type or analog scales, in which the left and the right side correspond to different processes or higher order categorical responses (e.g., "disagree" vs. "agree", "true" vs. "false"). They can be used to jointly model choice (left or right) and confidence (the degree of left or right).
+The Choice-Confidence (CHOCO) model is useful to model data from subjective ratings,
+such as Likert-type or analog scales, in which the left and the right side correspond
+to different processes or higher order categorical responses (e.g., "disagree" vs.
+"agree", "true" vs. "false"). They can be used to jointly model choice (left or right)
+and confidence (the degree of left or right).
 
-To better represent potentially bimodal bounded data with zeros and ones, CHOCO models consist of two separate ordered beta distributions (see Kubinec, 2023) modeling the left and the right hand side of the scale.
+To better represent potentially bimodal bounded data with zeros and ones, CHOCO models
+consist of two separate ordered beta distributions (Kubinec, 2023) reparametrized as
+BetaXtreme to model the left and the right hand side of the scale.
 
-Regarding Ordered Beta distributions, see:
-\itemize{
-\item Stan code: https://github.com/saudiwin/ordbetareg/blob/master/beta_logit.stan
-\item Python code: https://github.com/saudiwin/ordbetareg_py/blob/main/ordbetareg/model.py
-}
-
-The CHOCO model is available following two different parametrizations:
-\itemize{
-\item \strong{CHOCO7}: A 7-parameter model where the right-side parameters (\code{muright}, \code{phiright}, \code{kright}) are independent of the left-side parameters.
-\item \strong{CHOCO "7d"} (default CHOCO): A deviation-based 7-parameter model where the right-side parameters are derived as deviations from the left-side parameters (\code{mud}, \code{phid}, \code{kd}).
-}
-
-Functions:
-\itemize{
-\item \code{rchoco()}: simulates random draws from the CHOCO distribution, which models bimodal analog/Likert scale data.
-\item \code{choco_stanvars()}: Generates a \code{stanvars} object to pass custom functions to \code{brms}.
-\item \code{choco()}: Creates a custom family to be used with \code{brms}.
-}
+The left-hand side is defined by \code{muleft} and \code{phileft}, while the right-hand side is defined
+as the mirrored value of \code{muleft} around the threshold. A general parameter \code{mu} controls the
+proportion of data on the right-hand side versus the left-hand side of the threshold.
 }
 \examples{
-hist(rchoco(3000, mu=0.5, muleft=0.5, phileft=3, kleft=0.95), breaks=100)
-hist(rchoco(3000, mu=0.6, muleft=0.5, phileft=5, kleft=0.99), breaks=100)
-hist(rchoco(3000, mu=0.4, muleft=0.5, phileft=3, kleft=0.85), breaks=100)
+# Simulate data with different parameterizations
+x <- rchoco(10000, mu = 0.5, muleft = 0.3, mudelta = 0, phileft = 5,
+  phidelta = 0, pex = 0.1, bex = 0.5)
+hist(x, breaks = 50, main = "Simulated Outcomes", xlab = "y")
 
-choco_stanvars("choco7")
-choco()
-choco7()
+x <- rchoco(10000, mu = 0.6, muleft = 0.4, mudelta = 0.4, phileft = 5,
+  phidelta = 0, pex = 0.05, bex = 0.5)
+hist(x, breaks = 50, main = "Simulated Outcomes", xlab = "y")
 }

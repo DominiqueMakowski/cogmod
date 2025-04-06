@@ -43,6 +43,15 @@ rbext <- function(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5) {
   if (phi <= 0)
     stop("phi must be positive")
 
+  # Special case: pex = 1
+  if (pex == 1) {
+    if (bex == 0) {
+      return(rep(0, n))  # All outcomes are zeros
+    } else if (bex == 1) {
+      return(rep(1, n))  # All outcomes are ones
+    }
+  }
+
   # Compute kleft and kright from pex and bex.
   # kleft: threshold below which outcomes are set to 0 (zeros)
   # kright: threshold above which outcomes are set to 1 (ones)
@@ -72,15 +81,15 @@ rbext <- function(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5) {
 }
 
 
-
+#' @rdname rbext
 #' @export
 dbext <- function(x, mu = 0.5, phi = 1, pex = 0.1, bex = 0.5, log = FALSE) {
 
   # Validate inputs
   if (!all(mu > 0 & mu < 1))
-    stop("Please pass a numeric value for mu that is between 0 and 1.")
+    stop("mu must be between 0 and 1")
   if (!all(phi > 0))
-    stop("Please pass a numeric value for phi that is greater than 0.")
+    stop("phi must be positive")
   if (!(length(mu) %in% c(1, length(x))))
     stop("Please pass a vector for mu that is either length 1 or the same length as x.")
   if (!(length(phi) %in% c(1, length(x))))
@@ -100,7 +109,7 @@ dbext <- function(x, mu = 0.5, phi = 1, pex = 0.1, bex = 0.5, log = FALSE) {
 
   # Compute the beta density for continuous outcomes
   beta_density <- mapply(function(xi, mui, phii) {
-    dbeta(xi, shape1 = mui * phii, shape2 = (1 - mui) * phii)
+    stats::dbeta(xi, shape1 = mui * phii, shape2 = (1 - mui) * phii)
   }, x, mu, phi)
 
   # Compute the overall density
@@ -172,7 +181,7 @@ bext <- function() {
   # - bex: logit link (to constrain it to (0,1)).
   brms::custom_family("bext",
                       dpars = c("mu", "phi", "pex", "bex"),
-                      links  = c("logit", "log", "logit", "logit"),
+                      links  = c("logit", "softplus", "logit", "logit"),
                       lb     = c(NA, 0, NA, NA),
                       type   = "real")
 }
@@ -257,7 +266,7 @@ log_lik_bext <- function(i, prep) {
   } else if (y > (1 - eps)) {
     return(log(p1))
   } else {
-    return(log(p_cont) + dbeta(y,
+    return(log(p_cont) + stats::dbeta(y,
                                shape1 = mu * phi,
                                shape2 = (1 - mu) * phi,
                                log = TRUE))
