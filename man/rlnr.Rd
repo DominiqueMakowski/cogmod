@@ -11,7 +11,7 @@
 \usage{
 rlnr(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, tau = 0.2)
 
-dlnr(y, mu, mudelta, sigmazero, sigmadelta, tau, dec, log = TRUE)
+dlnr(y, mu, mudelta, sigmazero, sigmadelta, tau, response, log = FALSE)
 
 lnr_stanvars()
 
@@ -51,9 +51,9 @@ Must be non-negative. Plausible range: [0, Inf).}
 
 \item{y}{The observed reaction time (RT).}
 
-\item{dec}{The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.}
+\item{response}{The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.}
 
-\item{log}{Logical; if TRUE, returns the log-density. Default: TRUE.}
+\item{log}{Logical; if TRUE, returns the log-density. Default: FALSE.}
 
 \item{link_mu}{Link function for the \code{mu} parameter in the custom family.
 Determines how \code{mu} is transformed in the model. Default: "identity".}
