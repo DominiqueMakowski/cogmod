@@ -325,10 +325,10 @@ test_that("lnr recovery works with brms", {
 
 
   # Test that predict returns something
-  # prep <- brms::prepare_predictions(fit, newdata = df[1:10,])
-  pred <- brms::posterior_predict(fit, newdata = df[1:10,])
-  expect_equal(ncol(pred), 20)  # rt + response so 10 x 2
-
+  # prep <- brms::prepare_predictions(fit, newdata = df[1:10,]); i = 1
+  pred <- brms::posterior_predict(fit, ndraws = 10, newdata = df[1:3,])
+  expect_equal(ncol(pred), 6)  # rt + response so 3 x 2 the number of rows
+  expect_equal(nrow(pred), 10)  # 10 draws
 
   # Test the log-likelihood function
   ll <- brms::log_lik(fit)

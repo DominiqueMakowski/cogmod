@@ -118,7 +118,7 @@ posterior_predict_lnr <- function(i, prep, ...) {
                   sigmazero = sigmazero, sigmadelta = sigmadelta,
                   ndt = ndt)
 
-  sim_data
+  as.matrix(sim_data)
 }
 
 #' @rdname rlnr

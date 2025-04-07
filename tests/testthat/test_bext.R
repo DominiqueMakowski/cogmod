@@ -439,6 +439,11 @@ test_that("BEXT model can recover parameters with brms using variational inferen
   expect_equal(ncol(pred), nrow(df))
   expect_true(all(pred >= 0 & pred <= 1))
 
+  # Test with newdata
+  pred <- brms::posterior_predict(m, ndraws = 10, newdata = df[1:5, ])
+  expect_equal(nrow(pred), 10)
+  expect_equal(ncol(pred), 5)
+
   # Also test log-likelihood calculation
   ll <- brms::log_lik(m, ndraws = 5)
   expect_equal(nrow(ll), 5)
