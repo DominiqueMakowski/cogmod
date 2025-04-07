@@ -9,9 +9,9 @@
 \alias{log_lik_lnr}
 \title{Log-Normal Race (LNR) Model}
 \usage{
-rlnr(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, tau = 0.2)
+rlnr(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, ndt = 0.2)
 
-dlnr(y, mu, mudelta, sigmazero, sigmadelta, tau, response, log = FALSE)
+dlnr(x, mu, mudelta, sigmazero, sigmadelta, ndt, response, log = FALSE)
 
 lnr_stanvars()
 
@@ -20,7 +20,8 @@ lnr(
   link_mudelta = "identity",
   link_sigmazero = "softplus",
   link_sigmadelta = "identity",
-  link_tau = "softplus"
+  link_tau = "logit",
+  link_minrt = "identity"
 )
 
 posterior_predict_lnr(i, prep, ...)
@@ -30,26 +31,27 @@ log_lik_lnr(i, prep)
 \arguments{
 \item{n}{Number of simulated trials. Must be a positive integer.}
 
-\item{mu}{The log-space mean (ν) for the baseline accumulator (choice 0).
-Determines the central tendency of the reaction time for choice 0.
-Plausible range: (-Inf, Inf).}
+\item{mu}{The log-space mean parameter for the baseline accumulator (choice 0).
+Controls the central tendency of the reaction time for choice 0.
+Can take any real value, with larger values leading to longer RTs. Range: (-Inf, Inf).}
 
-\item{mudelta}{The additive deviation (in log-space) from \code{mu} to obtain the mean for accumulator 1 (choice 1).
-Positive values make choice 1 faster on average, while negative values make it slower.
-Plausible range: (-Inf, Inf).}
+\item{mudelta}{The additive deviation (in log-space) for the mean of accumulator 1 (choice 1).
+Positive values make choice 1 slower on average, while negative values make it faster.
+Can take any real value. Range: (-Inf, Inf).}
 
 \item{sigmazero}{The log-space standard deviation for the baseline accumulator (choice 0).
 Controls the variability of reaction times for choice 0. Must be positive.
-Plausible range: (0, Inf).}
+Larger values increase variability. Range: (0, Inf).}
 
-\item{sigmadelta}{The log-deviation for the standard deviation so that the standard deviation for accumulator 1 is \code{sigmazero * exp(sigmadelta)}.
-Positive values increase variability for choice 1, while negative values decrease it.
-Plausible range: (-Inf, Inf).}
+\item{sigmadelta}{The log-deviation for the standard deviation of accumulator 1.
+If positive, accumulator 1 has more variability; if negative, it has less variability
+compared to accumulator 0. Can take any real value. Range: (-Inf, Inf).}
 
-\item{tau}{A non-decision time (shift), τ. Represents the time taken for processes unrelated to the decision (e.g., motor response).
-Must be non-negative. Plausible range: [0, Inf).}
+\item{ndt}{Non-decision time (shift parameter). Represents the time taken for processes
+unrelated to the decision (e.g., encoding, motor response).
+Must be non-negative. Range: [0, Inf).}
 
-\item{y}{The observed reaction time (RT).}
+\item{x}{The observed reaction time (RT). Must be greater than \code{ndt}.}
 
 \item{response}{The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.}
 
@@ -62,27 +64,29 @@ Determines how \code{mu} is transformed in the model. Default: "identity".}
 Determines how \code{mudelta} is transformed in the model. Default: "identity".}
 
 \item{link_sigmazero}{Link function for the \code{sigmazero} parameter in the custom family.
-Ensures \code{sigmazero} remains positive. Default: "softplus".}
+Ensures \code{sigmazero} remains positive. Default: "identity".}
 
 \item{link_sigmadelta}{Link function for the \code{sigmadelta} parameter in the custom family.
 Determines how \code{sigmadelta} is transformed in the model. Default: "identity".}
 
-\item{link_tau}{Link function for the \code{tau} parameter in the custom family.
-Ensures \code{tau} remains non-negative. Default: "softplus".}
+\item{link_tau}{Link function for the \code{tau} parameter in the custom family.}
+
+\item{link_minrt}{Link function for the \code{minrt} parameter in the custom family.}
 
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
 \item{...}{Additional arguments.}
 }
 \description{
-The Log-Normal Race (LNR) model is useful for modeling reaction times and errors in decision-making tasks.
-The model assumes that each accumulator draws a value from a LogNormal distribution (shifted by a non-decision time τ).
+The Log-Normal Race (LNR) model is useful for modeling reaction times and choices in decision-making tasks.
+The model assumes that each choice option (accumulator) draws a processing time from a LogNormal distribution.
 The winning accumulator (minimum draw) determines the observed reaction time and choice.
+The observed RT includes a non-decision time component (tau).
 
 Functions:
 \itemize{
 \item \code{rlnr()}: Simulates random draws from the LNR model.
-\item \code{dlnr()}: Computes the log-likelihood of observed reaction times under the LNR model.
+\item \code{dlnr()}: Computes the likelihood/density of observed reaction times under the LNR model.
 \item \code{lnr()}: Creates a custom family to be used with \code{brms}.
 \item \code{lnr_stanvars()}: For \code{brms}, generates a \code{stanvars} object to pass to \code{brm()} when fitting the model.
 \item \code{posterior_predict_lnr()}: For \code{brms}, simulates predicted outcomes using sampled parameters.
@@ -91,7 +95,8 @@ Functions:
 }
 \examples{
 # Simulate data
-data <- rlnr(1000, mu = 1, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, tau = 0.2)
-hist(data$rt, breaks = 50, main = "Reaction Times", xlab = "RT")
+data <- rlnr(1000, mu = 0, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2)
+hist(data[data$response == 0, "rt"], breaks = 50, main = "Reaction Times", xlab = "RT")
+hist(data[data$response == 1, "rt"], breaks = 50, add = TRUE, col = rgb(1, 0, 0, 0.5))
 
 }

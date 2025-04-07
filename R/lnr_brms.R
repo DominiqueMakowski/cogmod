@@ -4,52 +4,68 @@
 #' @rdname rlnr
 #' @export
 lnr_stanvars <- function() {
-  brms::stanvar(scode = "
-  // Log-likelihood for a single observation from the reparameterized Log-Normal Race model.
-  // y: observed reaction time.
-  // dec: decision indicator (0 or 1).
-  // mu: baseline accumulator mean (in log-space) for choice 0.
-  // mudelta: additive deviation for the mean of choice 1.
-  // sigmazero: baseline accumulator standard deviation (in log-space) for choice 0.
-  // sigmadelta: log-deviation for the standard deviation of choice 1.
-  // tau: non-decision time (shift).
-  real lnr_lpdf(real y, real mu, real mudelta, real sigmazero, real sigmadelta, real tau, int dec) {
-    real eps = 1e-6;  // A small constant to prevent underflow
-    real t_adj = y - tau;
 
-    // If t_adj is too small, return a very low log probability
-    if (t_adj < eps)
-      return negative_infinity();
+  lpdf <- brms::stanvar(scode = "
+// Log-likelihood for a single observation from the reparameterized Log-Normal Race model.
+// Y: observed reaction time.
+// dec: decision indicator (0 or 1).
+// mu: baseline accumulator mean (in log-space) for choice 0.
+// mudelta: log-deviation for the mean of choice 1.
+// sigmazero: baseline accumulator standard deviation (in log-space) for choice 0.
+// sigmadelta: log-deviation for the standard deviation of choice 1.
+// tau: Scale factor for non-decision time (0-1, scaled by minimum RT).
+real lnr_lpdf(real Y, real mu, real mudelta, real sigmazero, real sigmadelta, real tau, real minrt, int dec) {
+  real eps = 1e-6;
 
-    // Convert 0-based decision to 1-based indexing for Stan.
-    int dec_stan = dec + 1;
+  // Ensure positive standard deviations with minimal clipping
+  real sig0 = fmax(sigmazero, eps);
+  real sig1 = fmax(sig0 * exp(sigmadelta), eps);
 
-    // Construct means and standard deviations for the two accumulators.
-    vector[2] nu;
-    vector[2] sigma;
-    nu[1] = mu;
-    nu[2] = mu + mudelta;
-    sigma[1] = fmax(sigmazero, eps);
-    sigma[2] = fmax(sigmazero * exp(sigmadelta), eps);
+  // Calculate non-decision time with extra safeguards
+  real ndt = tau * minrt;
 
-    real lp = 0;
-    // Sum contributions across both accumulators.
-    for (i in 1:2) {
-      if (i == dec_stan)
-        lp += lognormal_lpdf(t_adj | nu[i], sigma[i]);
-      else {
-        // Use lognormal_lcdf, then compute the log survival probability safely.
-        real log_cdf = lognormal_lcdf(t_adj | nu[i], sigma[i]);
+  // More robust RT adjustment - ensure it's positive
+  real ndt_adj = Y - ndt;
+  if (ndt_adj < eps)
+    return negative_infinity();
+
+  // Convert 0-based decision to 1-based indexing for Stan
+  int dec_stan = dec + 1;
+
+  // Define vectors in a more explicit, safer way
+  vector[2] nu;
+  vector[2] sigma;
+  nu[1] = mu;
+  nu[2] = mu + mudelta;
+  sigma[1] = sig0;
+  sigma[2] = sig1;
+
+  real lp = 0;
+  for (i in 1:2) {
+    if (i == dec_stan) {
+      // The chosen accumulator: add log density with bounds check
+      lp += lognormal_lpdf(ndt_adj | nu[i], sigma[i]);
+    } else {
+      // Non-chosen accumulator: add log survival function with better numerical handling
+      real log_cdf = lognormal_lcdf(ndt_adj | nu[i], sigma[i]);
+
+      // More forgiving check for extreme CDF values
+      if (log_cdf > -1e-10)  // Near-1 CDF is problematic
+        return negative_infinity();
+
+      // More stable survival calculation
+      if (log_cdf < -20)  // If survival is basically 1
+        lp += 0;  // log(1) = 0
+      else
         lp += log1m_exp(log_cdf);
-      }
     }
-    return lp;
   }
-  ", block = "functions")
+  return lp;
 }
+  ", block = "functions")
 
-
-
+  lpdf
+}
 
 
 #' @rdname rlnr
@@ -58,102 +74,81 @@ lnr_stanvars <- function() {
 #' @param link_mudelta Link function for the `mudelta` parameter in the custom family.
 #'   Determines how `mudelta` is transformed in the model. Default: "identity".
 #' @param link_sigmazero Link function for the `sigmazero` parameter in the custom family.
-#'   Ensures `sigmazero` remains positive. Default: "softplus".
+#'   Ensures `sigmazero` remains positive. Default: "identity".
 #' @param link_sigmadelta Link function for the `sigmadelta` parameter in the custom family.
 #'   Determines how `sigmadelta` is transformed in the model. Default: "identity".
 #' @param link_tau Link function for the `tau` parameter in the custom family.
-#'   Ensures `tau` remains non-negative. Default: "softplus".
+#' @param link_minrt Link function for the `minrt` parameter in the custom family.
 #' @export
 lnr <- function(link_mu = "identity", link_mudelta = "identity",
                 link_sigmazero = "softplus", link_sigmadelta = "identity",
-                link_tau = "softplus") {
+                link_tau = "logit", link_minrt = "identity") {
   brms::custom_family(
     name = "lnr",
-    dpars = c("mu", "mudelta", "sigmazero", "sigmadelta", "tau"),  # Distributional parameters
-    links = c(link_mu, link_mudelta, link_sigmazero, link_sigmadelta, link_tau),  # Link functions
-    lb = c(NA, NA, 0, NA, 0),
-    vars = "dec[n]"  # Additional variable for decision
+    dpars = c("mu", "mudelta", "sigmazero", "sigmadelta", "tau", "minrt"),
+    links = c(link_mu, link_mudelta, link_sigmazero, link_sigmadelta, link_tau, link_minrt),
+    lb = c(NA, NA, 0, NA, 0, 0),
+    ub = c(NA, NA, NA, NA, 1, NA),    # Ensure tau stays <= 1
+    vars = "dec[n]"
   )
 }
 
-# brms --------------------------------------------------------------------
 
+
+# # brms --------------------------------------------------------------------
 
 #' @rdname rlnr
 #' @inheritParams choco
 #' @export
 posterior_predict_lnr <- function(i, prep, ...) {
-  # Extract distributional parameters for draw i
+  # Get parameters
   mu <- brms::get_dpar(prep, "mu", i = i)
   mudelta <- brms::get_dpar(prep, "mudelta", i = i)
   sigmazero <- brms::get_dpar(prep, "sigmazero", i = i)
   sigmadelta <- brms::get_dpar(prep, "sigmadelta", i = i)
+  tau <- brms::get_dpar(prep, "tau", i = i)
+  minrt <- brms::get_dpar(prep, "minrt", i = i)  # Get minrt parameter
 
-  # Number of draws (here, each draw produces one simulated trial)
-  n_draws <- length(tau)
+  # Calculate non-decision time
+  ndt <- tau * minrt
 
-  # Generate all predictions at once using the vectorized simulation function rlnr.
-  sim_data <- rlnr(n_draws, mu = mu, mudelta = mudelta, sigmazero = sigmazero,
-                   sigmadelta = sigmadelta, tau = tau)
+  # Generate predictions
+  n_draws <- length(mu)
+  sim_data <- rlnr(n_draws, mu = mu, mudelta = mudelta,
+                  sigmazero = sigmazero, sigmadelta = sigmadelta,
+                  ndt = ndt)
 
-  # Convert to matrix
-  as.matrix(sim_data)
+  sim_data
 }
-
-
-
 
 #' @rdname rlnr
 log_lik_lnr <- function(i, prep) {
-  # Extract the i-th observed reaction time
+  # Extract observation
   y <- prep$data$Y[i]
-  
-  # Check if this is a valid observation (not NA)
-  if (is.na(y)) {
-    return(NA)
-  }
-  
-  # Extract parameters
-  mu        <- brms::get_dpar(prep, "mu", i = i)
-  mudelta   <- brms::get_dpar(prep, "mudelta", i = i)
+  if (is.na(y)) return(NA)
+
+  # Get parameters
+  mu <- brms::get_dpar(prep, "mu", i = i)
+  mudelta <- brms::get_dpar(prep, "mudelta", i = i)
   sigmazero <- brms::get_dpar(prep, "sigmazero", i = i)
   sigmadelta <- brms::get_dpar(prep, "sigmadelta", i = i)
-  tau       <- brms::get_dpar(prep, "tau", i = i)
-  
-  # Extract the decision indicator (should be a scalar, 0 or 1)
+  tau <- brms::get_dpar(prep, "tau", i = i)
+  minrt <- brms::get_dpar(prep, "minrt", i = i)
+
+  # Calculate non-decision time
+  ndt <- tau * minrt
+
+  # Get decision
   response <- prep$data[["dec"]][i]
-  
-  # Initialize result vector
-  ll <- rep(NA_real_, length(mu))
-  
-  # Validate response
   if (!response %in% c(0, 1)) {
     warning("Response must be 0 or 1. Got: ", response)
     return(rep(-Inf, length(mu)))
   }
-  
-  # Basic parameter validation
-  valid_idx <- which(sigmazero > 0 & tau >= 0 & y > tau)
-  
-  if (length(valid_idx) == 0) {
-    return(rep(-Inf, length(mu)))
-  }
-  
-  # For valid parameter sets, compute log-likelihood
-  if (length(valid_idx) < length(mu)) {
-    # Some invalid parameter sets exist
-    ll[-valid_idx] <- -Inf
-  }
-  
-  # Compute log likelihoods for valid parameter sets
-  ll[valid_idx] <- dlnr(y = y, 
-                      mu = mu[valid_idx], 
-                      mudelta = mudelta[valid_idx], 
-                      sigmazero = sigmazero[valid_idx], 
-                      sigmadelta = sigmadelta[valid_idx], 
-                      tau = tau[valid_idx], 
-                      response = response, 
-                      log = TRUE)
-  
+
+  # Compute log-likelihood
+  ll <- dlnr(x = y, mu = mu, mudelta = mudelta,
+           sigmazero = sigmazero, sigmadelta = sigmadelta,
+           ndt = ndt, response = response, log = TRUE)
+
   ll
 }

@@ -78,12 +78,12 @@ The Log-Normal Race (LNR) model is useful for modeling reaction times and errors
 #| code-fold: true
 
 # Simulate data using rlnr()
-lnr_data <- rlnr(n = 5000, mu = 1, mud = 0.5, sigmazero = 1, sigmad = -0.5, tau = 0.2)
+lnr_data <- rlnr(n = 5000, mu = 1, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2)
 
 # Create histograms for each choice
 ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
   geom_histogram(alpha = 0.8, position = "identity", bins = 50) +
-  labs(title = "LNR Distribution", x = "Reaction Time", y = "Frequency", fill = "Choice") +
+  labs(title = "LogNormal Race Model", x = "Reaction Time", y = "Frequency", fill = "Choice") +
   theme_minimal() +
   scale_fill_manual(values = c("#4CAF50", "#FF5722"))
 ```
@@ -271,9 +271,8 @@ insight::get_data(m_zoib) |>
 #| warning: false
 #| message: false
 
-df <- brms::rwiener(n = 5000, delta = 0.5, alpha = 1, beta = .3, tau = .25) |>
-  datawizard::data_rename(replacement = c("rt", "response")) |>
-  datawizard::data_filter(rt < 2)
+df <- rlnr(n = 2000, mu = 0, mudelta = 0.3, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2) |> 
+  datawizard::data_filter(rt < 5)
 
 df |>
   ggplot(aes(x = rt, fill = factor(response))) +
@@ -288,6 +287,8 @@ df |>
 ```{r}
 #| eval: false
 
+options(mc.cores = parallel::detectCores() - 2)
+
 f <- bf(
   rt | dec(response) ~ 1,
   bs ~ 1,
@@ -301,6 +302,8 @@ m_ddm <- brm(f,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
+m_ddm <- brms::add_criterion(m_ddm, "loo") 
+
 saveRDS(m_ddm, file = "man/figures/m_ddm.rds")
 ```
 
@@ -309,7 +312,7 @@ saveRDS(m_ddm, file = "man/figures/m_ddm.rds")
 
 m_ddm <- readRDS("man/figures/m_ddm.rds")
 
-parameters::parameters(m_ddm, component = "all")
+# parameters::parameters(m_ddm, component = "all")
 
 # library(brms)
 # library(cmdstanr)
@@ -329,25 +332,23 @@ parameters::parameters(m_ddm, component = "all")
 #| eval: false
 
 f <- bf(
-  rt | dec(choice) ~ 1,
+  rt | dec(response) ~ 1,
   mudelta ~ 1,
   sigmazero ~ 1,
   sigmadelta ~ 1,
-  tau ~ 1
+  tau ~ 1,
+  minrt = min(df$rt)
 )
 
 m_lnr <- brm(f,
   data = df,
-  family = lnr(
-    link_mu = "identity",
-    link_mudelta = "identity",
-    link_sigmazero = "softplus",
-    link_sigmadelta = "identity",
-    link_tau = "softplus"
-  ),
+  init = 1,
+  family = lnr(),
   stanvars = lnr_stanvars(),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
+
+m_lnr <- brms::add_criterion(m_lnr, "loo")
 
 saveRDS(m_lnr, file = "man/figures/m_lnr.rds")
 ```
@@ -355,9 +356,9 @@ saveRDS(m_lnr, file = "man/figures/m_lnr.rds")
 ```{r}
 #| eval: false
 
-m_lnr <- readRDS("man/figures/m_lnr.rds")
-
-parameters::parameters(m_lnr, component = "all")
+# m_lnr <- readRDS("man/figures/m_lnr.rds")
+# 
+# parameters::parameters(m_lnr, component = "all")
 
 # library(brms)
 # library(cmdstanr)
@@ -370,17 +371,30 @@ parameters::parameters(m_lnr, component = "all")
 #
 # brms::posterior_predict(m_ddm, ndraws=5, newdata = insight::get_data(m_ddm)[1:4,], negative_rt = TRUE)
 
-# d <- data.frame(y = rlnorm(100, 7, 2))
-# brms::make_stancode(y ~ 1,
-#               family = brms::shifted_lognormal(),
-#               data = d)
+# d <- data.frame(rt = runif(100), response = sample(c(0, 1), 100, replace = TRUE))
+# brms::make_stancode(rt ~ 1, family = brms::shifted_lognormal(), data = d)
+# brms::make_stancode(brms::bf(
+#   rt | dec(response) ~ 1,
+#   bs ~ 1,
+#   bias ~ 1,
+#   ndt ~ 1
+# ), family = brms::wiener(), data = d)
+# brms::make_stancode(brms::bf(
+#   rt | dec(response) ~ 1,
+#   mudelta ~ 1,
+#   sigmazero ~ 1,
+#   sigmadelta ~ 1,
+#   tau ~ 1
+# ), family = lnr(), stanvar = lnr_stanvars(df$rt), data = df)
 ```
 
 #### Model Comparison
 
 ```{r}
-#| eval: false
+m_ddm <- readRDS("man/figures/m_ddm.rds")
+m_lnr <- readRDS("man/figures/m_lnr.rds")
 
-loo::loo_compare(loo::loo(m_ddm), loo::loo(m_lnr))
+loo::loo_compare(m_ddm, m_lnr) |> 
+  parameters::parameters()
 ```
 

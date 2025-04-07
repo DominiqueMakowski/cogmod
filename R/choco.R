@@ -144,7 +144,8 @@ rchoco <- function(n, p = 0.5, muleft = 0.3, mudelta = 0, phileft = 4, phidelta 
 #' @rdname rchoco
 #' @examples
 #' x <- seq(0, 1, length.out = 101)
-#' dens <- dchoco(x, p = 0.5, muleft = 0.3, mudelta = 0, phileft = 5, phidelta = 0, pex = 0.1, bex = 0.5)
+#' dens <- dchoco(x, p = 0.5, muleft = 0.3, mudelta = 0, phileft = 5, phidelta = 0, 
+#'                pex = 0.1, bex = 0.5)
 #' plot(x, dens, type = "l", main = "Density of CHOCO Model", xlab = "x", ylab = "Density")
 #' @export
 dchoco <- function(x, p = 0.5, muleft = 0.3, mudelta = 0, phileft = 4, phidelta = 0,

@@ -110,6 +110,7 @@ x <- rchoco(50000, p = 0.7, muleft = 0.3, mudelta = 0, phileft = 5,
   phidelta = 0, pex = 0.1, bex = 0.5)
 hist(x, breaks = 50, main = "Simulated Outcomes", xlab = "y")
 x <- seq(0, 1, length.out = 101)
-dens <- dchoco(x, p = 0.5, muleft = 0.3, mudelta = 0, phileft = 5, phidelta = 0, pex = 0.1, bex = 0.5)
+dens <- dchoco(x, p = 0.5, muleft = 0.3, mudelta = 0, phileft = 5, phidelta = 0, 
+               pex = 0.1, bex = 0.5)
 plot(x, dens, type = "l", main = "Density of CHOCO Model", xlab = "x", ylab = "Density")
 }

@@ -83,12 +83,12 @@ the observed reaction time and choice.
 
 ``` r
 # Simulate data using rlnr()
-lnr_data <- rlnr(n = 5000, mu = 1, mud = 0.5, sigmazero = 1, sigmad = -0.5, tau = 0.2)
+lnr_data <- rlnr(n = 5000, mu = 1, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2)
 
 # Create histograms for each choice
 ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
   geom_histogram(alpha = 0.8, position = "identity", bins = 50) +
-  labs(title = "LNR Distribution", x = "Reaction Time", y = "Frequency", fill = "Choice") +
+  labs(title = "LogNormal Race Model", x = "Reaction Time", y = "Frequency", fill = "Choice") +
   theme_minimal() +
   scale_fill_manual(values = c("#4CAF50", "#FF5722"))
 ```
@@ -278,9 +278,8 @@ insight::get_data(m_zoib) |>
 #### Simulate Data
 
 ``` r
-df <- brms::rwiener(n = 5000, delta = 0.5, alpha = 1, beta = .3, tau = .25) |>
-  datawizard::data_rename(replacement = c("rt", "response")) |>
-  datawizard::data_filter(rt < 2)
+df <- rlnr(n = 2000, mu = 0, mudelta = 0.3, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2) |> 
+  datawizard::data_filter(rt < 5)
 
 df |>
   ggplot(aes(x = rt, fill = factor(response))) +
@@ -295,6 +294,8 @@ df |>
 #### Drift Diffusion Model (DDM)
 
 ``` r
+options(mc.cores = parallel::detectCores() - 2)
+
 f <- bf(
   rt | dec(response) ~ 1,
   bs ~ 1,
@@ -308,13 +309,15 @@ m_ddm <- brm(f,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
+m_ddm <- brms::add_criterion(m_ddm, "loo") 
+
 saveRDS(m_ddm, file = "man/figures/m_ddm.rds")
 ```
 
 ``` r
 m_ddm <- readRDS("man/figures/m_ddm.rds")
 
-parameters::parameters(m_ddm, component = "all")
+# parameters::parameters(m_ddm, component = "all")
 
 # library(brms)
 # library(cmdstanr)
@@ -332,33 +335,31 @@ parameters::parameters(m_ddm, component = "all")
 
 ``` r
 f <- bf(
-  rt | dec(choice) ~ 1,
+  rt | dec(response) ~ 1,
   mudelta ~ 1,
   sigmazero ~ 1,
   sigmadelta ~ 1,
-  tau ~ 1
+  tau ~ 1,
+  minrt = min(df$rt)
 )
 
 m_lnr <- brm(f,
   data = df,
-  family = lnr(
-    link_mu = "identity",
-    link_mudelta = "identity",
-    link_sigmazero = "softplus",
-    link_sigmadelta = "identity",
-    link_tau = "softplus"
-  ),
+  init = 1,
+  family = lnr(),
   stanvars = lnr_stanvars(),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
+
+m_lnr <- brms::add_criterion(m_lnr, "loo")
 
 saveRDS(m_lnr, file = "man/figures/m_lnr.rds")
 ```
 
 ``` r
-m_lnr <- readRDS("man/figures/m_lnr.rds")
-
-parameters::parameters(m_lnr, component = "all")
+# m_lnr <- readRDS("man/figures/m_lnr.rds")
+# 
+# parameters::parameters(m_lnr, component = "all")
 
 # library(brms)
 # library(cmdstanr)
@@ -370,10 +371,37 @@ parameters::parameters(m_lnr, component = "all")
 #   as.data.frame()
 #
 # brms::posterior_predict(m_ddm, ndraws=5, newdata = insight::get_data(m_ddm)[1:4,], negative_rt = TRUE)
+
+# d <- data.frame(rt = runif(100), response = sample(c(0, 1), 100, replace = TRUE))
+# brms::make_stancode(rt ~ 1, family = brms::shifted_lognormal(), data = d)
+# brms::make_stancode(brms::bf(
+#   rt | dec(response) ~ 1,
+#   bs ~ 1,
+#   bias ~ 1,
+#   ndt ~ 1
+# ), family = brms::wiener(), data = d)
+# brms::make_stancode(brms::bf(
+#   rt | dec(response) ~ 1,
+#   mudelta ~ 1,
+#   sigmazero ~ 1,
+#   sigmadelta ~ 1,
+#   tau ~ 1
+# ), family = lnr(), stanvar = lnr_stanvars(df$rt), data = df)
 ```
 
 #### Model Comparison
 
 ``` r
-loo::loo_compare(loo::loo(m_ddm), loo::loo(m_lnr))
+m_ddm <- readRDS("man/figures/m_ddm.rds")
+m_lnr <- readRDS("man/figures/m_lnr.rds")
+
+loo::loo_compare(m_ddm, m_lnr) |> 
+  parameters::parameters()
 ```
+
+    # Fixed Effects
+
+    Name  |   LOOIC |     ELPD | Difference | Difference_SE |      p
+    ----------------------------------------------------------------
+    m_lnr | 5394.64 | -2697.32 |       0.00 |          0.00 |       
+    m_ddm | 5600.12 | -2800.06 |    -102.74 |         15.27 | < .001
