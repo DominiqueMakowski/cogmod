@@ -341,3 +341,131 @@ test_that("lnr recovery works with brms", {
   expect_true(is.numeric(waic$estimates["waic", "Estimate"]))
 
 })
+
+
+test_that("lnr_lpdf_expose works correctly", {
+  skip_on_cran()
+  skip_if_not_installed("cmdstanr")
+  
+  # Expose the Stan function
+  lnr_lpdf <- lnr_lpdf_expose()
+  
+  # Basic check: a valid call returns a finite value
+  val <- lnr_lpdf(
+    Y = 0.5,        # observed RT
+    mu = 0,         # log-mean for accumulator 0
+    mudelta = 0,    # log-mean difference for accumulator 1
+    sigmazero = 1,  # log-SD for accumulator 0
+    sigmadelta = 0.5,   # log-SD difference for accumulator 1
+    tau = 0.1,      # scale factor for non-decision time
+    minrt = 0.2,    # minimum RT used in the model
+    dec = 1         # decision: 0 or 1
+  )
+  
+  expect_true(is.finite(val))
+  expect_false(is.na(val))
+  
+  # Check that negative_infinity is returned if Y <= ndt
+  val_invalid <- lnr_lpdf(
+    Y = 0.05,       # smaller than ndt -> should return -Inf
+    mu = 0,
+    mudelta = 0,
+    sigmazero = 1,
+    sigmadelta = 0.5,
+    tau = 0.5,
+    minrt = 0.1,
+    dec = 0
+  )
+  expect_equal(val_invalid, -Inf)
+
+
+  # Define parameter grids for testing
+  Y_values <- c(0.3, 0.5, 0.8, 1.2, 2.0)
+  mu_values <- c(0, 0.5, 1.0)
+  mudelta_values <- c(-0.5, 0, 0.5)
+  sigmazero_values <- c(0.5, 1.0)
+  sigmadelta_values <- c(-0.5, 0, 0.5)
+  tau_values <- c(0.1, 0.5)
+  minrt_values <- c(0.1, 0.2)
+  dec_values <- c(0, 1)
+  
+  # Test across a subset of the parameter space
+  for (mu in mu_values) {
+    for (mudelta in mudelta_values) {
+      for (sigmazero in sigmazero_values) {
+        for (sigmadelta in sigmadelta_values) {
+          for (tau in tau_values) {
+            for (minrt in minrt_values) {
+              # Calculate ndt for the R function
+              ndt <- tau * minrt
+              
+              for (dec in dec_values) {
+                # Test Y values that exceed ndt
+                for (Y in Y_values) {
+                  # Skip cases where Y <= ndt
+                  if (Y <= ndt) next
+                  
+                  # Calculate lpdf using Stan function
+                  stan_lpdf <- lnr_lpdf(Y, mu, mudelta, sigmazero, sigmadelta, tau, minrt, dec)
+                  
+                  # Calculate lpdf using R function
+                  r_lpdf <- dlnr(Y, mu, mudelta, sigmazero, sigmadelta, ndt, dec, log = TRUE)
+                  
+                  # Create informative label for errors
+                  label <- sprintf("Y=%g, mu=%g, mudelta=%g, sigmazero=%g, sigmadelta=%g, tau=%g, minrt=%g, dec=%d",
+                                  Y, mu, mudelta, sigmazero, sigmadelta, tau, minrt, dec)
+                  
+                  # Check for equality with tolerance
+                  expect_equal(stan_lpdf, r_lpdf, tolerance = 1e-5, 
+                              label = paste("Density mismatch:", label))
+                }
+                
+                # Test Y value below ndt (should be -Inf in both implementations)
+                Y_below <- ndt - 0.05
+                
+                stan_lpdf_below <- lnr_lpdf(Y_below, mu, mudelta, sigmazero, sigmadelta, 
+                                           tau, minrt, dec)
+                r_lpdf_below <- dlnr(Y_below, mu, mudelta, sigmazero, sigmadelta, 
+                                    ndt, dec, log = TRUE)
+                
+                expect_equal(stan_lpdf_below, r_lpdf_below, 
+                            label = sprintf("Below ndt: ndt=%g, Y=%g", ndt, Y_below))
+                expect_equal(stan_lpdf_below, -Inf, 
+                            label = sprintf("Should be -Inf when Y < ndt: Y=%g, ndt=%g", 
+                                          Y_below, ndt))
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  # Vectorized test: confirm Stan and R functions agree on a batch of inputs
+  Y_batch <- c(0.5, 0.7, 1.0, 1.5)
+  mu_batch <- c(0.2, 0.4, 0.6, 0.8)
+  mudelta_batch <- c(-0.3, -0.1, 0.1, 0.3)
+  sigmazero_batch <- c(0.7, 0.8, 0.9, 1.0)
+  sigmadelta_batch <- c(-0.2, -0.1, 0, 0.1)
+  tau_batch <- 0.2
+  minrt_batch <- 0.15
+  dec_batch <- c(0, 1, 0, 1)
+  ndt_batch <- tau_batch * minrt_batch
+  
+  # Calculate Stan LPDFs one at a time
+  stan_lpdfs <- numeric(length(Y_batch))
+  for (i in seq_along(Y_batch)) {
+    stan_lpdfs[i] <- lnr_lpdf(Y_batch[i], mu_batch[i], mudelta_batch[i], 
+                             sigmazero_batch[i], sigmadelta_batch[i],
+                             tau_batch, minrt_batch, dec_batch[i])
+  }
+  
+  # Calculate R LPDFs all at once (using vectorization)
+  r_lpdfs <- dlnr(Y_batch, mu_batch, mudelta_batch, sigmazero_batch, 
+                  sigmadelta_batch, ndt_batch, dec_batch, log = TRUE)
+  
+  # Compare results
+  expect_equal(stan_lpdfs, r_lpdfs, tolerance = 1e-5, 
+              label = "Vectorized comparison")
+
+})

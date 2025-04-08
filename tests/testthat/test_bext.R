@@ -451,3 +451,165 @@ test_that("BEXT model can recover parameters with brms using variational inferen
 })
 
 
+
+test_that("bext_lpdf_expose works correctly", {
+  skip_on_cran()
+  skip_if_not_installed("cmdstanr")
+  
+  # Expose the Stan function
+  bext_lpdf <- bext_lpdf_expose()
+  
+  # Basic check: a valid call returns a finite value
+  val <- bext_lpdf(
+    y = 0.5,      # continuous value
+    mu = 0.6,     # mean of beta
+    phi = 10,     # precision of beta
+    pex = 0.2,    # probability of extremes (0,1)
+    bex = 0.5     # balance of extremes
+  )
+  
+  expect_true(is.finite(val))
+  expect_false(is.na(val))
+  
+  # Test point masses at 0 and 1
+  val_0 <- bext_lpdf(
+    y = 0,
+    mu = 0.6, 
+    phi = 10,
+    pex = 0.2,
+    bex = 0.5
+  )
+  expect_equal(exp(val_0), 0.2 * (1 - 0.5))  # kleft = pex * (1-bex)
+  
+  val_1 <- bext_lpdf(
+    y = 1,
+    mu = 0.6, 
+    phi = 10,
+    pex = 0.2,
+    bex = 0.5
+  )
+  expect_equal(exp(val_1), 0.2 * 0.5)  # 1-kright = pex * bex
+  
+  # Test special case (pex = 1, pure Bernoulli)
+  val_bern_0 <- bext_lpdf(
+    y = 0,
+    mu = 0.6,  # irrelevant for Bernoulli
+    phi = 10,  # irrelevant for Bernoulli
+    pex = 1,
+    bex = 0.7
+  )
+  expect_equal(exp(val_bern_0), 1 - 0.7)
+  
+  val_bern_1 <- bext_lpdf(
+    y = 1,
+    mu = 0.6,
+    phi = 10, 
+    pex = 1,
+    bex = 0.7
+  )
+  expect_equal(exp(val_bern_1), 0.7)
+  
+  # Test values between 0 and 1 with pex = 1 should return -Inf
+  val_bern_mid <- bext_lpdf(
+    y = 0.5,
+    mu = 0.6,
+    phi = 10,
+    pex = 1,
+    bex = 0.7
+  )
+  expect_equal(val_bern_mid, -Inf)
+  
+  # Consistency test: compare Stan lpdf with R density function
+  y_test <- seq(0.1, 0.9, by = 0.1)
+  mu_test <- 0.6
+  phi_test <- 10
+  pex_test <- 0.2
+  bex_test <- 0.5
+  
+  # Compute kleft and kright
+  kleft <- pex_test * (1 - bex_test)
+  kright <- 1 - (pex_test * bex_test)
+  
+  # Calculate densities using Stan lpdf
+  stan_dens <- sapply(y_test, function(y) {
+    exp(bext_lpdf(y, mu_test, phi_test, pex_test, bex_test))
+  })
+  
+  # Calculate densities using R dbext function
+  r_dens <- dbext(y_test, mu_test, phi_test, pex_test, bex_test)
+  
+  # Compare results
+  expect_equal(stan_dens, r_dens, tolerance = 1e-5)
+
+
+  # Define parameter grids for testing
+  y_values <- c(0, 0.1, 0.25, 0.5, 0.75, 0.9, 1)
+  mu_values <- c(0.2, 0.5, 0.8)
+  phi_values <- c(2, 5, 10)
+  pex_values <- c(0, 0.3, 0.7, 1)
+  bex_values <- c(0.25, 0.5, 0.75)
+  
+  # Test across a subset of the parameter space
+  for (mu in mu_values) {
+    for (phi in phi_values) {
+      for (pex in pex_values) {
+        for (bex in bex_values) {
+          # Get densities at different y values
+          for (y in y_values) {
+            # Calculate density using Stan lpdf
+            stan_result <- bext_lpdf(y, mu, phi, pex, bex)
+            stan_density <- if (is.finite(stan_result)) exp(stan_result) else 0
+            
+            # Calculate density using R dbext
+            r_density <- dbext(y, mu, phi, pex, bex)
+            
+            # Build informative test label
+            label <- sprintf("y=%g, mu=%g, phi=%g, pex=%g, bex=%g", 
+                            y, mu, phi, pex, bex)
+            
+            # Special handling for point masses and zero densities
+            if (y == 0 || y == 1 || (pex == 1 && y > 0 && y < 1)) {
+              # For exact matches at point masses or zero densities
+              expect_equal(stan_density, r_density, 
+                          tolerance = 1e-5, 
+                          label = paste("Point mass or zero density at", label))
+            } else {
+              # For continuous densities - use relative tolerance
+              if (r_density > 1e-10) {  # Only test non-trivial densities
+                expect_equal(stan_density, r_density, 
+                            tolerance = 1e-5, 
+                            scale = r_density,  # Use relative scaling
+                            label = paste("Continuous density at", label))
+              }
+            }
+          }
+          
+          # Additional test: verify log densities for continuous values
+          if (pex < 1) {  # Only for non-pure-Bernoulli cases
+            y_cont <- seq(0.1, 0.9, by = 0.2)
+            stan_log <- sapply(y_cont, function(y) bext_lpdf(y, mu, phi, pex, bex))
+            r_log <- dbext(y_cont, mu, phi, pex, bex, log = TRUE)
+            
+            expect_equal(stan_log, r_log, tolerance = 1e-5,
+                        label = sprintf("Log densities (mu=%g, phi=%g, pex=%g, bex=%g)", 
+                                       mu, phi, pex, bex))
+          }
+        }
+      }
+    }
+  }
+  
+  # Test invalid parameter combinations
+  y_test <- 0.5
+  mu_test <- 0.5
+  phi_test <- 5
+  pex_test <- -0.1  # Invalid pex
+  bex_test <- 0.5
+  
+  expect_error(dbext(y_test, mu_test, phi_test, pex_test, bex_test),
+              "pex must be between 0 and 1")
+  
+  # We can't directly test the error in Stan because it returns -Inf for invalid parameters
+  # But we can check that it returns -Inf (log of 0)
+  expect_equal(bext_lpdf(y_test, mu_test, phi_test, 1.1, bex_test), -Inf)
+})

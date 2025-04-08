@@ -3,6 +3,7 @@
 \name{rlnr}
 \alias{rlnr}
 \alias{dlnr}
+\alias{lnr_lpdf_expose}
 \alias{lnr_stanvars}
 \alias{lnr}
 \alias{posterior_predict_lnr}
@@ -12,6 +13,8 @@
 rlnr(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, ndt = 0.2)
 
 dlnr(x, mu, mudelta, sigmazero, sigmadelta, ndt, response, log = FALSE)
+
+lnr_lpdf_expose()
 
 lnr_stanvars()
 
@@ -98,5 +101,10 @@ Functions:
 data <- rlnr(1000, mu = 0, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2)
 hist(data[data$response == 0, "rt"], breaks = 50, main = "Reaction Times", xlab = "RT")
 hist(data[data$response == 1, "rt"], breaks = 50, add = TRUE, col = rgb(1, 0, 0, 0.5))
+
+# You can expose the lpdf function as follows:
+# lnr_lpdf <- lnr_lpdf_expose()
+# lnr_lpdf(Y = 0.5, mu = 0, mudelta = 0, sigmazero = 1, sigmadelta = 0.5,
+#          tau = 0.1, minrt = 0.2, dec = 1)
 
 }

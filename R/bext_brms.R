@@ -2,10 +2,9 @@
 
 # Stan Functions and Custom Family for brms
 
-#' @rdname rbext
-#' @export
-bext_stanvars <- function() {
-  brms::stanvar(scode = "
+#' @keywords internal
+.bext_lpdf <- function() {
+"
 real bext_lpdf(real y, real mu, real phi, real pex, real bex) {
   real eps = 1e-8;  // Small constant to avoid numerical issues
   
@@ -43,7 +42,35 @@ real bext_lpdf(real y, real mu, real phi, real pex, real bex) {
     return log(kright - kleft) + beta_lpdf(y | mu * phi, (1 - mu) * phi);
   }
 }
-", block = "functions")
+"
+}
+
+#' @rdname rbext
+#' @examples
+#' # You can expose the lpdf function as follows:
+#' # bext_lpdf <- bext_lpdf_expose()
+#' # bext_lpdf(y = 0.5, mu = 0.6, phi = 10, pex = 0.2, bex = 0.5)
+#'
+#' @export
+bext_lpdf_expose <- function() {
+  insight::check_if_installed("cmdstanr")
+  
+  # Build the final Stan code string
+  stancode <- paste0(
+    "functions {\n",
+    .bext_lpdf(),
+    "\n}"
+  )
+  
+  mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(stancode))
+  mod$expose_functions()
+  mod$functions$bext_lpdf
+}
+
+#' @rdname rbext
+#' @export
+bext_stanvars <- function() {
+  brms::stanvar(scode = .bext_lpdf(), block = "functions")
 }
 
 

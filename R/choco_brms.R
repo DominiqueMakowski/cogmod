@@ -2,10 +2,9 @@
 
 # Stan Functions and Custom Family for brms
 
-#' @rdname rchoco
-#' @export
-choco_stanvars <- function() {
-  brms::stanvar(scode = "
+#' @keywords internal
+.choco_lpdf <- function() {
+"
 real choco_lpdf(
   real y,          // Observed value (must be in [0, 1])
   real mu,         // Proportion of data on the right-hand side of the threshold (in [0, 1])
@@ -22,13 +21,12 @@ real choco_lpdf(
   // Special case: pex = 1 (all mass at extremes)
   if (pex >= 1 - eps) {
     real prob0 = (1 - mu) * (1 - bex) / ((1 - mu) * (1 - bex) + mu * bex);
-    
     if (y < eps) {
       return log(prob0);
     } else if (y > 1 - eps) {
       return log(1 - prob0);
     } else {
-      return negative_infinity();  // All other values have zero density
+      return negative_infinity();
     }
   }
 
@@ -36,30 +34,24 @@ real choco_lpdf(
   real logit_muleft = log(muleft / (1 - muleft));
   real logit_muright = -logit_muleft + mudelta;
   real muright = exp(logit_muright) / (1 + exp(logit_muright));
-  
-  // Adjust precision parameter
   real phiright = phileft * exp(phidelta);
-  
-  // Validate derived parameters
+
   if (muright <= 0 || muright >= 1) {
     return negative_infinity();
   }
-  
+
   // Compute probabilities for zeros and ones
-  real zero_prob = pex * (1 - bex) * (1 - mu);  // Probability of zero
-  real one_prob = pex * bex * mu;               // Probability of one
-  
-  // Validate extreme value probabilities
+  real zero_prob = pex * (1 - bex) * (1 - mu);
+  real one_prob  = pex * bex * mu;
   if (zero_prob + one_prob > 1) {
     return negative_infinity();
   }
-  
-  // Handle exact zeros (point mass at 0)
+
+  // Handle exact zeros
   if (y < eps) {
     return log(zero_prob);
   }
-  
-  // Handle exact ones (point mass at 1)
+  // Handle exact ones
   if (y > 1 - eps) {
     return log(one_prob);
   }
@@ -68,41 +60,66 @@ real choco_lpdf(
   real cont_mass = 1 - zero_prob - one_prob;
   real left_scale = cont_mass * (1 - mu);
   real right_scale = cont_mass * mu;
-  
-  // Handle values at exactly the threshold
+
+  // Handle threshold boundary
   if (abs(y - threshold) < eps) {
-    real overlap = 1e-6;  // Small offset to compute limits
-    
+    real overlap = 1e-6;
     if (mu < eps) {
-      // When mu = 0, only use left limit
+      // only left side
       real left_log_density = beta_lpdf(1.0 - overlap | muleft * phileft, (1 - muleft) * phileft);
       return log(left_scale) + left_log_density - log(threshold);
     } else if (mu > 1 - eps) {
-      // When mu = 1, only use right limit
-      real right_log_density = beta_lpdf(0.0 + overlap | muright * phiright, (1 - muright) * phiright);
+      // only right side
+      real right_log_density = beta_lpdf(overlap | muright * phiright, (1 - muright) * phiright);
       return log(right_scale) + right_log_density - log(1 - threshold);
     } else {
-      // Calculate left and right limits
       real left_density = left_scale * exp(beta_lpdf(1.0 - overlap | muleft * phileft, (1 - muleft) * phileft)) / threshold;
-      real right_density = right_scale * exp(beta_lpdf(0.0 + overlap | muright * phiright, (1 - muright) * phiright)) / (1 - threshold);
-      
-      // Weighted average based on mu
+      real right_density = right_scale * exp(beta_lpdf(overlap | muright * phiright, (1 - muright) * phiright)) / (1 - threshold);
       return log((1 - mu) * left_density + mu * right_density);
     }
   }
-  
-  // Left side of threshold
+
+  // Left side
   if (y < threshold) {
     real scaled_y = y / threshold;
     return log(left_scale) + beta_lpdf(scaled_y | muleft * phileft, (1 - muleft) * phileft) - log(threshold);
   }
-  // Right side of threshold
+  // Right side
   else {
     real scaled_y = (y - threshold) / (1 - threshold);
     return log(right_scale) + beta_lpdf(scaled_y | muright * phiright, (1 - muright) * phiright) - log(1 - threshold);
   }
 }
-", block = "functions")
+"
+}
+
+#' @rdname rchoco
+#' @examples
+#' # You can expose the lpdf function as follows:
+#' # choco_lpdf <- choco_lpdf_expose()
+#' # choco_lpdf(y = 0.5, mu = 0.5, muleft = 0.3, mudelta = 0.2,
+#' #' #            phileft = 1, phidelta = 0.5, pex = 0.8, bex = 0.6)
+#'
+#' @export
+choco_lpdf_expose <- function() {
+  insight::check_if_installed("cmdstanr")
+
+  # Build the final Stan code string
+  stancode <- paste0(
+    "functions {\n",
+    .choco_lpdf(),
+    "\n}"
+  )
+
+  mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(stancode))
+  mod$expose_functions()
+  mod$functions$choco_lpdf
+}
+
+#' @rdname rchoco
+#' @export
+choco_stanvars <- function() {
+  brms::stanvar(scode = .choco_lpdf(), block = "functions")
 }
 
 

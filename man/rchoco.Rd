@@ -3,6 +3,7 @@
 \name{rchoco}
 \alias{rchoco}
 \alias{dchoco}
+\alias{choco_lpdf_expose}
 \alias{choco_stanvars}
 \alias{choco}
 \alias{posterior_predict_choco}
@@ -33,6 +34,8 @@ dchoco(
   threshold = 0.5,
   log = FALSE
 )
+
+choco_lpdf_expose()
 
 choco_stanvars()
 
@@ -113,4 +116,9 @@ x <- seq(0, 1, length.out = 101)
 dens <- dchoco(x, p = 0.5, muleft = 0.3, mudelta = 0, phileft = 5, phidelta = 0, 
                pex = 0.1, bex = 0.5)
 plot(x, dens, type = "l", main = "Density of CHOCO Model", xlab = "x", ylab = "Density")
+# You can expose the lpdf function as follows:
+# choco_lpdf <- choco_lpdf_expose()
+# choco_lpdf(y = 0.5, mu = 0.5, muleft = 0.3, mudelta = 0.2,
+#' #            phileft = 1, phidelta = 0.5, pex = 0.8, bex = 0.6)
+
 }

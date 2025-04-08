@@ -3,6 +3,7 @@
 \name{rbext}
 \alias{rbext}
 \alias{dbext}
+\alias{bext_lpdf_expose}
 \alias{bext_stanvars}
 \alias{bext}
 \alias{posterior_predict_bext}
@@ -12,6 +13,8 @@
 rbext(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5)
 
 dbext(x, mu = 0.5, phi = 1, pex = 0.1, bex = 0.5, log = FALSE)
+
+bext_lpdf_expose()
 
 bext_stanvars()
 
@@ -65,4 +68,8 @@ hist(x, breaks = 50, main = "Simulated Outcomes", xlab = "y")
 x <- seq(0, 1, length.out = 1001)
 densities <- dbext(x, mu = 0.5, phi = 5, pex = 0.2, bex = 0.5)
 plot(x, densities, type = "l", main = "Density Function", xlab = "y", ylab = "Density")
+# You can expose the lpdf function as follows:
+# bext_lpdf <- bext_lpdf_expose()
+# bext_lpdf(y = 0.5, mu = 0.6, phi = 10, pex = 0.2, bex = 0.5)
+
 }

@@ -1,11 +1,8 @@
 # Stanvars ----------------------------------------------------------------
 
-
-#' @rdname rlnr
-#' @export
-lnr_stanvars <- function() {
-
-  lpdf <- brms::stanvar(scode = "
+#' @keywords internal
+.lnr_lpdf <- function() {
+"
 // Log-likelihood for a single observation from the reparameterized Log-Normal Race model.
 // Y: observed reaction time.
 // dec: decision indicator (0 or 1).
@@ -62,9 +59,38 @@ real lnr_lpdf(real Y, real mu, real mudelta, real sigmazero, real sigmadelta, re
   }
   return lp;
 }
-  ", block = "functions")
+"
+}
 
-  lpdf
+#' @rdname rlnr
+#' @examples
+#' # You can expose the lpdf function as follows:
+#' # lnr_lpdf <- lnr_lpdf_expose()
+#' # lnr_lpdf(Y = 0.5, mu = 0, mudelta = 0, sigmazero = 1, sigmadelta = 0.5,
+#' #          tau = 0.1, minrt = 0.2, dec = 1)
+#'
+#' @export
+lnr_lpdf_expose <- function() {
+  insight::check_if_installed("cmdstanr")
+
+  # Wrap the function Stan block (done normally by brms on model compilation)
+  stancode <- paste0(
+"functions {
+", .lnr_lpdf(), "
+}")
+
+  mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(stancode))
+  mod$expose_functions()
+  mod$functions$lnr_lpdf
+}
+
+
+
+
+#' @rdname rlnr
+#' @export
+lnr_stanvars <- function() {
+  brms::stanvar(scode = .lnr_lpdf(), block = "functions")
 }
 
 
