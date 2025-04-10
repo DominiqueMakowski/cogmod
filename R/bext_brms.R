@@ -5,45 +5,75 @@
 #' @keywords internal
 .bext_lpdf <- function() {
 "
+// Log probability density function for the BEXT distribution
+// Optimized for numerical stability
 real bext_lpdf(real y, real mu, real phi, real pex, real bex) {
-  real eps = 1e-8;  // Small constant to avoid numerical issues
-  
-  // Special case: pex = 1 (discrete Bernoulli distribution)
-  if (abs(pex - 1) < eps) {
-    if (y < eps) {
-      // Log-density for zeros
-      return log(1 - bex);
-    } else if (y > (1 - eps)) {
-      // Log-density for ones
+  real eps = 1e-9; // Tolerance for floating point comparisons near 0 and 1
+
+  // --- Parameter Validation ---
+  if (mu < 0.0 || mu > 1.0 || phi <= 0.0 || pex < 0.0 || pex > 1.0 || bex < 0.0 || bex > 1.0) {
+    return negative_infinity();
+  }
+  // Validate outcome y
+  if (y < 0.0 || y > 1.0) {
+     return negative_infinity();
+  }
+
+  // Calculate internal precision
+  real precision = phi * 2.0;
+
+  // --- Edge Case: pex = 1 (Pure Bernoulli) ---
+  // If pex is exactly or very close to 1
+  if (abs(pex - 1.0) < eps) {
+    if (abs(y - 0.0) < eps) { // y = 0 (using abs(y-0.0) for consistency)
+      // log(1 - bex)
+      if (bex >= 1.0 - eps) return negative_infinity(); // Avoid log(0) if bex=1
+      return log1m(bex); // More stable than log(1.0 - bex)
+    } else if (abs(y - 1.0) < eps) { // y = 1  <- CORRECTED CONDITION
+      // log(bex)
+      if (bex <= eps) return negative_infinity(); // Avoid log(0) if bex=0
       return log(bex);
-    } else {
-      // All other values have zero density
+    } else { // 0 < y < 1
+      // Density is zero for continuous values in Bernoulli
       return negative_infinity();
     }
   }
-  
-  // Regular case: mixture of continuous and discrete
-  // Compute kleft and kright from pex and bex
-  real kleft = pex * (1 - bex);    // probability mass at 0
-  real kright = 1 - (pex * bex);   // threshold above which outcomes are set to 1
-  
-  // Validate parameters
-  if (kleft < 0 || kleft > 1 || kright < 0 || kright > 1 || kleft >= kright)
-    return negative_infinity();
-    
-  if (y < eps) {
-    // Log-density for zeros
-    return log(kleft);
-  } else if (y > (1 - eps)) {
-    // Log-density for ones
-    return log(1 - kright);
-  } else {
-    // Log-density for continuous outcomes
-    return log(kright - kleft) + beta_lpdf(y | mu * phi, (1 - mu) * phi);
+
+  // --- Edge Case: pex = 0 (Pure Beta) ---
+  // If pex is exactly or very close to 0
+  if (abs(pex - 0.0) < eps) {
+     // For pure Beta, density is defined only on (0, 1)
+     if (y <= 0.0 + eps || y >= 1.0 - eps) {
+         // Stan's beta_lpdf might handle this, but explicit check is safer
+         return negative_infinity();
+     } else {
+         // Use Stan's built-in beta log PDF
+         return beta_lpdf(y | mu * precision, (1.0 - mu) * precision);
+     }
+  }
+
+  // --- Mixture Case (0 < pex < 1) ---
+  // At this point, we know 0 < pex < 1
+
+  if (abs(y - 0.0) < eps) { // y = 0
+    // Log-probability is log(pex * (1 - bex)) = log(pex) + log(1 - bex)
+    if (bex >= 1.0 - eps) return negative_infinity(); // Avoid log(1-bex) if bex=1
+    // pex > 0 is guaranteed here
+    return log(pex) + log1m(bex);
+  } else if (abs(y - 1.0) < eps) { // y = 1
+    // Log-probability is log(pex * bex) = log(pex) + log(bex)
+    if (bex <= eps) return negative_infinity(); // Avoid log(bex) if bex=0
+    // pex > 0 is guaranteed here
+    return log(pex) + log(bex);
+  } else { // 0 < y < 1
+    // Log-density is log(1 - pex) + beta_lpdf(...)
+    // pex < 1 is guaranteed here, so (1-pex) > 0
+    return log1m(pex) + beta_lpdf(y | mu * precision, (1.0 - mu) * precision);
   }
 }
 "
 }
+
 
 #' @rdname rbext
 #' @examples
@@ -75,18 +105,24 @@ bext_stanvars <- function() {
 
 
 #' @rdname rbext
+#' @param link_mu,link_phi,link_pex,link_bex Link functions for the parameters.
 #' @export
-bext <- function() {
-  # The custom family uses:
-  # - mu: logit link (to constrain it to (0,1)),
-  # - phi: log link (to ensure positivity),
-  # - pex: logit link (to constrain it to (0,1)),
-  # - bex: logit link (to constrain it to (0,1)).
-  brms::custom_family("bext",
-                      dpars = c("mu", "phi", "pex", "bex"),
-                      links  = c("logit", "softplus", "logit", "logit"),
-                      lb     = c(NA, 0, NA, NA),
-                      type   = "real")
+#' @examples
+#' \dontrun{
+#' # Default usage:
+#' family = bext()
+#' # Custom link for phi:
+#' family = bext(link_phi = "log")
+#' }
+bext <- function(link_mu = "logit", link_phi = "softplus", link_pex = "logit", link_bex = "logit") {
+  brms::custom_family(
+    name = "bext",
+    dpars = c("mu", "phi", "pex", "bex"),
+    links = c(link_mu, link_phi, link_pex, link_bex),
+    lb = c(NA, 0, 0, 0),
+    ub = c(NA, NA, 1, 1),  # Question: are lb and ub needed for pex and bex?
+    type = "real"
+  )
 }
 
 # brms --------------------------------------------------------------------
@@ -98,137 +134,69 @@ bext <- function() {
 #' @param ... Additional arguments.
 #' @export
 posterior_predict_bext <- function(i, prep, ...) {
-  args <- list(...)
-  type <- if (!is.null(args$type) && args$type == "continuous") "continuous" else "combined"
-
   # Extract draws for each parameter
   mu    <- brms::get_dpar(prep, "mu", i = i)
   phi   <- brms::get_dpar(prep, "phi", i = i)
   pex   <- brms::get_dpar(prep, "pex", i = i)
   bex   <- brms::get_dpar(prep, "bex", i = i)
 
-  # Special case: pex = 1 (Bernoulli distribution)
-  eps <- 1e-8
-  pex_is_one <- abs(pex - 1) < eps
-  
-  if (any(pex_is_one) && type != "continuous") {
-    final_out <- numeric(length(mu))
-    
-    # Handle the special case entries
-    special_idx <- which(pex_is_one)
-    for (j in special_idx) {
-      # Sample from Bernoulli(bex)
-      final_out[j] <- sample(c(0, 1), size = 1, prob = c(1-bex[j], bex[j]))
-    }
-    
-    # If all are special case, return
-    if (length(special_idx) == length(mu)) {
-      return(as.matrix(final_out))
-    }
-    
-    # Otherwise, process the regular cases
-    regular_idx <- which(!pex_is_one)
-    mu <- mu[regular_idx]
-    phi <- phi[regular_idx]
-    pex <- pex[regular_idx]
-    bex <- bex[regular_idx]
-  } else {
-    final_out <- numeric(length(mu))
-    regular_idx <- seq_along(mu)
-  }
-  
-  # For regular cases (pex < 1)
-  # Compute kleft and kright from pex and bex
-  kleft <- pex * (1 - bex)   # threshold below which outcomes are set to 0
-  kright <- 1 - (pex * bex)  # threshold above which outcomes are set to 1
+  n_draws <- length(mu) # Number of posterior draws
 
-  # Simulate continuous outcomes from the beta distribution
-  y_beta <- stats::rbeta(n = length(mu),
-                         shape1 = mu * phi,
-                         shape2 = (1 - mu) * phi)
-
-  if (type == "continuous") {
-    # Return only the continuous outcomes
-    return(as.matrix(y_beta))
-  } else {
-    # Generate uniform random numbers
-    u <- stats::runif(length(mu))
-    
-    for (j in seq_along(mu)) {
-      if (u[j] < kleft[j]) {
-        final_out[regular_idx[j]] <- 0  # zero
-      } else if (u[j] >= kright[j]) {
-        final_out[regular_idx[j]] <- 1  # one
-      } else {
-        final_out[regular_idx[j]] <- y_beta[j]  # continuous outcome
-      }
-    }
-  }
+  # Use rbext()
+  final_out <- rbext(n = n_draws, mu = mu, phi = phi, pex = pex, bex = bex)
 
   as.matrix(final_out)
 }
 
+
+#' @rdname rbext
+#' @export
+posterior_epred_bext <- function(prep) {
+  # Extract draws for the necessary parameters
+  # get_dpar returns draws x observations matrix
+  mu  <- brms::get_dpar(prep, "mu")
+  pex <- brms::get_dpar(prep, "pex")
+  bex <- brms::get_dpar(prep, "bex")
+
+  # Calculate the expectation (mean) for each draw and observation
+  # The expectation of BEXT(mu, phi, pex, bex) is (1 - pex) * mu + pex * bex.
+  # Formula: E[Y] = (1 - pex) * E[Beta] + pex * E[Bernoulli]
+  # E[Beta] = mu
+  # E[Bernoulli] = bex
+  epred <- (1 - pex) * mu + pex * bex
+
+  epred # Return the matrix of posterior expectations (draws x observations)
+}
+
+
+
 #' @rdname rbext
 #' @export
 log_lik_bext <- function(i, prep) {
-  # Extract observed value
-  y <- prep$data$Y[i]
+  # Extract observed value for the i-th observation
+  if (!"Y" %in% names(prep$data)) stop("Outcome variable 'Y' not found in prep$data.")
+  y_scalar <- prep$data$Y[i] # This is a single value
 
-  # Extract model draws
+  # Extract model draws (vectors) for the i-th observation
   mu  <- brms::get_dpar(prep, "mu", i = i)
   phi <- brms::get_dpar(prep, "phi", i = i)
   pex <- brms::get_dpar(prep, "pex", i = i)
   bex <- brms::get_dpar(prep, "bex", i = i)
 
-  eps <- 1e-8  # small constant for numerical stability
-  
-  # Initialize log-likelihood vector
-  ll <- rep(NA, length(mu))
-  
-  # Special case: pex = 1 (discrete Bernoulli distribution)
-  pex_is_one <- abs(pex - 1) < eps
-  
-  # Handle the special case (Bernoulli distribution)
-  if (y < eps) {
-    # Log-density for zeros
-    ll[pex_is_one] <- log(1 - bex[pex_is_one])
-  } else if (y > (1 - eps)) {
-    # Log-density for ones
-    ll[pex_is_one] <- log(bex[pex_is_one]) 
-  } else {
-    # All other values have zero density
-    ll[pex_is_one] <- -Inf
-  }
-  
-  # Handle the regular case (mixture of continuous and discrete)
-  regular_idx <- which(!pex_is_one)
-  
-  if (length(regular_idx) > 0) {
-    # Compute kleft and kright from pex and bex
-    kleft <- pex[regular_idx] * (1 - bex[regular_idx])    # probability mass at 0
-    kright <- 1 - (pex[regular_idx] * bex[regular_idx])   # threshold above which outcomes are set to 1
-    
-    # Validate parameters
-    valid_params <- kleft >= 0 & kleft <= 1 & kright >= 0 & kright <= 1 & kleft < kright
-    kleft[!valid_params] <- NA  # Mark invalid params
-    
-    if (y < eps) {
-      # Log-density for zeros
-      ll[regular_idx] <- log(kleft)
-    } else if (y > (1 - eps)) {
-      # Log-density for ones
-      ll[regular_idx] <- log(1 - kright)
-    } else {
-      # Log-density for continuous outcomes
-      ll[regular_idx] <- log(kright - kleft) + stats::dbeta(y,
-                                                shape1 = mu[regular_idx] * phi[regular_idx],
-                                                shape2 = (1 - mu[regular_idx]) * phi[regular_idx],
-                                                log = TRUE)
-    }
-    
-    # Set invalid parameter combinations to -Inf
-    ll[regular_idx][!valid_params] <- -Inf
-  }
-  
-  ll
+  # Determine number of draws
+  n_draws <- length(mu)
+  if (n_draws == 0) return(numeric(0)) # Handle case with no draws
+
+  # Replicate the scalar y to match the number of draws
+  y_vec <- rep(y_scalar, length.out = n_draws)
+
+  # Calculate log-likelihood using the vectorized dbext function
+  # Now y_vec has the same length as the parameter vectors
+  ll <- dbext(x = y_vec, mu = mu, phi = phi, pex = pex, bex = bex, log = TRUE)
+
+  # Ensure no NaN/NA values (dbext should return -Inf for zero density)
+  # This might be redundant if dbext is robust, but safe to keep.
+  ll[is.nan(ll) | is.na(ll)] <- -Inf
+
+  ll # Return the vector of log-likelihoods for all draws
 }

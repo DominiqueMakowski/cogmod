@@ -7,37 +7,54 @@
 \alias{bext_stanvars}
 \alias{bext}
 \alias{posterior_predict_bext}
+\alias{posterior_epred_bext}
 \alias{log_lik_bext}
 \title{Beta-Extreme (BEXT) Model}
 \usage{
 rbext(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5)
 
-dbext(x, mu = 0.5, phi = 1, pex = 0.1, bex = 0.5, log = FALSE)
+dbext(x, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5, log = FALSE)
 
 bext_lpdf_expose()
 
 bext_stanvars()
 
-bext()
+bext(
+  link_mu = "logit",
+  link_phi = "softplus",
+  link_pex = "logit",
+  link_bex = "logit"
+)
 
 posterior_predict_bext(i, prep, ...)
+
+posterior_epred_bext(prep)
 
 log_lik_bext(i, prep)
 }
 \arguments{
-\item{n}{Number of simulated trials. Must be a positive integer.}
+\item{n}{Number of simulated values. Must be a positive integer.}
 
-\item{mu}{Mean of the continuous component (between 0 and 1).}
+\item{mu}{Mean of the continuous Beta component (between 0 and 1), represents the central
+tendency of non-extreme values.}
 
-\item{phi}{Precision parameter (positive).}
+\item{phi}{Precision parameter (positive). Note: This corresponds to half of the "typical"
+precision parameter used in Beta models (internally, \code{precision = phi * 2} is used).
+This reparametrization means \code{phi = 1} (with \code{mu = 0.5}) corresponds to a uniform distribution
+between 0 and 1 for the Beta component. It facilitates the usage of priors (e.g., on a log-link,
+\code{log(phi) = 0} corresponds to this uniform case).}
 
-\item{pex}{Likelihood of extreme values (zeros and ones). Must be in the range 0-1.}
+\item{pex}{Overall probability of extreme values (0 or 1). \verb{0 <= pex <= 1}.}
 
-\item{bex}{Balance of extreme values. Represents the proportion of ones relative to zeros. Default: 0.5.}
+\item{bex}{Balances the extreme probability mass between 0 and 1. If \code{bex = 0.5}, the mass
+is distributed equally (\code{P(0) = P(1) = pex / 2}). If \code{bex > 0.5}, more mass goes to 0.
+If \code{bex < 0.5}, more mass goes to 1. Specifically, \code{P(0) = pex * (1 - bex)} and \code{P(1) = pex * bex}.}
 
-\item{x}{A vector of values for which to compute the density.}
+\item{x}{Vector of quantiles (values at which to evaluate the density). Must be between 0 and 1, inclusive.}
 
 \item{log}{Logical; if TRUE, returns the log-density.}
+
+\item{link_mu, link_phi, link_pex, link_bex}{Link functions for the parameters.}
 
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
@@ -47,23 +64,72 @@ log_lik_bext(i, prep)
 A vector of simulated outcomes in the range 0-1.
 }
 \description{
-The ordered beta model (\href{https://doi.org/10.1017/pan.2022.20}{Kubinec, 2023}) was
-introduced as an appropriate and parsimonious way of describing data commonly
+The BEXT model represents subjective ratings as a mixture of a continuous Beta distribution
+with additional point masses at the extremes (0 and 1). This structure effectively captures
+common patterns in subjective rating data where respondents often select extreme values
+at higher rates than would be expected from a Beta distribution alone.
+
+The BeXt model corresponds to a reparametrized ordered beta model (\href{https://doi.org/10.1017/pan.2022.20}{Kubinec, 2023}),
+which was introduced as an appropriate and parsimonious way of describing data commonly
 observed in psychological science (such as from slider scales). It is defined
 with a Beta distribution on the interval 0-1 with additional point masses at 0 and 1.
-
-The BeXt model corresponds to a reparametrized ordered beta model.
-Instead of defining the left and right cutpoints, the BeXt parametrization
-uses the likelihood of extreme values (0 and 1) and their balance (i.e., the
-relative proportion of zeros and ones).
 
 It differs from the Zero-One-Inflated Beta (ZOIB) model in that the ZOIB model has \code{zoi}
 and \code{coi} parameters, directly controlling the likelihood of extreme values. Instead,
 BeXt uses \code{pex} and \code{bex} to define "cutpoints" after which extreme values become likely.
+In an ordered beta framework, the boundary probabilities arise through a single underlying
+ordering process (the location of the cutpoints on the latent scale). In a ZOIB framework,
+the boundaries are more like additional mass points inserted into a beta distribution.
+In ordered beta models, the parameters represent a coherent underlying latent process.
+Having cutpoints interact with mu better represents a single unified psychological process.
+
+The BEXT model changes the parameterization of the ordered beta model to be more interpretable:
+Instead of using fixed cutpoints, this version computes the cutpoints from two intuitive parameters:
+\itemize{
+\item \code{pex} (p-extreme): the overall probability of extreme values (0 or 1).
+\item \code{bex} (balance-extreme): the balance of extreme probability mass between 0 and 1.
+Because these parameters directly map onto the expected proportion of responses at the extremes,
+this approach provides greater flexibility (e.g., in capturing pronounced endpoints: It can adapt
+to various shapes - such as extreme clustering at zero or one) and intuitive interpretability.
+}
+}
+\details{
+The BeXt model corresponds to a reparametrized ordered beta model.
+Instead of defining the left and right cutpoints directly, the BeXt parametrization
+uses the overall probability of extreme values (\code{pex}) and their balance (\code{bex}).
+
+The probability masses at the extremes are determined by:
+\itemize{
+\item Probability mass at 0: \code{P(0) = pex * (1 - bex)}
+\item Probability mass at 1: \code{P(1) = pex * bex}
+The probability of a value falling between 0 and 1 (drawn from the Beta distribution) is \code{1 - pex}.
+}
+
+\strong{Special cases:}
+\itemize{
+\item When \code{pex = 0}: Pure Beta distribution with mean \code{mu} and precision \code{phi * 2}.
+\item When \code{pex = 1}: Pure Bernoulli distribution with \code{P(1) = bex}, \code{P(0) = 1-bex}.
+\item When \code{bex = 0} and \code{pex = 1}: All mass at 0.
+\item When \code{bex = 1} and \code{pex = 1}: All mass at 1.
+}
+
+\strong{Psychological Interpretation:}
+\itemize{
+\item \code{mu}: Can be interpreted as the underlying average tendency or preference strength,
+disregarding extreme "all-or-nothing" responses.
+\item \code{phi}: Reflects the certainty or consistency of the non-extreme responses. Higher \code{phi}
+indicates responses tightly clustered around \code{mu} (more certainty), while lower \code{phi}
+(especially \code{phi = 1}) suggests more uniform or uncertain responses.
+\item \code{pex}: Represents the overall tendency towards extreme responding (choosing 0 or 1).
+This could reflect individual response styles (e.g., acquiescence, yea-saying/nay-saying)
+or properties of the item itself (e.g., polarizing questions).
+\item \code{bex}: Indicates the \emph{direction} of the extreme response bias. \code{bex > 0.5} suggests a bias
+towards the upper anchor (1), while \code{bex < 0.5} suggests a bias towards the lower anchor (0).
+}
 }
 \examples{
 # Simulate data with different parameterizations
-x <- rbext(10000, mu = 0.5, phi = 3, pex = 0.05, bex = 0.5)
+x <- rbext(10000, mu = 0.5, phi = 1, pex = 0, bex = 0.5)
 hist(x, breaks = 50, main = "Simulated Outcomes", xlab = "y")
 x <- seq(0, 1, length.out = 1001)
 densities <- dbext(x, mu = 0.5, phi = 5, pex = 0.2, bex = 0.5)
@@ -72,4 +138,16 @@ plot(x, densities, type = "l", main = "Density Function", xlab = "y", ylab = "De
 # bext_lpdf <- bext_lpdf_expose()
 # bext_lpdf(y = 0.5, mu = 0.6, phi = 10, pex = 0.2, bex = 0.5)
 
+\dontrun{
+# Default usage:
+family = bext()
+# Custom link for phi:
+family = bext(link_phi = "log")
+}
+}
+\references{
+\itemize{
+\item Kubinec, R. (2023). Ordered beta regression: a parsimonious, well-fitting model for continuous data with
+lower and upper bounds. Political Analysis, 31(4), 519-536.
+}
 }

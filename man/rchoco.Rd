@@ -7,6 +7,7 @@
 \alias{choco_stanvars}
 \alias{choco}
 \alias{posterior_predict_choco}
+\alias{posterior_epred_choco}
 \alias{log_lik_choco}
 \title{Choice-Confidence (CHOCO) Model}
 \usage{
@@ -19,6 +20,7 @@ rchoco(
   phidelta = 0,
   pex = 0.1,
   bex = 0.5,
+  pmid = 0,
   threshold = 0.5
 )
 
@@ -31,6 +33,7 @@ dchoco(
   phidelta = 0,
   pex = 0.1,
   bex = 0.5,
+  pmid = 0,
   threshold = 0.5,
   log = FALSE
 )
@@ -46,79 +49,132 @@ choco(
   link_phileft = "softplus",
   link_phidelta = "identity",
   link_pex = "logit",
-  link_bex = "logit"
+  link_bex = "logit",
+  link_pmid = "logit"
 )
 
 posterior_predict_choco(i, prep, ...)
+
+posterior_epred_choco(prep)
 
 log_lik_choco(i, prep)
 }
 \arguments{
 \item{n}{Number of simulated trials. Must be a positive integer.}
 
-\item{p}{General proportion of data on the right-hand side of the threshold. Must be in the range \verb{[0, 1]}.
-If \code{p = 0.3}, 30\% of the data will be on the right-hand side.}
+\item{p}{Proportion parameter determining the balance between the left and right sides
+\emph{after excluding} the probability mass at the threshold (\code{pmid}). Specifically,
+\verb{P(Right Side | Not Threshold) = p} and \verb{P(Left Side | Not Threshold) = 1 - p}.
+Must be in the range \verb{[0, 1]}.}
 
-\item{muleft}{Mean of the Beta distribution for the left-hand side (range \verb{[0, threshold]}).
-Higher values push the mass toward \code{threshold}.}
+\item{muleft}{Mean parameter for the underlying BEXT distribution used for the \emph{left} side
+(0 to \code{threshold}). This represents the central tendency of the \emph{raw} BEXT component
+(before mirroring and scaling). Must be strictly between 0 and 1.}
 
-\item{mudelta}{Deviation in mean for the right-hand side relative to the left-hand side.}
+\item{mudelta}{Difference parameter modifying the mean for the \emph{right} side BEXT distribution.
+The mean of the raw BEXT component for the right side is calculated as
+\code{inv_logit(logit(muleft) + mudelta)}. An \code{mudelta = 0} implies the raw means are the same.}
 
-\item{phileft}{Precision parameter of the Beta distribution for the left-hand side (positive).}
+\item{phileft}{Precision parameter for the underlying BEXT distribution on the \emph{left} side.
+Must be positive. Note: This corresponds to half the typical Beta precision (\code{precision = phileft * 2}).
+\code{phileft = 1} corresponds to a uniform distribution (when \code{muleft = 0.5}).}
 
-\item{phidelta}{Deviation in precision for the right-hand side relative to the left-hand side,
-expressed on the log scale.}
+\item{phidelta}{Difference parameter modifying the precision for the \emph{right} side BEXT distribution.
+The precision of the raw BEXT component for the right side is calculated as
+\code{phiright = phileft * exp(phidelta)}. A \code{phidelta = 0} implies the precisions are the same.}
 
-\item{pex}{Likelihood of extreme values (zeros and ones). Must be in the range \verb{[0, 1]}.}
+\item{pex}{Overall probability of extreme values (0 or 1) \emph{within} each underlying BEXT component
+(before scaling/mirroring). This applies commonly to both left and right sides. \verb{0 <= pex <= 1}.}
 
-\item{bex}{Balance of extreme values. Represents the proportion of ones relative to zeros. Default: 0.5.}
+\item{bex}{Balances the extreme probability mass \emph{within} each underlying BEXT component
+between its 0 and 1 anchors. \code{P(raw=1) = pex * bex}, \code{P(raw=0) = pex * (1 - bex)}.
+Note that for the left CHOCO component, \code{raw=1} maps to CHOCO value 0, and for the right
+CHOCO component, \code{raw=1} maps to CHOCO value 1. \verb{0 <= bex <= 1}.}
 
-\item{threshold}{The threshold separating the two Beta distributions. Default: 0.5.}
+\item{pmid}{Probability mass exactly at the \code{threshold}. \verb{0 <= pmid <= 1}.}
 
-\item{x}{A vector of values for which to compute the density.}
+\item{threshold}{The point dividing the scale into left and right components. Must be
+strictly between 0 and 1.}
+
+\item{x}{Vector of quantiles (values at which to evaluate the density). Must be between 0 and 1, inclusive.}
 
 \item{log}{Logical; if TRUE, returns the log-density.}
 
-\item{link_mu, link_muleft, link_mudelta, link_phileft, link_phidelta, link_pex, link_bex}{Link functions for the parameters.}
+\item{link_mu, link_muleft, link_mudelta, link_phileft, link_phidelta, link_pex, link_bex, link_pmid}{Link functions for the parameters.}
 
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
 \item{...}{Additional arguments.}
 }
-\value{
-A vector of simulated outcomes in the range \verb{[0, 1]}.
-}
 \description{
 The Choice-Confidence (CHOCO) model is useful to model data from subjective ratings,
 such as Likert-type or analog scales, in which the left and the right side correspond
 to different processes or higher order categorical responses (e.g., "disagree" vs.
-"agree", "true" vs. "false"). They can be used to jointly model choice (left or right)
-and confidence (the degree of left or right).
+"agree", "true" vs. "false"). They can be used to jointly model thechoice
+between two underlying categories (e.g., "disagree" vs. "agree") along with a degree
+of confidence or intensity.
 
-To better represent potentially bimodal bounded data with zeros and ones, CHOCO models
-consist of two separate ordered beta distributions (Kubinec, 2023) reparametrized as
-BetaXtreme to model the left and the right hand side of the scale.
-
-The left-hand side is defined by \code{muleft} and \code{phileft}, while the right-hand side is defined
-as the mirrored value of \code{muleft} around the threshold. A general parameter \code{p} controls the
-proportion of data on the right-hand side versus the left-hand side of the threshold.
+The CHOCO model conceptualizes the response scale as being divided at a \code{threshold} (typically
+at 0.5, i.e., the middle point of the scale). Responses below the threshold are modeled by one
+Beta-Extreme (BEXT) distribution (see \code{\link[=rbext]{rbext()}}), and responses above the threshold are modeled
+by a separate, mirrored BEXT distribution. The relative proportions of data on the left and right
+sides of the threshold are controlled by the \code{p} parameter, which indicates the probability of
+observing a response on the right side of the threshold. There is also a point mass probability
+(\code{pmid}) for responses exactly at the \code{threshold}.
+}
+\details{
+The simulation process involves three steps:
+\enumerate{
+\item Decide whether the outcome is exactly at the \code{threshold} (with probability \code{pmid}).
+\item If not at the threshold, decide whether the outcome falls on the right side (with
+conditional probability \code{p}) or the left side (with conditional probability \code{1-p}).
+\item Simulate the value from the corresponding BEXT distribution:
+\itemize{
+\item \strong{Left Side (0 to \code{threshold}):} Simulate \code{y_raw} from \code{rbext(mu=muleft, phi=phileft, pex=pex_left, bex=1)}.
+The final value is \code{(1 - y_raw) * threshold}. Note \code{pex_left = (1-bex)*pex*2} and \code{bex=1} is used in \code{rbext}
+to ensure the extreme mass corresponds to CHOCO value 0.
+\item \strong{Right Side (\code{threshold} to 1):} Simulate \code{y_raw} from \code{rbext(mu=muright, phi=phiright, pex=pex_right, bex=1)}.
+The final value is \code{threshold + y_raw * (1 - threshold)}. Note \code{pex_right = bex*pex*2} and \code{bex=1} is used
+in \code{rbext} to ensure the extreme mass corresponds to CHOCO value 1.
+}
+}
 }
 \examples{
 # Simulate data with different parameterizations
-x <- rchoco(50000, p = 0.5, muleft = 0.3, mudelta = 0, phileft = 5,
-  phidelta = 0, pex = 0.1, bex = 0.5)
-hist(x, breaks = 50, main = "Simulated Outcomes", xlab = "y")
+# 10\% at threshold, 50/50 split otherwise, symmetric means/precisions
+x1 <- rchoco(n=5000, p = 0.5, muleft = 0.7, mudelta = 0, phileft = 5,
+  phidelta = 0, pex = 0.1, bex = 0.5, pmid = 0.1, threshold = 0.5)
+hist(x1, breaks = 50, main = "CHOCO: Symmetric, pmid=0.1", xlab = "y")
 
-x <- rchoco(50000, p = 0.7, muleft = 0.3, mudelta = 0, phileft = 5,
-  phidelta = 0, pex = 0.1, bex = 0.5)
-hist(x, breaks = 50, main = "Simulated Outcomes", xlab = "y")
-x <- seq(0, 1, length.out = 101)
-dens <- dchoco(x, p = 0.5, muleft = 0.3, mudelta = 0, phileft = 5, phidelta = 0, 
-               pex = 0.1, bex = 0.5)
-plot(x, dens, type = "l", main = "Density of CHOCO Model", xlab = "x", ylab = "Density")
-# You can expose the lpdf function as follows:
-# choco_lpdf <- choco_lpdf_expose()
-# choco_lpdf(y = 0.5, mu = 0.5, muleft = 0.3, mudelta = 0.2,
-#' #            phileft = 1, phidelta = 0.5, pex = 0.8, bex = 0.6)
-
+# No threshold mass, 70\% probability on right, different means/precisions
+x2 <- rchoco(n=5000, p = 0.7, muleft = 0.8, mudelta = -1, phileft = 3,
+  phidelta = 0.5, pex = 0.05, bex = 0.7, pmid = 0, threshold = 0.5)
+hist(x2, breaks = 50, main = "CHOCO: Asymmetric, pmid=0", xlab = "y")
+\dontrun{
+  # Requires cmdstanr to be installed and configured
+  logpdf_func <- choco_lpdf_expose()
+  # Note: parameter 'p' is now 'mu' in the Stan function
+  logpdf_func(y = 0.2, mu = 0.6, muleft = 0.3, mudelta = 0.1, phileft = 5,
+              phidelta = -0.2, pex = 0.1, bex = 0.5, pmid = 0.05)
+  logpdf_func(y = 0.5, mu = 0.6, muleft = 0.3, mudelta = 0.1, phileft = 5,
+              phidelta = -0.2, pex = 0.1, bex = 0.5, pmid = 0.05)
+}
+\dontrun{
+# Example usage in brm formula:
+# bf(y ~ x1 + (1|group),
+#    muleft ~ 1,
+#    mudelta ~ x3,
+#    phileft ~ 1,
+#    phidelta ~ 1,
+#    pex ~ s(age),
+#    bex ~ 1,
+#    pmid ~ 1,
+#    family = choco())
+}
+}
+\references{
+\itemize{
+\item Kubinec, R. (2023). Ordered beta regression: a parsimonious, well-fitting model for continuous data with
+lower and upper bounds. Political Analysis, 31(4), 519-536. (Describes the underlying ordered beta model)
+}
 }

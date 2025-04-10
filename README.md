@@ -53,8 +53,8 @@ df2 <- rchoco(n = 5000, mu = 0.7, muleft = 0.6, phileft = 5, pex = 0.05)
 df <- data.frame(
   value = c(df1, df2),
   group = rep(c(
-    "mu=0.5, muleft=0.4, phileft=3, kleft=0.9",
-    "mu=0.7, muleft=0.6, phileft=5, kleft=0.95"
+    "mu = 0.5, muleft = 0.4, phileft = 3, pex = 0.1",
+    "mu = 0.7, muleft = 0.6, phileft = 5, pex = 0.05"
   ), each = 5000)
 )
 
@@ -110,7 +110,13 @@ library(easystats)
 library(brms)
 library(cmdstanr)
 
-df <- data.frame(score = rchoco(n = 1000, mu = 0.6, muleft = 0.6, phileft = 3, pex = 0.03, bex = 0.6))
+df <- data.frame()
+for(x in seq(0.1, 1, by = 0.1)) {
+  df <- data.frame(x = x,
+                   score = rchoco(n = 100, p = 0.4 + x / 2, muleft = 0.3 + x / 3, 
+                                  phileft = 3, pex = 0.03, bex = 0.6, pmid = 0)) |> 
+    rbind(df)
+}
 
 df |>
   ggplot(aes(x = score, y = after_stat(density))) +
@@ -130,10 +136,10 @@ continuous proportions in-between.
 
 ``` r
 f <- bf(
-  score ~ 1,
-  phi ~ 1,
-  zoi ~ 1,
-  coi ~ 1
+  score ~ x,
+  phi ~ x,
+  zoi ~ x,
+  coi ~ x
 )
 
 m_zoib <- brm(f,
@@ -158,9 +164,9 @@ masses at the boundary values 0 and 1.
 
 ``` r
 f <- bf(
-  score ~ 1,
-  phi ~ 1,
-  kappa ~ 1
+  score ~ x,
+  phi ~ x,
+  kappa ~ x
 )
 
 m_xbx <- brm(f,
@@ -177,16 +183,16 @@ saveRDS(m_xbx, file = "man/figures/m_xbx.rds")
 
 The BeXt model corresponds to a reparametrized ordered beta model
 ([Kubinec, 2023](https://doi.org/10.1017/pan.2022.20)). Instead of
-defining the left and right cutpoints, the BeXt parametrization uses the
+defining left and right cutpoints, the BeXt parametrization uses the
 likelihood of extreme values (0 and 1) and their balance (i.e., the
 relative proportion of zeros and ones).
 
 ``` r
 f <- bf(
-  score ~ 1,
-  phi ~ 1,
-  pex ~ 1,
-  bex ~ 1
+  score ~ x,
+  phi ~ x,
+  pex ~ x,
+  bex ~ x
 )
 
 m_bext <- brm(f,
@@ -203,13 +209,14 @@ saveRDS(m_bext, file = "man/figures/m_bext.rds")
 
 ``` r
 f <- bf(
-  score ~ 1,
-  muleft ~ 1,
-  mudelta ~ 1,
-  phileft ~ 1,
-  phidelta ~ 1,
-  pex ~ 1,
-  bex ~ 1
+  score ~ x,
+  muleft ~ x,
+  mudelta ~ x,
+  phileft ~ x,
+  phidelta ~ x,
+  pex ~ x,
+  bex ~ x,
+  pmid = 0
 )
 
 m_choco <- brm(f,
@@ -236,25 +243,25 @@ loo::loo_compare(m_zoib, m_xbx, m_bext, m_choco) |>
 
     # Fixed Effects
 
-    Name    | LOOIC |  ENP |   ELPD | Difference | Difference_SE |      p
-    ---------------------------------------------------------------------
-    m_choco | -6.49 | 6.84 |   3.25 |       0.00 |          0.00 |       
-    m_zoib  | 77.47 | 3.73 | -38.73 |     -41.98 |          8.46 | < .001
-    m_bext  | 77.76 | 3.91 | -38.88 |     -42.13 |          8.45 | < .001
-    m_xbx   | 84.03 | 2.68 | -42.01 |     -45.26 |          8.73 | < .001
+    Name    |   LOOIC |   ENP |   ELPD | Difference | Difference_SE |      p
+    ------------------------------------------------------------------------
+    m_choco | -387.80 | 13.71 | 193.90 |       0.00 |          0.00 |       
+    m_zoib  |  -12.43 |  7.83 |   6.21 |    -187.69 |         14.98 | < .001
+    m_bext  |  -11.64 |  7.94 |   5.82 |    -188.08 |         14.99 | < .001
+    m_xbx   |   40.07 |  5.97 | -20.03 |    -213.93 |         15.89 | < .001
 
 ``` r
 pred <- rbind(
-  estimate_prediction(m_zoib, keep_iterations = 100) |>
+  estimate_prediction(m_zoib, keep_iterations = 200) |>
     reshape_iterations() |>
     data_modify(Model = "ZOIB"),
-  estimate_prediction(m_xbx, keep_iterations = 100) |>
+  estimate_prediction(m_xbx, keep_iterations = 200) |>
     reshape_iterations() |>
     data_modify(Model = "XBX"),
-  estimate_prediction(m_bext, keep_iterations = 100) |>
+  estimate_prediction(m_bext, keep_iterations = 200) |>
     reshape_iterations() |>
     data_modify(Model = "BEXT"),
-  estimate_prediction(m_choco, keep_iterations = 100) |>
+  estimate_prediction(m_choco, keep_iterations = 200) |>
     reshape_iterations() |>
     data_modify(Model = "CHOCO")
 )
@@ -266,12 +273,24 @@ insight::get_data(m_zoib) |>
   theme_minimal() + 
   geom_histogram(
     data = pred, aes(x = iter_value, group = as.factor(iter_group)),
-    bins = 100, alpha = 0.03, position = "identity", fill = "#FF5722"
+    bins = 100, alpha = 0.02, position = "identity", fill = "#FF5722"
   ) +
   facet_wrap(~Model)
 ```
 
 ![](man/figures/unnamed-chunk-9-1.png)
+
+``` r
+# m_bext <- readRDS("man/figures/m_bext.rds")
+# 
+# # Predict various parameters
+# insight::get_predicted(m_bext, get_datagrid(m_bext), iterations = 4, predict = "pex") |>
+#   as.data.frame()
+# modelbased::estimate_slopes(m_bext, trend="x", by="x") |>
+#   as.data.frame()
+# modelbased::estimate_slopes(m_bext, trend="x", by="x", predict = "pex") |>
+#   as.data.frame()
+```
 
 ### Decision Making (Choice + RT)
 
@@ -289,7 +308,7 @@ df |>
   scale_fill_manual(values = c("#009688", "#E91E63"))
 ```
 
-![](man/figures/unnamed-chunk-10-1.png)
+![](man/figures/unnamed-chunk-11-1.png)
 
 #### Drift Diffusion Model (DDM)
 
