@@ -74,8 +74,11 @@
 <span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"DominiqueMakowski/cogmod"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="choco-model">CHOCO Model<a class="anchor" aria-label="anchor" href="#choco-model"></a>
+<h2 id="available-distributions">Available Distributions<a class="anchor" aria-label="anchor" href="#available-distributions"></a>
 </h2>
+<div class="section level3">
+<h3 id="choco-model">CHOCO Model<a class="anchor" aria-label="anchor" href="#choco-model"></a>
+</h3>
 <p>The Choice-Confidence (CHOCO) model is useful to model data from subjective ratings, such as Likert-type or analog scales, in which the left and the right side correspond to different processes or higher order categorical responses (e.g., “disagree” vs. “agree”, “true” vs. “false”). They can be used to jointly model choice (left or right) and confidence (the degree of left or right).</p>
 <details class="code-fold"><summary>
 Code
@@ -105,9 +108,9 @@ Code
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"#9C27B0"</span>, <span class="st">"#FF9800"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </details><p><img src="reference/figures/unnamed-chunk-2-1.png"></p>
 </div>
-<div class="section level2">
-<h2 id="lnr-model">LNR Model<a class="anchor" aria-label="anchor" href="#lnr-model"></a>
-</h2>
+<div class="section level3">
+<h3 id="lnr-model">LNR Model<a class="anchor" aria-label="anchor" href="#lnr-model"></a>
+</h3>
 <p>The Log-Normal Race (LNR) model is useful for modeling reaction times and errors in decision-making tasks. The model assumes that each accumulator draws a value from a LogNormal distribution (shifted by a non-decision time τ). The winning accumulator (minimum draw) determines the observed reaction time and choice.</p>
 <details class="code-fold"><summary>
 Code
@@ -122,6 +125,7 @@ Code
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"#4CAF50"</span>, <span class="st">"#FF5722"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </details><p><img src="reference/figures/unnamed-chunk-3-1.png"></p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="usage-with-brms">Usage with <code>brms</code>
@@ -244,7 +248,10 @@ Code
 <div class="section level4">
 <h4 id="model-comparison">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison"></a>
 </h4>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<p>We can compare these models together using the <code>loo</code> package, which shows that CHOCO provides a significantly better fit than the other models.</p>
+<details class="code-fold"><summary>
+Code
+</summary><div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">m_zoib</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span><span class="st">"man/figures/m_zoib.rds"</span><span class="op">)</span></span>
 <span><span class="va">m_xbx</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span><span class="st">"man/figures/m_xbx.rds"</span><span class="op">)</span></span>
 <span><span class="va">m_bext</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span><span class="st">"man/figures/m_bext.rds"</span><span class="op">)</span></span>
@@ -252,7 +259,7 @@ Code
 <span></span>
 <span><span class="fu">loo</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare</a></span><span class="op">(</span><span class="va">m_zoib</span>, <span class="va">m_xbx</span>, <span class="va">m_bext</span>, <span class="va">m_choco</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu">parameters</span><span class="op">(</span>include_ENP <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb10"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co"># Fixed Effects</span></span>
+</details><div class="sourceCode" id="cb10"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co"># Fixed Effects</span></span>
 <span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a></span>
 <span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>Name    <span class="sc">|</span>   LOOIC <span class="sc">|</span>   ENP <span class="sc">|</span>   ELPD <span class="sc">|</span> Difference <span class="sc">|</span> Difference_SE <span class="sc">|</span>      p</span>
 <span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a><span class="sc">------------------------------------------------------------------------</span></span>
@@ -260,7 +267,10 @@ Code
 <span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>m_zoib  <span class="sc">|</span>  <span class="sc">-</span><span class="fl">12.43</span> <span class="sc">|</span>  <span class="fl">7.83</span> <span class="sc">|</span>   <span class="fl">6.21</span> <span class="sc">|</span>    <span class="sc">-</span><span class="fl">187.69</span> <span class="sc">|</span>         <span class="fl">14.98</span> <span class="sc">|</span> <span class="er">&lt;</span> .<span class="dv">001</span></span>
 <span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>m_bext  <span class="sc">|</span>  <span class="sc">-</span><span class="fl">11.64</span> <span class="sc">|</span>  <span class="fl">7.94</span> <span class="sc">|</span>   <span class="fl">5.82</span> <span class="sc">|</span>    <span class="sc">-</span><span class="fl">188.08</span> <span class="sc">|</span>         <span class="fl">14.99</span> <span class="sc">|</span> <span class="er">&lt;</span> .<span class="dv">001</span></span>
 <span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a>m_xbx   <span class="sc">|</span>   <span class="fl">40.07</span> <span class="sc">|</span>  <span class="fl">5.97</span> <span class="sc">|</span> <span class="sc">-</span><span class="fl">20.03</span> <span class="sc">|</span>    <span class="sc">-</span><span class="fl">213.93</span> <span class="sc">|</span>         <span class="fl">15.89</span> <span class="sc">|</span> <span class="er">&lt;</span> .<span class="dv">001</span></span></code></pre></div>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<p>Running posterior predictive checks allows to visualize the predicted distributions from various models. We can see how typical Beta-related models fail to capture the bimodal nature of the data, which is well captured by the CHOCO model.</p>
+<details class="code-fold"><summary>
+Code
+</summary><div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_zoib</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
@@ -286,12 +296,15 @@ Code
 <span>    bins <span class="op">=</span> <span class="fl">100</span>, alpha <span class="op">=</span> <span class="fl">0.02</span>, position <span class="op">=</span> <span class="st">"identity"</span>, fill <span class="op">=</span> <span class="st">"#FF5722"</span></span>
 <span>  <span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">Model</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/unnamed-chunk-9-1.png"></p>
+</details><p><img src="reference/figures/unnamed-chunk-10-1.png"></p>
 </div>
 <div class="section level4">
 <h4 id="effect-visualisation">Effect Visualisation<a class="anchor" aria-label="anchor" href="#effect-visualisation"></a>
 </h4>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<p>We can see how the predicted distribution changes as a function of <strong>x</strong> and gets “pushed” to the right. Moreover, we can also visualize the effect of <strong>x</strong> on specific parameters, showing that it mostly affects the main parameters <strong>mu</strong>, which corresponds to the <strong><em>p</em></strong> probability of answering on the right. This is consistent with our expectations, and reflects the larger mass on the right of the scale for higher value of <strong>x</strong> (in brown).</p>
+<details class="code-fold"><summary>
+Code
+</summary><div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu">modelbased</span><span class="fu">::</span><span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_choco</span>, data <span class="op">=</span> <span class="st">"grid"</span>, length <span class="op">=</span> <span class="fl">4</span>, keep_iterations <span class="op">=</span> <span class="fl">500</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">iter_value</span>, fill <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
@@ -319,8 +332,7 @@ Code
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">p1</span> <span class="op">/</span> <span class="va">p2</span></span></code></pre></div>
-<p><img src="reference/figures/unnamed-chunk-10-1.png"></p>
-<p>We can see how the distribution changes as a function of <strong>x</strong>. Moreover, we can also visualize the effect of <strong>x</strong> on specific paramaeters, showing that it mostly affects the main parameters <strong>mu</strong>, which corresponds to the <strong><em>p</em></strong> probability of answering on the right.</p>
+</details><p><img src="reference/figures/unnamed-chunk-11-1.png"></p>
 </div>
 </div>
 <div class="section level3">
@@ -339,7 +351,7 @@ Code
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"RT Distribution"</span>, x <span class="op">=</span> <span class="st">"Reaction Time"</span>, y <span class="op">=</span> <span class="st">"Frequency"</span>, fill <span class="op">=</span> <span class="st">"Choice"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"#009688"</span>, <span class="st">"#E91E63"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/unnamed-chunk-11-1.png"></p>
+<p><img src="reference/figures/unnamed-chunk-12-1.png"></p>
 </div>
 <div class="section level4">
 <h4 id="drift-diffusion-model-ddm">Drift Diffusion Model (DDM)<a class="anchor" aria-label="anchor" href="#drift-diffusion-model-ddm"></a>
