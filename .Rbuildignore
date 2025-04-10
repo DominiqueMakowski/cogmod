@@ -3,3 +3,7 @@
 README.md
 README.qmd
 ^man/figures/.*\.rds$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^\.github$
