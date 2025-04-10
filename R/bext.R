@@ -71,6 +71,8 @@
 #' - `bex`: Indicates the *direction* of the extreme response bias. `bex > 0.5` suggests a bias
 #'   towards the upper anchor (1), while `bex < 0.5` suggests a bias towards the lower anchor (0).
 #'
+#' @seealso rchoco
+#' 
 #' @return A vector of simulated outcomes in the range 0-1.
 #'
 #' @references
@@ -79,7 +81,7 @@
 #'
 #' @examples
 #' # Simulate data with different parameterizations
-#' x <- rbext(10000, mu = 0.5, phi = 1, pex = 0, bex = 0.5)
+#' x <- rbext(10000, mu = 0.5, phi = 2, pex = 0, bex = 0.5)
 #' hist(x, breaks = 50, main = "Simulated Outcomes", xlab = "y")
 #' @export
 rbext <- function(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5) {

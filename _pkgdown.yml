@@ -1,4 +1,16 @@
 url: "https://github.com/DominiqueMakowski/cogmod"
 template:
-  bootstrap: 5
+    bootstrap: 5
 
+reference:
+    - title: "Subjective Scales Data"
+    - subtitle: "Beta-Extreme (BeXt) Model"
+      contents:
+          - rbext
+    - subtitle: "Choice-Confidence (CHOCO) Model"
+      contents:
+          - rchoco
+    - title: "Decision Making Data (Choice and RT)"
+    - subtitle: "LogNormal Race Model (LNR)"
+      contents:
+          - rlnr

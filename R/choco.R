@@ -4,13 +4,13 @@
 #' The Choice-Confidence (CHOCO) model is useful to model data from subjective ratings,
 #' such as Likert-type or analog scales, in which the left and the right side correspond
 #' to different processes or higher order categorical responses (e.g., "disagree" vs.
-#' "agree", "true" vs. "false"). They can be used to jointly model thechoice
+#' "agree", "true" vs. "false"). They can be used to jointly model the choice
 #' between two underlying categories (e.g., "disagree" vs. "agree") along with a degree
 #' of confidence or intensity.
 #'
 #' The CHOCO model conceptualizes the response scale as being divided at a `threshold` (typically 
 #' at 0.5, i.e., the middle point of the scale). Responses below the threshold are modeled by one 
-#' Beta-Extreme (BEXT) distribution (see [rbext()]), and responses above the threshold are modeled 
+#' [Beta-Extreme (BEXT)][rbext()] distribution, and responses above the threshold are modeled 
 #' by a separate, mirrored BEXT distribution. The relative proportions of data on the left and right
 #' sides of the threshold are controlled by the `p` parameter, which indicates the probability of 
 #' observing a response on the right side of the threshold. There is also a point mass probability 
@@ -21,7 +21,8 @@
 #' @param p Proportion parameter determining the balance between the left and right sides
 #'   *after excluding* the probability mass at the threshold (`pmid`). Specifically,
 #'   `P(Right Side | Not Threshold) = p` and `P(Left Side | Not Threshold) = 1 - p`.
-#'   Must be in the range `[0, 1]`.
+#'   Must be in the range `[0, 1]`. Due to Stan requirement, this parameter is named `mu` in
+#'   brms models and is its primary parameter.
 #' @param muleft Mean parameter for the underlying BEXT distribution used for the *left* side
 #'   (0 to `threshold`). This represents the central tendency of the *raw* BEXT component
 #'   (before mirroring and scaling). Must be strictly between 0 and 1.
@@ -43,6 +44,8 @@
 #' @param pmid Probability mass exactly at the `threshold`. `0 <= pmid <= 1`.
 #' @param threshold The point dividing the scale into left and right components. Must be
 #'   strictly between 0 and 1.
+#' 
+#' @seealso rbext
 #'
 #' @details
 #' The simulation process involves three steps:

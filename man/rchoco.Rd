@@ -65,7 +65,8 @@ log_lik_choco(i, prep)
 \item{p}{Proportion parameter determining the balance between the left and right sides
 \emph{after excluding} the probability mass at the threshold (\code{pmid}). Specifically,
 \verb{P(Right Side | Not Threshold) = p} and \verb{P(Left Side | Not Threshold) = 1 - p}.
-Must be in the range \verb{[0, 1]}.}
+Must be in the range \verb{[0, 1]}. Due to Stan requirement, this parameter is named \code{mu} in
+brms models and is its primary parameter.}
 
 \item{muleft}{Mean parameter for the underlying BEXT distribution used for the \emph{left} side
 (0 to \code{threshold}). This represents the central tendency of the \emph{raw} BEXT component
@@ -110,13 +111,13 @@ strictly between 0 and 1.}
 The Choice-Confidence (CHOCO) model is useful to model data from subjective ratings,
 such as Likert-type or analog scales, in which the left and the right side correspond
 to different processes or higher order categorical responses (e.g., "disagree" vs.
-"agree", "true" vs. "false"). They can be used to jointly model thechoice
+"agree", "true" vs. "false"). They can be used to jointly model the choice
 between two underlying categories (e.g., "disagree" vs. "agree") along with a degree
 of confidence or intensity.
 
 The CHOCO model conceptualizes the response scale as being divided at a \code{threshold} (typically
 at 0.5, i.e., the middle point of the scale). Responses below the threshold are modeled by one
-Beta-Extreme (BEXT) distribution (see \code{\link[=rbext]{rbext()}}), and responses above the threshold are modeled
+\link[=rbext]{Beta-Extreme (BEXT)} distribution, and responses above the threshold are modeled
 by a separate, mirrored BEXT distribution. The relative proportions of data on the left and right
 sides of the threshold are controlled by the \code{p} parameter, which indicates the probability of
 observing a response on the right side of the threshold. There is also a point mass probability
@@ -177,4 +178,7 @@ hist(x2, breaks = 50, main = "CHOCO: Asymmetric, pmid=0", xlab = "y")
 \item Kubinec, R. (2023). Ordered beta regression: a parsimonious, well-fitting model for continuous data with
 lower and upper bounds. Political Analysis, 31(4), 519-536. (Describes the underlying ordered beta model)
 }
+}
+\seealso{
+rbext
 }

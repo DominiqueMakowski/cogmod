@@ -5,6 +5,9 @@ Cognitive Models for Subjective Scales and Decision Making Tasks in R
 
 ## Status
 
+[![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
+[![Models](https://img.shields.io/badge/features-cogmod-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
+
 **This package is very much totally exploratory - currently made for my
 own needs.** It’s not meant to be stable and robust at this stage. Use
 at your own risks.
@@ -33,12 +36,14 @@ remotes::install_github("DominiqueMakowski/cogmod")
 
 ### CHOCO Model
 
-The Choice-Confidence (CHOCO) model is useful to model data from
-subjective ratings, such as Likert-type or analog scales, in which the
-left and the right side correspond to different processes or higher
-order categorical responses (e.g., “disagree” vs. “agree”, “true”
-vs. “false”). They can be used to jointly model choice (left or right)
-and confidence (the degree of left or right).
+The [**Choice-Confidence
+(CHOCO)**](https://dominiquemakowski.github.io/cogmod/reference/rchoco.html)
+model is useful to model data from subjective ratings, such as
+Likert-type or analog scales, in which the left and the right side
+correspond to different processes or higher order categorical responses
+(e.g., “disagree” vs. “agree”, “true” vs. “false”). They can be used to
+jointly model choice (left or right) and confidence (the degree of left
+or right).
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -184,11 +189,13 @@ saveRDS(m_xbx, file = "man/figures/m_xbx.rds")
 
 #### BEXT Model
 
-The BeXt model corresponds to a reparametrized ordered beta model
-([Kubinec, 2023](https://doi.org/10.1017/pan.2022.20)). Instead of
-defining left and right cutpoints, the BeXt parametrization uses the
-likelihood of extreme values (0 and 1) and their balance (i.e., the
-relative proportion of zeros and ones).
+The [**BeXt
+model**](https://dominiquemakowski.github.io/cogmod/reference/rbext.html)
+corresponds to a reparametrized ordered beta model ([Kubinec,
+2023](https://doi.org/10.1017/pan.2022.20)). Instead of defining left
+and right cutpoints, the BeXt parametrization uses the likelihood of
+extreme values (0 and 1) and their balance (i.e., the relative
+proportion of zeros and ones).
 
 ``` r
 f <- bf(
@@ -209,6 +216,10 @@ saveRDS(m_bext, file = "man/figures/m_bext.rds")
 ```
 
 #### CHOCO Model
+
+See the
+[**documentation**](https://dominiquemakowski.github.io/cogmod/reference/rchoco.html)
+of the Choice-Confidence (CHOCO).
 
 ``` r
 f <- bf(

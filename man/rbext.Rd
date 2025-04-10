@@ -129,7 +129,7 @@ towards the upper anchor (1), while \code{bex < 0.5} suggests a bias towards the
 }
 \examples{
 # Simulate data with different parameterizations
-x <- rbext(10000, mu = 0.5, phi = 1, pex = 0, bex = 0.5)
+x <- rbext(10000, mu = 0.5, phi = 2, pex = 0, bex = 0.5)
 hist(x, breaks = 50, main = "Simulated Outcomes", xlab = "y")
 x <- seq(0, 1, length.out = 1001)
 densities <- dbext(x, mu = 0.5, phi = 5, pex = 0.2, bex = 0.5)
@@ -150,4 +150,7 @@ family = bext(link_phi = "log")
 \item Kubinec, R. (2023). Ordered beta regression: a parsimonious, well-fitting model for continuous data with
 lower and upper bounds. Political Analysis, 31(4), 519-536.
 }
+}
+\seealso{
+rchoco
 }
