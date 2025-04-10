@@ -358,7 +358,8 @@ test_that("Stan choco_lpdf matches R dchoco function", {
 
                     # Calculate log-density using Stan function
                     # Note: The exposed Stan function here doesn't take threshold
-                    stan_log_lik <- choco_lpdf_stan(y, p, muleft, mudelta, phileft, phidelta, pex, bex, pmid)
+                    # Note: we capture the output because currently we print a warning message when threshold values got detected
+                    s <- capture.output(stan_log_lik <- choco_lpdf_stan(y, p, muleft, mudelta, phileft, phidelta, pex, bex, pmid))
 
                     # Calculate log-density using R function
                     r_log_lik <- dchoco(y, p, muleft, mudelta, phileft, phidelta, pex, bex, pmid,
@@ -390,7 +391,7 @@ test_that("Stan choco_lpdf matches R dchoco function", {
 
   # R function errors
   expect_warning(do.call(dchoco, c(valid_params[-2], list(p=-0.1))), "p must be between 0 and 1")
-  expect_warning(do.call(dchoco, c(valid_params[-3], list(muleft=1.1))), "muleft must be between 0 and 1")
+  expect_warning(do.call(dchoco, c(valid_params[-3], list(muleft=1.1))), "muleft must be strictly between 0 and 1. Returning 0 density / -Inf log-density.")
   expect_warning(do.call(dchoco, c(valid_params[-5], list(phileft=-1))), "phileft must be positive")
 
   # Stan function returns -Inf

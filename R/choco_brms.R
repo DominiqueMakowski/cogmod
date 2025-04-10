@@ -12,130 +12,128 @@ real choco_lpdf(real y, real mu, real muleft, real mudelta, real phileft,
   real threshold = 0.5; // Hardcoded threshold
   real log_lik; // Will hold our final log likelihood
 
+  // --- 1. Parameter Validation ---
+  // Check input parameter ranges (essential for preventing downstream errors)
+   if (mu < 0.0 || mu > 1.0 || muleft <= 0.0 || muleft >= 1.0 || 
+      phileft <= 0.0 || pex < 0.0 || pex > 1.0 || 
+      bex < 0.0 || bex > 1.0 || pmid < 0.0 || pmid > 1.0) {
+    return negative_infinity();
+  }
   // Validate outcome y (essential)
   if (y < 0.0 || y > 1.0) {
-    print(\"Error 1: outcome validation issue\");
     return negative_infinity();
   }
 
-  // --- 1. Parameter Clamping ---
-  real p_c = fmax(eps, fmin(mu, 1.0 - eps));
-  real muleft_c = fmax(eps, fmin(muleft, 1.0 - eps));
-  real phileft_c = fmax(eps, phileft);
-  real pex_c = fmax(0.0, fmin(pex, 1.0)); // Allow 0 and 1
-  real bex_c = fmax(0.0, fmin(bex, 1.0)); // Allow 0 and 1
-  real pmid_c = fmax(0.0, fmin(pmid, 1.0)); // Allow 0 and 1
-
-  // --- 3. Derived Parameter Computation ---
-  // Calculate right-side parameters
-  real logit_muleft = log(muleft_c / (1.0 - muleft_c));
-  real logit_muright = logit_muleft + mudelta;
-  real muright;
-  // More inverse logit
-  if (logit_muright > 15.0) {
-    muright = 1.0 - eps;
-  } else if (logit_muright < -15.0) {
-    muright = eps;
-  } else {
-    muright = inv_logit(logit_muright);
-  }
-  real phiright = fmax(eps, phileft_c * exp(fmin(10.0, fmax(-10.0, phidelta))));
-
-  // Calculate extreme probabilities for left and right
-  real pex_left = fmin(1.0, fmax(0.0, (1.0 - bex_c) * (pex_c * 2.0)));
-  real pex_right = fmin(1.0, fmax(0.0, bex_c * (pex_c * 2.0)));
-  
-  // Calculate Beta shape parameters
-  real precision_left = phileft_c * 2.0;
-  real precision_right = phiright * 2.0;
-  real shape1_left = muleft_c * precision_left;
-  real shape2_left = (1.0 - muleft_c) * precision_left;
-  real shape1_right = muright * precision_right;
-  real shape2_right = (1.0 - muright) * precision_right;
-  
-  // --- 3. Calculate component probabilities ---
-  // These are the three main probabilities that divide the scale
-  real prob_left = (1.0 - pmid_c) * (1.0 - p_c);
-  real prob_mid = pmid_c;
-  real prob_right = (1.0 - pmid_c) * p_c;
-  
-  // --- 4. Calculate log-density based on where y falls ---
-  
-  // Case 1: y is exactly at threshold
+  // --- Case 1: y is exactly at threshold - only need pmid ---
   if (abs(y - threshold) < eps) {
-    // Handle the case where pmid is effectively zero
-    if (pmid_c < eps) {
+    if (pmid < eps) {
+      print(\"Observation == threshold (0.5), but pmid is 0.0. Relax pmid or nudge mid-values.\");
       return negative_infinity();
     }
-    return log(pmid_c);
+    return log(pmid);
   }
-  
-  // Case 2: pmid = 1 but y is not at threshold
-  // This is a special case where all probability mass is at the threshold (pmid=1)
-  // In this case, any other value should have zero probability
-  if (abs(pmid_c - 1.0) < eps) {
-    return negative_infinity();
-  }
-  
-  // Case 3: y is at 0
-  else if (abs(y) < eps) {
-    // Edge case: If pex is very close to 0, return -Inf
-    if (pex_c < eps || pex_left < eps) {
-      return negative_infinity();
-    }
 
-    // P(y=0) = P(left) * P(extreme=0|left)
-    real p_zero = prob_left * pex_left;
-    if (p_zero < eps) return negative_infinity();
-    return log(p_zero);
-  }
+  // --- Parameter Clamping ---
+  real p_c = fmax(eps, fmin(mu, 1.0 - eps));
+  real muleft_c = fmax(eps, fmin(muleft, 1.0 - eps)); 
+  real pmid_c = pmid; // Already validated, no need to clamp
   
-  // Case 4: y is at 1
-  else if (abs(y - 1.0) < eps) {
-    // Edge case: If pex is very close to 0, return -Inf
-    if (pex_c < eps || pex_right < eps) {
-      return negative_infinity();
-    }
-
-    // P(y=1) = P(right) * P(extreme=1|right)
-    real p_one = prob_right * pex_right;
-    if (p_one < eps) return negative_infinity();
-    return log(p_one);
-  }
-  
-  // Case 5: y is between 0 and threshold
-  else if (y < threshold) {
-    // Bail out early if the whole left component has zero probability
-    if (prob_left < eps || 1.0 - pex_left < eps) {
-      return negative_infinity(); 
-    }
+  // --- Case 2: y is at 0 - only need left component and extreme probability ---
+  if (abs(y) < eps) {
+    real prob_left = (1.0 - pmid_c) * (1.0 - p_c);
+    real pex_left = (1.0 - bex) * (pex * 2.0);
     
-    // Transform y to raw Beta scale and compute density
+    // Clamp extreme probability to [0,1] range
+    pex_left = fmin(1.0, fmax(0.0, pex_left));
+    
+    // If either probability is effectively zero, return -Inf
+    if (prob_left < eps || pex_left < eps) return negative_infinity();
+    
+    // Only need log of extreme probability at 0
+    return log(prob_left) + log(pex_left);
+  }
+  
+  // --- Case 3: y is at 1 - only need right component and extreme probability ---
+  if (abs(y - 1.0) < eps) {
+    real prob_right = (1.0 - pmid_c) * p_c;
+    real pex_right = bex * (pex * 2.0);
+    
+    // Clamp extreme probability to [0,1] range
+    pex_right = fmin(1.0, fmax(0.0, pex_right));
+    
+    // If either probability is effectively zero, return -Inf
+    if (prob_right < eps || pex_right < eps) return negative_infinity();
+    
+    // Only need log of extreme probability at 1
+    return log(prob_right) + log(pex_right);
+  }
+  
+  // --- Case 4: y is between 0 and threshold ---
+  if (y < threshold) {
+    // Only compute left side parameters
+    real prob_left = (1.0 - pmid_c) * (1.0 - p_c);
+    real pex_left = (1.0 - bex) * (pex * 2.0);
+
+    // Clamp extreme probability to [0,1] range
+    pex_left = fmin(1.0, fmax(0.0, pex_left));
+    
+    // Bail out early if component has zero probability
+    if (prob_left < eps || pex_left >= 1.0 - eps) return negative_infinity();
+    
+    // Calculate Beta parameters for left side only
+    real phileft_c = fmax(eps, phileft);
+    real precision_left = phileft_c * 2.0;
+    real shape1_left = muleft_c * precision_left;
+    real shape2_left = (1.0 - muleft_c) * precision_left;
+    
+    // Transform y to raw Beta scale
     real y_raw_left = 1.0 - y / threshold;
-    // Clamp for stability
     y_raw_left = fmax(eps, fmin(y_raw_left, 1.0 - eps));
     
-    // Log-density = log(P(left) * P(continuous|left) * beta_density * jacobian)
-    return log(prob_left) + log1m(pex_left) + 
-           beta_lpdf(y_raw_left | shape1_left, shape2_left) + 
+    // Compute log density for left side
+    return log(prob_left) + log1m(pex_left) +
+           beta_lpdf(y_raw_left | shape1_left, shape2_left) +
            log(1.0 / threshold);
   }
   
-  // Case 6: y is between threshold and 1
+  // --- Case 5: y is between threshold and 1 ---
   else {
-    // Bail out early if the whole right component has zero probability
-    if (prob_right < eps || 1.0 - pex_right < eps) {
-      return negative_infinity(); 
-    }
+    // Only compute right side parameters
+    real prob_right = (1.0 - pmid_c) * p_c;
+    real pex_right = bex * (pex * 2.0);
+
+    // Clamp extreme probability to [0,1] range
+    pex_right = fmin(1.0, fmax(0.0, pex_right));
     
-    // Transform y to raw Beta scale and compute density
+    // Bail out early if component has zero probability
+    if (prob_right < eps || pex_right >= 1.0 - eps) return negative_infinity();
+    
+    // Calculate right-side parameters only when needed
+    real phileft_c = fmax(eps, phileft);
+    real phiright = fmax(eps, phileft_c * exp(fmin(10.0, fmax(-10.0, phidelta))));
+    
+    // Calculate derived parameters for right side
+    real logit_muleft = log(muleft_c / (1.0 - muleft_c));
+    real logit_muright = logit_muleft + mudelta;
+    real muright;
+    
+    // Stable inverse logit
+    if (logit_muright > 15.0) muright = 1.0 - eps;
+    else if (logit_muright < -15.0) muright = eps;
+    else muright = inv_logit(logit_muright);
+    
+    // Calculate Beta parameters for right side
+    real precision_right = phiright * 2.0;
+    real shape1_right = muright * precision_right;
+    real shape2_right = (1.0 - muright) * precision_right;
+    
+    // Transform y to raw Beta scale
     real y_raw_right = (y - threshold) / (1.0 - threshold);
-    // Clamp for stability
     y_raw_right = fmax(eps, fmin(y_raw_right, 1.0 - eps));
     
-    // Log-density = log(P(right) * P(continuous|right) * beta_density * jacobian)
-    return log(prob_right) + log1m(pex_right) + 
-           beta_lpdf(y_raw_right | shape1_right, shape2_right) + 
+    // Compute log density for right side
+    return log(prob_right) + log1m(pex_right) +
+           beta_lpdf(y_raw_right | shape1_right, shape2_right) +
            log(1.0 / (1.0 - threshold));
   }
 }

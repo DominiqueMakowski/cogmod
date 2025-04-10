@@ -1,12 +1,14 @@
 # cogmod
 
 
-Cognitive Models for Subjective Scales and Decision Making Tasks in R
+[![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
+[![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
+
+*Cognitive Models for Subjective Scales and Decision Making Tasks in R*
 
 ## Status
 
-[![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
-[![Models](https://img.shields.io/badge/features-cogmod-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
+![Status](https://img.shields.io/badge/status-WIP-orange.svg)
 
 **This package is very much totally exploratory - currently made for my
 own needs.** It’s not meant to be stable and robust at this stage. Use
@@ -268,10 +270,10 @@ loo::loo_compare(m_zoib, m_xbx, m_bext, m_choco) |>
 
     Name    |   LOOIC |   ENP |   ELPD | Difference | Difference_SE |      p
     ------------------------------------------------------------------------
-    m_choco | -387.80 | 13.71 | 193.90 |       0.00 |          0.00 |       
-    m_zoib  |  -12.43 |  7.83 |   6.21 |    -187.69 |         14.98 | < .001
-    m_bext  |  -11.64 |  7.94 |   5.82 |    -188.08 |         14.99 | < .001
-    m_xbx   |   40.07 |  5.97 | -20.03 |    -213.93 |         15.89 | < .001
+    m_choco | -459.93 | 14.05 | 229.97 |       0.00 |          0.00 |       
+    m_zoib  |  -54.14 |  7.88 |  27.07 |    -202.90 |         14.22 | < .001
+    m_bext  |  -53.24 |  8.32 |  26.62 |    -203.35 |         14.23 | < .001
+    m_xbx   |  -14.18 |  6.79 |   7.09 |    -222.88 |         14.87 | < .001
 
 Running posterior predictive checks allows to visualize the predicted
 distributions from various models. We can see how typical Beta-related
@@ -340,7 +342,7 @@ for(param in c("mu", "pex", "phileft", "bex")) {
   pred_params <- m_choco |> 
     modelbased::estimate_prediction(data = "grid", length = 20, predict = param) |>
     as.data.frame() |> 
-    dplyr::mutate(Parameter = param) |> 
+    dplyr::mutate(Parameter = param) |>  # TODO: replace by data_modify after PR
     rbind(pred_params)
 }
 

@@ -20,6 +20,8 @@ editor_options:
 
 ## Status
 
+![Status](https://img.shields.io/badge/status-WIP-orange.svg)
+
 **This package is very much totally exploratory - currently made for my own needs.** It's not meant to be stable and robust at this stage. Use at your own risks. 
 
 - If you have suggestions for improvement, please get in touch!
@@ -317,7 +319,7 @@ for(param in c("mu", "pex", "phileft", "bex")) {
   pred_params <- m_choco |> 
     modelbased::estimate_prediction(data = "grid", length = 20, predict = param) |>
     as.data.frame() |> 
-    dplyr::mutate(Parameter = param) |> 
+    dplyr::mutate(Parameter = param) |>  # TODO: replace by data_modify after PR
     rbind(pred_params)
 }
 
