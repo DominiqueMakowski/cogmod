@@ -29,7 +29,9 @@ if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
 remotes::install_github("DominiqueMakowski/cogmod")
 ```
 
-## CHOCO Model
+## Available Distributions
+
+### CHOCO Model
 
 The Choice-Confidence (CHOCO) model is useful to model data from
 subjective ratings, such as Likert-type or analog scales, in which the
@@ -71,7 +73,7 @@ ggplot(df, aes(x = value, fill = group)) +
 
 ![](man/figures/unnamed-chunk-2-1.png)
 
-## LNR Model
+### LNR Model
 
 The Log-Normal Race (LNR) model is useful for modeling reaction times
 and errors in decision-making tasks. The model assumes that each
@@ -232,6 +234,13 @@ saveRDS(m_choco, file = "man/figures/m_choco.rds")
 
 #### Model Comparison
 
+We can compare these models together using the `loo` package, which
+shows that CHOCO provides a significantly better fit than the other
+models.
+
+<details class="code-fold">
+<summary>Code</summary>
+
 ``` r
 m_zoib <- readRDS("man/figures/m_zoib.rds")
 m_xbx <- readRDS("man/figures/m_xbx.rds")
@@ -242,6 +251,8 @@ loo::loo_compare(m_zoib, m_xbx, m_bext, m_choco) |>
   parameters(include_ENP = TRUE)
 ```
 
+</details>
+
     # Fixed Effects
 
     Name    |   LOOIC |   ENP |   ELPD | Difference | Difference_SE |      p
@@ -250,6 +261,14 @@ loo::loo_compare(m_zoib, m_xbx, m_bext, m_choco) |>
     m_zoib  |  -12.43 |  7.83 |   6.21 |    -187.69 |         14.98 | < .001
     m_bext  |  -11.64 |  7.94 |   5.82 |    -188.08 |         14.99 | < .001
     m_xbx   |   40.07 |  5.97 | -20.03 |    -213.93 |         15.89 | < .001
+
+Running posterior predictive checks allows to visualize the predicted
+distributions from various models. We can see how typical Beta-related
+models fail to capture the bimodal nature of the data, which is well
+captured by the CHOCO model.
+
+<details class="code-fold">
+<summary>Code</summary>
 
 ``` r
 pred <- rbind(
@@ -279,9 +298,22 @@ insight::get_data(m_zoib) |>
   facet_wrap(~Model)
 ```
 
-![](man/figures/unnamed-chunk-9-1.png)
+</details>
+
+![](man/figures/unnamed-chunk-10-1.png)
 
 #### Effect Visualisation
+
+We can see how the predicted distribution changes as a function of **x**
+and gets “pushed” to the right. Moreover, we can also visualize the
+effect of **x** on specific parameters, showing that it mostly affects
+the main parameters **mu**, which corresponds to the ***p*** probability
+of answering on the right. This is consistent with our expectations, and
+reflects the larger mass on the right of the scale for higher value of
+**x** (in brown).
+
+<details class="code-fold">
+<summary>Code</summary>
 
 ``` r
 p1 <- modelbased::estimate_prediction(m_choco, data = "grid", length = 4, keep_iterations = 500) |> 
@@ -313,12 +345,9 @@ p2 <- pred_params |>
 p1 / p2
 ```
 
-![](man/figures/unnamed-chunk-10-1.png)
+</details>
 
-We can see how the distribution changes as a function of **x**.
-Moreover, we can also visualize the effect of **x** on specific
-paramaeters, showing that it mostly affects the main parameters **mu**,
-which corresponds to the ***p*** probability of answering on the right.
+![](man/figures/unnamed-chunk-11-1.png)
 
 ### Decision Making (Choice + RT)
 
@@ -336,7 +365,7 @@ df |>
   scale_fill_manual(values = c("#009688", "#E91E63"))
 ```
 
-![](man/figures/unnamed-chunk-11-1.png)
+![](man/figures/unnamed-chunk-12-1.png)
 
 #### Drift Diffusion Model (DDM)
 

@@ -33,7 +33,10 @@ if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
 remotes::install_github("DominiqueMakowski/cogmod")
 ```
 
-## CHOCO Model
+## Available Distributions 
+
+
+### CHOCO Model
 
 The Choice-Confidence (CHOCO) model is useful to model data from subjective ratings, such as Likert-type or analog scales, in which the left and the right side correspond to different processes or higher order categorical responses (e.g., "disagree" vs. "agree", "true" vs. "false"). They can be used to jointly model choice (left or right) and confidence (the degree of left or right).
 
@@ -69,7 +72,7 @@ ggplot(df, aes(x = value, fill = group)) +
   scale_fill_manual(values = c("#9C27B0", "#FF9800"))
 ```
 
-## LNR Model
+### LNR Model
 
 The Log-Normal Race (LNR) model is useful for modeling reaction times and errors in decision-making tasks. The model assumes that each accumulator draws a value from a LogNormal distribution (shifted by a non-decision time τ). The winning accumulator (minimum draw) determines the observed reaction time and choice.
 
@@ -232,7 +235,12 @@ saveRDS(m_choco, file = "man/figures/m_choco.rds")
 
 #### Model Comparison
 
+We can compare these models together using the `loo` package, which shows
+that CHOCO provides a significantly better fit than the other models.
+
 ```{r}
+#| code-fold: true
+
 m_zoib <- readRDS("man/figures/m_zoib.rds")
 m_xbx <- readRDS("man/figures/m_xbx.rds")
 m_bext <- readRDS("man/figures/m_bext.rds")
@@ -240,6 +248,15 @@ m_choco <- readRDS("man/figures/m_choco.rds")
 
 loo::loo_compare(m_zoib, m_xbx, m_bext, m_choco) |> 
   parameters(include_ENP = TRUE)
+```
+
+Running posterior predictive checks allows to visualize the predicted distributions from various models.
+We can see how typical Beta-related models fail to capture the bimodal nature of the data, which is 
+well captured by the CHOCO model.
+
+
+```{r}
+#| code-fold: true
 
 pred <- rbind(
   estimate_prediction(m_zoib, keep_iterations = 200) |>
@@ -271,9 +288,15 @@ insight::get_data(m_zoib) |>
 
 #### Effect Visualisation
 
+We can see how the predicted distribution changes as a function of **x** and gets "pushed" to the right. 
+Moreover, we can also visualize the effect of **x** on specific parameters, showing that it mostly affects the main parameters **mu**, 
+which corresponds to the ***p*** probability of answering on the right. This is consistent with our expectations, and reflects 
+the larger mass on the right of the scale for higher value of **x** (in brown).
+
 ```{r}
 #| fig-width: 10
 #| fig-height: 8
+#| code-fold: true
 
 p1 <- modelbased::estimate_prediction(m_choco, data = "grid", length = 4, keep_iterations = 500) |> 
   reshape_iterations() |> 
@@ -304,9 +327,7 @@ p2 <- pred_params |>
 p1 / p2
 ```
 
-We can see how the distribution changes as a function of **x**. Moreover, we can also visualize the
-effect of **x** on specific paramaeters, showing that it mostly affects the main parameters **mu**, 
-which corresponds to the ***p*** probability of answering on the right.
+
 
 ### Decision Making (Choice + RT)
 
