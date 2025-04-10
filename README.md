@@ -43,6 +43,7 @@ and confidence (the degree of left or right).
 
 ``` r
 library(ggplot2)
+library(patchwork)
 library(cogmod)
 
 # Simulate data using rchoco() with two parameter sets
@@ -280,17 +281,44 @@ insight::get_data(m_zoib) |>
 
 ![](man/figures/unnamed-chunk-9-1.png)
 
+#### Effect Visualisation
+
 ``` r
-# m_bext <- readRDS("man/figures/m_bext.rds")
-# 
-# # Predict various parameters
-# insight::get_predicted(m_bext, get_datagrid(m_bext), iterations = 4, predict = "pex") |>
-#   as.data.frame()
-# modelbased::estimate_slopes(m_bext, trend="x", by="x") |>
-#   as.data.frame()
-# modelbased::estimate_slopes(m_bext, trend="x", by="x", predict = "pex") |>
-#   as.data.frame()
+p1 <- modelbased::estimate_prediction(m_choco, data = "grid", length = 4, keep_iterations = 500) |> 
+  reshape_iterations() |> 
+  ggplot(aes(x = iter_value, fill = as.factor(x))) +
+  geom_histogram(alpha = 0.6, bins = 100, position = "identity") +
+  scale_fill_bluebrown_d() +
+  theme_minimal()
+
+# Predict various parameters
+pred_params <- data.frame()
+for(param in c("mu", "pex", "phileft", "bex")) {
+  pred_params <- m_choco |> 
+    modelbased::estimate_prediction(data = "grid", length = 20, predict = param) |>
+    as.data.frame() |> 
+    dplyr::mutate(Parameter = param) |> 
+    rbind(pred_params)
+}
+
+p2 <- pred_params |> 
+  ggplot(aes(x = x, y = Predicted)) +
+  geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Parameter), alpha = 0.2) +
+  geom_line(aes(color = Parameter), linewidth = 1) +
+  facet_wrap(~Parameter, scales = "free_y", ncol=4) +
+  scale_fill_viridis_d() +
+  scale_color_viridis_d() +
+  theme_minimal()
+
+p1 / p2
 ```
+
+![](man/figures/unnamed-chunk-10-1.png)
+
+We can see how the distribution changes as a function of **x**.
+Moreover, we can also visualize the effect of **x** on specific
+paramaeters, showing that it mostly affects the main parameters **mu**,
+which corresponds to the ***p*** probability of answering on the right.
 
 ### Decision Making (Choice + RT)
 

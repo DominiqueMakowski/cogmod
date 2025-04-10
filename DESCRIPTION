@@ -6,7 +6,8 @@ Authors@R: c(
     person(
       "Dominique", "Makowski",
       email = "D.Makowski@sussex.ac.uk",
-      role = c("aut", "cre")
+      role = c("aut", "cre"),
+      comment = c(ORCID = "0000-0001-5375-9967")
     )
   )
 Description: A collection of tools for cognitive modeling, i.e., to model 

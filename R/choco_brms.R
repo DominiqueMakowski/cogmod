@@ -205,7 +205,7 @@ choco <- function(link_mu = "logit", link_muleft = "logit", link_mudelta = "iden
 #' @export
 posterior_predict_choco <- function(i, prep, ...) {
   # Extract draws for each parameter for the i-th observation
-  mu       <- brms::get_dpar(prep, "mu", i = i) # Changed p to mu
+  mu       <- brms::get_dpar(prep, "mu", i = i) 
   muleft   <- brms::get_dpar(prep, "muleft", i = i)
   mudelta  <- brms::get_dpar(prep, "mudelta", i = i)
   phileft  <- brms::get_dpar(prep, "phileft", i = i)
@@ -219,8 +219,8 @@ posterior_predict_choco <- function(i, prep, ...) {
   threshold <- rep(0.5, length.out = n_draws)
 
   # Simulate using rchoco (vectorized)
-  # Note: rchoco still uses 'p' internally, so we pass 'mu' draws to the 'p' argument
-  final_out <- rchoco(n = n_draws, p = mu, muleft = muleft, mudelta = mudelta, # Changed p = p to p = mu
+  # Note: rchoco uses 'p', so we pass 'mu' draws to the 'p' argument
+  final_out <- rchoco(n = n_draws, p = mu, muleft = muleft, mudelta = mudelta,
                        phileft = phileft, phidelta = phidelta, pex = pex,
                        bex = bex, pmid = pmid, threshold = 0.5)
 
@@ -284,7 +284,7 @@ log_lik_choco <- function(i, prep) {
   y_scalar <- prep$data$Y[i]
 
   # Extract model draws
-  mu       <- brms::get_dpar(prep, "mu", i = i) # Changed p to mu
+  mu       <- brms::get_dpar(prep, "mu", i = i)
   muleft   <- brms::get_dpar(prep, "muleft", i = i)
   mudelta  <- brms::get_dpar(prep, "mudelta", i = i)
   phileft  <- brms::get_dpar(prep, "phileft", i = i)
@@ -293,13 +293,13 @@ log_lik_choco <- function(i, prep) {
   bex      <- brms::get_dpar(prep, "bex", i = i)
   pmid     <- brms::get_dpar(prep, "pmid", i = i)
 
-  n_draws <- length(mu) # Changed p to mu
+  n_draws <- length(mu)
   if (n_draws == 0) return(numeric(0))
 
   y_vec <- rep(y_scalar, length.out = n_draws)
 
   # Calculate log-likelihood using dchoco
-  # Note: dchoco still uses 'p' internally, so pass 'mu' draws to 'p' argument
+  # Note: dchoco uses 'p', so pass 'mu' draws to 'p' argument
   ll <- dchoco(x = y_vec, p = mu, muleft = muleft, mudelta = mudelta, # Changed p = p to p = mu
                 phileft = phileft, phidelta = phidelta, pex = pex,
                 bex = bex, pmid = pmid, threshold = 0.5, log = TRUE)
