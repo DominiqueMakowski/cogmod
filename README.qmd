@@ -12,12 +12,13 @@ editor_options:
   chunk_output_type: console
 ---
 
-Cognitive Models for Subjective Scales and Decision Making Tasks in R
-
-## Status
 
 [![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
-[![Models](https://img.shields.io/badge/features-cogmod-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
+[![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
+
+*Cognitive Models for Subjective Scales and Decision Making Tasks in R*
+
+## Status
 
 **This package is very much totally exploratory - currently made for my own needs.** It's not meant to be stable and robust at this stage. Use at your own risks. 
 

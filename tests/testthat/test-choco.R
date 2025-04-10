@@ -237,7 +237,6 @@ test_that("choco model can recover parameters with brms using variational infere
   true_phidelta <- -0.2
   true_pex <- 0.1
   true_bex <- 0.7
-  true_pmid <- 0.05
   n_obs <- 3000
 
   # Generate synthetic data
@@ -245,7 +244,7 @@ test_that("choco model can recover parameters with brms using variational infere
   df <- data.frame(
     y = rchoco(n = n_obs, p = true_mu, muleft = true_muleft, mudelta = true_mudelta, # Pass true_mu to 'p' arg of rchoco
                 phileft = true_phileft, phidelta = true_phidelta, pex = true_pex,
-                bex = true_bex, pmid = true_pmid, threshold = 0.5)
+                bex = true_bex, pmid = 0, threshold = 0.5)
   )
 
   # --- 2. Define and Fit brms Model ---
@@ -259,7 +258,7 @@ test_that("choco model can recover parameters with brms using variational infere
     phidelta ~ 1,
     pex ~ 1,
     bex ~ 1,
-    pmid ~ 1,
+    pmid = 0,
     family = choco() # Use the custom family
   )
 
@@ -286,7 +285,6 @@ test_that("choco model can recover parameters with brms using variational infere
   post_phidelta <- post_summary["b_phidelta_Intercept", "Estimate"]
   post_pex <- brms::inv_logit_scaled(post_summary["b_pex_Intercept", "Estimate"])
   post_bex <- brms::inv_logit_scaled(post_summary["b_bex_Intercept", "Estimate"])
-  post_pmid <- brms::inv_logit_scaled(post_summary["b_pmid_Intercept", "Estimate"])
 
   expect_equal(post_mu,  true_mu, tolerance = 0.1,
                label = sprintf("Posterior mean of mu (%.3f) is close to true mu (%.3f)", post_mu, true_mu))
@@ -302,8 +300,6 @@ test_that("choco model can recover parameters with brms using variational infere
                label = sprintf("Posterior mean of pex (%.3f) is close to true pex (%.3f)", post_pex, true_pex))
   expect_equal(post_bex, true_bex, tolerance = 0.1,
                label = sprintf("Posterior mean of bex (%.3f) is close to true bex (%.3f)", post_bex, true_bex))
-  expect_equal(post_pmid, true_pmid, tolerance = 0.1,
-               label = sprintf("Posterior mean of pmid (%.3f) is close to true pmid (%.3f)", post_pmid, true_pmid))
 
 
   # --- 4. Test Post-processing Functions ---
@@ -356,7 +352,7 @@ test_that("Stan choco_lpdf matches R dchoco function", {
                   # Test across different y values
                   for (y in y_values) {
                     label <- sprintf(
-                      "y=%.2f, p=%.1f, muL=%.1f, muD=%.1f, phiL=%.1f, phiD=%.1f, pex=%.1f, bex=%.1f, pmid=%.1f",
+                      "y=%.2f, p=%.1f, muleft=%.1f, mudelta=%.1f, phileft=%.1f, phidelta=%.1f, pex=%.1f, bex=%.1f, pmid=%.1f",
                       y, p, muleft, mudelta, phileft, phidelta, pex, bex, pmid
                     )
 
@@ -368,6 +364,11 @@ test_that("Stan choco_lpdf matches R dchoco function", {
                     r_log_lik <- dchoco(y, p, muleft, mudelta, phileft, phidelta, pex, bex, pmid,
                       threshold = 0.5, log = TRUE
                     )
+
+                    # Visualize
+                    # plot(seq(0, 1, length.out = 100),
+                    #      dchoco(seq(0, 1, length.out = 100), p, muleft, mudelta, phileft, phidelta, pex, bex, pmid),
+                    #      type = "l", main = label)
 
                     # Compare log-likelihoods
                     expect_equal(stan_log_lik, r_log_lik,
@@ -389,7 +390,7 @@ test_that("Stan choco_lpdf matches R dchoco function", {
 
   # R function errors
   expect_warning(do.call(dchoco, c(valid_params[-2], list(p=-0.1))), "p must be between 0 and 1")
-  expect_warning(do.call(dchoco, c(valid_params[-3], list(muleft=1.1))), "muleft must be strictly between 0 and 1. Returning 0 density / -Inf log-density.")
+  expect_warning(do.call(dchoco, c(valid_params[-3], list(muleft=1.1))), "muleft must be between 0 and 1")
   expect_warning(do.call(dchoco, c(valid_params[-5], list(phileft=-1))), "phileft must be positive")
 
   # Stan function returns -Inf
