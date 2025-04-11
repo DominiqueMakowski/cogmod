@@ -6,8 +6,9 @@
 \alias{lnr_lpdf_expose}
 \alias{lnr_stanvars}
 \alias{lnr}
-\alias{posterior_predict_lnr}
 \alias{log_lik_lnr}
+\alias{posterior_predict_lnr}
+\alias{posterior_epred_lnr}
 \title{Log-Normal Race (LNR) Model}
 \usage{
 rlnr(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, ndt = 0.2)
@@ -27,9 +28,11 @@ lnr(
   link_minrt = "identity"
 )
 
+log_lik_lnr(i, prep)
+
 posterior_predict_lnr(i, prep, ...)
 
-log_lik_lnr(i, prep)
+posterior_epred_lnr(prep)
 }
 \arguments{
 \item{n}{Number of simulated trials. Must be a positive integer.}

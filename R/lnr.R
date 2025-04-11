@@ -39,39 +39,80 @@
 #'
 #' @export
 rlnr <- function(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, ndt = 0.2) {
-  # Compute the means and standard deviations for both accumulators
-  nu <- c(mu, mu + mudelta)
-  sigma <- c(sigmazero, sigmazero * exp(sigmadelta))
+  # --- Input Validation ---
+  if (any(n <= 0 | n != floor(n))) stop("n must be a positive integer.")
+  if (any(sigmazero <= 0)) stop("sigmazero must be positive.")
+  if (any(ndt < 0)) stop("ndt must be non-negative.")
 
-  # Generate log-normal draws for both accumulators across all trials
-  draws <- matrix(stats::rlnorm(2 * n, meanlog = rep(nu, each = n), sdlog = rep(sigma, each = n)), nrow = n, ncol = 2) + ndt
+  # --- Vectorization ---
+  # Determine output length based on n and parameter vector lengths
+  param_lengths <- c(length(mu), length(mudelta), length(sigmazero),
+                     length(sigmadelta), length(ndt))
+  n_params <- max(param_lengths)
+  n_out <- max(n, n_params)
 
-  # Determine responses and reaction times
-  response <- apply(draws, 1, which.min) - 1  # 0-based index
-  rt <- draws[cbind(seq_len(n), response + 1)]
+  # Recycle parameters to match output length
+  if (n_out > 1) {
+      mu <- rep(mu, length.out = n_out)
+      mudelta <- rep(mudelta, length.out = n_out)
+      sigmazero <- rep(sigmazero, length.out = n_out)
+      sigmadelta <- rep(sigmadelta, length.out = n_out)
+      ndt <- rep(ndt, length.out = n_out)
+  }
 
+  # --- Simulation ---
+  # Compute the means and standard deviations for both accumulators (vectorized)
+  nu0 <- mu
+  nu1 <- mu + mudelta
+  sigma0 <- sigmazero
+  sigma1 <- sigmazero * exp(sigmadelta)
+
+  # Generate log-normal draws for both accumulators (vectorized)
+  # Each column corresponds to an accumulator, each row to a draw/observation
+  draws0 <- stats::rlnorm(n_out, meanlog = nu0, sdlog = sigma0)
+  draws1 <- stats::rlnorm(n_out, meanlog = nu1, sdlog = sigma1)
+
+  # Determine responses and reaction times (vectorized)
+  response <- ifelse(draws0 < draws1, 0, 1)
+  rt_decision <- pmin(draws0, draws1) # Minimum of the two decision times
+  rt <- rt_decision + ndt # Add non-decision time
+
+  # Return data frame matching the determined output length
   data.frame(rt = rt, response = response)
 }
 
 
 
-# dlnr: computes the log-density for one observation from the LNR model.
+
 #' @rdname rlnr
 #' @param x The observed reaction time (RT). Must be greater than `ndt`.
 #' @param response The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.
 #' @param log Logical; if TRUE, returns the log-density. Default: FALSE.
+#' @export
 dlnr <- function(x, mu, mudelta, sigmazero, sigmadelta, ndt, response, log = FALSE) {
-  eps <- 1e-6
-  
-  # Input validation
-  if (!all(response %in% c(0, 1))) {
-    stop("response must be 0 or 1")
+  eps <- 1e-9 # Tolerance for checking RT > ndt
+
+  # --- Input Validation ---
+  if (any(sigmazero <= 0)) {
+      warning("sigmazero must be positive. Returning 0 density / -Inf log-density.")
+      return(ifelse(log, -Inf, 0))
   }
-  
+  if (any(ndt < 0)) {
+      warning("ndt must be non-negative. Returning 0 density / -Inf log-density.")
+      return(ifelse(log, -Inf, 0))
+  }
+  # For invalid response, just return 0/-Inf without warning (treat as impossible data)
+  if (any(!response %in% c(0, 1))) {
+      # stop("response must be 0 or 1") # Changed from stop
+      return(ifelse(log, -Inf, 0))
+  }
+
+
+  # --- Vectorization ---
   # Recycle vectors to the same length
-  n <- max(length(x), length(mu), length(mudelta), length(sigmazero), 
+  n <- max(length(x), length(mu), length(mudelta), length(sigmazero),
            length(sigmadelta), length(ndt), length(response))
-  
+
   x <- rep_len(x, n)
   mu <- rep_len(mu, n)
   mudelta <- rep_len(mudelta, n)
@@ -79,48 +120,55 @@ dlnr <- function(x, mu, mudelta, sigmazero, sigmadelta, ndt, response, log = FAL
   sigmadelta <- rep_len(sigmadelta, n)
   ndt <- rep_len(ndt, n)
   response <- rep_len(response, n)
-  
+
+  # --- Calculation ---
   # Compute adjusted reaction times
   t_adj <- x - ndt
-  
-  # Initialize log-density vector
-  log_density <- numeric(n)
-  
-  # Handle each entry
-  for (i in 1:n) {
-    # Short-circuit for invalid RTs
-    if (t_adj[i] < eps) {
-      log_density[i] <- -Inf
-      next
-    }
-    
-    # Precompute accumulator parameters
-    nu0 <- mu[i]
-    nu1 <- mu[i] + mudelta[i]
-    sigma0 <- sigmazero[i]
-    sigma1 <- sigmazero[i] * exp(sigmadelta[i])
-    
-    # Compute log-density for the winning accumulator
-    log_pdf_win <- if (response[i] == 0) {
-      stats::dlnorm(t_adj[i], meanlog = nu0, sdlog = sigma0, log = TRUE)
-    } else {
-      stats::dlnorm(t_adj[i], meanlog = nu1, sdlog = sigma1, log = TRUE)
-    }
-    
-    # Compute log-survival probability for the losing accumulator
-    log_cdf_loss <- if (response[i] == 0) {
-      stats::plnorm(t_adj[i], meanlog = nu1, sdlog = sigma1, lower.tail = TRUE, log.p = TRUE)
-    } else {
-      stats::plnorm(t_adj[i], meanlog = nu0, sdlog = sigma0, lower.tail = TRUE, log.p = TRUE)
-    }
-    
-    # Use stable computation for log(1-p)
-    log_surv_loss <- .log1m_exp(log_cdf_loss)
-    
-    # Combine log-density and log-survival probability
-    log_density[i] <- log_pdf_win + log_surv_loss
+
+  # Initialize log-density vector with -Inf for invalid RTs (t_adj < eps)
+  log_density <- ifelse(t_adj < eps, -Inf, 0) # Use 0 for now, will add log-densities
+
+  # Identify valid RTs for calculation
+  valid_idx <- which(t_adj >= eps)
+  if (length(valid_idx) == 0) { # No valid RTs
+      return(ifelse(log, log_density, exp(log_density)))
   }
-  
+
+  # Subset parameters and adjusted times for valid indices
+  t_adj_valid <- t_adj[valid_idx]
+  mu_valid <- mu[valid_idx]
+  mudelta_valid <- mudelta[valid_idx]
+  sigmazero_valid <- sigmazero[valid_idx]
+  sigmadelta_valid <- sigmadelta[valid_idx]
+  response_valid <- response[valid_idx]
+
+  # Precompute accumulator parameters for valid indices
+  nu0 <- mu_valid
+  nu1 <- mu_valid + mudelta_valid
+  sigma0 <- sigmazero_valid
+  sigma1 <- sigmazero_valid * exp(sigmadelta_valid)
+
+  # Identify winning and losing parameters based on response
+  nu_win <- ifelse(response_valid == 0, nu0, nu1)
+  sigma_win <- ifelse(response_valid == 0, sigma0, sigma1)
+  nu_loss <- ifelse(response_valid == 0, nu1, nu0)
+  sigma_loss <- ifelse(response_valid == 0, sigma1, sigma0)
+
+  # Compute log-density for the winning accumulator (vectorized)
+  log_pdf_win <- stats::dlnorm(t_adj_valid, meanlog = nu_win, sdlog = sigma_win, log = TRUE)
+
+  # Compute log-survival probability for the losing accumulator (vectorized)
+  log_cdf_loss <- stats::plnorm(t_adj_valid, meanlog = nu_loss, sdlog = sigma_loss, lower.tail = TRUE, log.p = TRUE)
+  log_surv_loss <- .log1m_exp(log_cdf_loss) # Stable log(1 - p)
+
+  # Combine log-density and log-survival probability for valid indices
+  log_density[valid_idx] <- log_pdf_win + log_surv_loss
+
+  # Handle potential -Inf results from dlnorm/plnorm if parameters were invalid
+  # (although sigmazero check should prevent most)
+  log_density[is.na(log_density) | !is.finite(log_density)] <- -Inf
+
+  # Return result
   if (log) {
     return(log_density)
   } else {

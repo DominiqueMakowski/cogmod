@@ -27,7 +27,7 @@ real choco_lpdf(real y, real mu, real muleft, real mudelta, real phileft,
   // --- Case 1: y is exactly at threshold - only need pmid ---
   if (abs(y - threshold) < eps) {
     if (pmid < eps) {
-      print(\"Observation == threshold (0.5), but pmid is 0.0. Relax pmid or nudge mid-values.\");
+      // print(\"Observation == threshold (0.5), but pmid is 0.0. Relax pmid or nudge mid-values.\");
       return negative_infinity();
     }
     return log(pmid);
@@ -203,6 +203,41 @@ choco <- function(link_mu = "logit", link_muleft = "logit", link_mudelta = "iden
 
 # brms --------------------------------------------------------------------
 
+
+#' @rdname rchoco
+#' @export
+log_lik_choco <- function(i, prep) {
+  # Extract observed value
+  if (!"Y" %in% names(prep$data)) stop("Outcome variable 'Y' not found in prep$data.")
+  y_scalar <- prep$data$Y[i]
+
+  # Extract model draws
+  mu       <- brms::get_dpar(prep, "mu", i = i)
+  muleft   <- brms::get_dpar(prep, "muleft", i = i)
+  mudelta  <- brms::get_dpar(prep, "mudelta", i = i)
+  phileft  <- brms::get_dpar(prep, "phileft", i = i)
+  phidelta <- brms::get_dpar(prep, "phidelta", i = i)
+  pex      <- brms::get_dpar(prep, "pex", i = i)
+  bex      <- brms::get_dpar(prep, "bex", i = i)
+  pmid     <- brms::get_dpar(prep, "pmid", i = i)
+
+  n_draws <- length(mu)
+  if (n_draws == 0) return(numeric(0))
+
+  y_vec <- rep(y_scalar, length.out = n_draws)
+
+  # Calculate log-likelihood using dchoco
+  # Note: dchoco uses 'p', so pass 'mu' draws to 'p' argument
+  ll <- dchoco(x = y_vec, p = mu, muleft = muleft, mudelta = mudelta, # Changed p = p to p = mu
+                phileft = phileft, phidelta = phidelta, pex = pex,
+                bex = bex, pmid = pmid, threshold = 0.5, log = TRUE)
+
+  ll[is.nan(ll) | is.na(ll)] <- -Inf
+  ll
+}
+
+
+
 #' @rdname rchoco
 #' @export
 posterior_predict_choco <- function(i, prep, ...) {
@@ -218,8 +253,6 @@ posterior_predict_choco <- function(i, prep, ...) {
 
   n_draws <- length(mu) # Changed p to mu
 
-  threshold <- rep(0.5, length.out = n_draws)
-
   # Simulate using rchoco (vectorized)
   # Note: rchoco uses 'p', so we pass 'mu' draws to the 'p' argument
   final_out <- rchoco(n = n_draws, p = mu, muleft = muleft, mudelta = mudelta,
@@ -228,6 +261,11 @@ posterior_predict_choco <- function(i, prep, ...) {
 
   as.matrix(final_out)
 }
+
+
+
+
+
 
 #' @rdname rchoco
 #' @export
@@ -240,7 +278,6 @@ posterior_epred_choco <- function(prep) {
   bex      <- brms::get_dpar(prep, "bex")
   pmid     <- brms::get_dpar(prep, "pmid")
 
-  n_draws <- nrow(mu)
   threshold <- 0.5
 
   # --- Calculate derived parameters needed for expectation ---
@@ -278,34 +315,3 @@ posterior_epred_choco <- function(prep) {
 
 
 
-#' @rdname rchoco
-#' @export
-log_lik_choco <- function(i, prep) {
-  # Extract observed value
-  if (!"Y" %in% names(prep$data)) stop("Outcome variable 'Y' not found in prep$data.")
-  y_scalar <- prep$data$Y[i]
-
-  # Extract model draws
-  mu       <- brms::get_dpar(prep, "mu", i = i)
-  muleft   <- brms::get_dpar(prep, "muleft", i = i)
-  mudelta  <- brms::get_dpar(prep, "mudelta", i = i)
-  phileft  <- brms::get_dpar(prep, "phileft", i = i)
-  phidelta <- brms::get_dpar(prep, "phidelta", i = i)
-  pex      <- brms::get_dpar(prep, "pex", i = i)
-  bex      <- brms::get_dpar(prep, "bex", i = i)
-  pmid     <- brms::get_dpar(prep, "pmid", i = i)
-
-  n_draws <- length(mu)
-  if (n_draws == 0) return(numeric(0))
-
-  y_vec <- rep(y_scalar, length.out = n_draws)
-
-  # Calculate log-likelihood using dchoco
-  # Note: dchoco uses 'p', so pass 'mu' draws to 'p' argument
-  ll <- dchoco(x = y_vec, p = mu, muleft = muleft, mudelta = mudelta, # Changed p = p to p = mu
-                phileft = phileft, phidelta = phidelta, pex = pex,
-                bex = bex, pmid = pmid, threshold = 0.5, log = TRUE)
-
-  ll[is.nan(ll) | is.na(ll)] <- -Inf
-  ll
-}

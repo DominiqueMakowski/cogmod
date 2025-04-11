@@ -6,9 +6,9 @@
 \alias{bext_lpdf_expose}
 \alias{bext_stanvars}
 \alias{bext}
+\alias{log_lik_bext}
 \alias{posterior_predict_bext}
 \alias{posterior_epred_bext}
-\alias{log_lik_bext}
 \title{Beta-Extreme (BEXT) Model}
 \usage{
 rbext(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5)
@@ -26,11 +26,11 @@ bext(
   link_bex = "logit"
 )
 
+log_lik_bext(i, prep)
+
 posterior_predict_bext(i, prep, ...)
 
 posterior_epred_bext(prep)
-
-log_lik_bext(i, prep)
 }
 \arguments{
 \item{n}{Number of simulated values. Must be a positive integer.}

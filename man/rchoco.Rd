@@ -6,9 +6,9 @@
 \alias{choco_lpdf_expose}
 \alias{choco_stanvars}
 \alias{choco}
+\alias{log_lik_choco}
 \alias{posterior_predict_choco}
 \alias{posterior_epred_choco}
-\alias{log_lik_choco}
 \title{Choice-Confidence (CHOCO) Model}
 \usage{
 rchoco(
@@ -53,11 +53,11 @@ choco(
   link_pmid = "logit"
 )
 
+log_lik_choco(i, prep)
+
 posterior_predict_choco(i, prep, ...)
 
 posterior_epred_choco(prep)
-
-log_lik_choco(i, prep)
 }
 \arguments{
 \item{n}{Number of simulated trials. Must be a positive integer.}

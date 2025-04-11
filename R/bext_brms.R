@@ -127,7 +127,38 @@ bext <- function(link_mu = "logit", link_phi = "softplus", link_pex = "logit", l
 
 # brms --------------------------------------------------------------------
 
-# Posterior Prediction
+
+#' @rdname rbext
+#' @export
+log_lik_bext <- function(i, prep) {
+  # Extract observed value for the i-th observation
+  if (!"Y" %in% names(prep$data)) stop("Outcome variable 'Y' not found in prep$data.")
+  y_scalar <- prep$data$Y[i] # This is a single value
+
+  # Extract model draws (vectors) for the i-th observation
+  mu  <- brms::get_dpar(prep, "mu", i = i)
+  phi <- brms::get_dpar(prep, "phi", i = i)
+  pex <- brms::get_dpar(prep, "pex", i = i)
+  bex <- brms::get_dpar(prep, "bex", i = i)
+
+  # Determine number of draws
+  n_draws <- length(mu)
+  if (n_draws == 0) return(numeric(0)) # Handle case with no draws
+
+  # Replicate the scalar y to match the number of draws
+  y_vec <- rep(y_scalar, length.out = n_draws)
+
+  # Calculate log-likelihood using the vectorized dbext function
+  # Now y_vec has the same length as the parameter vectors
+  ll <- dbext(x = y_vec, mu = mu, phi = phi, pex = pex, bex = bex, log = TRUE)
+
+  # Ensure no NaN/NA values (dbext should return -Inf for zero density)
+  # This might be redundant if dbext is robust, but safe to keep.
+  ll[is.nan(ll) | is.na(ll)] <- -Inf
+
+  ll # Return the vector of log-likelihoods for all draws
+}
+
 
 #' @rdname rbext
 #' @param i,prep For brms' functions to run: index of the observation and a `brms` preparation object.
@@ -169,34 +200,3 @@ posterior_epred_bext <- function(prep) {
 }
 
 
-
-#' @rdname rbext
-#' @export
-log_lik_bext <- function(i, prep) {
-  # Extract observed value for the i-th observation
-  if (!"Y" %in% names(prep$data)) stop("Outcome variable 'Y' not found in prep$data.")
-  y_scalar <- prep$data$Y[i] # This is a single value
-
-  # Extract model draws (vectors) for the i-th observation
-  mu  <- brms::get_dpar(prep, "mu", i = i)
-  phi <- brms::get_dpar(prep, "phi", i = i)
-  pex <- brms::get_dpar(prep, "pex", i = i)
-  bex <- brms::get_dpar(prep, "bex", i = i)
-
-  # Determine number of draws
-  n_draws <- length(mu)
-  if (n_draws == 0) return(numeric(0)) # Handle case with no draws
-
-  # Replicate the scalar y to match the number of draws
-  y_vec <- rep(y_scalar, length.out = n_draws)
-
-  # Calculate log-likelihood using the vectorized dbext function
-  # Now y_vec has the same length as the parameter vectors
-  ll <- dbext(x = y_vec, mu = mu, phi = phi, pex = pex, bex = bex, log = TRUE)
-
-  # Ensure no NaN/NA values (dbext should return -Inf for zero density)
-  # This might be redundant if dbext is robust, but safe to keep.
-  ll[is.nan(ll) | is.na(ll)] <- -Inf
-
-  ll # Return the vector of log-likelihoods for all draws
-}
