@@ -9,15 +9,15 @@
 \alias{log_lik_choco}
 \alias{posterior_predict_choco}
 \alias{posterior_epred_choco}
-\title{Choice-Confidence (CHOCO) Model}
+\title{Choice-Confidence (CHOCO) Model Simulation}
 \usage{
 rchoco(
   n,
   p = 0.5,
-  muleft = 0.3,
-  mudelta = 0,
-  phileft = 4,
-  phidelta = 0,
+  conf = 0.5,
+  confleft = 0,
+  prec = 4,
+  precleft = 0,
   pex = 0.1,
   bex = 0.5,
   pmid = 0,
@@ -27,10 +27,10 @@ rchoco(
 dchoco(
   x,
   p = 0.5,
-  muleft = 0.3,
-  mudelta = 0,
-  phileft = 4,
-  phidelta = 0,
+  conf = 0.5,
+  confleft = 0,
+  prec = 4,
+  precleft = 0,
   pex = 0.1,
   bex = 0.5,
   pmid = 0,
@@ -44,10 +44,10 @@ choco_stanvars()
 
 choco(
   link_mu = "logit",
-  link_muleft = "logit",
-  link_mudelta = "identity",
-  link_phileft = "softplus",
-  link_phidelta = "identity",
+  link_conf = "logit",
+  link_confleft = "identity",
+  link_prec = "softplus",
+  link_precleft = "identity",
   link_pex = "logit",
   link_bex = "logit",
   link_pmid = "logit"
@@ -65,24 +65,30 @@ posterior_epred_choco(prep)
 \item{p}{Proportion parameter determining the balance between the left and right sides
 \emph{after excluding} the probability mass at the threshold (\code{pmid}). Specifically,
 \verb{P(Right Side | Not Threshold) = p} and \verb{P(Left Side | Not Threshold) = 1 - p}.
-Must be in the range \verb{[0, 1]}. Due to Stan requirement, this parameter is named \code{mu} in
-brms models and is its primary parameter.}
+Must be in the range \verb{[0, 1]}. In \code{brms} models, this corresponds to the \code{mu} parameter.}
 
-\item{muleft}{Mean parameter for the underlying BEXT distribution used for the \emph{left} side
-(0 to \code{threshold}). This represents the central tendency of the \emph{raw} BEXT component
-(before mirroring and scaling). Must be strictly between 0 and 1.}
+\item{conf}{Mean parameter for the underlying BEXT distribution used for the \emph{right} side
+(\code{threshold} to 1). This represents the central tendency (confidence) of the \emph{raw} BEXT component
+(before scaling). Must be strictly between 0 and 1. The mean of the raw BEXT component
+for the \emph{left} side (\code{muleft}) is derived from \code{conf} before applying \code{confleft}, such that
+\code{confleft = 0} implies mirrored confidence (\code{muleft = conf}).}
 
-\item{mudelta}{Difference parameter modifying the mean for the \emph{right} side BEXT distribution.
-The mean of the raw BEXT component for the right side is calculated as
-\code{inv_logit(logit(muleft) + mudelta)}. An \code{mudelta = 0} implies the raw means are the same.}
+\item{confleft}{Difference parameter modifying the mean for the \emph{left} side BEXT distribution.
+The mean of the raw BEXT component for the left side is calculated as
+\code{muleft = inv_logit(logit(conf) + confleft)}. A \code{confleft = 0} implies the raw mean for the
+left side is the same as the right side (\code{muleft = conf}). Positive values increase \code{muleft},
+resulting in final CHOCO values closer to 0 (higher confidence on the left).}
 
-\item{phileft}{Precision parameter for the underlying BEXT distribution on the \emph{left} side.
-Must be positive. Note: This corresponds to half the typical Beta precision (\code{precision = phileft * 2}).
-\code{phileft = 1} corresponds to a uniform distribution (when \code{muleft = 0.5}).}
+\item{prec}{Precision parameter (\code{phi}) for the underlying BEXT distributions. This sets the
+base precision for the right side and is used to derive the left side's precision.
+Must be positive. Note: This corresponds to half the typical Beta precision
+(\code{precision = prec * 2}). \code{prec = 1} corresponds to a uniform distribution
+(when the respective raw mean is 0.5).}
 
-\item{phidelta}{Difference parameter modifying the precision for the \emph{right} side BEXT distribution.
-The precision of the raw BEXT component for the right side is calculated as
-\code{phiright = phileft * exp(phidelta)}. A \code{phidelta = 0} implies the precisions are the same.}
+\item{precleft}{Difference parameter modifying the precision for the \emph{left} side BEXT distribution.
+The precision (\code{phi}) of the raw BEXT component for the left side is calculated as
+\code{prec_left = prec * exp(precleft)}. A \code{precleft = 0} implies the precisions are the same.
+Positive values increase the precision on the left side.}
 
 \item{pex}{Overall probability of extreme values (0 or 1) \emph{within} each underlying BEXT component
 (before scaling/mirroring). This applies commonly to both left and right sides. \verb{0 <= pex <= 1}.}
@@ -90,7 +96,9 @@ The precision of the raw BEXT component for the right side is calculated as
 \item{bex}{Balances the extreme probability mass \emph{within} each underlying BEXT component
 between its 0 and 1 anchors. \code{P(raw=1) = pex * bex}, \code{P(raw=0) = pex * (1 - bex)}.
 Note that for the left CHOCO component, \code{raw=1} maps to CHOCO value 0, and for the right
-CHOCO component, \code{raw=1} maps to CHOCO value 1. \verb{0 <= bex <= 1}.}
+CHOCO component, \code{raw=1} maps to CHOCO value 1. \verb{0 <= bex <= 1}. The interpretation
+of how \code{pex} and \code{bex} translate to the final CHOCO extremes (0 and 1) depends on the
+internal \code{pex_left} and \code{pex_right} calculations (see Details).}
 
 \item{pmid}{Probability mass exactly at the \code{threshold}. \verb{0 <= pmid <= 1}.}
 
@@ -101,27 +109,21 @@ strictly between 0 and 1.}
 
 \item{log}{Logical; if TRUE, returns the log-density.}
 
-\item{link_mu, link_muleft, link_mudelta, link_phileft, link_phidelta, link_pex, link_bex, link_pmid}{Link functions for the parameters.}
+\item{link_mu, link_conf, link_confleft, link_prec, link_precleft, link_pex, link_bex, link_pmid}{Link functions for the parameters.}
 
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
 \item{...}{Additional arguments.}
 }
 \description{
-The Choice-Confidence (CHOCO) model is useful to model data from subjective ratings,
-such as Likert-type or analog scales, in which the left and the right side correspond
-to different processes or higher order categorical responses (e.g., "disagree" vs.
-"agree", "true" vs. "false"). They can be used to jointly model the choice
-between two underlying categories (e.g., "disagree" vs. "agree") along with a degree
-of confidence or intensity.
+Simulates data from the Choice-Confidence (CHOCO) model. This model is useful for
+subjective ratings (e.g., Likert-type scales) where responses represent a choice
+between two underlying categories (e.g., "disagree" vs. "agree") along with a
+degree of confidence or intensity.
 
-The CHOCO model conceptualizes the response scale as being divided at a \code{threshold} (typically
-at 0.5, i.e., the middle point of the scale). Responses below the threshold are modeled by one
-\link[=rbext]{Beta-Extreme (BEXT)} distribution, and responses above the threshold are modeled
-by a separate, mirrored BEXT distribution. The relative proportions of data on the left and right
-sides of the threshold are controlled by the \code{p} parameter, which indicates the probability of
-observing a response on the right side of the threshold. There is also a point mass probability
-(\code{pmid}) for responses exactly at the \code{threshold}.
+The CHOCO model divides the response scale at a \code{threshold}. Responses below the
+threshold are modeled by a mirrored \link[=rbext]{Beta-Extreme (BEXT)} distribution,
+and responses above the threshold are modeled by a standard BEXT distribution.
 }
 \details{
 The simulation process involves three steps:
@@ -131,42 +133,54 @@ The simulation process involves three steps:
 conditional probability \code{p}) or the left side (with conditional probability \code{1-p}).
 \item Simulate the value from the corresponding BEXT distribution:
 \itemize{
-\item \strong{Left Side (0 to \code{threshold}):} Simulate \code{y_raw} from \code{rbext(mu=muleft, phi=phileft, pex=pex_left, bex=1)}.
-The final value is \code{(1 - y_raw) * threshold}. Note \code{pex_left = (1-bex)*pex*2} and \code{bex=1} is used in \code{rbext}
-to ensure the extreme mass corresponds to CHOCO value 0.
-\item \strong{Right Side (\code{threshold} to 1):} Simulate \code{y_raw} from \code{rbext(mu=muright, phi=phiright, pex=pex_right, bex=1)}.
-The final value is \code{threshold + y_raw * (1 - threshold)}. Note \code{pex_right = bex*pex*2} and \code{bex=1} is used
-in \code{rbext} to ensure the extreme mass corresponds to CHOCO value 1.
+\item \strong{Left Side (0 to \code{threshold}):} Calculate \code{mu_left = inv_logit(logit(conf) + confleft)} and
+\code{prec_left = prec * exp(precleft)}. The effective extreme probability for the underlying
+\code{rbext} call (targeting raw value 1, which maps to CHOCO 0) is calculated as
+\code{pex_left = pmin(1, pmax(0, (1 - bex) * (pex * 2)))}. Simulate \code{y_raw} from
+\code{rbext(mu=mu_left, phi=prec_left, pex=pex_left, bex=1)}. The final value is
+\code{(1 - y_raw) * threshold}.
+\item \strong{Right Side (\code{threshold} to 1):} Calculate \code{mu_right = conf} and \code{prec_right = prec}.
+The effective extreme probability for the underlying \code{rbext} call (targeting raw value 1,
+which maps to CHOCO 1) is calculated as \code{pex_right = pmin(1, pmax(0, bex * (pex * 2)))}.
+Simulate \code{y_raw} from \code{rbext(mu=mu_right, phi=prec_right, pex=pex_right, bex=1)}.
+The final value is \code{threshold + y_raw * (1 - threshold)}.
 }
 }
+
+The calculation \code{pex * 2} in \code{pex_left} and \code{pex_right} arises from the specific way \code{rbext}
+handles its \code{pex} and \code{bex} parameters when simulating extremes. It ensures the intended
+proportions land at CHOCO=0 and CHOCO=1 based on the input \code{pex} and \code{bex}.
 }
 \examples{
 # Simulate data with different parameterizations
-# 10\% at threshold, 50/50 split otherwise, symmetric means/precisions
-x1 <- rchoco(n=5000, p = 0.5, muleft = 0.7, mudelta = 0, phileft = 5,
-  phidelta = 0, pex = 0.1, bex = 0.5, pmid = 0.1, threshold = 0.5)
-hist(x1, breaks = 50, main = "CHOCO: Symmetric, pmid=0.1", xlab = "y")
+# 10\% at threshold, 50/50 split otherwise, symmetric confidence/precision
+x1 <- rchoco(n=5000, p = 0.5, conf = 0.5, confleft = 0, prec = 4,
+  precleft = 0, pex = 0.1, bex = 0.5, pmid = 0, threshold = 0.5)
+hist(x1, breaks = 50, main = "CHOCO: Symmetric Confidence", xlab = "y")
 
-# No threshold mass, 70\% probability on right, different means/precisions
-x2 <- rchoco(n=5000, p = 0.7, muleft = 0.8, mudelta = -1, phileft = 3,
-  phidelta = 0.5, pex = 0.05, bex = 0.7, pmid = 0, threshold = 0.5)
-hist(x2, breaks = 50, main = "CHOCO: Asymmetric, pmid=0", xlab = "y")
+# No threshold mass, 70\% probability on right, higher confidence left
+x2 <- rchoco(n=5000, p = 0.7, conf = 0.5, confleft = 1, prec = 3,
+  precleft = 1, pex = 0.05, bex = 0.7, pmid = 0, threshold = 0.5)
+hist(x2, breaks = 50, main = "CHOCO: Asymmetric p, Higher Conf Left", xlab = "y")
+
+# Lower confidence overall, high probability in the middle
+x3 <- rchoco(n=5000, p = 0.5, conf = 0.2, confleft = 0, prec = 3,
+  precleft = 0, pex = 0, bex = 0.5, pmid = 0.05, threshold = 0.5)
+hist(x3, breaks = 50, main = "CHOCO: Low confidence overall", xlab = "y")
 \dontrun{
   # Requires cmdstanr to be installed and configured
   logpdf_func <- choco_lpdf_expose()
   # Note: parameter 'p' is now 'mu' in the Stan function
-  logpdf_func(y = 0.2, mu = 0.6, muleft = 0.3, mudelta = 0.1, phileft = 5,
-              phidelta = -0.2, pex = 0.1, bex = 0.5, pmid = 0.05)
-  logpdf_func(y = 0.5, mu = 0.6, muleft = 0.3, mudelta = 0.1, phileft = 5,
-              phidelta = -0.2, pex = 0.1, bex = 0.5, pmid = 0.05)
+  logpdf_func(y = 0.2, mu = 0.6, conf = 0.3, confleft = 0.1, prec = 5,
+              precleft = -0.2, pex = 0.1, bex = 0.5, pmid = 0.05)
 }
 \dontrun{
 # Example usage in brm formula:
 # bf(y ~ x1 + (1|group),
-#    muleft ~ 1,
-#    mudelta ~ x3,
-#    phileft ~ 1,
-#    phidelta ~ 1,
+#    conf ~ 1,
+#    confleft ~ x3,
+#    prec ~ 1,
+#    precleft ~ 1,
 #    pex ~ s(age),
 #    bex ~ 1,
 #    pmid ~ 1,
@@ -180,5 +194,5 @@ lower and upper bounds. Political Analysis, 31(4), 519-536. (Describes the under
 }
 }
 \seealso{
-rbext
+rbext, dchoco
 }
