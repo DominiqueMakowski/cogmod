@@ -13,4 +13,5 @@ reference:
     - title: "Decision Making Data (Choice and RT)"
     - subtitle: "LogNormal Race Model (LNR)"
       contents:
+          - rshifted_wald
           - rlnr
