@@ -5,8 +5,9 @@
 "
 // Log probability density function for the CHOCO distribution (Optimized)
 // Accounts for point masses at 0, threshold (fixed at 0.5), and 1, and continuous Beta components.
-real choco_lpdf(real y, real mu, real muleft, real mudelta, real phileft,
-                 real phidelta, real pex, real bex, real pmid) {
+// Uses conf, confleft, prec, precleft parameterization.
+real choco_lpdf(real y, real mu, real conf, real confleft, real prec,
+                 real precleft, real pex, real bex, real pmid) {
 
   real eps = 1e-8; // Tolerance for floating point comparisons
   real threshold = 0.5; // Hardcoded threshold
@@ -14,8 +15,9 @@ real choco_lpdf(real y, real mu, real muleft, real mudelta, real phileft,
 
   // --- 1. Parameter Validation ---
   // Check input parameter ranges (essential for preventing downstream errors)
-   if (mu < 0.0 || mu > 1.0 || muleft <= 0.0 || muleft >= 1.0 || 
-      phileft <= 0.0 || pex < 0.0 || pex > 1.0 || 
+   if (mu < 0.0 || mu > 1.0 || conf <= 0.0 || conf >= 1.0 || // Changed muleft to conf
+      prec <= 0.0 || // Changed phileft to prec
+      pex < 0.0 || pex > 1.0 ||
       bex < 0.0 || bex > 1.0 || pmid < 0.0 || pmid > 1.0) {
     return negative_infinity();
   }
@@ -33,112 +35,100 @@ real choco_lpdf(real y, real mu, real muleft, real mudelta, real phileft,
     return log(pmid);
   }
 
-  // --- Parameter Clamping ---
+  // --- Parameter Clamping (Input parameters) ---
   real p_c = fmax(eps, fmin(mu, 1.0 - eps));
-  real muleft_c = fmax(eps, fmin(muleft, 1.0 - eps)); 
+  real conf_c = fmax(eps, fmin(conf, 1.0 - eps)); // Clamp conf
+  real prec_c = fmax(eps, prec); // Clamp prec
   real pmid_c = pmid; // Already validated, no need to clamp
-  
+
+  // --- Calculate Derived Parameters ---
+  // Right side parameters (simpler now)
+  real muright = conf_c;
+  real phiright = prec_c;
+
+  // Left side parameters
+  real logit_conf = log(conf_c / (1.0 - conf_c));
+  real logit_muleft = logit_conf + confleft; // Use confleft directly
+  real muleft;
+  // Stable inverse logit for muleft
+  if (logit_muleft > 15.0) muleft = 1.0 - eps;
+  else if (logit_muleft < -15.0) muleft = eps;
+  else muleft = inv_logit(logit_muleft);
+  muleft = fmax(eps, fmin(muleft, 1.0 - eps)); // Clamp derived muleft
+
+  real phileft = prec_c * exp(fmin(10.0, fmax(-10.0, precleft))); // Use precleft, clamp exponent
+  phileft = fmax(eps, phileft); // Clamp derived phileft
+
+  // Effective extreme probabilities (same calculation as before)
+  real pex_left = (1.0 - bex) * (pex * 2.0);
+  pex_left = fmin(1.0, fmax(0.0, pex_left)); // Clamp
+  real pex_right = bex * (pex * 2.0);
+  pex_right = fmin(1.0, fmax(0.0, pex_right)); // Clamp
+
   // --- Case 2: y is at 0 - only need left component and extreme probability ---
   if (abs(y) < eps) {
     real prob_left = (1.0 - pmid_c) * (1.0 - p_c);
-    real pex_left = (1.0 - bex) * (pex * 2.0);
-    
-    // Clamp extreme probability to [0,1] range
-    pex_left = fmin(1.0, fmax(0.0, pex_left));
-    
     // If either probability is effectively zero, return -Inf
     if (prob_left < eps || pex_left < eps) return negative_infinity();
-    
     // Only need log of extreme probability at 0
     return log(prob_left) + log(pex_left);
   }
-  
+
   // --- Case 3: y is at 1 - only need right component and extreme probability ---
   if (abs(y - 1.0) < eps) {
     real prob_right = (1.0 - pmid_c) * p_c;
-    real pex_right = bex * (pex * 2.0);
-    
-    // Clamp extreme probability to [0,1] range
-    pex_right = fmin(1.0, fmax(0.0, pex_right));
-    
     // If either probability is effectively zero, return -Inf
     if (prob_right < eps || pex_right < eps) return negative_infinity();
-    
     // Only need log of extreme probability at 1
     return log(prob_right) + log(pex_right);
   }
-  
+
   // --- Case 4: y is between 0 and threshold ---
   if (y < threshold) {
-    // Only compute left side parameters
     real prob_left = (1.0 - pmid_c) * (1.0 - p_c);
-    real pex_left = (1.0 - bex) * (pex * 2.0);
-
-    // Clamp extreme probability to [0,1] range
-    pex_left = fmin(1.0, fmax(0.0, pex_left));
-    
-    // Bail out early if component has zero probability
+    // Bail out early if component has zero probability or only extreme mass
     if (prob_left < eps || pex_left >= 1.0 - eps) return negative_infinity();
-    
-    // Calculate Beta parameters for left side only
-    real phileft_c = fmax(eps, phileft);
-    real precision_left = phileft_c * 2.0;
-    real shape1_left = muleft_c * precision_left;
-    real shape2_left = (1.0 - muleft_c) * precision_left;
-    
+
+    // Calculate Beta parameters for left side
+    real precision_left = phileft * 2.0; // Use derived phileft
+    real shape1_left = muleft * precision_left; // Use derived muleft
+    real shape2_left = (1.0 - muleft) * precision_left;
+
     // Transform y to raw Beta scale
     real y_raw_left = 1.0 - y / threshold;
     y_raw_left = fmax(eps, fmin(y_raw_left, 1.0 - eps));
-    
+
     // Compute log density for left side
     return log(prob_left) + log1m(pex_left) +
            beta_lpdf(y_raw_left | shape1_left, shape2_left) +
-           log(1.0 / threshold);
+           log(1.0 / threshold); // Jacobian
   }
-  
+
   // --- Case 5: y is between threshold and 1 ---
   else {
-    // Only compute right side parameters
     real prob_right = (1.0 - pmid_c) * p_c;
-    real pex_right = bex * (pex * 2.0);
-
-    // Clamp extreme probability to [0,1] range
-    pex_right = fmin(1.0, fmax(0.0, pex_right));
-    
-    // Bail out early if component has zero probability
+    // Bail out early if component has zero probability or only extreme mass
     if (prob_right < eps || pex_right >= 1.0 - eps) return negative_infinity();
-    
-    // Calculate right-side parameters only when needed
-    real phileft_c = fmax(eps, phileft);
-    real phiright = fmax(eps, phileft_c * exp(fmin(10.0, fmax(-10.0, phidelta))));
-    
-    // Calculate derived parameters for right side
-    real logit_muleft = log(muleft_c / (1.0 - muleft_c));
-    real logit_muright = logit_muleft + mudelta;
-    real muright;
-    
-    // Stable inverse logit
-    if (logit_muright > 15.0) muright = 1.0 - eps;
-    else if (logit_muright < -15.0) muright = eps;
-    else muright = inv_logit(logit_muright);
-    
+
     // Calculate Beta parameters for right side
-    real precision_right = phiright * 2.0;
-    real shape1_right = muright * precision_right;
+    real precision_right = phiright * 2.0; // Use derived phiright
+    real shape1_right = muright * precision_right; // Use derived muright
     real shape2_right = (1.0 - muright) * precision_right;
-    
+
     // Transform y to raw Beta scale
     real y_raw_right = (y - threshold) / (1.0 - threshold);
     y_raw_right = fmax(eps, fmin(y_raw_right, 1.0 - eps));
-    
+
     // Compute log density for right side
     return log(prob_right) + log1m(pex_right) +
            beta_lpdf(y_raw_right | shape1_right, shape2_right) +
-           log(1.0 / (1.0 - threshold));
+           log(1.0 / (1.0 - threshold)); // Jacobian
   }
 }
 "
 }
+
+
 
 
 #' @rdname rchoco
@@ -148,10 +138,8 @@ real choco_lpdf(real y, real mu, real muleft, real mudelta, real phileft,
 #'   # Requires cmdstanr to be installed and configured
 #'   logpdf_func <- choco_lpdf_expose()
 #'   # Note: parameter 'p' is now 'mu' in the Stan function
-#'   logpdf_func(y = 0.2, mu = 0.6, muleft = 0.3, mudelta = 0.1, phileft = 5,
-#'               phidelta = -0.2, pex = 0.1, bex = 0.5, pmid = 0.05)
-#'   logpdf_func(y = 0.5, mu = 0.6, muleft = 0.3, mudelta = 0.1, phileft = 5,
-#'               phidelta = -0.2, pex = 0.1, bex = 0.5, pmid = 0.05)
+#'   logpdf_func(y = 0.2, mu = 0.6, conf = 0.3, confleft = 0.1, prec = 5,
+#'               precleft = -0.2, pex = 0.1, bex = 0.5, pmid = 0.05)
 #' }
 choco_lpdf_expose <- function() {
   insight::check_if_installed("cmdstanr")
@@ -169,32 +157,33 @@ choco_stanvars <- function() {
 }
 
 
+
 #' @rdname rchoco
-#' @param link_mu,link_muleft,link_mudelta,link_phileft,link_phidelta,link_pex,link_bex,link_pmid Link functions for the parameters.
+#' @param link_mu,link_conf,link_confleft,link_prec,link_precleft,link_pex,link_bex,link_pmid Link functions for the parameters.
 #' @examples
 #' \dontrun{
 #' # Example usage in brm formula:
 #' # bf(y ~ x1 + (1|group),
-#' #    muleft ~ 1,
-#' #    mudelta ~ x3,
-#' #    phileft ~ 1,
-#' #    phidelta ~ 1,
+#' #    conf ~ 1,
+#' #    confleft ~ x3,
+#' #    prec ~ 1,
+#' #    precleft ~ 1,
 #' #    pex ~ s(age),
 #' #    bex ~ 1,
 #' #    pmid ~ 1,
 #' #    family = choco())
 #' }
 #' @export
-choco <- function(link_mu = "logit", link_muleft = "logit", link_mudelta = "identity",
-                  link_phileft = "softplus", link_phidelta = "identity",
+choco <- function(link_mu = "logit", link_conf = "logit", link_confleft = "identity",
+                  link_prec = "softplus", link_precleft = "identity",
                   link_pex = "logit", link_bex = "logit", link_pmid = "logit") {
   brms::custom_family(
     name = "choco",
-    dpars = c("mu", "muleft", "mudelta", "phileft", "phidelta", "pex", "bex", "pmid"),
-    links = c(link_mu, link_muleft, link_mudelta, link_phileft, link_phidelta, 
+    dpars = c("mu", "conf", "confleft", "prec", "precleft", "pex", "bex", "pmid"), # Updated dpars
+    links = c(link_mu, link_conf, link_confleft, link_prec, link_precleft, # Updated links
               link_pex, link_bex, link_pmid),
-    lb = c(0, 0, NA, 0, NA, 0, 0, 0),
-    ub = c(1, 1, NA, NA, NA, 1, 1, 1),
+    lb = c(0, 0, NA, 0, NA, 0, 0, 0), # Updated lb (conf > 0, prec > 0)
+    ub = c(1, 1, NA, NA, NA, 1, 1, 1), # Updated ub (conf < 1)
     type = "real"  # Continuous outcome variable
   )
 }
@@ -211,12 +200,12 @@ log_lik_choco <- function(i, prep) {
   if (!"Y" %in% names(prep$data)) stop("Outcome variable 'Y' not found in prep$data.")
   y_scalar <- prep$data$Y[i]
 
-  # Extract model draws
+  # Extract model draws using new parameter names
   mu       <- brms::get_dpar(prep, "mu", i = i)
-  muleft   <- brms::get_dpar(prep, "muleft", i = i)
-  mudelta  <- brms::get_dpar(prep, "mudelta", i = i)
-  phileft  <- brms::get_dpar(prep, "phileft", i = i)
-  phidelta <- brms::get_dpar(prep, "phidelta", i = i)
+  conf     <- brms::get_dpar(prep, "conf", i = i)
+  confleft <- brms::get_dpar(prep, "confleft", i = i)
+  prec     <- brms::get_dpar(prep, "prec", i = i)
+  precleft <- brms::get_dpar(prep, "precleft", i = i)
   pex      <- brms::get_dpar(prep, "pex", i = i)
   bex      <- brms::get_dpar(prep, "bex", i = i)
   pmid     <- brms::get_dpar(prep, "pmid", i = i)
@@ -226,10 +215,10 @@ log_lik_choco <- function(i, prep) {
 
   y_vec <- rep(y_scalar, length.out = n_draws)
 
-  # Calculate log-likelihood using dchoco
+  # Calculate log-likelihood using dchoco with new parameter names
   # Note: dchoco uses 'p', so pass 'mu' draws to 'p' argument
-  ll <- dchoco(x = y_vec, p = mu, muleft = muleft, mudelta = mudelta, # Changed p = p to p = mu
-                phileft = phileft, phidelta = phidelta, pex = pex,
+  ll <- dchoco(x = y_vec, p = mu, conf = conf, confleft = confleft, # Updated parameters
+                prec = prec, precleft = precleft, pex = pex,
                 bex = bex, pmid = pmid, threshold = 0.5, log = TRUE)
 
   ll[is.nan(ll) | is.na(ll)] <- -Inf
@@ -241,22 +230,22 @@ log_lik_choco <- function(i, prep) {
 #' @rdname rchoco
 #' @export
 posterior_predict_choco <- function(i, prep, ...) {
-  # Extract draws for each parameter for the i-th observation
-  mu       <- brms::get_dpar(prep, "mu", i = i) 
-  muleft   <- brms::get_dpar(prep, "muleft", i = i)
-  mudelta  <- brms::get_dpar(prep, "mudelta", i = i)
-  phileft  <- brms::get_dpar(prep, "phileft", i = i)
-  phidelta <- brms::get_dpar(prep, "phidelta", i = i)
+  # Extract draws for each parameter for the i-th observation using new names
+  mu       <- brms::get_dpar(prep, "mu", i = i)
+  conf     <- brms::get_dpar(prep, "conf", i = i)
+  confleft <- brms::get_dpar(prep, "confleft", i = i)
+  prec     <- brms::get_dpar(prep, "prec", i = i)
+  precleft <- brms::get_dpar(prep, "precleft", i = i)
   pex      <- brms::get_dpar(prep, "pex", i = i)
   bex      <- brms::get_dpar(prep, "bex", i = i)
   pmid     <- brms::get_dpar(prep, "pmid", i = i)
 
-  n_draws <- length(mu) # Changed p to mu
+  n_draws <- length(mu)
 
-  # Simulate using rchoco (vectorized)
+  # Simulate using rchoco (vectorized) with new parameter names
   # Note: rchoco uses 'p', so we pass 'mu' draws to the 'p' argument
-  final_out <- rchoco(n = n_draws, p = mu, muleft = muleft, mudelta = mudelta,
-                       phileft = phileft, phidelta = phidelta, pex = pex,
+  final_out <- rchoco(n = n_draws, p = mu, conf = conf, confleft = confleft, # Updated parameters
+                       prec = prec, precleft = precleft, pex = pex,
                        bex = bex, pmid = pmid, threshold = 0.5)
 
   as.matrix(final_out)
@@ -270,48 +259,61 @@ posterior_predict_choco <- function(i, prep, ...) {
 #' @rdname rchoco
 #' @export
 posterior_epred_choco <- function(prep) {
-  # Extract draws for parameters (matrices: draws x observations)
+  # Extract draws for parameters (matrices: draws x observations) using new names
   mu       <- brms::get_dpar(prep, "mu") # p
-  muleft   <- brms::get_dpar(prep, "muleft")
-  mudelta  <- brms::get_dpar(prep, "mudelta")
+  conf     <- brms::get_dpar(prep, "conf")
+  confleft <- brms::get_dpar(prep, "confleft")
+  prec     <- brms::get_dpar(prep, "prec")
+  precleft <- brms::get_dpar(prep, "precleft")
   pex      <- brms::get_dpar(prep, "pex")
   bex      <- brms::get_dpar(prep, "bex")
   pmid     <- brms::get_dpar(prep, "pmid")
 
   threshold <- 0.5
+  eps_mu <- 1e-9 # Tolerance for clamping
 
-  # --- Calculate derived parameters needed for expectation ---
-  eps_mu <- 1e-9
-  logit_muleft <- log(muleft / (1 - muleft))
-  logit_muright <- logit_muleft + mudelta
-  muright <- exp(logit_muright) / (1 + exp(logit_muright))
-  muleft_c <- pmax(eps_mu, pmin(muleft, 1 - eps_mu))
-  muright_c <- pmax(eps_mu, pmin(muright, 1 - eps_mu))
+  # --- Calculate derived parameters needed for expectation using new logic ---
+  # Clamp input parameters first
+  conf_c <- pmax(eps_mu, pmin(conf, 1 - eps_mu))
+  prec_c <- pmax(eps_mu, prec)
+
+  # Right side parameters
+  muright <- conf_c
+  # phiright <- prec_c # Not directly needed for mean
+
+  # Left side parameters
+  logit_conf <- log(conf_c / (1 - conf_c))
+  logit_muleft <- logit_conf + confleft
+  muleft <- exp(logit_muleft) / (1 + exp(logit_muleft))
+  muleft_c <- pmax(eps_mu, pmin(muleft, 1 - eps_mu)) # Clamp derived muleft
+  # phileft <- prec_c * exp(precleft) # Not directly needed for mean
+
+  # Effective extreme probabilities
   pex_left <- pmin(1, pmax(0, (1 - bex) * (pex * 2)))
   pex_right <- pmin(1, pmax(0, bex * (pex * 2)))
 
   # --- Calculate components of the expectation ---
   # Probabilities of components
-  prob_0 <- (1 - pmid) * (1 - mu) * pex_left 
-  prob_1 <- (1 - pmid) * mu * pex_right      
+  prob_0 <- (1 - pmid) * (1 - mu) * pex_left
+  prob_1 <- (1 - pmid) * mu * pex_right
   prob_thresh <- pmid
-  prob_left_cont <- (1 - pmid) * (1 - mu) * (1 - pex_left) 
-  prob_right_cont <- (1 - pmid) * mu * (1 - pex_right)    
+  prob_left_cont <- (1 - pmid) * (1 - mu) * (1 - pex_left)
+  prob_right_cont <- (1 - pmid) * mu * (1 - pex_right)
 
-  # Conditional expectations
+  # Conditional expectations of the continuous parts (based on underlying Beta means)
+  # E[X | Left, Continuous] = E[(1 - Y_raw_left) * threshold] = threshold * (1 - E[Y_raw_left]) = threshold * (1 - muleft_c)
   mean_left_cont <- threshold * (1 - muleft_c)
-  mean_right_cont <- threshold + (1 - threshold) * muright_c
+  # E[X | Right, Continuous] = E[threshold + Y_raw_right * (1 - threshold)] = threshold + (1 - threshold) * E[Y_raw_right] = threshold + (1 - threshold) * muright
+  mean_right_cont <- threshold + (1 - threshold) * muright # Use muright (which is conf_c)
 
-  # Calculate total expectation
+  # Calculate total expectation: Sum of (Probability * Conditional Expectation) for each component
   epred <- prob_0 * 0 +
            prob_1 * 1 +
            prob_thresh * threshold +
            prob_left_cont * mean_left_cont +
            prob_right_cont * mean_right_cont
 
+  # Ensure the final expectation is within [0, 1]
   epred <- pmax(0, pmin(epred, 1))
   epred
 }
-
-
-

@@ -56,15 +56,15 @@ library(patchwork)
 library(cogmod)
 
 # Simulate data using rchoco() with two parameter sets
-df1 <- rchoco(n = 5000, mu = 0.5, muleft = 0.4, phileft = 3, pex = 0.1)
-df2 <- rchoco(n = 5000, mu = 0.7, muleft = 0.6, phileft = 5, pex = 0.05)
+df1 <- rchoco(n = 5000, conf = 0.5, confleft = 0.4, prec = 3, pex = 0.1)
+df2 <- rchoco(n = 5000, conf = 0.7, confleft = 0.6, prec = 5, pex = 0.05)
 
 # Combine data into a single data frame
 df <- data.frame(
   value = c(df1, df2),
   group = rep(c(
-    "mu = 0.5, muleft = 0.4, phileft = 3, pex = 0.1",
-    "mu = 0.7, muleft = 0.6, phileft = 5, pex = 0.05"
+    "conf = 0.5, confleft = 0.4, prec = 3, pex = 0.1",
+    "conf = 0.7, confleft = 0.6, prec = 5, pex = 0.05"
   ), each = 5000)
 )
 
@@ -123,8 +123,8 @@ library(cmdstanr)
 df <- data.frame()
 for(x in seq(0.1, 1, by = 0.1)) {
   df <- data.frame(x = x,
-                   score = rchoco(n = 100, p = 0.4 + x / 2, muleft = 0.3 + x / 3, 
-                                  phileft = 3, pex = 0.03, bex = 0.6, pmid = 0)) |> 
+                   score = rchoco(n = 100, p = 0.4 + x / 2, conf = 0.3 + x / 3, 
+                                  confleft = -x, pex = 0.03, bex = 0.6, pmid = 0)) |> 
     rbind(df)
 }
 
@@ -226,10 +226,10 @@ of the Choice-Confidence (CHOCO).
 ``` r
 f <- bf(
   score ~ x,
-  muleft ~ x,
-  mudelta ~ x,
-  phileft ~ x,
-  phidelta ~ x,
+  conf ~ x,
+  confleft ~ x,
+  prec ~ x,
+  precleft ~ x,
   pex ~ x,
   bex ~ x,
   pmid = 0
@@ -270,10 +270,10 @@ loo::loo_compare(m_zoib, m_xbx, m_bext, m_choco) |>
 
     Name    |   LOOIC |   ENP |   ELPD | Difference | Difference_SE |      p
     ------------------------------------------------------------------------
-    m_choco | -459.93 | 14.05 | 229.97 |       0.00 |          0.00 |       
-    m_zoib  |  -54.14 |  7.88 |  27.07 |    -202.90 |         14.22 | < .001
-    m_bext  |  -53.24 |  8.32 |  26.62 |    -203.35 |         14.23 | < .001
-    m_xbx   |  -14.18 |  6.79 |   7.09 |    -222.88 |         14.87 | < .001
+    m_choco | -739.45 | 15.02 | 369.72 |       0.00 |          0.00 |       
+    m_zoib  | -253.28 |  8.30 | 126.64 |    -243.09 |         15.29 | < .001
+    m_bext  | -253.27 |  8.19 | 126.63 |    -243.09 |         15.27 | < .001
+    m_xbx   | -180.11 |  7.20 |  90.05 |    -279.67 |         17.21 | < .001
 
 Running posterior predictive checks allows to visualize the predicted
 distributions from various models. We can see how typical Beta-related
@@ -320,10 +320,12 @@ insight::get_data(m_zoib) |>
 We can see how the predicted distribution changes as a function of **x**
 and gets “pushed” to the right. Moreover, we can also visualize the
 effect of **x** on specific parameters, showing that it mostly affects
-the main parameters **mu**, which corresponds to the ***p*** probability
-of answering on the right. This is consistent with our expectations, and
-reflects the larger mass on the right of the scale for higher value of
-**x** (in brown).
+the parameter **conf** (the mean confidence - i.e., central tendency -
+on the right side), **confleft** (the relative confidence of the left
+side), and **mu**, which corresponds to the ***p*** probability of
+answering on the right. This is consistent with our expectations, and
+reflects the larger and more concentrated mass on the right of the scale
+for higher value of **x** (in brown).
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -338,7 +340,7 @@ p1 <- modelbased::estimate_prediction(m_choco, data = "grid", length = 4, keep_i
 
 # Predict various parameters
 pred_params <- data.frame()
-for(param in c("mu", "pex", "phileft", "bex")) {
+for(param in c("mu", "conf", "confleft", "prec", "precleft", "pex")) {
   pred_params <- m_choco |> 
     modelbased::estimate_prediction(data = "grid", length = 20, predict = param) |>
     as.data.frame() |> 
@@ -350,7 +352,7 @@ p2 <- pred_params |>
   ggplot(aes(x = x, y = Predicted)) +
   geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Parameter), alpha = 0.2) +
   geom_line(aes(color = Parameter), linewidth = 1) +
-  facet_wrap(~Parameter, scales = "free_y", ncol=4) +
+  facet_wrap(~Parameter, scales = "free_y", ncol=3) +
   scale_fill_viridis_d() +
   scale_color_viridis_d() +
   theme_minimal()
@@ -425,7 +427,7 @@ m_ddm <- readRDS("man/figures/m_ddm.rds")
 ``` r
 f <- bf(
   rt | dec(response) ~ 1,
-  mudelta ~ 1,
+  confleft ~ 1,
   sigmazero ~ 1,
   sigmadelta ~ 1,
   tau ~ 1,
@@ -471,7 +473,7 @@ saveRDS(m_lnr, file = "man/figures/m_lnr.rds")
 # ), family = brms::wiener(), data = d)
 # brms::make_stancode(brms::bf(
 #   rt | dec(response) ~ 1,
-#   mudelta ~ 1,
+#   confleft ~ 1,
 #   sigmazero ~ 1,
 #   sigmadelta ~ 1,
 #   tau ~ 1

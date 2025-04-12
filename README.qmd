@@ -58,15 +58,15 @@ library(patchwork)
 library(cogmod)
 
 # Simulate data using rchoco() with two parameter sets
-df1 <- rchoco(n = 5000, mu = 0.5, muleft = 0.4, phileft = 3, pex = 0.1)
-df2 <- rchoco(n = 5000, mu = 0.7, muleft = 0.6, phileft = 5, pex = 0.05)
+df1 <- rchoco(n = 5000, conf = 0.5, confleft = 0.4, prec = 3, pex = 0.1)
+df2 <- rchoco(n = 5000, conf = 0.7, confleft = 0.6, prec = 5, pex = 0.05)
 
 # Combine data into a single data frame
 df <- data.frame(
   value = c(df1, df2),
   group = rep(c(
-    "mu = 0.5, muleft = 0.4, phileft = 3, pex = 0.1",
-    "mu = 0.7, muleft = 0.6, phileft = 5, pex = 0.05"
+    "conf = 0.5, confleft = 0.4, prec = 3, pex = 0.1",
+    "conf = 0.7, confleft = 0.6, prec = 5, pex = 0.05"
   ), each = 5000)
 )
 
@@ -122,8 +122,8 @@ library(cmdstanr)
 df <- data.frame()
 for(x in seq(0.1, 1, by = 0.1)) {
   df <- data.frame(x = x,
-                   score = rchoco(n = 100, p = 0.4 + x / 2, muleft = 0.3 + x / 3, 
-                                  phileft = 3, pex = 0.03, bex = 0.6, pmid = 0)) |> 
+                   score = rchoco(n = 100, p = 0.4 + x / 2, conf = 0.3 + x / 3, 
+                                  confleft = -x, pex = 0.03, bex = 0.6, pmid = 0)) |> 
     rbind(df)
 }
 
@@ -221,10 +221,10 @@ See the [**documentation**](https://dominiquemakowski.github.io/cogmod/reference
 
 f <- bf(
   score ~ x,
-  muleft ~ x,
-  mudelta ~ x,
-  phileft ~ x,
-  phidelta ~ x,
+  conf ~ x,
+  confleft ~ x,
+  prec ~ x,
+  precleft ~ x,
   pex ~ x,
   bex ~ x,
   pmid = 0
@@ -297,9 +297,8 @@ insight::get_data(m_zoib) |>
 #### Effect Visualisation
 
 We can see how the predicted distribution changes as a function of **x** and gets "pushed" to the right. 
-Moreover, we can also visualize the effect of **x** on specific parameters, showing that it mostly affects the main parameters **mu**, 
-which corresponds to the ***p*** probability of answering on the right. This is consistent with our expectations, and reflects 
-the larger mass on the right of the scale for higher value of **x** (in brown).
+Moreover, we can also visualize the effect of **x** on specific parameters, showing that it mostly affects the parameter **conf** (the mean confidence - i.e., central tendency - on the right side), **confleft** (the relative confidence of the left side), and **mu**, which corresponds to the ***p*** probability of answering on the right. This is consistent with our expectations, and reflects 
+the larger and more concentrated mass on the right of the scale for higher value of **x** (in brown).
 
 ```{r}
 #| fig-width: 10
@@ -315,7 +314,7 @@ p1 <- modelbased::estimate_prediction(m_choco, data = "grid", length = 4, keep_i
 
 # Predict various parameters
 pred_params <- data.frame()
-for(param in c("mu", "pex", "phileft", "bex")) {
+for(param in c("mu", "conf", "confleft", "prec", "precleft", "pex")) {
   pred_params <- m_choco |> 
     modelbased::estimate_prediction(data = "grid", length = 20, predict = param) |>
     as.data.frame() |> 
@@ -327,7 +326,7 @@ p2 <- pred_params |>
   ggplot(aes(x = x, y = Predicted)) +
   geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Parameter), alpha = 0.2) +
   geom_line(aes(color = Parameter), linewidth = 1) +
-  facet_wrap(~Parameter, scales = "free_y", ncol=4) +
+  facet_wrap(~Parameter, scales = "free_y", ncol=3) +
   scale_fill_viridis_d() +
   scale_color_viridis_d() +
   theme_minimal()
@@ -410,7 +409,7 @@ m_ddm <- readRDS("man/figures/m_ddm.rds")
 
 f <- bf(
   rt | dec(response) ~ 1,
-  mudelta ~ 1,
+  confleft ~ 1,
   sigmazero ~ 1,
   sigmadelta ~ 1,
   tau ~ 1,
@@ -458,7 +457,7 @@ saveRDS(m_lnr, file = "man/figures/m_lnr.rds")
 # ), family = brms::wiener(), data = d)
 # brms::make_stancode(brms::bf(
 #   rt | dec(response) ~ 1,
-#   mudelta ~ 1,
+#   confleft ~ 1,
 #   sigmazero ~ 1,
 #   sigmadelta ~ 1,
 #   tau ~ 1
