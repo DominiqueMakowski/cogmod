@@ -90,48 +90,48 @@ context("Shifted Wald - brms")
 
 test_that("Shifted Wald model can recover parameters with brms", {
 
-    skip_if_not_installed("brms")
-    skip_if_not_installed("cmdstanr")
+  skip_if_not_installed("brms")
+  skip_if_not_installed("cmdstanr")
 
-    set.seed(555)
-    n_obs <- 200
+  set.seed(555)
+  n_obs <- 200
 
-    # True parameters
-    true_mu <- 2.5
-    true_alpha <- 0.8
-    true_tau <- 0.8 # Proportion of minrt
-    true_minrt <- 0.2 # Assume a fixed known minrt for simplicity here
-    true_ndt <- true_tau * true_minrt
+  # True parameters
+  true_mu <- 2.5
+  true_alpha <- 0.8
+  true_tau <- 0.8 # Proportion of minrt
+  true_minrt <- 0.2 # Assume a fixed known minrt for simplicity here
+  true_ndt <- true_tau * true_minrt
 
-    # Simulate data
-    df <- data.frame(rt = rshifted_wald(n_obs, nu = true_mu, alpha = true_alpha, ndt = true_ndt))
+  # Simulate data
+  df <- data.frame(rt = rshifted_wald(n_obs, nu = true_mu, alpha = true_alpha, ndt = true_ndt))
 
-    # Define brms formula - simple intercept-only model
-    # Note: We fix minrt here by passing it as data. tau is estimated.
-    f <- brms::bf(rt ~ 1,
-                mu ~ 1,
-                alpha ~ 1,
-                tau ~ 1,
-                minrt = min(df$rt),
-                family = shifted_wald())
+  # Define brms formula - simple intercept-only model
+  # Note: We fix minrt here by passing it as data. tau is estimated.
+  f <- brms::bf(rt ~ 1,
+              mu ~ 1,
+              alpha ~ 1,
+              tau ~ 1,
+              minrt = min(df$rt),
+              family = shifted_wald())
 
-    # Fit model using variational inference for speed
-    fit <- brms::brm(f,
-                data = df,
-                stanvars = shifted_wald_stanvars(),
-                backend = "cmdstanr",
-                algorithm = "pathfinder", # VI
-                refresh = 0)
+  # Fit model using variational inference for speed
+  fit <- brms::brm(f,
+              data = df,
+              stanvars = shifted_wald_stanvars(),
+              backend = "cmdstanr",
+              algorithm = "pathfinder", # VI
+              refresh = 0)
 
-    # Check results
-    summary_fit <- summary(fit)
-    fixed_effects <- summary_fit$fixed
+  # Check results
+  summary_fit <- summary(fit)
+  fixed_effects <- summary_fit$fixed
 
-    # Check recovery (comparing posterior mean to true value)
-    # Note: Intercepts are on the link scale (log/logit)
-    expect_equal(exp(fixed_effects["Intercept", "Estimate"]), true_mu, tolerance = 0.3, label = "mu recovery")
-    expect_equal(fixed_effects["alpha_Intercept", "Estimate"], log(true_alpha), tolerance = 0.5, label = "alpha recovery")
-    expect_equal(plogis(fixed_effects["tau_Intercept", "Estimate"]), true_tau, tolerance = 0.05, label = "tau recovery")
+  # Check recovery (comparing posterior mean to true value)
+  # Note: Intercepts are on the link scale (log/logit)
+  expect_equal(exp(fixed_effects["Intercept", "Estimate"]), true_mu, tolerance = 0.3, label = "mu recovery")
+  expect_equal(fixed_effects["alpha_Intercept", "Estimate"], log(true_alpha), tolerance = 0.5, label = "alpha recovery")
+  expect_equal(plogis(fixed_effects["tau_Intercept", "Estimate"]), true_tau, tolerance = 0.05, label = "tau recovery")
 })
 
 

@@ -30,6 +30,13 @@
 #' @param ndt Non-decision time (shift parameter). Represents the time taken for processes
 #'   unrelated to the decision (e.g., encoding, motor response).
 #'   Must be non-negative. Range: [0, Inf).
+#' 
+#' @details 
+#' The LNR model conceptualizes decision-making as a race between multiple independent accumulators, 
+#' each corresponding to a potential choice. Each accumulator gathers evidence at a fixed rate, 
+#' and the first to reach a threshold determines the decision. In contrast, Wiener (DDM) models 
+#' decision-making as a continuous stochastic process where a single decision variable accumulates 
+#' noisy evidence over time until it reaches one of two decision boundaries.
 #'
 #' @examples
 #' # Simulate data

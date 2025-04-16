@@ -8,66 +8,56 @@
 // Log probability density function for the BEXT distribution
 // Optimized for numerical stability
 real bext_lpdf(real y, real mu, real phi, real pex, real bex) {
-  real eps = 1e-9; // Tolerance for floating point comparisons near 0 and 1
-
+  real eps = 1e-10;  // Tolerance for floating point comparisons
+  
   // --- Parameter Validation ---
-  if (mu < 0.0 || mu > 1.0 || phi <= 0.0 || pex < 0.0 || pex > 1.0 || bex < 0.0 || bex > 1.0) {
+  // mu must be in (0,1); pex and bex must be in [0,1]; phi > 0.
+  if (!(mu > 0.0 && mu < 1.0) || phi <= 0.0 || 
+      !(pex >= 0.0 && pex <= 1.0) || !(bex >= 0.0 && bex <= 1.0))
     return negative_infinity();
-  }
-  // Validate outcome y
-  if (y < 0.0 || y > 1.0) {
-     return negative_infinity();
-  }
-
-  // Calculate internal precision
-  real precision = phi * 2.0;
-
-  // --- Edge Case: pex = 1 (Pure Bernoulli) ---
-  // If pex is exactly or very close to 1
+  
+  // Validate outcome y is within [0,1]
+  if (y < 0.0 || y > 1.0) return negative_infinity();
+  
+  // Calculate internal precision (scaling factor for Beta parameters)
+  real precision = 2.0 * phi;
+  
+  // --- Edge Case: pex == 1 (Pure Bernoulli) ---
   if (abs(pex - 1.0) < eps) {
-    if (abs(y - 0.0) < eps) { // y = 0 (using abs(y-0.0) for consistency)
-      // log(1 - bex)
-      if (bex >= 1.0 - eps) return negative_infinity(); // Avoid log(0) if bex=1
-      return log1m(bex); // More stable than log(1.0 - bex)
-    } else if (abs(y - 1.0) < eps) { // y = 1  <- CORRECTED CONDITION
-      // log(bex)
-      if (bex <= eps) return negative_infinity(); // Avoid log(0) if bex=0
+    if (abs(y - 0.0) < eps) { // y = 0
+      // In a pure Bernoulli, the probability mass at 0 is (1 - bex)
+      if (bex >= 1.0 - eps) return negative_infinity();  // avoid log(0)
+      return log1m(bex);
+    } else if (abs(y - 1.0) < eps) { // y = 1
+      if (bex <= eps) return negative_infinity();  // avoid log(0)
       return log(bex);
-    } else { // 0 < y < 1
-      // Density is zero for continuous values in Bernoulli
+    } else {
+      // For continuous y values, density is 0 under a Bernoulli model.
       return negative_infinity();
     }
   }
-
-  // --- Edge Case: pex = 0 (Pure Beta) ---
-  // If pex is exactly or very close to 0
+  
+  // --- Edge Case: pex == 0 (Pure Beta) ---
   if (abs(pex - 0.0) < eps) {
-     // For pure Beta, density is defined only on (0, 1)
-     if (y <= 0.0 + eps || y >= 1.0 - eps) {
-         // Stan's beta_lpdf might handle this, but explicit check is safer
-         return negative_infinity();
-     } else {
-         // Use Stan's built-in beta log PDF
-         return beta_lpdf(y | mu * precision, (1.0 - mu) * precision);
-     }
+    // For pure Beta, the density is only defined on (0,1)
+    if (y <= 0.0 + eps || y >= 1.0 - eps)
+      return negative_infinity();
+    else
+      return beta_lpdf(y | mu * precision, (1.0 - mu) * precision);
   }
-
+  
   // --- Mixture Case (0 < pex < 1) ---
-  // At this point, we know 0 < pex < 1
-
-  if (abs(y - 0.0) < eps) { // y = 0
-    // Log-probability is log(pex * (1 - bex)) = log(pex) + log(1 - bex)
-    if (bex >= 1.0 - eps) return negative_infinity(); // Avoid log(1-bex) if bex=1
-    // pex > 0 is guaranteed here
+  // For extreme endpoints the density is a mixture of Beta and an extreme mass.
+  if (abs(y - 0.0) < eps) {  // y = 0
+    // log(probability) = log(pex * (1 - bex))
+    if (bex >= 1.0 - eps) return negative_infinity();
     return log(pex) + log1m(bex);
   } else if (abs(y - 1.0) < eps) { // y = 1
-    // Log-probability is log(pex * bex) = log(pex) + log(bex)
-    if (bex <= eps) return negative_infinity(); // Avoid log(bex) if bex=0
-    // pex > 0 is guaranteed here
+    // log(probability) = log(pex * bex)
+    if (bex <= eps) return negative_infinity();
     return log(pex) + log(bex);
-  } else { // 0 < y < 1
-    // Log-density is log(1 - pex) + beta_lpdf(...)
-    // pex < 1 is guaranteed here, so (1-pex) > 0
+  } else {  // 0 < y < 1
+    // Density is provided by the Beta component with weight (1 - pex)
     return log1m(pex) + beta_lpdf(y | mu * precision, (1.0 - mu) * precision);
   }
 }

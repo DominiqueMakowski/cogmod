@@ -149,7 +149,8 @@ f <- bf(
   score ~ x,
   phi ~ x,
   zoi ~ x,
-  coi ~ x
+  coi ~ x, 
+  family = zero_one_inflated_beta()
 )
 
 m_zoib <- brm(f,
@@ -176,7 +177,8 @@ masses at the boundary values 0 and 1.
 f <- bf(
   score ~ x,
   phi ~ x,
-  kappa ~ x
+  kappa ~ x, 
+  family = xbeta()
 )
 
 m_xbx <- brm(f,
@@ -204,7 +206,8 @@ f <- bf(
   score ~ x,
   phi ~ x,
   pex ~ x,
-  bex ~ x
+  bex ~ x, 
+  family = bext()
 )
 
 m_bext <- brm(f,
@@ -232,7 +235,8 @@ f <- bf(
   precleft ~ x,
   pex ~ x,
   bex ~ x,
-  pmid = 0
+  pmid = 0, 
+  family = choco()
 )
 
 m_choco <- brm(f,
@@ -270,10 +274,10 @@ loo::loo_compare(m_zoib, m_xbx, m_bext, m_choco) |>
 
     Name    |   LOOIC |   ENP |   ELPD | Difference | Difference_SE |      p
     ------------------------------------------------------------------------
-    m_choco | -739.45 | 15.02 | 369.72 |       0.00 |          0.00 |       
-    m_zoib  | -253.28 |  8.30 | 126.64 |    -243.09 |         15.29 | < .001
-    m_bext  | -253.27 |  8.19 | 126.63 |    -243.09 |         15.27 | < .001
-    m_xbx   | -180.11 |  7.20 |  90.05 |    -279.67 |         17.21 | < .001
+    m_choco | -556.70 | 13.66 | 278.35 |       0.00 |          0.00 |       
+    m_zoib  | -142.66 |  7.50 |  71.33 |    -207.02 |         13.39 | < .001
+    m_bext  | -141.68 |  7.99 |  70.84 |    -207.51 |         13.37 | < .001
+    m_xbx   |  -67.29 |  5.92 |  33.64 |    -244.70 |         15.31 | < .001
 
 Running posterior predictive checks allows to visualize the predicted
 distributions from various models. We can see how typical Beta-related
@@ -364,7 +368,7 @@ p1 / p2
 
 ![](man/figures/unnamed-chunk-11-1.png)
 
-### Decision Making (Choice + RT)
+### Cognitive Tasks
 
 #### Simulate Data
 
@@ -382,17 +386,225 @@ df |>
 
 ![](man/figures/unnamed-chunk-12-1.png)
 
-#### Drift Diffusion Model (DDM)
+#### RT-only Models
+
+We are going to start with models that only predict the reaction time,
+and ignore the choice. Note that we only use the data from the correct
+trials (i.e., the ones with `response == 0`).
+
+##### Normal
 
 ``` r
-options(mc.cores = parallel::detectCores() - 2)
+f <- bf(
+  rt ~ 1
+)
 
+m_normal <- brm(f,
+  data = df[df$response == 0,], 
+  init = 0.5,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_normal <- brms::add_criterion(m_normal, "loo") 
+
+saveRDS(m_normal, file = "man/figures/m_normal.rds")
+```
+
+##### ExGaussian
+
+``` r
+f <- bf(
+  rt ~ 1,
+  sigma ~ 1,
+  beta ~ 1,
+  family = exgaussian()
+)
+
+m_exgauss <- brm(f,
+  data = df[df$response == 0,], 
+  family = exgaussian(), 
+  init = 0.5,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_exgauss <- brms::add_criterion(m_exgauss, "loo") 
+
+saveRDS(m_exgauss, file = "man/figures/m_exgauss.rds")
+```
+
+##### Shifted LogNormal
+
+``` r
+f <- bf(
+  rt ~ 1,
+  sigma ~ 1,
+  ndt ~ 1,
+  family = shifted_lognormal(
+    link_sigma = "log",
+    link_ndt = "identity"
+  )
+)
+
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "ndt", ub=min(df$rt))  |> 
+  brms::validate_prior(f, data = df[df$response == 0,]) 
+
+m_lognormal <- brm(
+  f,
+  prior = priors,
+  data = df[df$response == 0,], 
+  init = 0,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_lognormal <- brms::add_criterion(m_lognormal, "loo") 
+
+saveRDS(m_lognormal, file = "man/figures/m_lognormal.rds")
+```
+
+##### Shifted Wald (Inverse Gaussian)
+
+``` r
+f <- bf(
+  rt ~ 1,
+  alpha ~ 1,
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = shifted_wald()
+)
+
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau")  |> 
+  brms::validate_prior(f, data = df[df$response == 0,]) 
+
+m_wald <- brm(f,
+  data = df[df$response == 0,], 
+  prior = priors,
+  family = shifted_wald(), 
+  stanvars = shifted_wald_stanvars(),
+  init = 0.5,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_wald <- brms::add_criterion(m_wald, "loo") 
+
+saveRDS(m_wald, file = "man/figures/m_wald.rds")
+```
+
+<!-- ##### Shifted LogNormal (using LNR) -->
+<!-- ```{r} -->
+<!-- #| eval: false -->
+<!-- f <- bf( -->
+<!--   rt | dec(response) ~ 1, -->
+<!--   sigmazero ~ 1, -->
+<!--   tau = ~ 1, -->
+<!--   mudelta = -3, -->
+<!--   sigmadelta = 0, -->
+<!--   minrt = min(df$rt), -->
+<!--   family = lnr() -->
+<!-- ) -->
+<!-- m_lnr0 <- brm( -->
+<!--   f, -->
+<!--   data = df[df$response == 0,],  -->
+<!--   stanvars = lnr_stanvars(), -->
+<!--   init = 0.5, -->
+<!--   chains = 4, iter = 1000, backend = "cmdstanr" -->
+<!-- ) -->
+<!-- # options(error = recover) -->
+<!-- # m_lnr0 <- brms::add_criterion(m_lnr0, "loo", importance_resampling = FALSE)  -->
+<!-- # x <- log_lik(m_lnr0) -->
+<!-- # x[x==Inf] -->
+<!-- # loo::waic(m_lnr0) -->
+<!-- saveRDS(m_lnr0, file = "man/figures/m_lnr0.rds") -->
+<!-- insight::get_predicted(m_lnr0, iterations = 5, predict = "prediction") |>  -->
+<!--   as.data.frame() -->
+<!-- x <- estimate_prediction(m_lnr0, keep_iterations = 5) |>  -->
+<!--   as.data.frame() -->
+<!-- ``` -->
+
+##### Model Comparison
+
+We can compare these models together using the `loo` package, which
+shows that CHOCO provides a significantly better fit than the other
+models.
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+m_normal <- readRDS("man/figures/m_normal.rds")
+m_exgauss <- readRDS("man/figures/m_exgauss.rds")
+m_lognormal <- readRDS("man/figures/m_lognormal.rds")
+m_wald <- readRDS("man/figures/m_wald.rds")
+
+loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald) |> 
+  parameters(include_ENP = TRUE)
+```
+
+</details>
+
+    # Fixed Effects
+
+    Name        |   LOOIC |  ENP |     ELPD | Difference | Difference_SE |      p
+    -----------------------------------------------------------------------------
+    m_wald      | 1426.44 | 2.48 |  -713.22 |       0.00 |          0.00 |       
+    m_lognormal | 1431.19 | 2.54 |  -715.59 |      -2.37 |          0.96 | 0.013 
+    m_exgauss   | 1447.76 | 2.79 |  -723.88 |     -10.66 |          2.26 | < .001
+    m_normal    | 2005.83 | 4.01 | -1002.91 |    -289.69 |         25.54 | < .001
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+pred <- rbind(
+  estimate_prediction(m_normal, keep_iterations = 100) |>
+    reshape_iterations() |>
+    data_modify(Model = "Normal"),
+  estimate_prediction(m_exgauss, keep_iterations = 100) |>
+    reshape_iterations() |>
+    data_modify(Model = "ExGaussian"),
+  estimate_prediction(m_lognormal, keep_iterations = 100) |>
+    reshape_iterations() |>
+    data_modify(Model = "LogNormal"),
+  estimate_prediction(m_wald, keep_iterations = 100) |>
+    reshape_iterations() |>
+    data_modify(Model = "Wald")
+  # estimate_prediction(m_lnr0, keep_iterations = 100) |>
+  #   datawizard::data_filter(Component == "rt") |>
+  #   datawizard::data_select(-c("Component", "response", "rt")) |> 
+  #   reshape_iterations() |>
+  #   datawizard::data_modify(Model = "LNR", Residuals = NA)
+)
+
+
+pred |> 
+  ggplot(aes(x=iter_value)) +
+  geom_histogram(data = df[df$response == 0,], aes(x=rt, y = after_stat(density)), 
+                 fill = "black", bins=100) +
+  geom_line(aes(color=Model, group=iter_group), stat="density", alpha=0.3) +
+  theme_minimal() +
+  facet_wrap(~Model) +
+  coord_cartesian(xlim = c(0, 5)) +
+  see::scale_color_material_d(guide = "none")
+```
+
+</details>
+
+![](man/figures/unnamed-chunk-18-1.png)
+
+#### Decision Making (Choice + RT)
+
+##### Drift Diffusion Model (DDM)
+
+``` r
 f <- bf(
   rt | dec(response) ~ 1,
   bs ~ 1,
   bias ~ 1,
-  ndt ~ 1
+  ndt ~ 1,
+  family = wiener()
 )
+
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "ndt", ub=min(df$rt))  |> 
+  brms::validate_prior(f, data = df[df$response == 0,]) 
 
 m_ddm <- brm(f,
   data = df, family = wiener(), 
@@ -405,33 +617,57 @@ m_ddm <- brms::add_criterion(m_ddm, "loo")
 saveRDS(m_ddm, file = "man/figures/m_ddm.rds")
 ```
 
-``` r
-m_ddm <- readRDS("man/figures/m_ddm.rds")
-
-# parameters::parameters(m_ddm, component = "all")
-
-# library(brms)
-# library(cmdstanr)
-#
-# m_ddm <- readRDS(url("https://raw.github.com/DominiqueMakowski/cogmod/main/man/figures/m_ddm.rds"))
-# # m_ddm
-#
-# insight::get_predicted(m_ddm, iterations = 5, data = insight::get_data(m_ddm)[1:4,]) |>
-#   as.data.frame()
-#
-# brms::posterior_predict(m_ddm, ndraws=5, newdata = insight::get_data(m_ddm)[1:4,], negative_rt = TRUE)
-```
-
-#### LogNormal Race (LNR)
+##### Linear Ballistic Accumulator (LBA)
 
 ``` r
 f <- bf(
   rt | dec(response) ~ 1,
-  confleft ~ 1,
+  vdelta ~ 1,
+  sigmazero ~ 1,
+  sigmadelta ~ 1,
+  A ~ 1, 
+  k ~ 1,
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = lba()
+)
+
+priors <- c(
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau"),
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "A"),
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "k"),
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = ""),
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "vdelta"),
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmazero")
+  ) |>
+    brms::validate_prior(f, data = df)
+
+
+m_lba <- brm(f,
+  data = df,
+  init = 1,
+  prior = priors,
+  family = lba(),
+  stanvars = lba_stanvars(),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_lba <- brms::add_criterion(m_lba, "loo")
+
+saveRDS(m_lba, file = "man/figures/m_lba.rds")
+```
+
+##### LogNormal Race (LNR)
+
+``` r
+f <- bf(
+  rt | dec(response) ~ 1,
+  mudelta ~ 1,
   sigmazero ~ 1,
   sigmadelta ~ 1,
   tau ~ 1,
-  minrt = min(df$rt)
+  minrt = min(df$rt),
+  family = lnr()
 )
 
 m_lnr <- brm(f,
@@ -447,40 +683,7 @@ m_lnr <- brms::add_criterion(m_lnr, "loo")
 saveRDS(m_lnr, file = "man/figures/m_lnr.rds")
 ```
 
-``` r
-# m_lnr <- readRDS("man/figures/m_lnr.rds")
-# 
-# parameters::parameters(m_lnr, component = "all")
-
-# library(brms)
-# library(cmdstanr)
-#
-# m_ddm <- readRDS(url("https://raw.github.com/DominiqueMakowski/cogmod/main/man/figures/m_ddm.rds"))
-# # m_ddm
-#
-# insight::get_predicted(m_ddm, iterations = 5, data = insight::get_data(m_ddm)[1:4,]) |>
-#   as.data.frame()
-#
-# brms::posterior_predict(m_ddm, ndraws=5, newdata = insight::get_data(m_ddm)[1:4,], negative_rt = TRUE)
-
-# d <- data.frame(rt = runif(100), response = sample(c(0, 1), 100, replace = TRUE))
-# brms::make_stancode(rt ~ 1, family = brms::shifted_lognormal(), data = d)
-# brms::make_stancode(brms::bf(
-#   rt | dec(response) ~ 1,
-#   bs ~ 1,
-#   bias ~ 1,
-#   ndt ~ 1
-# ), family = brms::wiener(), data = d)
-# brms::make_stancode(brms::bf(
-#   rt | dec(response) ~ 1,
-#   confleft ~ 1,
-#   sigmazero ~ 1,
-#   sigmadelta ~ 1,
-#   tau ~ 1
-# ), family = lnr(), stanvar = lnr_stanvars(df$rt), data = df)
-```
-
-#### Model Comparison
+##### Model Comparison
 
 ``` r
 m_ddm <- readRDS("man/figures/m_ddm.rds")
@@ -494,5 +697,43 @@ loo::loo_compare(m_ddm, m_lnr) |>
 
     Name  |   LOOIC |     ELPD | Difference | Difference_SE |      p
     ----------------------------------------------------------------
-    m_lnr | 5394.64 | -2697.32 |       0.00 |          0.00 |       
-    m_ddm | 5600.12 | -2800.06 |    -102.74 |         15.27 | < .001
+    m_lnr | 5446.91 | -2723.45 |       0.00 |          0.00 |       
+    m_ddm | 5666.33 | -2833.17 |    -109.71 |         13.76 | < .001
+
+<!-- ```{r} -->
+<!-- #| code-fold: true -->
+<!-- insight::get_predicted(m_ddm, iterations = 5, predict = "prediction") |>  -->
+<!--   as.data.frame() |>  -->
+<!--   head() -->
+<!-- estimate_prediction(m_ddm, keep_iterations = 5) |>  -->
+<!--   as.data.frame() |>  -->
+<!--   head() -->
+<!-- pred <- rbind( -->
+<!--   estimate_prediction(m_ddm, keep_iterations = 100) |> -->
+<!--     reshape_iterations() |> -->
+<!--     data_modify(Model = "Normal"), -->
+<!--   estimate_prediction(m_exgauss, keep_iterations = 100) |> -->
+<!--     reshape_iterations() |> -->
+<!--     data_modify(Model = "ExGaussian"), -->
+<!--   estimate_prediction(m_lognormal, keep_iterations = 100) |> -->
+<!--     reshape_iterations() |> -->
+<!--     data_modify(Model = "LogNormal"), -->
+<!--   estimate_prediction(m_wald, keep_iterations = 100) |> -->
+<!--     reshape_iterations() |> -->
+<!--     data_modify(Model = "Wald") -->
+<!--   # estimate_prediction(m_lnr0, keep_iterations = 100) |> -->
+<!--   #   datawizard::data_filter(Component == "rt") |> -->
+<!--   #   datawizard::data_select(-c("Component", "response", "rt")) |>  -->
+<!--   #   reshape_iterations() |> -->
+<!--   #   datawizard::data_modify(Model = "LNR", Residuals = NA) -->
+<!-- ) -->
+<!-- pred |>  -->
+<!--   ggplot(aes(x=iter_value)) + -->
+<!--   geom_histogram(data = df[df$response == 0,], aes(x=rt, y = after_stat(density)),  -->
+<!--                  fill = "black", bins=100) + -->
+<!--   geom_line(aes(color=Model, group=iter_group), stat="density", alpha=0.3) + -->
+<!--   theme_minimal() + -->
+<!--   facet_wrap(~Model) + -->
+<!--   coord_cartesian(xlim = c(0, 5)) + -->
+<!--   see::scale_color_material_d(guide = "none") -->
+<!-- ``` -->

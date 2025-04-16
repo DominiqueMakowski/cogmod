@@ -9,48 +9,24 @@
 // tau: Scale factor for non-decision time (0-1, scaled by minimum RT).
 // minrt: Minimum possible reaction time (used to scale tau).
 real shifted_wald_lpdf(real Y, real mu, real alpha, real tau, real minrt) {
-  real eps = 1e-10; // Small epsilon for checks
-  real log_lik;
-
-  // --- 1. Input Parameter Validation ---
+  real eps = 1e-10;
+  
   if (mu <= 0.0 || alpha <= 0.0 || tau < 0.0 || tau > 1.0 || minrt < 0.0 ||
-      (is_inf(mu) || is_nan(mu)) ||
-      (is_inf(alpha) || is_nan(alpha)) ||
-      (is_inf(tau) || is_nan(tau)) ||
-      (is_inf(minrt) || is_nan(minrt))) {
+      is_nan(mu) || is_inf(mu) ||
+      is_nan(alpha) || is_inf(alpha) ||
+      is_nan(tau) || is_inf(tau) ||
+      is_nan(minrt) || is_inf(minrt))
     return negative_infinity();
-  }
 
-  // --- 2. Calculate Derived Parameters ---
   real ndt = tau * minrt;
-  real rt_adj = Y - ndt;
+  real t_adj = Y - ndt;
+  if (t_adj <= eps) return negative_infinity();
 
-  // Check if adjusted RT is valid (must be positive for the IG formula)
-  if (rt_adj <= eps) {
-    return negative_infinity();
-  }
-
-  // --- 3. Calculate Log-Likelihood directly ---
-  // Parameters for the underlying Inverse Gaussian distribution
-  real ig_mean = alpha / mu;       // Mean parameter
-  real ig_lambda = square(alpha);  // Shape parameter (lambda)
-
-  // Check derived parameters (redundant given input checks, but safe)
-  if (ig_mean <= 0.0 || ig_lambda <= 0.0) {
-     return negative_infinity();
-  }
-
-  // Inverse Gaussian log-PDF formula applied to rt_adj (https://github.com/paul-buerkner/brms/blob/master/inst/chunks/fun_inv_gaussian.stan)
-  // log(f(x; mean, lambda)) = 0.5 * (log(lambda) - log(2*pi) - 3*log(x)) - (lambda * (x - mean)^2) / (2 * mean^2 * x)
-  log_lik = 0.5 * (log(ig_lambda) - log(2 * pi()) - 3 * log(rt_adj)) -
-            (0.5 * ig_lambda * square((rt_adj - ig_mean) / (ig_mean * sqrt(rt_adj))));
-
-  // Final check for non-finite results
-  if (is_inf(log_lik) || is_nan(log_lik)) {
-      return negative_infinity();
-  }
-
-  return log_lik;
+  real ig_mean = alpha / mu;
+  real ig_lambda = square(alpha);
+  // Precompute constant to save time on every evaluation.
+  real log_two_pi = log(2 * pi());
+  return 0.5 * (log(ig_lambda) - log_two_pi - 3 * log(t_adj)) - (ig_lambda * square(t_adj - ig_mean)) / (2 * square(ig_mean) * t_adj);
 }
 "
 }

@@ -99,6 +99,13 @@ Functions:
 \item \code{log_lik_lnr()}: For \code{brms}, computes the log-likelihood of observed data.
 }
 }
+\details{
+The LNR model conceptualizes decision-making as a race between multiple independent accumulators,
+each corresponding to a potential choice. Each accumulator gathers evidence at a fixed rate,
+and the first to reach a threshold determines the decision. In contrast, Wiener (DDM) models
+decision-making as a continuous stochastic process where a single decision variable accumulates
+noisy evidence over time until it reaches one of two decision boundaries.
+}
 \examples{
 # Simulate data
 data <- rlnr(1000, mu = 0, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2)

@@ -13,109 +13,38 @@
 // tau: Scale factor for non-decision time (0-1, scaled by minimum RT).
 // minrt: Minimum possible reaction time (used to scale tau).
 real lnr_lpdf(real Y, real mu, real mudelta, real sigmazero, real sigmadelta, real tau, real minrt, int dec) {
-  real eps = 1e-8; // Use a slightly smaller epsilon
+  real eps = 1e-9;
 
-  // --- 1. Input Parameter Validation ---
-  // Basic checks for plausible parameter values enforced by model/priors,
-  // but good practice for standalone function robustness.
-  // Check for non-finite values using is_inf() and is_nan()
+  // --- 1. Input Validation ---
   if (sigmazero <= 0.0 || tau < 0.0 || tau > 1.0 || minrt < 0.0 ||
-      (is_inf(mu) || is_nan(mu)) ||
-      (is_inf(mudelta) || is_nan(mudelta)) ||
-      (is_inf(sigmazero) || is_nan(sigmazero)) || // Also check sigmazero itself
-      (is_inf(sigmadelta) || is_nan(sigmadelta)) ||
-      (is_inf(tau) || is_nan(tau)) ||
-      (is_inf(minrt) || is_nan(minrt))) {
+      is_nan(mu) || is_inf(mu) ||
+      is_nan(mudelta) || is_inf(mudelta) ||
+      is_nan(sigmazero) || is_inf(sigmazero) ||
+      is_nan(sigmadelta) || is_inf(sigmadelta) ||
+      is_nan(tau) || is_inf(tau) ||
+      is_nan(minrt) || is_inf(minrt))
     return negative_infinity();
-  }
-   // Check decision validity
-  if (dec != 0 && dec != 1) {
-    return negative_infinity();
-  }
+  if (dec != 0 && dec != 1) return negative_infinity();
 
-  // --- 2. Calculate Derived Parameters ---
-  // Ensure positive standard deviations
+  // --- 2. Derived Parameters ---
   real sig0 = fmax(sigmazero, eps);
-  // Calculate sigma1 carefully
-  real exp_sigmadelta = exp(sigmadelta);
-  // Check for potential overflow/NaN from exp() using is_inf() and is_nan()
-  if (is_inf(exp_sigmadelta) || is_nan(exp_sigmadelta)) return negative_infinity();
-  real sig1 = fmax(sig0 * exp_sigmadelta, eps);
-
-  // Calculate non-decision time
+  real sig1 = fmax(sig0 * exp(sigmadelta), eps);
   real ndt = tau * minrt;
+  real t_adj = Y - ndt;
+  if (t_adj < eps) return negative_infinity();
 
-  // Calculate adjusted RT (time available for the race process)
-  real rt_adj = Y - ndt;
-
-  // Check if adjusted RT is valid (must be positive)
-  if (rt_adj < eps) {
-    return negative_infinity();
-  }
-
-  // --- 3. Calculate Log-Likelihood Components ---
   real mu0 = mu;
   real mu1 = mu + mudelta;
   real log_lik;
 
-  // --- 4. Calculate log-likelihood ---
-  // Case 1: Response 0 (dec == 0) ---
-  if (dec == 0) {
-    // Accumulator 0 finished first
-    // Component 1: Likelihood of accumulator 0 finishing at rt_adj
-    real log_pdf0 = lognormal_lpdf(rt_adj | mu0, sig0);
-
-    // Component 2: Likelihood of accumulator 1 finishing *after* rt_adj (survival function)
-    real log_cdf1 = lognormal_lcdf(rt_adj | mu1, sig1);
-
-    // Check for impossible scenario (CDF1 is ~1, meaning acc 1 finished before rt_adj)
-    if (log_cdf1 > -eps) { // Use eps for consistency
-        return negative_infinity();
-    }
-
-    // Calculate log survival probability for accumulator 1 stably
-    real log_surv1;
-    // If log_cdf1 is very small, log(1-cdf1) is approx log(1) = 0
-    // log(1 - exp(-37)) is approx 0 within double precision
-    if (log_cdf1 < -37.0) {
-        log_surv1 = 0.0;
-    } else {
-        log_surv1 = log1m_exp(log_cdf1); // Use log1m_exp for stability: log(1 - CDF1)
-    }
-
-    log_lik = log_pdf0 + log_surv1;
-
-    // Case 2: Response 1 (dec == 1) ---
-  } else {
-    // Accumulator 1 finished first
-    // Component 1: Likelihood of accumulator 1 finishing at rt_adj
-    real log_pdf1 = lognormal_lpdf(rt_adj | mu1, sig1);
-
-    // Component 2: Likelihood of accumulator 0 finishing *after* rt_adj (survival function)
-    real log_cdf0 = lognormal_lcdf(rt_adj | mu0, sig0);
-
-    // Check for impossible scenario (CDF0 is ~1)
-     if (log_cdf0 > -eps) { // Use eps for consistency
-        return negative_infinity();
-    }
-
-    // Calculate log survival probability for accumulator 0 stably
-    real log_surv0;
-    if (log_cdf0 < -37.0) {
-        log_surv0 = 0.0;
-    } else {
-        log_surv0 = log1m_exp(log_cdf0); // log(1 - CDF0)
-    }
-
-    log_lik = log_pdf1 + log_surv0;
+  // --- 3. Log-likelihood using built-in lognormal functions ---
+  if (dec == 0) {  
+    log_lik = lognormal_lpdf(t_adj | mu0, sig0) + lognormal_lccdf(t_adj | mu1, sig1);
+  } else {  
+    log_lik = lognormal_lpdf(t_adj | mu1, sig1) + lognormal_lccdf(t_adj | mu0, sig0);
   }
 
-  // Final check for non-finite results (e.g., from lognormal_lpdf itself) using is_inf() and is_nan()
-  if (is_inf(log_lik) || is_nan(log_lik)) {
-      return negative_infinity();
-  }
-
-  return log_lik;
+  return (is_nan(log_lik) || is_inf(log_lik)) ? negative_infinity() : log_lik;
 }
 "
 }
@@ -254,7 +183,7 @@ posterior_predict_lnr <- function(i, prep, ...) {
 #' @export
 posterior_epred_lnr <- function(prep) {
   stop("Computing posterior_epred for complex models like race models is computationally prohibitive", 
-       " and the user is better off computing 'predictions' rather than 'expectations' and", 
+       " and the user is better off computing 'prediction' rather than 'expectation' and", 
        " using the posterior draws to compute any quantities of interest.")
 }
 
