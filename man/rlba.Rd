@@ -2,7 +2,13 @@
 % Please edit documentation in R/lba.R, R/lba_brms.R
 \name{rlba}
 \alias{rlba}
+\alias{dlba}
 \alias{lba_lpdf_expose}
+\alias{lba_stanvars}
+\alias{lba}
+\alias{log_lik_lba}
+\alias{posterior_predict_lba}
+\alias{posterior_epred_lba}
 \title{Linear Ballistic Accumulator (LBA) Model Simulation}
 \usage{
 rlba(
@@ -16,7 +22,39 @@ rlba(
   ndt = 0.3
 )
 
+dlba(
+  x,
+  response,
+  vzero = 3,
+  vdelta = 0,
+  sigmazero = 1,
+  sigmadelta = 0,
+  A = 0.5,
+  k = 0.5,
+  ndt = 0.3,
+  log = FALSE
+)
+
 lba_lpdf_expose()
+
+lba_stanvars()
+
+lba(
+  link_mu = "identity",
+  link_vdelta = "identity",
+  link_sigmazero = "softplus",
+  link_sigmadelta = "identity",
+  link_A = "softplus",
+  link_k = "softplus",
+  link_tau = "logit",
+  link_minrt = "identity"
+)
+
+log_lik_lba(i, prep)
+
+posterior_predict_lba(i, prep, ...)
+
+posterior_epred_lba(prep)
 }
 \arguments{
 \item{n}{Number of simulated trials. Must be a positive integer.}
@@ -34,6 +72,18 @@ lba_lpdf_expose()
 \item{k}{Difference between the decision threshold \code{b} and the maximum start point \code{A} (i.e., \code{b = A + k}). Must be positive. Range: (0, Inf). Default: 0.2.}
 
 \item{ndt}{Non-decision time (shift parameter). Represents time for processes like encoding and motor response. Must be non-negative. Range: [0, Inf). Default: 0.3.}
+
+\item{x}{The observed reaction time (RT). Must be greater than \code{ndt}.}
+
+\item{response}{The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.}
+
+\item{log}{Logical; if TRUE, returns the log-density. Default: FALSE.}
+
+\item{link_mu, link_vdelta, link_sigmazero, link_sigmadelta, link_A, link_k, link_tau, link_minrt}{Link function for the parameters.}
+
+\item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
+
+\item{...}{Additional arguments.}
 }
 \value{
 A data frame with \code{n} rows and columns:

@@ -82,16 +82,7 @@ lnr_stanvars <- function() {
 
 
 #' @rdname rlnr
-#' @param link_mu Link function for the `mu` parameter in the custom family.
-#'   Determines how `mu` is transformed in the model. Default: "identity".
-#' @param link_mudelta Link function for the `mudelta` parameter in the custom family.
-#'   Determines how `mudelta` is transformed in the model. Default: "identity".
-#' @param link_sigmazero Link function for the `sigmazero` parameter in the custom family.
-#'   Ensures `sigmazero` remains positive. Default: "identity".
-#' @param link_sigmadelta Link function for the `sigmadelta` parameter in the custom family.
-#'   Determines how `sigmadelta` is transformed in the model. Default: "identity".
-#' @param link_tau Link function for the `tau` parameter in the custom family.
-#' @param link_minrt Link function for the `minrt` parameter in the custom family.
+#' @param link_mu,link_mudelta,link_sigmazero,link_sigmadelta,link_tau,link_minrt Link function for the parameters.
 #' @export
 lnr <- function(link_mu = "identity", link_mudelta = "identity",
                 link_sigmazero = "softplus", link_sigmadelta = "identity",

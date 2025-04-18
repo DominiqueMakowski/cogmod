@@ -109,7 +109,7 @@ lba_lpdf_expose <- function() {
 
 
 
-#' @rdname lba_brms
+#' @rdname rlba
 #' @export
 lba_stanvars <- function() {
   brms::stanvar(scode = .lba_lpdf(), block = "functions")
@@ -117,7 +117,8 @@ lba_stanvars <- function() {
 
 
 
-#' @rdname lba_brms
+#' @rdname rlba
+#' @param link_mu,link_vdelta,link_sigmazero,link_sigmadelta,link_A,link_k,link_tau,link_minrt Link function for the parameters.
 #' @export
 lba <- function(link_mu = "identity", link_vdelta = "identity",
                 link_sigmazero = "softplus", link_sigmadelta = "identity",
@@ -136,7 +137,7 @@ lba <- function(link_mu = "identity", link_vdelta = "identity",
 
 # brms Post-processing Functions ------------------------------------------
 
-#' @rdname lba_brms
+#' @rdname rlba
 #' @export
 log_lik_lba <- function(i, prep) {
   # Extract observation index i
@@ -173,7 +174,8 @@ log_lik_lba <- function(i, prep) {
   ll # Return vector of log-likelihoods (one per draw)
 }
 
-#' @rdname lba_brms
+#' @rdname rlba
+#' @inheritParams rlnr
 #' @export
 posterior_predict_lba <- function(i, prep, ...) {
   # Get parameters for observation i across all posterior draws
@@ -207,7 +209,7 @@ posterior_predict_lba <- function(i, prep, ...) {
   sim_data$rt
 }
 
-#' @rdname lba_brms
+#' @rdname rlba
 #' @export
 posterior_epred_lba <- function(prep) {
   # Calculating the expected value (mean RT) for the LBA model is complex,

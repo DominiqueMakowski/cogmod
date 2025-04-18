@@ -93,7 +93,7 @@ shifted_wald <- function(link_mu = "log", link_alpha = "log",
 # brms methods ------------------------------------------------------------
 
 #' @rdname rshifted_wald
-#' @inheritParams rbext
+#' @inheritParams rbetagate
 #' @export
 log_lik_shifted_wald <- function(i, prep) {
   # Extract observation
@@ -130,7 +130,7 @@ log_lik_shifted_wald <- function(i, prep) {
 
 
 #' @rdname rshifted_wald
-#' @inheritParams rbext
+#' @inheritParams rbetagate
 #' @export
 posterior_predict_shifted_wald <- function(i, prep, ...) {
   # Get parameters for observation i across all draws
@@ -155,7 +155,7 @@ posterior_predict_shifted_wald <- function(i, prep, ...) {
 
 
 #' @rdname rshifted_wald
-#' @inheritParams rbext
+#' @inheritParams rbetagate
 #' @export
 posterior_epred_shifted_wald <- function(prep) {
   # Extract draws for the necessary parameters (matrices: draws x observations)

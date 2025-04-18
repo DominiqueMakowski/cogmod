@@ -113,6 +113,7 @@ rlba <- function(n, vzero = 3, vdelta = 0, sigmazero = 1, sigmadelta = 0, A = 0.
 
 
 
+
 #' The density function `dlba` calculates the likelihood of observing a specific
 #' reaction time `x` and response `response`, given the LBA parameters. It is
 #' based on the formulation by Brown & Heathcote (2008), where the likelihood
@@ -121,6 +122,8 @@ rlba <- function(n, vzero = 3, vdelta = 0, sigmazero = 1, sigmadelta = 0, A = 0.
 #' accumulator has not finished by time `t`. The density is normalized by
 #' `(1 - pnegative)`, where `pnegative` is the probability that both drift rates
 #' are non-positive, to account for the resampling process in `rlba`.
+#' @rdname rlba
+#' @inheritParams rlnr
 #' @export
 dlba <- function(x, response,
                  vzero = 3, vdelta = 0,

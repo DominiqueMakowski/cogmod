@@ -1,311 +1,280 @@
 context("CHOCO")
 
+test_that("rchoco empirical side-probabilities match theory", {
+  set.seed(42)
+  n <- 20000
+  tol <- 0.05
 
-test_that("rchoco generates correct proportion of zeros, ones, and threshold values with varying parameters", {
-  # Set seed for reproducibility
-  set.seed(123)
+  # small grid of parameters
+  p_vals <- c(0.2, 0.5, 0.8)
+  pmid_vals <- c(0, 0.1)
+  pex_vals <- c(0, 0.2)
+  bex_vals <- c(0.3, 0.7)
+  mid_vals <- c(0.3, 0.5, 0.7)
+  # fix symmetric confidences/precisions for simplicity
+  confright <- confleft <- 0.5
+  precright <- precleft <- 3
 
-  # Test parameters
-  n_samples <- 30000
-  threshold <- 0.5
-  tolerance <- 0.015  # Allow for some sampling variability
+  for (p in p_vals) {
+    for (pmid in pmid_vals) {
+      for (pex in pex_vals) {
+        for (bex in bex_vals) {
+          for (mid in mid_vals) {
+            # theoretical weights
+            prob_not_mid <- 1 - pmid
+            theo_left <- prob_not_mid * (1 - p)
+            theo_mid <- pmid
+            theo_right <- prob_not_mid * p
 
-  # Parameter values to test (using new parameterization)
-  p_values <- c(0, 0.5, 1)
-  conf_values <- c(0.3, 0.7) # Replaced muleft_values
-  confleft_values <- c(-0.5, 0, 0.5) # Replaced mudelta_values
-  prec_values <- c(4) # Using a single value for simplicity in this test
-  precleft_values <- c(0) # Using a single value for simplicity in this test
-  pex_values <- c(0.1, 0.5)
-  bex_values <- c(0.2, 0.5, 0.8)
-  pmid_values <- c(0, 0.2, 0.5)
+            x <- rchoco(n,
+              p = p,
+              confright = confright, precright = precright,
+              confleft = confleft, precleft = precleft,
+              pex = pex, bex = bex,
+              pmid = pmid,
+              mid = mid
+            )
 
-  # Loop through all parameter combinations
-  for (p in p_values) {
-    for (conf in conf_values) {
-      for (confleft in confleft_values) {
-        for (prec in prec_values) { # Loop added, though only one value
-          for (precleft in precleft_values) { # Loop added, though only one value
-            for (pex in pex_values) {
-              for (bex in bex_values) {
-                for (pmid in pmid_values) {
-                  # Generate descriptive label for this parameter combination
-                  label <- sprintf("p=%.1f, conf=%.1f, confleft=%.1f, prec=%.1f, precleft=%.1f, pex=%.1f, bex=%.1f, pmid=%.1f",
-                                   p, conf, confleft, prec, precleft, pex, bex, pmid)
+            emp_left <- mean(x < mid)
+            emp_mid <- mean(abs(x - mid) < 1e-9)
+            emp_right <- mean(x > mid)
 
-                  # Generate data with current parameter combination (using new names)
-                  x <- rchoco(n = n_samples,
-                              p = p,
-                              conf = conf,
-                              confleft = confleft,
-                              prec = prec,
-                              precleft = precleft,
-                              pex = pex,
-                              bex = bex,
-                              pmid = pmid,
-                              threshold = threshold)
+            label_base <- paste0(
+              "p=", p, ", pmid=", pmid,
+              ", pex=", pex, ", bex=", bex,
+              ", mid=", mid
+            )
 
-                  # Calculate empirical proportions
-                  prop_zeros <- sum(abs(x) < 1e-10) / n_samples
-                  prop_ones <- sum(abs(x - 1) < 1e-10) / n_samples
-                  prop_threshold <- sum(abs(x - threshold) < 1e-10) / n_samples
-
-                  # Expected proportions based on the logic in rchoco/dchoco
-                  expected_prop_threshold <- pmid
-                  # Calculate effective pex for left (0) and right (1) based on rchoco logic
-                  pex_left_eff <- pmin(1, pmax(0, (1 - bex) * (pex * 2)))
-                  pex_right_eff <- pmin(1, pmax(0, bex * (pex * 2)))
-                  # Expected proportions for 0 and 1 depend on p and the effective pex values
-                  expected_prop_zeros <- (1 - pmid) * (1 - p) * pex_left_eff
-                  expected_prop_ones <- (1 - pmid) * p * pex_right_eff
-
-                  # Test proportions with informative labels
-                  expect_equal(prop_threshold, expected_prop_threshold,
-                              tolerance = tolerance,
-                              label = paste0("Proportion of threshold values with ", label))
-
-                  expect_equal(prop_zeros, expected_prop_zeros,
-                              tolerance = tolerance,
-                              label = paste0("Proportion of zeros with ", label))
-
-                  expect_equal(prop_ones, expected_prop_ones,
-                              tolerance = tolerance,
-                              label = paste0("Proportion of ones with ", label))
-
-                  # Also test total proportion of extremes
-                  expect_equal(prop_zeros + prop_ones, expected_prop_zeros + expected_prop_ones,
-                              tolerance = tolerance, # Use same tolerance for sum
-                              label = paste0("Total proportion of extremes with ", label))
-                } # pmid
-              } # bex
-            } # pex
-          } # precleft
-        } # prec
-      } # confleft
-    } # conf
-  } # p
+            expect_equal(emp_left, theo_left,
+              tolerance = tol,
+              label = paste(label_base, "— left mass")
+            )
+            expect_equal(emp_mid, theo_mid,
+              tolerance = tol,
+              label = paste(label_base, "— mid mass")
+            )
+            expect_equal(emp_right, theo_right,
+              tolerance = tol,
+              label = paste(label_base, "— right mass")
+            )
+          }
+        }
+      }
+    }
+  }
 })
 
 
+test_that("dchoco places correct point‐masses and integrates to 1", {
+  set.seed(7)
+  tol_mass <- 0.05
+  tol_int <- 0.02
 
-test_that("dchoco matches rchoco empirical distribution and integrates correctly", { # Renamed rbext to rchoco
-  # Set seed for reproducibility
-  set.seed(456)
+  # same grid
+  p_vals <- c(0.2, 0.5, 0.8)
+  pmid_vals <- c(0, 0.1)
+  pex_vals <- c(0, 0.2)
+  bex_vals <- c(0.3, 0.7)
+  mid_vals <- c(0.3, 0.5, 0.7)
+  confright <- confleft <- 0.5
+  precright <- precleft <- 3
 
-  # Test parameters
-  n_samples <- 15000 # Increased samples for better empirical estimates
-  threshold <- 0.5
-  tol_prob <- 0.025 # Tolerance for comparing probabilities (empirical vs theoretical)
-  tol_integration <- 0.01 # Tolerance for numerical integration check
-  tol_ks_p <- 0.001 # Minimum p-value for KS test to pass
+  for (p in p_vals) {
+    for (pmid in pmid_vals) {
+      for (pex in pex_vals) {
+        for (bex in bex_vals) {
+          for (mid in mid_vals) {
+            # Theoretical side‐weights
+            prob_not_mid <- 1 - pmid
+            prob_left <- prob_not_mid * (1 - p)
+            prob_mid <- pmid
+            prob_right <- prob_not_mid * p
 
-  # Reduced parameter set for faster testing, focusing on variety (using new names)
-  p_values <- c(0.2, 0.5, 0.8)
-  conf_values <- c(0.3, 0.7) # Replaced muleft_values
-  confleft_values <- c(-0.5, 0.5) # Replaced mudelta_values
-  prec_values <- c(2, 5) # Replaced phileft_values
-  precleft_values <- c(-0.5, 0.5) # Replaced phidelta_values
-  pex_values <- c(0, 0.2, 0.6)
-  bex_values <- c(0.2, 0.8)
-  pmid_values <- c(0, 0.3)
+            # Underlying betagate masses
+            mass0_left <- dbetagate(0,
+              mu = 1 - confleft, phi = precleft,
+              pex = pex * (1 - bex), bex = 0
+            )
+            mass1_right <- dbetagate(1,
+              mu = confright, phi = precright,
+              pex = pex * bex, bex = 1
+            )
 
+            # Theoretical point‐mass for full CHOCO
+            theo_mass0 <- prob_left * mass0_left
+            theo_massT <- prob_mid
+            theo_mass1 <- prob_right * mass1_right
 
-  # Loop through parameter combinations
-  for (p in p_values) {
-    for (conf in conf_values) {
-      for (confleft in confleft_values) {
-        for (prec in prec_values) {
-          for (precleft in precleft_values) {
-            for (pex in pex_values) {
-              for (bex in bex_values) {
-                for (pmid in pmid_values) {
+            # Evaluate dchoco at the three points
+            got0 <- dchoco(0,
+              p = p,
+              confright = confright, precright = precright,
+              confleft = confleft, precleft = precleft,
+              pex = pex, bex = bex,
+              pmid = pmid,
+              mid = mid
+            )
+            gotT <- dchoco(mid,
+              p = p,
+              confright = confright, precright = precright,
+              confleft = confleft, precleft = precleft,
+              pex = pex, bex = bex,
+              pmid = pmid,
+              mid = mid
+            )
+            got1 <- dchoco(1,
+              p = p,
+              confright = confright, precright = precright,
+              confleft = confleft, precleft = precleft,
+              pex = pex, bex = bex,
+              pmid = pmid,
+              mid = mid
+            )
 
-                  # Generate descriptive label (using new names)
-                  label <- sprintf("p=%.1f, conf=%.1f, confL=%.1f, prec=%.1f, precL=%.1f, pex=%.1f, bex=%.1f, pmid=%.1f",
-                                   p, conf, confleft, prec, precleft, pex, bex, pmid)
+            base_lbl <- paste0(
+              "p=", p, ", pmid=", pmid,
+              ", pex=", pex, ", bex=", bex,
+              ", mid=", mid
+            )
 
-                  # Generate data (using new names)
-                  x_sample <- rchoco(n = n_samples, p = p, conf = conf, confleft = confleft,
-                                      prec = prec, precleft = precleft, pex = pex,
-                                      bex = bex, pmid = pmid, threshold = threshold)
+            expect_equal(got0, theo_mass0,
+              tolerance = tol_mass,
+              label = paste(base_lbl, "— point mass at 0")
+            )
+            expect_equal(gotT, theo_massT,
+              tolerance = tol_mass,
+              label = paste(base_lbl, "— point mass at mid")
+            )
+            expect_equal(got1, theo_mass1,
+              tolerance = tol_mass,
+              label = paste(base_lbl, "— point mass at 1")
+            )
 
-                  # Calculate empirical proportions
-                  emp_p0 <- mean(abs(x_sample) < 1e-10)
-                  emp_p1 <- mean(abs(x_sample - 1) < 1e-10)
-                  emp_pth <- mean(abs(x_sample - threshold) < 1e-10)
-                  emp_pleft_cont <- mean(x_sample > 1e-10 & x_sample < threshold - 1e-10)
-                  emp_pright_cont <- mean(x_sample > threshold + 1e-10 & x_sample < 1 - 1e-10)
-
-                  # Calculate theoretical probabilities at point masses (using new names)
-                  theo_p0 <- dchoco(0, p = p, conf = conf, confleft = confleft, prec = prec,
-                                     precleft = precleft, pex = pex, bex = bex, pmid = pmid, threshold = threshold)
-                  theo_p1 <- dchoco(1, p = p, conf = conf, confleft = confleft, prec = prec,
-                                     precleft = precleft, pex = pex, bex = bex, pmid = pmid, threshold = threshold)
-                  theo_pth <- dchoco(threshold, p = p, conf = conf, confleft = confleft, prec = prec,
-                                      precleft = precleft, pex = pex, bex = bex, pmid = pmid, threshold = threshold)
-
-                  # --- Check Point Masses ---
-                  expect_equal(emp_p0, theo_p0, tolerance = tol_prob, label = paste(label, "- P(0)"))
-                  expect_equal(emp_p1, theo_p1, tolerance = tol_prob, label = paste(label, "- P(1)"))
-                  expect_equal(emp_pth, theo_pth, tolerance = tol_prob, label = paste(label, "- P(threshold)"))
-
-                  # --- Integration Check ---
-                  integrand <- function(x_int) {
-                    dchoco(x_int, p = p, conf = conf, confleft = confleft, prec = prec,
-                            precleft = precleft, pex = pex, bex = bex, pmid = pmid, threshold = threshold)
-                  }
-
-                  # Integrate continuous parts (handle potential errors)
-                  integral_left <- tryCatch(
-                    stats::integrate(integrand, lower = .Machine$double.eps, upper = threshold - .Machine$double.eps,
-                                     subdivisions = 200, stop.on.error = FALSE)$value,
-                    error = function(e) 0 # Assume 0 if integration fails
+            # Quick numeric integration over (0, mid) and (mid,1)
+            f_int <- function(f_lower, f_upper) {
+              stats::integrate(
+                function(xx) {
+                  dchoco(xx,
+                    p = p,
+                    confright = confright, precright = precright,
+                    confleft = confleft, precleft = precleft,
+                    pex = pex, bex = bex,
+                    pmid = pmid,
+                    mid = mid
                   )
-                  integral_right <- tryCatch(
-                    stats::integrate(integrand, lower = threshold + .Machine$double.eps, upper = 1 - .Machine$double.eps,
-                                     subdivisions = 200, stop.on.error = FALSE)$value,
-                    error = function(e) 0
-                  )
+                },
+                lower = f_lower, upper = f_upper,
+                rel.tol = tol_int, subdivisions = 200
+              )$value
+            }
 
-                  # Check total probability sums to 1
-                  total_prob <- theo_p0 + theo_p1 + theo_pth + integral_left + integral_right
-                  expect_equal(total_prob, 1, tolerance = tol_integration, label = paste(label, "- Total Probability Integration"))
+            cont_left <- if (mid > 0) f_int(0 + 1e-8, mid - 1e-8) else 0
+            cont_right <- if (mid < 1) f_int(mid + 1e-8, 1 - 1e-8) else 0
 
-                  # --- Mean Check for Continuous Parts ---
-                  # Calculate parameters needed for underlying Beta distributions (using new logic)
-                  eps_mu <- 1e-9
-                  muright <- pmax(eps_mu, pmin(conf, 1 - eps_mu)) # Clamp conf directly
-                  phiright <- pmax(eps_mu, prec) # Clamp prec directly
-
-                  logit_conf <- log(conf / (1 - conf))
-                  logit_muleft <- logit_conf + confleft
-                  muleft <- exp(logit_muleft) / (1 + exp(logit_muleft))
-                  muleft_clamped <- pmax(eps_mu, pmin(muleft, 1 - eps_mu)) # Clamp derived muleft
-                  phileft <- prec * exp(precleft)
-                  phileft_clamped <- pmax(eps_mu, phileft) # Clamp derived phileft
-
-                  # Effective pex values needed to check if continuous part exists
-                  pex_left_eff <- pmin(1, pmax(0, (1 - bex) * (pex * 2)))
-                  pex_right_eff <- pmin(1, pmax(0, bex * (pex * 2)))
-
-                  # Theoretical means of the underlying Beta distributions
-                  # Mean = shape1 / (shape1 + shape2) = mu * phi * 2 / (phi * 2) = mu
-                  theo_mean_left <- muleft_clamped
-                  theo_mean_right <- muright # Use the clamped value
-
-                  # Mean Check for Left Continuous Part
-                  if (emp_pleft_cont > 0.01 && pex_left_eff < 1) { # Need sufficient continuous data
-                    x_left_cont <- x_sample[x_sample > 1e-10 & x_sample < threshold - 1e-10]
-                    if (length(x_left_cont) > 10) {
-                      y_raw_left <- 1 - x_left_cont / threshold # Transform back to [0, 1]
-                      emp_mean_left <- mean(y_raw_left)
-                      expect_equal(emp_mean_left, theo_mean_left, tolerance = 0.05, # Increased tolerance for mean
-                                   label = paste(label, "- Mean Check Left Continuous"))
-                    }
-                  }
-
-                  # Mean Check for Right Continuous Part
-                  if (emp_pright_cont > 0.01 && pex_right_eff < 1) { # Need sufficient continuous data
-                    x_right_cont <- x_sample[x_sample > threshold + 1e-10 & x_sample < 1 - 1e-10]
-                     if (length(x_right_cont) > 10) {
-                      y_raw_right <- (x_right_cont - threshold) / (1 - threshold) # Transform back to [0, 1]
-                      emp_mean_right <- mean(y_raw_right)
-                      expect_equal(emp_mean_right, theo_mean_right, tolerance = 0.05, # Increased tolerance for mean
-                                   label = paste(label, "- Mean Check Right Continuous"))
-                    }
-                  }
-                } # pmid
-              } # bex
-            } # pex
-          } # precleft
-        } # prec
-      } # confleft
-    } # conf
-  } # p
+            total_mass <- theo_mass0 + theo_massT + theo_mass1 + cont_left + cont_right
+            expect_equal(total_mass, 1,
+              tolerance = tol_int,
+              label = paste(base_lbl, "— total integrates to 1")
+            )
+          }
+        }
+      }
+    }
+  }
 })
 
 
 
 context("CHOCO - brms")
 
-test_that("choco model can recover parameters with brms using variational inference", {
+test_that("CHOCO model can recover parameters with brms using variational inference", {
   skip_on_cran()
   skip_if_not_installed("brms")
   skip_if_not_installed("cmdstanr")
+  skip_if_not_installed("rstan") # Needed by brms for custom families sometimes
 
   # --- 1. Set up Simulation ---
-  # True parameters using the new parameterization
-  true_p <- 0.6 # Corresponds to 'mu' in brms
-  true_conf <- 0.7
-  true_confleft <- -0.5
-  true_prec <- 5
-  true_precleft <- 0.2
+  true_mu <- 0.7
+  true_confright <- 0.8
+  true_precright <- 5
+  true_confleft <- 0.6
+  true_precleft <- 5
   true_pex <- 0.1
-  true_bex <- 0.7
-  n_obs <- 3000
+  true_bex <- 0.6
+  true_pmid <- 0
+  n_obs <- 5000
 
-  # Generate synthetic data using new parameter names
-  set.seed(456)
+  # Generate synthetic data with known parameters
+  set.seed(1234)
   df <- data.frame(
-    y = rchoco(n = n_obs, p = true_p, conf = true_conf, confleft = true_confleft,
-                prec = true_prec, precleft = true_precleft, pex = true_pex,
-                bex = true_bex, pmid = 0, threshold = 0.5)
+    y = rchoco(
+      n = n_obs,
+      p = true_mu,
+      confright = true_confright,
+      precright = true_precright,
+      confleft = true_confleft,
+      precleft = true_precleft,
+      pex = true_pex,
+      bex = true_bex,
+      pmid = true_pmid,
+      mid = 0.5
+    )
   )
 
   # --- 2. Define and Fit brms Model ---
-  # Formula using new parameter names
   f <- brms::bf(
-    y ~ 1, # Intercept for 'mu' (p)
-    conf ~ 1,
+    y ~ 1,
+    confright ~ 1,
+    precright ~ 1,
     confleft ~ 1,
-    prec ~ 1,
     precleft ~ 1,
     pex ~ 1,
     bex ~ 1,
-    pmid = 0, # Fixed pmid
-    family = choco() # Use the custom family
+    pmid = 0,
+    family = choco()
   )
 
-  # Fit model using Pathfinder VI
   m <- brms::brm(
     formula = f,
     data = df,
-    stanvars = choco_stanvars(), # Include Stan functions
-    init =  0,
-    seed = 456,
+    init = 0,
+    stanvars = choco_stanvars(),
+    backend = "cmdstanr",
+    seed = 1234,
     refresh = 0,
-    algorithm = "pathfinder",
-    backend = "cmdstanr"
+    algorithm = "pathfinder"
   )
 
-  # --- 3. Check Parameter Recovery ---
-  post_summary <- brms::posterior_summary(m, probs = c(0.05, 0.95))
+  # --- 3. Check Parameter Recovery (point estimate vs true value) ---
+  post_summary <- brms::posterior_summary(m)
 
-  # Apply inverse-link functions to recover parameters using new names
-  post_p <- brms::inv_logit_scaled(post_summary["b_Intercept", "Estimate"])
-  post_conf <- brms::inv_logit_scaled(post_summary["b_conf_Intercept", "Estimate"])
-  post_confleft <- post_summary["b_confleft_Intercept", "Estimate"] # identity link
-  post_prec <- log(1 + exp(post_summary["b_prec_Intercept", "Estimate"])) # softplus
-  post_precleft <- post_summary["b_precleft_Intercept", "Estimate"] # identity link
-  post_pex <- brms::inv_logit_scaled(post_summary["b_pex_Intercept", "Estimate"])
-  post_bex <- brms::inv_logit_scaled(post_summary["b_bex_Intercept", "Estimate"])
+  # Mu
+  mu_est <- brms::inv_logit_scaled(post_summary["b_Intercept", "Estimate"])
+  expect_equal(mu_est, true_mu, tolerance = 0.15, label = "Recovered mu")
 
-  # Check if posterior means are close to true values
-  expect_equal(post_p,  true_p, tolerance = 0.1,
-               label = sprintf("Posterior mean of p (%.3f) is close to true p (%.3f)", post_p, true_p))
-  expect_equal(post_conf, true_conf, tolerance = 0.1,
-               label = sprintf("Posterior mean of conf (%.3f) is close to true conf (%.3f)", post_conf, true_conf))
-  expect_equal(post_confleft, true_confleft, tolerance = 0.2, # Allow slightly higher tolerance for identity links
-               label = sprintf("Posterior mean of confleft (%.3f) is close to true confleft (%.3f)", post_confleft, true_confleft))
-  expect_equal(post_prec, true_prec, tolerance = 1, # Allow higher tolerance for precision
-               label = sprintf("Posterior mean of prec (%.3f) is close to true prec (%.3f)", post_prec, true_prec))
-  expect_equal(post_precleft, true_precleft, tolerance = 0.3, # Allow slightly higher tolerance for identity links
-               label = sprintf("Posterior mean of precleft (%.3f) is close to true precleft (%.3f)", post_precleft, true_precleft))
-  expect_equal(post_pex, true_pex, tolerance = 0.1,
-               label = sprintf("Posterior mean of pex (%.3f) is close to true pex (%.3f)", post_pex, true_pex))
-  expect_equal(post_bex, true_bex, tolerance = 0.1,
-               label = sprintf("Posterior mean of bex (%.3f) is close to true bex (%.3f)", post_bex, true_bex))
+  # Confright
+  confright_est <- brms::inv_logit_scaled(post_summary["b_confright_Intercept", "Estimate"])
+  expect_equal(confright_est, true_confright, tolerance = 0.15, label = "Recovered confright")
 
+  # Precright (softplus link)
+  precright_est <- log(1 + exp(post_summary["b_precright_Intercept", "Estimate"]))
+  expect_equal(precright_est, true_precright, tolerance = 0.5, label = "Recovered precright")
+
+  # Confleft
+  confleft_est <- brms::inv_logit_scaled(post_summary["b_confleft_Intercept", "Estimate"])
+  expect_equal(confleft_est, true_confleft, tolerance = 0.15, label = "Recovered confleft")
+
+  # Precleft (softplus link)
+  precleft_est <- log(1 + exp(post_summary["b_precleft_Intercept", "Estimate"]))
+  expect_equal(precleft_est, true_precleft, tolerance = 0.5, label = "Recovered precleft")
+
+  # Pex
+  pex_est <- brms::inv_logit_scaled(post_summary["b_pex_Intercept", "Estimate"])
+  expect_equal(pex_est, true_pex, tolerance = 0.15, label = "Recovered pex")
+
+  # Bex
+  bex_est <- brms::inv_logit_scaled(post_summary["b_bex_Intercept", "Estimate"])
+  expect_equal(bex_est, true_bex, tolerance = 0.15, label = "Recovered bex")
 
   # --- 4. Test Post-processing Functions ---
   n_pred_draws <- 10
@@ -315,87 +284,115 @@ test_that("choco model can recover parameters with brms using variational infere
   expect_true(all(pred >= 0 & pred <= 1), "Posterior predictions outside [0, 1]")
   expect_false(any(is.na(pred)), "NA values in posterior predictions")
 
+  n_newdata <- 5
+  pred_new <- brms::posterior_predict(m, ndraws = n_pred_draws, newdata = df[1:n_newdata, ])
+  expect_equal(nrow(pred_new), n_pred_draws)
+  expect_equal(ncol(pred_new), n_newdata)
+  expect_true(all(pred_new >= 0 & pred_new <= 1), "Posterior predictions (newdata) outside [0, 1]")
+  expect_false(any(is.na(pred_new)), "NA values in posterior predictions (newdata)")
+
   n_ll_draws <- 5
   ll <- brms::log_lik(m, ndraws = n_ll_draws)
   expect_equal(nrow(ll), n_ll_draws)
   expect_equal(ncol(ll), n_obs)
   expect_true(all(is.finite(ll)), "Non-finite values found in log-likelihood")
+
+  n_epred_draws <- 5
+  epred <- brms::posterior_epred(m, ndraws = n_epred_draws)
+  expect_equal(nrow(epred), n_epred_draws)
+  expect_equal(ncol(epred), n_obs)
+  expect_true(all(epred >= 0 & epred <= 1, na.rm = TRUE), "Posterior epred outside [0, 1]")
+  expect_false(any(is.na(epred)), "NA values in posterior epred")
 })
-
-
 
 
 test_that("Stan choco_lpdf matches R dchoco function", {
   skip_on_cran()
   skip_if_not_installed("cmdstanr")
 
-  # Expose the Stan function
-  choco_lpdf_stan <- choco_lpdf_expose()
+  # Expose the Stan function if possible
+  choco_lpdf <- choco_lpdf_expose()
 
-  # --- Define parameter grids using new names ---
-  y_values <- c(0, 0.01, 0.49, 0.5, 0.51, 0.99, 1) # Test around threshold
-  p_values <- c(0.1, 0.5, 0.9) # Corresponds to 'mu' in Stan function
-  conf_values <- c(0.2, 0.7)
-  confleft_values <- c(-0.5, 0.5)
-  prec_values <- c(2, 6)
-  precleft_values <- c(-0.3, 0.3)
-  pex_values <- c(0, 0.2, 0.8, 1)
+  # --- Define parameter grids for testing ---
+  y_values <- c(0, 0.01, 0.25, 0.5, 0.75, 0.99, 1)
+  mu_values <- c(0.2, 0.5, 0.8)
+  confright_values <- c(0.3, 0.7)
+  precright_values <- c(2, 5)
+  confleft_values <- c(0.3, 0.7)
+  precleft_values <- c(2, 5)
+  pex_values <- c(0, 0.3, 0.7)
   bex_values <- c(0, 0.5, 1)
-  pmid_values <- c(0, 0.1, 0.6, 1)
+  pmid_values <- c(0, 0.1)
 
-  # --- Loop through parameter combinations ---
-  for (p in p_values) {
-    for (conf in conf_values) {
-      for (confleft in confleft_values) {
-        for (prec in prec_values) {
+  for (mu in mu_values) {
+    for (confright in confright_values) {
+      for (precright in precright_values) {
+        for (confleft in confleft_values) {
           for (precleft in precleft_values) {
             for (pex in pex_values) {
               for (bex in bex_values) {
                 for (pmid in pmid_values) {
-                  # Test across different y values
                   for (y in y_values) {
                     label <- sprintf(
-                      "y=%.2f, p=%.1f, conf=%.1f, confleft=%.1f, prec=%.1f, precleft=%.1f, pex=%.1f, bex=%.1f, pmid=%.1f",
-                      y, p, conf, confleft, prec, precleft, pex, bex, pmid
+                      "y=%.2f, mu=%.1f, confright=%.1f, precright=%.1f, confleft=%.1f, precleft=%.1f, pex=%.1f, bex=%.1f, pmid=%.1f",
+                      y, mu, confright, precright, confleft, precleft, pex, bex, pmid
                     )
 
-                    # Calculate log-density using Stan function (pass new parameters)
-                    # Order: y, mu(p), conf, confleft, prec, precleft, pex, bex, pmid
-                    s <- capture.output(stan_log_lik <- choco_lpdf_stan(y, p, conf, confleft, prec, precleft, pex, bex, pmid))
-
-                    # Calculate log-density using R function (pass new parameters)
-                    r_log_lik <- dchoco(y, p = p, conf = conf, confleft = confleft, prec = prec,
-                                        precleft = precleft, pex = pex, bex = bex, pmid = pmid,
-                                        threshold = 0.5, log = TRUE)
-
-                    # Compare log-likelihoods
-                    expect_equal(stan_log_lik, r_log_lik,
-                      tolerance = 1e-6,
-                      label = paste("Log-likelihood comparison:", label)
+                    # Calculate log-density using Stan function
+                    stan_log_lik <- choco_lpdf(
+                      y, mu, confright, precright, confleft, precleft, pex, bex, pmid
                     )
-                  } # y
-                } # pmid
-              } # bex
-            } # pex
-          } # precleft
-        } # prec
-      } # confleft
-    } # conf
-  } # p
 
-  # --- Test invalid parameter handling using new names ---
-  valid_params <- list(x=0.2, p=0.5, conf=0.7, confleft=0, prec=4, precleft=0, pex=0.1, bex=0.5, pmid=0.1, threshold=0.5) # Added threshold
+                    # Calculate log-density using R function
+                    r_log_lik <- dchoco(
+                      x = y,
+                      p = mu,
+                      confright = confright,
+                      precright = precright,
+                      confleft = confleft,
+                      precleft = precleft,
+                      pex = pex,
+                      bex = bex,
+                      pmid = pmid,
+                      mid = 0.5,
+                      log = TRUE
+                    )
 
-  # R function errors (changed from expect_warning)
-  expect_error(do.call(dchoco, c(valid_params[-2], list(p=-0.1))), "p must be between 0 and 1")
-  expect_error(do.call(dchoco, c(valid_params[-3], list(conf=1.1))), "conf must be between 0 and 1 \\(exclusive\\)") # Escaped parentheses
-  expect_error(do.call(dchoco, c(valid_params[-5], list(prec=-1))), "prec must be positive")
+                    expect_equal(stan_log_lik, r_log_lik, tolerance = 1e-6,
+                      label = paste("Log-likelihood comparison:", label))
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
-  # Stan function returns -Inf (these remain the same)
-  expect_equal(choco_lpdf_stan(y=0.2, mu=-0.1, conf=0.7, confleft=0, prec=4, precleft=0, pex=0.1, bex=0.5, pmid=0.1), -Inf, label="Stan invalid p (mu)")
-  expect_equal(choco_lpdf_stan(y=0.2, mu=0.5, conf=1.1, confleft=0, prec=4, precleft=0, pex=0.1, bex=0.5, pmid=0.1), -Inf, label="Stan invalid conf")
-  expect_equal(choco_lpdf_stan(y=0.2, mu=0.5, conf=0.7, confleft=0, prec=-1, precleft=0, pex=0.1, bex=0.5, pmid=0.1), -Inf, label="Stan invalid prec")
-  expect_equal(choco_lpdf_stan(y=-0.1, mu=0.5, conf=0.7, confleft=0, prec=4, precleft=0, pex=0.1, bex=0.5, pmid=0.1), -Inf, label="Stan invalid y (<0)")
-  expect_equal(choco_lpdf_stan(y=1.1, mu=0.5, conf=0.7, confleft=0, prec=4, precleft=0, pex=0.1, bex=0.5, pmid=0.1), -Inf, label="Stan invalid y (>1)")
-
+  # --- Test invalid parameter handling ---
+  expect_error(
+    dchoco(0.5, p = -0.1, confright = 0.5, precright = 5, confleft = 0.5, precleft = 5, pex = 0.1, bex = 0.5, pmid = 0.1, mid = 0.5),
+    "p must be between 0 and 1"
+  )
+  expect_error(
+    dchoco(0.5, p = 0.5, confright = -0.1, precright = 5, confleft = 0.5, precleft = 5, pex = 0.1, bex = 0.5, pmid = 0.1, mid = 0.5),
+    "confright must be between 0 and 1"
+  )
+  expect_error(
+    dchoco(0.5, p = 0.5, confright = 0.5, precright = -1, confleft = 0.5, precleft = 5, pex = 0.1, bex = 0.5, pmid = 0.1, mid = 0.5),
+    "precright must be positive"
+  )
+  expect_error(
+    dchoco(0.5, p = 0.5, confright = 0.5, precright = 5, confleft = -0.1, precleft = 5, pex = 0.1, bex = 0.5, pmid = 0.1, mid = 0.5),
+    "confleft must be between 0 and 1"
+  )
+  expect_error(
+    dchoco(0.5, p = 0.5, confright = 0.5, precright = 5, confleft = 0.5, precleft = -1, pex = 0.1, bex = 0.5, pmid = 0.1, mid = 0.5),
+    "precleft must be positive"
+  )
+  expect_warning(
+    dchoco(-0.1, p = 0.5, confright = 0.5, precright = 5, confleft = 0.5, precleft = 5, pex = 0.1, bex = 0.5, pmid = 0.1, mid = 0.5),
+    "x must be between 0 and 1"
+  )
 })

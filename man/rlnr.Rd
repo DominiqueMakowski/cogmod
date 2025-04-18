@@ -63,21 +63,7 @@ Must be non-negative. Range: [0, Inf).}
 
 \item{log}{Logical; if TRUE, returns the log-density. Default: FALSE.}
 
-\item{link_mu}{Link function for the \code{mu} parameter in the custom family.
-Determines how \code{mu} is transformed in the model. Default: "identity".}
-
-\item{link_mudelta}{Link function for the \code{mudelta} parameter in the custom family.
-Determines how \code{mudelta} is transformed in the model. Default: "identity".}
-
-\item{link_sigmazero}{Link function for the \code{sigmazero} parameter in the custom family.
-Ensures \code{sigmazero} remains positive. Default: "identity".}
-
-\item{link_sigmadelta}{Link function for the \code{sigmadelta} parameter in the custom family.
-Determines how \code{sigmadelta} is transformed in the model. Default: "identity".}
-
-\item{link_tau}{Link function for the \code{tau} parameter in the custom family.}
-
-\item{link_minrt}{Link function for the \code{minrt} parameter in the custom family.}
+\item{link_mu, link_mudelta, link_sigmazero, link_sigmadelta, link_tau, link_minrt}{Link function for the parameters.}
 
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 

@@ -56,24 +56,27 @@ library(patchwork)
 library(cogmod)
 
 # Simulate data using rchoco() with two parameter sets
-df1 <- rchoco(n = 5000, conf = 0.5, confleft = 0.4, prec = 3, pex = 0.1)
-df2 <- rchoco(n = 5000, conf = 0.7, confleft = 0.6, prec = 5, pex = 0.05)
+df1 <- rchoco(n = 5000, confright = 0.8, confleft = 0.7, pex = 0.05)
+df2 <- rchoco(n = 5000, confright = 0.3, confleft = 0.3, pex = 0.1)
+df3 <- rchoco(n = 5000, confright = 0.3, confleft = 0.3, pex = 0.1, 
+               precright = 1.5, precleft = 1.5, pmid = 0.01)
 
 # Combine data into a single data frame
 df <- data.frame(
-  value = c(df1, df2),
+  value = c(df1, df2, df3),
   group = rep(c(
-    "conf = 0.5, confleft = 0.4, prec = 3, pex = 0.1",
-    "conf = 0.7, confleft = 0.6, prec = 5, pex = 0.05"
+    "confright = 0.5, confleft = 0.4, pex = 0.2",
+    "confright = 0.7, confleft = 0.6, pex = 0.1",
+    "confright = 0.3, confleft = 0.3, pex = 0.1"
   ), each = 5000)
 )
 
 # Create the histogram
 ggplot(df, aes(x = value, fill = group)) +
-  geom_histogram(alpha = 0.8, position = "identity", bins = 50) +
+  geom_histogram(alpha = 0.8, position = "identity", bins = 70) +
   labs(title = "CHOCO Distribution", x = "Value", y = "", fill = "Parameters") +
   theme_minimal() +
-  scale_fill_manual(values = c("#9C27B0", "#FF9800"))
+  scale_fill_manual(values = c("#E91E63", "#9C27B0", "#FF9800"))
 ```
 
 </details>
@@ -121,10 +124,10 @@ library(brms)
 library(cmdstanr)
 
 df <- data.frame()
-for(x in seq(0.1, 1, by = 0.1)) {
+for(x in seq(0.1, 0.9, by = 0.1)) {
   df <- data.frame(x = x,
-                   score = rchoco(n = 100, p = 0.4 + x / 2, conf = 0.3 + x / 3, 
-                                  confleft = -x, pex = 0.03, bex = 0.6, pmid = 0)) |> 
+                   score = rchoco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3, 
+                                  confleft = 1-x, pex = 0.03, bex = 0.6, pmid = 0)) |> 
     rbind(df)
 }
 
@@ -191,15 +194,14 @@ m_xbx <- brms::add_criterion(m_xbx, "loo")  # For later model comparison
 saveRDS(m_xbx, file = "man/figures/m_xbx.rds")
 ```
 
-#### BEXT Model
+#### Beta-Gate Model
 
-The [**BeXt
-model**](https://dominiquemakowski.github.io/cogmod/reference/rbext.html)
-corresponds to a reparametrized ordered beta model ([Kubinec,
-2023](https://doi.org/10.1017/pan.2022.20)). Instead of defining left
-and right cutpoints, the BeXt parametrization uses the likelihood of
-extreme values (0 and 1) and their balance (i.e., the relative
-proportion of zeros and ones).
+The [**Beta-Gate
+model**](https://dominiquemakowski.github.io/cogmod/reference/rbetagate.html)
+corresponds to a reparametrized Ordered Beta model ([Kubinec,
+2023](https://doi.org/10.1017/pan.2022.20)). In this model, observed 0s
+and 1s represent instances where the underlying continuous response
+tendency fell beyond lower or upper boundary points (‘gates’).
 
 ``` r
 f <- bf(
@@ -207,17 +209,17 @@ f <- bf(
   phi ~ x,
   pex ~ x,
   bex ~ x, 
-  family = bext()
+  family = betagate()
 )
 
-m_bext <- brm(f,
-  data = df, family = bext(), stanvars = bext_stanvars(), init = 0,
+m_betagate <- brm(f,
+  data = df, family = betagate(), stanvars = betagate_stanvars(), init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
-m_bext <- brms::add_criterion(m_bext, "loo")  # For later model comparison
+m_betagate <- brms::add_criterion(m_betagate, "loo")  # For later model comparison
 
-saveRDS(m_bext, file = "man/figures/m_bext.rds")
+saveRDS(m_betagate, file = "man/figures/m_betagate.rds")
 ```
 
 #### CHOCO Model
@@ -229,9 +231,9 @@ of the Choice-Confidence (CHOCO).
 ``` r
 f <- bf(
   score ~ x,
-  conf ~ x,
+  confright ~ x,
   confleft ~ x,
-  prec ~ x,
+  precright ~ x,
   precleft ~ x,
   pex ~ x,
   bex ~ x,
@@ -261,10 +263,10 @@ models.
 ``` r
 m_zoib <- readRDS("man/figures/m_zoib.rds")
 m_xbx <- readRDS("man/figures/m_xbx.rds")
-m_bext <- readRDS("man/figures/m_bext.rds")
+m_betagate <- readRDS("man/figures/m_betagate.rds")
 m_choco <- readRDS("man/figures/m_choco.rds")
 
-loo::loo_compare(m_zoib, m_xbx, m_bext, m_choco) |> 
+loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |> 
   parameters(include_ENP = TRUE)
 ```
 
@@ -272,12 +274,12 @@ loo::loo_compare(m_zoib, m_xbx, m_bext, m_choco) |>
 
     # Fixed Effects
 
-    Name    |   LOOIC |   ENP |   ELPD | Difference | Difference_SE |      p
-    ------------------------------------------------------------------------
-    m_choco | -556.70 | 13.66 | 278.35 |       0.00 |          0.00 |       
-    m_zoib  | -142.66 |  7.50 |  71.33 |    -207.02 |         13.39 | < .001
-    m_bext  | -141.68 |  7.99 |  70.84 |    -207.51 |         13.37 | < .001
-    m_xbx   |  -67.29 |  5.92 |  33.64 |    -244.70 |         15.31 | < .001
+    Name       |   LOOIC |  ENP |   ELPD | Difference | Difference_SE |      p
+    --------------------------------------------------------------------------
+    m_choco    | -770.65 | 8.93 | 385.33 |       0.00 |          0.00 |       
+    m_betagate | -159.76 | 7.21 |  79.88 |    -305.45 |         16.68 | < .001
+    m_zoib     | -159.73 | 7.00 |  79.86 |    -305.46 |         16.99 | < .001
+    m_xbx      | -145.03 | 5.11 |  72.51 |    -312.81 |         16.81 | < .001
 
 Running posterior predictive checks allows to visualize the predicted
 distributions from various models. We can see how typical Beta-related
@@ -295,9 +297,9 @@ pred <- rbind(
   estimate_prediction(m_xbx, keep_iterations = 200) |>
     reshape_iterations() |>
     data_modify(Model = "XBX"),
-  estimate_prediction(m_bext, keep_iterations = 200) |>
+  estimate_prediction(m_betagate, keep_iterations = 200) |>
     reshape_iterations() |>
-    data_modify(Model = "BEXT"),
+    data_modify(Model = "Beta-Gate"),
   estimate_prediction(m_choco, keep_iterations = 200) |>
     reshape_iterations() |>
     data_modify(Model = "CHOCO")
@@ -344,7 +346,7 @@ p1 <- modelbased::estimate_prediction(m_choco, data = "grid", length = 4, keep_i
 
 # Predict various parameters
 pred_params <- data.frame()
-for(param in c("mu", "conf", "confleft", "prec", "precleft", "pex")) {
+for(param in c("expectation", "confright", "confleft", "precright", "precleft", "pex")) {
   pred_params <- m_choco |> 
     modelbased::estimate_prediction(data = "grid", length = 20, predict = param) |>
     as.data.frame() |> 
