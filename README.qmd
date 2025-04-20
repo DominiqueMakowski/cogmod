@@ -81,6 +81,77 @@ ggplot(df, aes(x = value, fill = group)) +
   scale_fill_manual(values = c("#E91E63", "#9C27B0", "#FF9800"))
 ```
 
+```{r}
+#| echo: false
+#| eval: false
+
+# d <- data.frame(x=rchoco(100000, p=0.6, confright = 0.6, precright = 2, 
+#                          confleft = 0.3, precleft = 3, 
+#                          pex = 0.1, bex = 0.5, pmid = 0.01))
+# 
+# breaks <- seq(0-0.025/2, 1+0.025/2, by=0.025)
+# breaks[breaks == 1] <- 1 - .Machine$double.eps
+# p <- ggplot(d, aes(x=x)) +
+#   geom_histogram(data = d[!d$x %in% c(0, 0.5, 1), , drop = FALSE], 
+#                  fill = "#7B3F00", color="white", breaks = breaks, position = "identity") +
+#   geom_histogram(data = d[d$x == 0, , drop = FALSE],
+#                  fill = "#2196F3", color="white", breaks = breaks, position = "identity") +
+#   geom_histogram(data = d[d$x == 0.5, , drop = FALSE],
+#                  fill = "#32CD32", color="white", breaks = c(0.5-0.025/2, 0.5+0.025/2), position = "identity") +
+#   geom_histogram(data = d[d$x == 1, , drop = FALSE],
+#                  fill = "#E91E63", color="white", breaks = breaks, position = "identity") +
+#   annotate("segment", x = 0, y = 0, xend = 0.05, yend = 0, color = "#FF9800", linewidth = 4) +
+#   annotate("segment", x = 1, y = 0, xend = 1-0.05, yend = 0, color = "#FF9800", linewidth = 4) +
+#   annotate("segment", x = 0.05, y = 0, xend = 0.05, yend = Inf, color = "#FF9800", linewidth = 1, linetype="dashed") +
+#   annotate("segment", x = 1-0.05, y = 0, xend = 1-0.05, yend = Inf, color = "#FF9800", linewidth = 1, linetype="dashed") +
+#   scale_x_continuous(breaks = seq(0, 1, 0.1)) +
+#   scale_y_continuous(expand = c(0, 0)) +
+#   theme_classic() +
+#   theme(axis.line.x = element_blank(),
+#         axis.line.y = element_blank(),
+#         axis.ticks.y = element_blank(),
+#         axis.text.y = element_blank(),
+#         axis.title.y = element_blank(),
+#         axis.title.x = element_blank(),
+#         axis.ticks.x = element_blank()) +
+#   coord_cartesian(xlim = c(0, 1), expand = FALSE) 
+# p
+# ggsave("man/figures/choco.svg", p, width = 10, height = 5, dpi = 300)
+```
+
+### Beta-Gate
+
+```{r}
+#| echo: false
+#| eval: false
+
+# d <- data.frame(x=rbetagate(100000, mu = 0.6, phi = 2, pex = 0.1, bex = 0.4))
+# 
+# p <- ggplot(d, aes(x=x)) +
+#   geom_histogram(data = d[!d$x %in% c(0, 1), , drop = FALSE], fill = "#CE93D8", color="white", binwidth = 0.04) +
+#   geom_histogram(data = d[d$x == 0, , drop = FALSE], fill = "#2196F3", color="white", binwidth = 0.04) +
+#   geom_histogram(data = d[d$x == 1, , drop = FALSE], fill = "#E91E63", color="white", binwidth = 0.04) +
+#   annotate("segment", x = 0, y = 0, xend = 0.06, yend = 0, color = "#FF9800", linewidth = 4) +
+#   annotate("segment", x = 1, y = 0, xend = 1-0.04, yend = 0, color = "#FF9800", linewidth = 4) +
+#   annotate("segment", x = 0.06, y = 0, xend = 0.06, yend = Inf, color = "#263238", linewidth = 0.5, linetype="dashed") +
+#   annotate("segment", x = 1-0.04, y = 0, xend = 1-0.04, yend = Inf, color = "#263238", linewidth = 0.5, linetype="dashed") +
+#   scale_x_continuous(breaks = seq(0, 1, 0.1)) +
+#   scale_y_continuous(expand = c(0, 0)) +
+#   theme_classic() +
+#   theme(axis.line.x = element_blank(),
+#         axis.line.y = element_blank(),
+#         axis.ticks.y = element_blank(),
+#         axis.text.y = element_blank(),
+#         axis.title.y = element_blank(),
+#         axis.title.x = element_blank(),
+#         axis.ticks.x = element_blank()) +
+#   coord_cartesian(xlim = c(0, 1), expand = FALSE) 
+# p
+# ggsave("man/figures/betagate.svg", p, width = 10, height = 5, dpi = 300)
+```
+
+![](man/figures/betagate.png)
+
 ### LNR Model
 
 The Log-Normal Race (LNR) model is useful for modeling reaction times and errors in decision-making tasks. The model assumes that each accumulator draws a value from a LogNormal distribution (shifted by a non-decision time τ). The winning accumulator (minimum draw) determines the observed reaction time and choice.
@@ -457,12 +528,8 @@ f <- bf(
   family = shifted_wald()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau")  |> 
-  brms::validate_prior(f, data = df[df$response == 0,]) 
-
 m_wald <- brm(f,
   data = df[df$response == 0,], 
-  prior = priors,
   family = shifted_wald(), 
   stanvars = shifted_wald_stanvars(),
   init = 0.5,

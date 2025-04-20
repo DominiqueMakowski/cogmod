@@ -9,24 +9,24 @@
 // tau: Scale factor for non-decision time (0-1, scaled by minimum RT).
 // minrt: Minimum possible reaction time (used to scale tau).
 real shifted_wald_lpdf(real Y, real mu, real alpha, real tau, real minrt) {
-  real eps = 1e-10;
-  
-  if (mu <= 0.0 || alpha <= 0.0 || tau < 0.0 || tau > 1.0 || minrt < 0.0 ||
-      is_nan(mu) || is_inf(mu) ||
-      is_nan(alpha) || is_inf(alpha) ||
-      is_nan(tau) || is_inf(tau) ||
-      is_nan(minrt) || is_inf(minrt))
-    return negative_infinity();
+  // Parameter checks
+  if (mu <= 0 || alpha <= 0 || tau < 0 || tau > 1 || minrt < 0) return negative_infinity();
 
-  real ndt = tau * minrt;
+  // Compute non-decision time and adjusted time
+  real ndt   = tau * minrt;
   real t_adj = Y - ndt;
-  if (t_adj <= eps) return negative_infinity();
+  if (t_adj <= 0) return negative_infinity();
 
-  real ig_mean = alpha / mu;
+  // Inverse-Gaussian parameters
+  real ig_mu     = alpha / mu;
   real ig_lambda = square(alpha);
-  // Precompute constant to save time on every evaluation.
-  real log_two_pi = log(2 * pi());
-  return 0.5 * (log(ig_lambda) - log_two_pi - 3 * log(t_adj)) - (ig_lambda * square(t_adj - ig_mean)) / (2 * square(ig_mean) * t_adj);
+
+  // Log-density
+  real log_term = 0.5 * (log(ig_lambda) - (log(2) + log(pi())) - 3 * log(t_adj));
+  real diff     = t_adj - ig_mu;
+  real exponent = ig_lambda * square(diff) / (2 * square(ig_mu) * t_adj);
+
+  return log_term - exponent;
 }
 "
 }

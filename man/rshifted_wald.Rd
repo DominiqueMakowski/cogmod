@@ -3,17 +3,27 @@
 \name{rshifted_wald}
 \alias{rshifted_wald}
 \alias{dshifted_wald}
+\alias{pshifted_wald}
 \alias{shifted_wald_lpdf_expose}
 \alias{shifted_wald_stanvars}
 \alias{shifted_wald}
 \alias{log_lik_shifted_wald}
 \alias{posterior_predict_shifted_wald}
 \alias{posterior_epred_shifted_wald}
-\title{Shifted Wald (Shifted Inverse Gaussian) Model Functions}
+\title{Shifted Wald Model (Inverse Gaussian)}
 \usage{
 rshifted_wald(n, nu = 3, alpha = 0.5, ndt = 0.2)
 
 dshifted_wald(x, nu = 3, alpha = 0.5, ndt = 0.2, log = FALSE)
+
+pshifted_wald(
+  q,
+  nu = 3,
+  alpha = 0.5,
+  ndt = 0.2,
+  lower.tail = TRUE,
+  log.p = FALSE
+)
 
 shifted_wald_lpdf_expose()
 
@@ -48,6 +58,12 @@ processes like stimulus encoding and response execution. Range: [0, Inf).}
 
 \item{log}{Logical; if TRUE, probabilities p are given as log(p).}
 
+\item{q}{Vector of quantiles (observed reaction times).}
+
+\item{lower.tail}{Logical; if TRUE (default), probabilities are \code{P[X <= x]}, otherwise, \code{P[X > x]}.}
+
+\item{log.p}{Logical; if TRUE, probabilities p are given as log(p). Defaults to FALSE.}
+
 \item{link_mu, link_alpha, link_tau, link_minrt}{Link functions.}
 
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
@@ -56,8 +72,6 @@ processes like stimulus encoding and response execution. Range: [0, Inf).}
 }
 \value{
 \code{rshifted_wald} returns a vector of random deviates.
-
-\code{dshifted_wald} returns the density (PDF).
 }
 \description{
 Density, distribution function, and random generation for the Shifted Wald
@@ -71,7 +85,6 @@ Functions:
 \item \code{rshifted_wald()}: Simulates random draws from the Shifted Wald model.
 \item \code{dshifted_wald()}: Computes the density (likelihood) of the Shifted Wald distribution.
 \item \code{pshifted_wald()}: Computes the cumulative distribution function (CDF).
-\item \code{qshifted_wald()}: Computes the quantile function (inverse CDF).
 }
 }
 \details{
@@ -121,7 +134,4 @@ and shifted Wald parameters: A diffusion model analysis. \emph{Psychonomic Bulle
 statistical application—a review. \emph{Journal of the Royal Statistical Society Series B:
 Statistical Methodology}, \emph{40}(3), 263-275.
 }
-}
-\seealso{
-\code{dshifted_wald}, \code{pshifted_wald}, \code{qshifted_wald}
 }
