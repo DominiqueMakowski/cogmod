@@ -34,25 +34,17 @@ real lnr_lpdf(real Y, real mu, real nuone, real sigmazero, real sigmaone, real t
   // Check if adjusted time is valid (must be positive)
   if (t_adj < eps) return negative_infinity();
 
-  // Calculate meanlog parameters from nu parameters
-  real meanlog0 = -mu;
-  real meanlog1 = -nuone;
-  real log_lik;
-
-  // --- 3. Log-likelihood using built-in lognormal functions ---
+  // --- 2. Log-likelihood using built-in lognormal functions ---
   // Calculate log-likelihood based on the winning accumulator (dec)
   if (dec == 0) {
     // Accumulator 0 finished first
-    log_lik = lognormal_lpdf(t_adj | meanlog0, sig0) + // Log-PDF of winner
-              lognormal_lccdf(t_adj | meanlog1, sig1); // Log-Survival of loser
+    return lognormal_lpdf(t_adj | -mu, sig0) + // Log-PDF of winner
+           lognormal_lccdf(t_adj | -nuone, sig1); // Log-Survival of loser
   } else {
     // Accumulator 1 finished first
-    log_lik = lognormal_lpdf(t_adj | meanlog1, sig1) + // Log-PDF of winner
-              lognormal_lccdf(t_adj | meanlog0, sig0); // Log-Survival of loser
+    return lognormal_lpdf(t_adj | -nuone, sig1) + // Log-PDF of winner
+           lognormal_lccdf(t_adj | -mu, sig0); // Log-Survival of loser
   }
-
-  // Return negative infinity if log-likelihood is NaN or Inf
-  return (is_nan(log_lik) || is_inf(log_lik)) ? negative_infinity() : log_lik;
 }
 "
 }

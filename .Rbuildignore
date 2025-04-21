@@ -7,3 +7,4 @@ README.qmd
 ^docs$
 ^pkgdown$
 ^\.github$
+^\.papers$
