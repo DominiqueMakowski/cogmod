@@ -63,3 +63,84 @@ test_that("rrdm behaves correctly under various conditions", {
 
 })
 
+
+
+
+test_that("drdm = simulation density & log=TRUE works", {
+  set.seed(2025)
+  n_sim <- 5000
+  pars <- list(vzero=0.9, vone=0.7, k=0.4, A=0.15, ndt=0.2)
+
+  # simulate RTs
+  dat <- do.call(rrdm, c(list(n=n_sim), pars))
+
+  # empirical density (just above ndt)
+  emp <- density(dat$rt, bw="SJ", n=64, from=pars$ndt + 1e-8)
+  keep <- emp$x > pars$ndt + 1e-6
+  x <- emp$x[keep]; y_emp <- emp$y[keep]
+
+  # theoretical density
+  y_th <- do.call(drdm, c(list(x=x), pars))
+  expect_gt(cor(y_emp, y_th), 0.9)
+
+  # log argument
+  pts <- c(0.25, 0.6, 1.0)
+  log_d   <- do.call(drdm, c(list(x=pts, log=TRUE), pars))
+  raw_d   <- do.call(drdm, c(list(x=pts, log=FALSE), pars))
+  nz      <- raw_d > 0
+  expect_equal(log_d[nz], log(raw_d[nz]), tol=1e-8)
+  expect_true(all(log_d[!nz] == -Inf))
+})
+
+
+test_that("drdm edge‐cases x<=ndt give zero density", {
+  p <- list(vzero=0.8, vone=0.6, k=0.5, A=0.2, ndt=0.15)
+  xs <- c(p$ndt - 0.01, p$ndt, p$ndt + 1e-8)
+
+  dens <- drdm(xs,
+               vzero = p$vzero,
+               vone  = p$vone,
+               k     = p$k,
+               A     = p$A,
+               ndt   = p$ndt)
+
+  # first two at/below ndt => 0, third slightly above => >0
+  expect_equal(dens[1:2], c(0, 0), label = "density = 0 for x <= ndt")
+  expect_gt(dens[3], 0, label = "density > 0 for x > ndt")
+
+  # drdm one‐drift‐zero reduces to dwald()
+  p <- list(k=0.5, A=0.2, ndt=0.15)
+  x0 <- 0.6
+
+  d1 <- drdm(x0,
+    vzero = 0.8, vone = 0,
+    k = p$k, A = p$A, ndt = p$ndt
+  )
+  expect_equal(d1,
+    cogmod:::.dwald(x0, nu = 0.8, k = p$k, A = p$A, ndt = p$ndt),
+    tol = 1e-8, label = "drdm with vone=0 reduces to dwald()"
+  )
+
+  d2 <- drdm(x0,
+    vzero = 0, vone = 0.6,
+    k = p$k, A = p$A, ndt = p$ndt
+  )
+  expect_equal(d2,
+    cogmod:::.dwald(x0, nu = 0.6, k = p$k, A = p$A, ndt = p$ndt),
+    tol = 1e-8, label = "drdm with vzero=0 reduces to dwald()"
+  )
+
+
+  # drdm errors on invalid inputs
+  # negative drifts
+  expect_error(drdm(0.5, vzero=-0.1, vone=0.5, k=0.5, A=0.2, ndt=0.1))
+  expect_error(drdm(0.5, vzero=0.5,  vone=-0.1, k=0.5, A=0.2, ndt=0.1))
+  expect_error(drdm(0.5, vzero=0,     vone=0,    k=0.5, A=0.2, ndt=0.1))
+  # non-positive k or A
+  expect_error(drdm(0.5, vzero=0.5, vone=0.5, k=0,   A=0.2, ndt=0.1))
+  expect_error(drdm(0.5, vzero=0.5, vone=0.5, k=-1,  A=0.2, ndt=0.1))
+  expect_error(drdm(0.5, vzero=0.5, vone=0.5, k=0.5, A=0,   ndt=0.1))
+  expect_error(drdm(0.5, vzero=0.5, vone=0.5, k=0.5, A=-1,  ndt=0.1))
+  # negative ndt
+  expect_error(drdm(0.5, vzero=0.5, vone=0.5, k=0.5, A=0.2, ndt=-0.1))
+})

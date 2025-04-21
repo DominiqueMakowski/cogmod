@@ -11,19 +11,19 @@
 \alias{posterior_epred_lnr}
 \title{Log-Normal Race (LNR) Model}
 \usage{
-rlnr(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, ndt = 0.2)
+rlnr(n, nuzero = 0, nuone = 0, sigmazero = 1, sigmaone = 1, ndt = 0.2)
 
-dlnr(x, mu, mudelta, sigmazero, sigmadelta, ndt, response, log = FALSE)
+dlnr(x, nuzero, nuone, sigmazero, sigmaone, ndt, response, log = FALSE)
 
 lnr_lpdf_expose()
 
 lnr_stanvars()
 
 lnr(
-  link_mu = "identity",
-  link_mudelta = "identity",
+  link_nuzero = "identity",
+  link_nuone = "identity",
   link_sigmazero = "softplus",
-  link_sigmadelta = "identity",
+  link_sigmaone = "softplus",
   link_tau = "logit",
   link_minrt = "identity"
 )
@@ -37,25 +37,16 @@ posterior_epred_lnr(prep)
 \arguments{
 \item{n}{Number of simulated trials. Must be a positive integer.}
 
-\item{mu}{The log-space mean parameter for the baseline accumulator (choice 0).
-Controls the central tendency of the reaction time for choice 0.
-Can take any real value, with larger values leading to longer RTs. Range: (-Inf, Inf).}
+\item{nuzero, nuone}{The (inverse of the) log-space mean parameter for both accumulators (choice 0 and 1).
+Controls the central tendency of the reaction time. Can take any real value (-Inf, Inf), with larger
+values leading to \emph{faster} RTs. Named 'nu' (=-meanlog) for consistency with other race models.}
 
-\item{mudelta}{The additive deviation (in log-space) for the mean of accumulator 1 (choice 1).
-Positive values make choice 1 slower on average, while negative values make it faster.
-Can take any real value. Range: (-Inf, Inf).}
-
-\item{sigmazero}{The log-space standard deviation for the baseline accumulator (choice 0).
-Controls the variability of reaction times for choice 0. Must be positive.
-Larger values increase variability. Range: (0, Inf).}
-
-\item{sigmadelta}{The log-deviation for the standard deviation of accumulator 1.
-If positive, accumulator 1 has more variability; if negative, it has less variability
-compared to accumulator 0. Can take any real value. Range: (-Inf, Inf).}
+\item{sigmazero, sigmaone}{The log-space standard deviation for both accumulators (choice
+0 and 1) Controls the variability of reaction times. Must be positive (0, Inf).
+Larger values increase variability.}
 
 \item{ndt}{Non-decision time (shift parameter). Represents the time taken for processes
-unrelated to the decision (e.g., encoding, motor response).
-Must be non-negative. Range: [0, Inf).}
+unrelated to the decision (e.g., encoding, motor response). Must be non-negative [0, Inf).}
 
 \item{x}{The observed reaction time (RT). Must be greater than \code{ndt}.}
 
@@ -63,17 +54,22 @@ Must be non-negative. Range: [0, Inf).}
 
 \item{log}{Logical; if TRUE, returns the log-density. Default: FALSE.}
 
-\item{link_mu, link_mudelta, link_sigmazero, link_sigmadelta, link_tau, link_minrt}{Link function for the parameters.}
+\item{link_nuzero, link_nuone}{Link function for the nu parameters.}
 
-\item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
+\item{link_sigmazero, link_sigmaone}{Link function for the sigma parameters.}
 
-\item{...}{Additional arguments.}
+\item{link_tau}{Link function for the tau parameter (non-decision time proportion).}
+
+\item{link_minrt}{Link function for the minrt parameter (minimum RT scale).}
+
+\item{...}{Further arguments passed to \code{\link[brms]{prepare_predictions}}
+that control several aspects of data validation and prediction.}
 }
 \description{
 The Log-Normal Race (LNR) model is useful for modeling reaction times and choices in decision-making tasks.
 The model assumes that each choice option (accumulator) draws a processing time from a LogNormal distribution.
 The winning accumulator (minimum draw) determines the observed reaction time and choice.
-The observed RT includes a non-decision time component (tau).
+The observed RT includes a non-decision time component (ndt).
 
 Functions:
 \itemize{
@@ -86,21 +82,29 @@ Functions:
 }
 }
 \details{
-The LNR model conceptualizes decision-making as a race between multiple independent accumulators,
-each corresponding to a potential choice. Each accumulator gathers evidence at a fixed rate,
-and the first to reach a threshold determines the decision. In contrast, Wiener (DDM) models
-decision-making as a continuous stochastic process where a single decision variable accumulates
-noisy evidence over time until it reaches one of two decision boundaries.
+The LNR model conceptualizes decision-making as a race between two independent accumulators,
+each corresponding to a potential choice. Each accumulator's finishing time is drawn from a
+LogNormal distribution. The underlying \code{meanlog} parameter for the LogNormal distribution
+for accumulator 0 is \code{-nuzero}, and for accumulator 1 is \code{-nuone}. The \code{sdlog} parameters
+are \code{sigmazero} and \code{sigmaone} respectively.
+The first accumulator to finish determines the choice and the decision time.
+The observed reaction time (RT) is the decision time plus the non-decision time (ndt).
+Higher values of \code{nuzero} or \code{nuone} correspond to faster processing speeds and thus
+shorter reaction times for the respective accumulator.
 }
 \examples{
 # Simulate data
-data <- rlnr(1000, mu = 0, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2)
+data <- rlnr(1000, nuzero = 0, nuone = 0.5, sigmazero = 1, sigmaone = 0.8, ndt = 0.2)
 hist(data[data$response == 0, "rt"], breaks = 50, main = "Reaction Times", xlab = "RT")
 hist(data[data$response == 1, "rt"], breaks = 50, add = TRUE, col = rgb(1, 0, 0, 0.5))
 
+\dontrun{
 # You can expose the lpdf function as follows:
-# lnr_lpdf <- lnr_lpdf_expose()
-# lnr_lpdf(Y = 0.5, mu = 0, mudelta = 0, sigmazero = 1, sigmadelta = 0.5,
-#          tau = 0.1, minrt = 0.2, dec = 1)
+insight::check_if_installed("cmdstanr")
+lnr_lpdf <- lnr_lpdf_expose()
+# Example call with nu parameterization (higher nu = faster)
+lnr_lpdf(Y = 0.5, mu = 0.5, nuone = 0.2, sigmazero = 1.0, sigmaone = 0.8,
+         tau = 0.4, minrt = 0.2, dec = 0) # ndt = 0.4 * 0.2 = 0.08
+}
 
 }

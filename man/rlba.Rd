@@ -81,9 +81,8 @@ posterior_epred_lba(prep)
 
 \item{link_mu, link_vdelta, link_sigmazero, link_sigmadelta, link_A, link_k, link_tau, link_minrt}{Link function for the parameters.}
 
-\item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
-
-\item{...}{Additional arguments.}
+\item{...}{Further arguments passed to \code{\link[brms]{prepare_predictions}}
+that control several aspects of data validation and prediction.}
 }
 \value{
 A data frame with \code{n} rows and columns:

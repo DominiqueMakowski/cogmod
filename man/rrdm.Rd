@@ -2,9 +2,12 @@
 % Please edit documentation in R/rdm.R
 \name{rrdm}
 \alias{rrdm}
+\alias{drdm}
 \title{Simulate from the Two-Accumulator Racing Diffusion Model (RDM)}
 \usage{
 rrdm(n, vzero, vone, k, A, ndt)
+
+drdm(x, vzero, vone, k, A, ndt, log = FALSE)
 }
 \arguments{
 \item{n}{Number of trials to simulate. Must be a positive integer.}
@@ -24,6 +27,10 @@ positive number.}
 
 \item{ndt}{Non-decision time (encoding and motor time offset). Must be a
 single non-negative number.}
+
+\item{x}{Vector of quantiles (observed reaction times).}
+
+\item{log}{Logical; if TRUE, probabilities p are given as log(p).}
 }
 \value{
 A data frame with \code{n} rows and two columns:

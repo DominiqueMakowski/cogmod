@@ -4,7 +4,7 @@
 #' The Log-Normal Race (LNR) model is useful for modeling reaction times and choices in decision-making tasks.
 #' The model assumes that each choice option (accumulator) draws a processing time from a LogNormal distribution.
 #' The winning accumulator (minimum draw) determines the observed reaction time and choice.
-#' The observed RT includes a non-decision time component (tau).
+#' The observed RT includes a non-decision time component (ndt).
 #'
 #' Functions:
 #' - `rlnr()`: Simulates random draws from the LNR model.
@@ -15,74 +15,54 @@
 #' - `log_lik_lnr()`: For `brms`, computes the log-likelihood of observed data.
 #'
 #' @param n Number of simulated trials. Must be a positive integer.
-#' @param mu The log-space mean parameter for the baseline accumulator (choice 0).
-#'   Controls the central tendency of the reaction time for choice 0.
-#'   Can take any real value, with larger values leading to longer RTs. Range: (-Inf, Inf).
-#' @param mudelta The additive deviation (in log-space) for the mean of accumulator 1 (choice 1).
-#'   Positive values make choice 1 slower on average, while negative values make it faster.
-#'   Can take any real value. Range: (-Inf, Inf).
-#' @param sigmazero The log-space standard deviation for the baseline accumulator (choice 0).
-#'   Controls the variability of reaction times for choice 0. Must be positive.
-#'   Larger values increase variability. Range: (0, Inf).
-#' @param sigmadelta The log-deviation for the standard deviation of accumulator 1.
-#'   If positive, accumulator 1 has more variability; if negative, it has less variability
-#'   compared to accumulator 0. Can take any real value. Range: (-Inf, Inf).
+#' @param nuzero,nuone The (inverse of the) log-space mean parameter for both accumulators (choice 0 and 1).
+#'   Controls the central tendency of the reaction time. Can take any real value (-Inf, Inf), with larger
+#'   values leading to *faster* RTs. Named 'nu' (=-meanlog) for consistency with other race models.
+#' @param sigmazero,sigmaone The log-space standard deviation for both accumulators (choice
+#'   0 and 1) Controls the variability of reaction times. Must be positive (0, Inf).
+#'   Larger values increase variability.
 #' @param ndt Non-decision time (shift parameter). Represents the time taken for processes
-#'   unrelated to the decision (e.g., encoding, motor response).
-#'   Must be non-negative. Range: [0, Inf).
-#' 
-#' @details 
-#' The LNR model conceptualizes decision-making as a race between multiple independent accumulators, 
-#' each corresponding to a potential choice. Each accumulator gathers evidence at a fixed rate, 
-#' and the first to reach a threshold determines the decision. In contrast, Wiener (DDM) models 
-#' decision-making as a continuous stochastic process where a single decision variable accumulates 
-#' noisy evidence over time until it reaches one of two decision boundaries.
+#'   unrelated to the decision (e.g., encoding, motor response). Must be non-negative [0, Inf).
+#'
+#' @details
+#' The LNR model conceptualizes decision-making as a race between two independent accumulators,
+#' each corresponding to a potential choice. Each accumulator's finishing time is drawn from a
+#' LogNormal distribution. The underlying `meanlog` parameter for the LogNormal distribution
+#' for accumulator 0 is `-nuzero`, and for accumulator 1 is `-nuone`. The `sdlog` parameters
+#' are `sigmazero` and `sigmaone` respectively.
+#' The first accumulator to finish determines the choice and the decision time.
+#' The observed reaction time (RT) is the decision time plus the non-decision time (ndt).
+#' Higher values of `nuzero` or `nuone` correspond to faster processing speeds and thus
+#' shorter reaction times for the respective accumulator.
+#'
+#' @references
+#' - Rouder, J. N., Province, J. M., Morey, R. D., Gomez, P., & Heathcote, A. (2015).
+#'   The lognormal race: A cognitive-process model of choice and latency with desirable
+#'   psychometric properties. Psychometrika, 80(2), 491-513.
 #'
 #' @examples
 #' # Simulate data
-#' data <- rlnr(1000, mu = 0, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2)
+#' data <- rlnr(1000, nuzero = 0, nuone = 0.5, sigmazero = 1, sigmaone = 0.8, ndt = 0.2)
 #' hist(data[data$response == 0, "rt"], breaks = 50, main = "Reaction Times", xlab = "RT")
 #' hist(data[data$response == 1, "rt"], breaks = 50, add = TRUE, col = rgb(1, 0, 0, 0.5))
 #'
 #' @export
-rlnr <- function(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, ndt = 0.2) {
-  # --- Input Validation ---
-  if (any(n <= 0 | n != floor(n))) stop("n must be a positive integer.")
-  if (any(sigmazero <= 0)) stop("sigmazero must be positive.")
-  if (any(ndt < 0)) stop("ndt must be non-negative.")
-
-  # --- Vectorization ---
-  # Determine output length based on n and parameter vector lengths
-  param_lengths <- c(length(mu), length(mudelta), length(sigmazero),
-                     length(sigmadelta), length(ndt))
-  n_params <- max(param_lengths)
-  n_out <- max(n, n_params)
-
-  # Recycle parameters to match output length
-  if (n_out > 1) {
-      mu <- rep(mu, length.out = n_out)
-      mudelta <- rep(mudelta, length.out = n_out)
-      sigmazero <- rep(sigmazero, length.out = n_out)
-      sigmadelta <- rep(sigmadelta, length.out = n_out)
-      ndt <- rep(ndt, length.out = n_out)
-  }
+rlnr <- function(n, nuzero = 0, nuone = 0, sigmazero = 1, sigmaone = 1, ndt = 0.2) {
+  # --- Prepare and Validate Parameters ---
+  params <- .prepare_lnr(n = n, nuzero = nuzero, nuone = nuone,
+                         sigmazero = sigmazero, sigmaone = sigmaone, ndt = ndt)
+  n_out <- params$ndraws # Use the determined output length
 
   # --- Simulation ---
-  # Compute the means and standard deviations for both accumulators (vectorized)
-  nu0 <- mu
-  nu1 <- mu + mudelta
-  sigma0 <- sigmazero
-  sigma1 <- sigmazero * exp(sigmadelta)
-
   # Generate log-normal draws for both accumulators (vectorized)
-  # Each column corresponds to an accumulator, each row to a draw/observation
-  draws0 <- stats::rlnorm(n_out, meanlog = nu0, sdlog = sigma0)
-  draws1 <- stats::rlnorm(n_out, meanlog = nu1, sdlog = sigma1)
+  # Use negative nu as meanlog for faster processing with higher nu
+  draws0 <- stats::rlnorm(n_out, meanlog = -params$nuzero, sdlog = params$sigmazero)
+  draws1 <- stats::rlnorm(n_out, meanlog = -params$nuone, sdlog = params$sigmaone)
 
   # Determine responses and reaction times (vectorized)
   response <- ifelse(draws0 < draws1, 0, 1)
   rt_decision <- pmin(draws0, draws1) # Minimum of the two decision times
-  rt <- rt_decision + ndt # Add non-decision time
+  rt <- rt_decision + params$ndt # Add non-decision time
 
   # Return data frame matching the determined output length
   data.frame(rt = rt, response = response)
@@ -96,43 +76,39 @@ rlnr <- function(n, mu = 1, mudelta = 0, sigmazero = 1, sigmadelta = 0, ndt = 0.
 #' @param response The decision indicator (0 or 1). 0 for choice 0, 1 for choice 1.
 #' @param log Logical; if TRUE, returns the log-density. Default: FALSE.
 #' @export
-dlnr <- function(x, mu, mudelta, sigmazero, sigmadelta, ndt, response, log = FALSE) {
+dlnr <- function(x, nuzero, nuone, sigmazero, sigmaone, ndt, response, log = FALSE) {
   eps <- 1e-9 # Tolerance for checking RT > ndt
 
-  # --- Input Validation ---
-  if (any(sigmazero <= 0)) {
-      warning("sigmazero must be positive. Returning 0 density / -Inf log-density.")
-      return(ifelse(log, -Inf, 0))
-  }
-  if (any(ndt < 0)) {
-      warning("ndt must be non-negative. Returning 0 density / -Inf log-density.")
-      return(ifelse(log, -Inf, 0))
-  }
-  # For invalid response, just return 0/-Inf without warning (treat as impossible data)
-  if (any(!response %in% c(0, 1))) {
-      # stop("response must be 0 or 1") # Changed from stop
-      return(ifelse(log, -Inf, 0))
+  # --- Prepare and Validate Parameters ---
+  # Note: Basic parameter validation (positivity, etc.) happens in .prepare_lnr
+  # Response validation (0/1) also happens there.
+  # We still need to handle cases where parameters might lead to NA/Inf density later.
+  params <- tryCatch(
+      .prepare_lnr(x = x, nuzero = nuzero, nuone = nuone,
+                   sigmazero = sigmazero, sigmaone = sigmaone,
+                   ndt = ndt, response = response),
+      error = function(e) {
+          # If basic validation fails (e.g., negative sigma), return 0/-Inf density
+          # Need to determine length based on x if possible, otherwise assume 1
+          len <- if (!is.null(x)) length(x) else 1
+          warning(conditionMessage(e), ". Returning 0 density / -Inf log-density.")
+          return(list(ndraws = len, error = TRUE)) # Signal error state
+      }
+  )
+
+  # If .prepare_lnr signaled an error, return appropriate value
+  if (!is.null(params$error) && params$error) {
+      return(rep(ifelse(log, -Inf, 0), params$ndraws))
   }
 
-
-  # --- Vectorization ---
-  # Recycle vectors to the same length
-  n <- max(length(x), length(mu), length(mudelta), length(sigmazero),
-           length(sigmadelta), length(ndt), length(response))
-
-  x <- rep_len(x, n)
-  mu <- rep_len(mu, n)
-  mudelta <- rep_len(mudelta, n)
-  sigmazero <- rep_len(sigmazero, n)
-  sigmadelta <- rep_len(sigmadelta, n)
-  ndt <- rep_len(ndt, n)
-  response <- rep_len(response, n)
+  n <- params$ndraws # Use the determined length
 
   # --- Calculation ---
   # Compute adjusted reaction times
-  t_adj <- x - ndt
+  t_adj <- params$x - params$ndt
 
   # Initialize log-density vector with -Inf for invalid RTs (t_adj < eps)
+  # or where parameters were invalid (e.g., sigma <= 0, caught by tryCatch earlier)
   log_density <- ifelse(t_adj < eps, -Inf, 0) # Use 0 for now, will add log-densities
 
   # Identify valid RTs for calculation
@@ -143,36 +119,30 @@ dlnr <- function(x, mu, mudelta, sigmazero, sigmadelta, ndt, response, log = FAL
 
   # Subset parameters and adjusted times for valid indices
   t_adj_valid <- t_adj[valid_idx]
-  mu_valid <- mu[valid_idx]
-  mudelta_valid <- mudelta[valid_idx]
-  sigmazero_valid <- sigmazero[valid_idx]
-  sigmadelta_valid <- sigmadelta[valid_idx]
-  response_valid <- response[valid_idx]
-
-  # Precompute accumulator parameters for valid indices
-  nu0 <- mu_valid
-  nu1 <- mu_valid + mudelta_valid
-  sigma0 <- sigmazero_valid
-  sigma1 <- sigmazero_valid * exp(sigmadelta_valid)
+  # Use negative nu as meanlog
+  meanlog0_valid <- -params$nuzero[valid_idx]
+  meanlog1_valid <- -params$nuone[valid_idx]
+  sigmazero_valid <- params$sigmazero[valid_idx]
+  sigmaone_valid <- params$sigmaone[valid_idx]
+  response_valid <- params$response[valid_idx]
 
   # Identify winning and losing parameters based on response
-  nu_win <- ifelse(response_valid == 0, nu0, nu1)
-  sigma_win <- ifelse(response_valid == 0, sigma0, sigma1)
-  nu_loss <- ifelse(response_valid == 0, nu1, nu0)
-  sigma_loss <- ifelse(response_valid == 0, sigma1, sigma0)
+  meanlog_win <- ifelse(response_valid == 0, meanlog0_valid, meanlog1_valid)
+  sigma_win <- ifelse(response_valid == 0, sigmazero_valid, sigmaone_valid)
+  meanlog_loss <- ifelse(response_valid == 0, meanlog1_valid, meanlog0_valid)
+  sigma_loss <- ifelse(response_valid == 0, sigmaone_valid, sigmazero_valid)
 
   # Compute log-density for the winning accumulator (vectorized)
-  log_pdf_win <- stats::dlnorm(t_adj_valid, meanlog = nu_win, sdlog = sigma_win, log = TRUE)
+  log_pdf_win <- stats::dlnorm(t_adj_valid, meanlog = meanlog_win, sdlog = sigma_win, log = TRUE)
 
   # Compute log-survival probability for the losing accumulator (vectorized)
-  log_cdf_loss <- stats::plnorm(t_adj_valid, meanlog = nu_loss, sdlog = sigma_loss, lower.tail = TRUE, log.p = TRUE)
+  log_cdf_loss <- stats::plnorm(t_adj_valid, meanlog = meanlog_loss, sdlog = sigma_loss, lower.tail = TRUE, log.p = TRUE)
   log_surv_loss <- .log1m_exp(log_cdf_loss) # Stable log(1 - p)
 
   # Combine log-density and log-survival probability for valid indices
   log_density[valid_idx] <- log_pdf_win + log_surv_loss
 
   # Handle potential -Inf results from dlnorm/plnorm if parameters were invalid
-  # (although sigmazero check should prevent most)
   log_density[is.na(log_density) | !is.finite(log_density)] <- -Inf
 
   # Return result
@@ -181,4 +151,66 @@ dlnr <- function(x, mu, mudelta, sigmazero, sigmadelta, ndt, response, log = FAL
   } else {
     return(exp(log_density))
   }
+}
+
+
+# Interals ---------------------------------------------------
+
+#' @keywords internal
+.prepare_lnr <- function(n = NULL, x = NULL, nuzero, nuone, sigmazero, sigmaone, ndt, response = NULL) {
+  # --- Basic Validation ---
+  if (any(sigmazero <= 0, na.rm = TRUE)) stop("sigmazero must be positive.")
+  if (any(sigmaone <= 0, na.rm = TRUE)) stop("sigmaone must be positive.")
+  if (any(ndt < 0, na.rm = TRUE)) stop("ndt must be non-negative.")
+  # nu can be any real number, no check needed.
+
+  # --- Determine Target Length ---
+  if (!is.null(n)) {
+    # For RNG (rlnr)
+    if (length(n) != 1 || n <= 0 || n != floor(n)) {
+      stop("n must be a single positive integer.")
+    }
+    m <- n
+    # Check lengths of parameters relative to n only if n > 1
+    if (n > 1) {
+        param_lengths <- c(length(nuzero), length(nuone), length(sigmazero),
+                           length(sigmaone), length(ndt))
+        m <- max(n, param_lengths)
+    } else {
+        m <- 1 # If n=1, output length is 1
+    }
+
+  } else if (!is.null(x)) {
+    # For Density/Likelihood (dlnr)
+    if (is.null(response)) stop("response must be provided for dlnr.")
+    if (any(!response %in% c(0, 1), na.rm = TRUE)) stop("response must contain only 0 or 1.")
+
+    param_lengths <- c(length(x), length(nuzero), length(nuone), length(sigmazero),
+                       length(sigmaone), length(ndt), length(response))
+    m <- max(param_lengths)
+    if (m == 0) stop("At least one input vector (x, response, parameters) must have non-zero length.")
+
+  } else {
+    stop("Internal error: Either 'n' or 'x' must be provided.")
+  }
+
+  # --- Recycle Parameters ---
+  params <- list(
+    nuzero    = rep_len(nuzero, m),
+    nuone     = rep_len(nuone, m),
+    sigmazero = rep_len(sigmazero, m),
+    sigmaone  = rep_len(sigmaone, m),
+    ndt       = rep_len(ndt, m)
+  )
+
+  # --- Add x and response if provided ---
+  if (!is.null(x)) {
+    params$x <- rep_len(x, m)
+  }
+  if (!is.null(response)) {
+    params$response <- rep_len(response, m)
+  }
+
+  params$ndraws <- m
+  params
 }
