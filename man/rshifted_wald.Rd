@@ -12,14 +12,14 @@
 \alias{posterior_epred_shifted_wald}
 \title{Shifted Wald Model (Inverse Gaussian)}
 \usage{
-rshifted_wald(n, nu = 3, alpha = 0.5, ndt = 0.2)
+rshifted_wald(n, drift = 3, bs = 0.5, ndt = 0.2)
 
-dshifted_wald(x, nu = 3, alpha = 0.5, ndt = 0.2, log = FALSE)
+dshifted_wald(x, drift = 3, bs = 0.5, ndt = 0.2, log = FALSE)
 
 pshifted_wald(
   q,
-  nu = 3,
-  alpha = 0.5,
+  drift = 3,
+  bs = 0.5,
   ndt = 0.2,
   lower.tail = TRUE,
   log.p = FALSE
@@ -31,7 +31,7 @@ shifted_wald_stanvars()
 
 shifted_wald(
   link_mu = "log",
-  link_alpha = "log",
+  link_bs = "log",
   link_tau = "logit",
   link_minrt = "identity"
 )
@@ -45,10 +45,10 @@ posterior_epred_shifted_wald(prep)
 \arguments{
 \item{n}{Number of observations. If \code{length(n) > 1}, the length is taken to be the number required.}
 
-\item{nu}{Drift rate. Must be positive. Represents the average speed of evidence accumulation.
+\item{drift}{Drift rate. Must be positive. Represents the average speed of evidence accumulation.
 Range: (0, Inf).}
 
-\item{alpha}{Decision threshold. Must be positive. Represents the amount of evidence needed
+\item{bs}{Decision threshold (boundary separation). Must be positive. Represents the amount of evidence needed
 to make a decision. Range: (0, Inf).}
 
 \item{ndt}{Non-decision time (shift parameter). Must be non-negative. Represents time for
@@ -77,7 +77,7 @@ processes like stimulus encoding and response execution. Range: [0, Inf).}
 Density, distribution function, and random generation for the Shifted Wald
 distribution, also known as the Shifted Inverse Gaussian distribution. This
 distribution is commonly used in modeling reaction times in cognitive tasks.
-It is characterized by a drift rate (\code{nu}), a decision threshold (\code{alpha}),
+It is characterized by a drift rate (\code{drift}), a decision threshold (\code{bs}),
 and a non-decision time (\code{ndt}).
 
 Functions:
@@ -89,33 +89,25 @@ Functions:
 }
 \details{
 The Shifted Wald distribution describes the time it takes for a Wiener diffusion
-process starting at 0 to reach a threshold \code{alpha} > 0, given a positive drift
-rate \code{nu} > 0. The resulting time is then shifted by a non-decision time \code{ndt} >= 0.
+process starting at 0 to reach a threshold \code{bs} > 0, given a positive drift
+rate \code{drift} > 0. The resulting time is then shifted by a non-decision time \code{ndt} >= 0.
 
 The distribution is mathematically equivalent to shifting an Inverse Gaussian
-distribution with mean \code{mu = alpha / nu} and shape parameter \code{lambda = alpha^2}.
-That is, \code{ShiftedWald(nu, alpha, ndt) = InverseGaussian(mean = alpha/nu, shape = alpha^2) + ndt}.
+distribution with mean \code{mu = bs / drift} and shape parameter \code{lambda = bs^2}.
+That is, \code{ShiftedWald(drift, bs, ndt) = InverseGaussian(mean = bs/drift, shape = bs^2) + ndt}.
 
 The random generation algorithm implemented here is based on the method described
 by Michael, Schucany, and Haas (1976), as used in the \code{statmod} package.
 }
 \examples{
 # Simulate 1000 RTs
-rts <- rshifted_wald(1000, nu = 3, alpha = 0.5, ndt = 0.2)
+rts <- rshifted_wald(1000, drift = 3, bs = 0.5, ndt = 0.2)
 hist(rts, breaks = 50, main = "Simulated Shifted Wald RTs", xlab = "Reaction Time")
 
 \dontrun{
-# You can expose the lpdf function as follows:
-if (requireNamespace("cmdstanr", quietly = TRUE)) {
-  sw_lpdf <- shifted_wald_lpdf_expose()
-  # Example call (using nu, alpha, ndt for clarity, map to mu, alpha, tau*minrt)
-  sw_lpdf(Y = 0.5, mu = 3, alpha = 0.5, tau = 0.5, minrt = 0.4) # ndt = 0.2
-}
-}
-\dontrun{
 # Example brms formula using shifted_wald family
 # bf(rt ~ condition + (1|subject),
-#    alpha ~ 1,
+#    bs ~ 1,
 #    tau ~ condition,
 #    minrt ~ 1,  # Often fixed or estimated per subject
 #    family = shifted_wald())

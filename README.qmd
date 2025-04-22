@@ -162,7 +162,7 @@ The Log-Normal Race (LNR) model is useful for modeling reaction times and errors
 #| code-fold: true
 
 # Simulate data using rlnr()
-lnr_data <- rlnr(n = 5000, mu = 1, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2)
+lnr_data <- rlnr(n = 5000, nuzero = 1, nuone = 0.5, sigmazero = 1, sigmaone = 0.5, ndt = 0.2)
 
 # Create histograms for each choice
 ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
@@ -449,7 +449,7 @@ f <- bf(
 
 m_normal <- brm(f,
   data = df[df$response == 0,], 
-  init = 0.5,
+  init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -474,7 +474,7 @@ f <- bf(
 m_exgauss <- brm(f,
   data = df[df$response == 0,], 
   family = exgaussian(), 
-  init = 0.5,
+  init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -522,7 +522,7 @@ saveRDS(m_lognormal, file = "man/figures/m_lognormal.rds")
 
 f <- bf(
   rt ~ 1,
-  alpha ~ 1,
+  bs ~ 1,
   tau ~ 1,
   minrt = min(df$rt),
   family = shifted_wald()
@@ -532,7 +532,7 @@ m_wald <- brm(f,
   data = df[df$response == 0,], 
   family = shifted_wald(), 
   stanvars = shifted_wald_stanvars(),
-  init = 0.5,
+  init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -647,16 +647,16 @@ f <- bf(
   rt | dec(response) ~ 1,
   bs ~ 1,
   bias ~ 1,
-  ndt ~ 1,
-  family = wiener()
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = ddm()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "ndt", ub=min(df$rt))  |> 
-  brms::validate_prior(f, data = df[df$response == 0,]) 
-
 m_ddm <- brm(f,
-  data = df, family = wiener(), 
-  init = \() list(Intercept = 0, Intercept_bs = 0, Intercept_bias = 0, Intercept_ndt = log(0.2)),
+  data = df,
+  init = 0,
+  family = ddm(),
+  stanvars = ddm_stanvars(),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -751,30 +751,18 @@ loo::loo_compare(m_ddm, m_lnr) |>
 #| code-fold: true
 
 
-insight::get_predicted(m_lnr, data = df[1:3, ], iterations = 3, predict = "prediction") |> 
-  as.data.frame()
-
-pred <- estimate_prediction(m_lnr, data = df[1:3, ], iterations = 3, keep_iterations = TRUE) |>
-  as.data.frame()
-    reshape_iterations()
-
-split(pred, pred[["iter_group"]])
+pred <- estimate_prediction(m_lnr, data = df, iterations = 100, keep_iterations = TRUE) |>
+  as.data.frame() |> 
+  reshape_iterations() |> 
+  datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index"))  |>
+  datawizard::data_to_wide(id_cols=c("Row", "iter_group"), values_from="iter_value", names_from="Component")
+pred <- datawizard::data_filter(pred, "rt < 4")
 
 
-pred |> 
-  # datawizard::data_select(select = c("Component", "iter_value", "iter_group", "iter_index")) |> 
-  # datawizard::data_to_wide(id_cols=c("iter_group"), values_from="iter_value", names_from="Component") |> 
-  head()
-  
-dat <- pred[pred$iter_group == 1, ]
-rt <- dat$rt
-respoonse <- dat$response
-
-
-.density_rt_response <- function(rt, response) {
+.density_rt_response <- function(rt, response, length.out = 100) {
   rt_choice0 <- rt[response == 0]
   rt_choice1 <- rt[response == 1]
-  xaxis <- seq(0, max(rt_choice0, rt_choice1)* 1.1, length.out = 1000)
+  xaxis <- seq(0, max(rt_choice0, rt_choice1)* 1.1, length.out = length.out)
   
   insight::check_if_installed("logspline")
   rbind(
@@ -787,23 +775,32 @@ respoonse <- dat$response
   )
 }
 
-density_rt_response <- function(data, rt="rt", response="response", by=NULL) {
+density_rt_response <- function(data, rt="rt", response="response", by=NULL, length.out = 100) {
   if (is.null(by)) {
-    out <- .density_rt_response(data[[rt]], data[[response]])
+    out <- .density_rt_response(data[[rt]], data[[response]], length.out = length.out)
   } else {
     out <- sapply(split(data, data[[by]]), function(x) {
-      .density_rt_response(x[[rt]], x[[response]])
-    }, simplify = FALSE)
-    |>
-      do.call(rbind, .)
-
+      d <- .density_rt_response(x[[rt]], x[[response]], length.out = length.out)
+      d[[by]] <- x[[by]][1]
+      d
+      }, simplify = FALSE)
+    out <- do.call(rbind, out)
+    out[[by]] <- as.factor(out[[by]])
   }
+  out[[response]] <- as.factor(out[[response]])
+  row.names(out) <- NULL
+  out
 }
+
+
   
+dat <- density_rt_response(pred, rt="rt", response="response", by="iter_group")
 
 df |> 
   ggplot(aes(x=rt)) +
-  geom_histogram(data=df[df$response == 0,], aes(y=after_stat(count)), fill="darkgreen", bins=100) +
-  geom_histogram(data=df[df$response == 1,], aes(y=after_stat(-count)), fill="darkred", bins=100) +
+  geom_histogram(data=df[df$response == 0,], aes(y=after_stat(density)), fill="darkgreen", bins=100) +
+  geom_histogram(data=df[df$response == 1,], aes(y=after_stat(-density)), fill="darkred", bins=100) +
+  geom_line(data=dat, aes(x=x, y=y, color = response, group =  interaction(response, iter_group)), alpha=0.1) +
+  scale_color_manual(values = c("green", "red")) +
   theme_minimal()
 ```

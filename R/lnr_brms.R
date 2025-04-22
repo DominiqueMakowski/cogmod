@@ -107,10 +107,11 @@ lnr <- function(link_nuzero = "identity", link_nuone = "identity",
 
 
 
-# # brms --------------------------------------------------------------------
+# brms --------------------------------------------------------------------
 
 #' @rdname rlnr
-#' @importFrom brms get_dpar
+#' @inheritParams rbetagate
+#' @export
 log_lik_lnr <- function(i, prep) {
   # Extract observation (response variable, usually RT)
   y <- prep$data$Y[i]
@@ -148,7 +149,7 @@ log_lik_lnr <- function(i, prep) {
 
 
 #' @rdname rlnr
-#' @inheritParams brms::posterior_predict.brmsfit
+#' @inheritParams rbetagate
 #' @importFrom brms get_dpar
 #' @export
 posterior_predict_lnr <- function(i, prep, ...) {

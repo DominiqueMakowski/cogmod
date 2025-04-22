@@ -62,8 +62,9 @@ unrelated to the decision (e.g., encoding, motor response). Must be non-negative
 
 \item{link_minrt}{Link function for the minrt parameter (minimum RT scale).}
 
-\item{...}{Further arguments passed to \code{\link[brms]{prepare_predictions}}
-that control several aspects of data validation and prediction.}
+\item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
+
+\item{...}{Additional arguments.}
 }
 \description{
 The Log-Normal Race (LNR) model is useful for modeling reaction times and choices in decision-making tasks.
@@ -107,4 +108,11 @@ lnr_lpdf(Y = 0.5, mu = 0.5, nuone = 0.2, sigmazero = 1.0, sigmaone = 0.8,
          tau = 0.4, minrt = 0.2, dec = 0) # ndt = 0.4 * 0.2 = 0.08
 }
 
+}
+\references{
+\itemize{
+\item Rouder, J. N., Province, J. M., Morey, R. D., Gomez, P., & Heathcote, A. (2015).
+The lognormal race: A cognitive-process model of choice and latency with desirable
+psychometric properties. Psychometrika, 80(2), 491-513.
+}
 }

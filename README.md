@@ -83,6 +83,10 @@ ggplot(df, aes(x = value, fill = group)) +
 
 ![](man/figures/unnamed-chunk-2-1.png)
 
+### Beta-Gate
+
+![](man/figures/betagate.png)
+
 ### LNR Model
 
 The Log-Normal Race (LNR) model is useful for modeling reaction times
@@ -96,7 +100,7 @@ the observed reaction time and choice.
 
 ``` r
 # Simulate data using rlnr()
-lnr_data <- rlnr(n = 5000, mu = 1, mudelta = 0.5, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2)
+lnr_data <- rlnr(n = 5000, nuzero = 1, nuone = 0.5, sigmazero = 1, sigmaone = 0.5, ndt = 0.2)
 
 # Create histograms for each choice
 ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
@@ -108,7 +112,7 @@ ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
 
 </details>
 
-![](man/figures/unnamed-chunk-3-1.png)
+![](man/figures/unnamed-chunk-5-1.png)
 
 ## Usage with `brms`
 
@@ -138,7 +142,7 @@ df |>
   theme_minimal()
 ```
 
-![](man/figures/unnamed-chunk-4-1.png)
+![](man/figures/unnamed-chunk-6-1.png)
 
 #### ZOIB Model
 
@@ -319,7 +323,7 @@ insight::get_data(m_zoib) |>
 
 </details>
 
-![](man/figures/unnamed-chunk-10-1.png)
+![](man/figures/unnamed-chunk-12-1.png)
 
 #### Effect Visualisation
 
@@ -368,14 +372,14 @@ p1 / p2
 
 </details>
 
-![](man/figures/unnamed-chunk-11-1.png)
+![](man/figures/unnamed-chunk-13-1.png)
 
 ### Cognitive Tasks
 
 #### Simulate Data
 
 ``` r
-df <- rlnr(n = 2000, mu = 0, mudelta = 0.3, sigmazero = 1, sigmadelta = -0.5, ndt = 0.2) |> 
+df <- rlnr(n = 3000, nuzero = 0.2, nuone = 0, sigmazero = 0.8, sigmaone = 0.5, ndt = 0.2) |> 
   datawizard::data_filter(rt < 5)
 
 df |>
@@ -386,7 +390,7 @@ df |>
   scale_fill_manual(values = c("#009688", "#E91E63"))
 ```
 
-![](man/figures/unnamed-chunk-12-1.png)
+![](man/figures/unnamed-chunk-14-1.png)
 
 #### RT-only Models
 
@@ -403,7 +407,7 @@ f <- bf(
 
 m_normal <- brm(f,
   data = df[df$response == 0,], 
-  init = 0.5,
+  init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -425,7 +429,7 @@ f <- bf(
 m_exgauss <- brm(f,
   data = df[df$response == 0,], 
   family = exgaussian(), 
-  init = 0.5,
+  init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -468,21 +472,17 @@ saveRDS(m_lognormal, file = "man/figures/m_lognormal.rds")
 ``` r
 f <- bf(
   rt ~ 1,
-  alpha ~ 1,
+  bs ~ 1,
   tau ~ 1,
   minrt = min(df$rt),
   family = shifted_wald()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau")  |> 
-  brms::validate_prior(f, data = df[df$response == 0,]) 
-
 m_wald <- brm(f,
   data = df[df$response == 0,], 
-  prior = priors,
   family = shifted_wald(), 
   stanvars = shifted_wald_stanvars(),
-  init = 0.5,
+  init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -545,12 +545,12 @@ loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald) |>
 
     # Fixed Effects
 
-    Name        |   LOOIC |  ENP |     ELPD | Difference | Difference_SE |      p
-    -----------------------------------------------------------------------------
-    m_wald      | 1426.44 | 2.48 |  -713.22 |       0.00 |          0.00 |       
-    m_lognormal | 1431.19 | 2.54 |  -715.59 |      -2.37 |          0.96 | 0.013 
-    m_exgauss   | 1447.76 | 2.79 |  -723.88 |     -10.66 |          2.26 | < .001
-    m_normal    | 2005.83 | 4.01 | -1002.91 |    -289.69 |         25.54 | < .001
+    Name        |   LOOIC |  ENP |    ELPD | Difference | Difference_SE |      p
+    ----------------------------------------------------------------------------
+    m_lognormal | 1014.33 | 2.64 | -507.17 |       0.00 |          0.00 |       
+    m_wald      | 1015.35 | 4.53 | -507.68 |      -0.51 |          2.25 | 0.821 
+    m_exgauss   | 1052.01 | 3.15 | -526.00 |     -18.84 |          3.18 | < .001
+    m_normal    | 1616.12 | 5.14 | -808.06 |    -300.89 |         45.03 | < .001
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -590,7 +590,7 @@ pred |>
 
 </details>
 
-![](man/figures/unnamed-chunk-18-1.png)
+![](man/figures/unnamed-chunk-20-1.png)
 
 #### Decision Making (Choice + RT)
 
@@ -601,16 +601,16 @@ f <- bf(
   rt | dec(response) ~ 1,
   bs ~ 1,
   bias ~ 1,
-  ndt ~ 1,
-  family = wiener()
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = ddm()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "ndt", ub=min(df$rt))  |> 
-  brms::validate_prior(f, data = df[df$response == 0,]) 
-
 m_ddm <- brm(f,
-  data = df, family = wiener(), 
-  init = \() list(Intercept = 0, Intercept_bs = 0, Intercept_bias = 0, Intercept_ndt = log(0.2)),
+  data = df,
+  init = 0,
+  family = ddm(),
+  stanvars = ddm_stanvars(),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -664,9 +664,9 @@ saveRDS(m_lba, file = "man/figures/m_lba.rds")
 ``` r
 f <- bf(
   rt | dec(response) ~ 1,
-  mudelta ~ 1,
+  nuone ~ 1,
   sigmazero ~ 1,
-  sigmadelta ~ 1,
+  sigmaone ~ 1,
   tau ~ 1,
   minrt = min(df$rt),
   family = lnr()
@@ -674,7 +674,7 @@ f <- bf(
 
 m_lnr <- brm(f,
   data = df,
-  init = 1,
+  init = 0,
   family = lnr(),
   stanvars = lnr_stanvars(),
   chains = 4, iter = 500, backend = "cmdstanr"
@@ -699,43 +699,67 @@ loo::loo_compare(m_ddm, m_lnr) |>
 
     Name  |   LOOIC |     ELPD | Difference | Difference_SE |      p
     ----------------------------------------------------------------
-    m_lnr | 5446.91 | -2723.45 |       0.00 |          0.00 |       
-    m_ddm | 5666.33 | -2833.17 |    -109.71 |         13.76 | < .001
+    m_lnr | 6048.62 | -3024.31 |       0.00 |          0.00 |       
+    m_ddm | 6805.52 | -3402.76 |    -378.45 |         33.57 | < .001
 
-<!-- ```{r} -->
-<!-- #| code-fold: true -->
-<!-- insight::get_predicted(m_ddm, iterations = 5, predict = "prediction") |>  -->
-<!--   as.data.frame() |>  -->
-<!--   head() -->
-<!-- estimate_prediction(m_ddm, keep_iterations = 5) |>  -->
-<!--   as.data.frame() |>  -->
-<!--   head() -->
-<!-- pred <- rbind( -->
-<!--   estimate_prediction(m_ddm, keep_iterations = 100) |> -->
-<!--     reshape_iterations() |> -->
-<!--     data_modify(Model = "Normal"), -->
-<!--   estimate_prediction(m_exgauss, keep_iterations = 100) |> -->
-<!--     reshape_iterations() |> -->
-<!--     data_modify(Model = "ExGaussian"), -->
-<!--   estimate_prediction(m_lognormal, keep_iterations = 100) |> -->
-<!--     reshape_iterations() |> -->
-<!--     data_modify(Model = "LogNormal"), -->
-<!--   estimate_prediction(m_wald, keep_iterations = 100) |> -->
-<!--     reshape_iterations() |> -->
-<!--     data_modify(Model = "Wald") -->
-<!--   # estimate_prediction(m_lnr0, keep_iterations = 100) |> -->
-<!--   #   datawizard::data_filter(Component == "rt") |> -->
-<!--   #   datawizard::data_select(-c("Component", "response", "rt")) |>  -->
-<!--   #   reshape_iterations() |> -->
-<!--   #   datawizard::data_modify(Model = "LNR", Residuals = NA) -->
-<!-- ) -->
-<!-- pred |>  -->
-<!--   ggplot(aes(x=iter_value)) + -->
-<!--   geom_histogram(data = df[df$response == 0,], aes(x=rt, y = after_stat(density)),  -->
-<!--                  fill = "black", bins=100) + -->
-<!--   geom_line(aes(color=Model, group=iter_group), stat="density", alpha=0.3) + -->
-<!--   theme_minimal() + -->
-<!--   facet_wrap(~Model) + -->
-<!--   coord_cartesian(xlim = c(0, 5)) + -->
-<!--   see::scale_color_material_d(guide = "none") -->
-<!-- ``` -->
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+pred <- estimate_prediction(m_lnr, data = df, iterations = 100, keep_iterations = TRUE) |>
+  as.data.frame() |> 
+  reshape_iterations() |> 
+  datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index"))  |>
+  datawizard::data_to_wide(id_cols=c("Row", "iter_group"), values_from="iter_value", names_from="Component")
+pred <- datawizard::data_filter(pred, "rt < 4")
+
+
+.density_rt_response <- function(rt, response, length.out = 100) {
+  rt_choice0 <- rt[response == 0]
+  rt_choice1 <- rt[response == 1]
+  xaxis <- seq(0, max(rt_choice0, rt_choice1)* 1.1, length.out = length.out)
+  
+  insight::check_if_installed("logspline")
+  rbind(
+    data.frame(x = xaxis, 
+               y = logspline::dlogspline(xaxis, logspline::logspline(rt_choice0)),
+               response = 0),
+    data.frame(x = xaxis,
+               y = -logspline::dlogspline(xaxis, logspline::logspline(rt_choice1)),
+               response = 1)
+  )
+}
+
+density_rt_response <- function(data, rt="rt", response="response", by=NULL, length.out = 100) {
+  if (is.null(by)) {
+    out <- .density_rt_response(data[[rt]], data[[response]], length.out = length.out)
+  } else {
+    out <- sapply(split(data, data[[by]]), function(x) {
+      d <- .density_rt_response(x[[rt]], x[[response]], length.out = length.out)
+      d[[by]] <- x[[by]][1]
+      d
+      }, simplify = FALSE)
+    out <- do.call(rbind, out)
+    out[[by]] <- as.factor(out[[by]])
+  }
+  out[[response]] <- as.factor(out[[response]])
+  row.names(out) <- NULL
+  out
+}
+
+
+  
+dat <- density_rt_response(pred, rt="rt", response="response", by="iter_group")
+
+df |> 
+  ggplot(aes(x=rt)) +
+  geom_histogram(data=df[df$response == 0,], aes(y=after_stat(density)), fill="darkgreen", bins=100) +
+  geom_histogram(data=df[df$response == 1,], aes(y=after_stat(-density)), fill="darkred", bins=100) +
+  geom_line(data=dat, aes(x=x, y=y, color = response, group =  interaction(response, iter_group)), alpha=0.1) +
+  scale_color_manual(values = c("green", "red")) +
+  theme_minimal()
+```
+
+</details>
+
+![](man/figures/unnamed-chunk-25-1.png)

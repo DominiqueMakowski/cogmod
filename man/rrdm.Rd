@@ -5,9 +5,9 @@
 \alias{drdm}
 \title{Simulate from the Two-Accumulator Racing Diffusion Model (RDM)}
 \usage{
-rrdm(n, vzero, vone, k, A, ndt)
+rrdm(n, vzero, vone, bs, bias, ndt)
 
-drdm(x, vzero, vone, k, A, ndt, log = FALSE)
+drdm(x, vzero, vone, bs, bias, ndt, log = FALSE)
 }
 \arguments{
 \item{n}{Number of trials to simulate. Must be a positive integer.}
@@ -17,12 +17,12 @@ drdm(x, vzero, vone, k, A, ndt, log = FALSE)
 \item{vone}{Drift rate for the second accumulator. Must be a single non-negative number.
 At least one of \code{vzero} or \code{vone} must be positive.}
 
-\item{k}{Threshold parameter, defined as \code{k = b - A}, where \code{b} is the
-decision threshold and \code{A} is the maximum starting point. Must be a single
+\item{bs}{Threshold parameter, defined as \code{bs = b - bias}, where \code{b} is the
+decision threshold and \code{bias} is the maximum starting point. Must be a single
 positive number.}
 
-\item{A}{Maximum starting point parameter. The starting point \code{z} for each
-accumulator on each trial is drawn from \code{Uniform(0, A)}. Must be a single
+\item{bias}{Maximum starting point parameter. The starting point for each
+accumulator on each trial is drawn from \code{Uniform(0, bias)}. Must be a single
 positive number.}
 
 \item{ndt}{Non-decision time (encoding and motor time offset). Must be a
@@ -33,7 +33,7 @@ single non-negative number.}
 \item{log}{Logical; if TRUE, probabilities p are given as log(p).}
 }
 \value{
-A data frame with \code{n} rows and two columns:
+bias data frame with \code{n} rows and two columns:
 \item{rt}{The simulated reaction time (minimum finishing time across the two accumulators).}
 \item{choice}{The index of the winning accumulator (1 for \code{vzero}, 2 for \code{vone}).}
 }
@@ -48,19 +48,19 @@ drift rate to be zero.
 \details{
 The RDM implemented here follows the formulation where the two accumulators
 have drift rates \code{vzero} and \code{vone}. The diffusion process starts at a point \code{z} drawn
-from \code{Uniform(0, A)}. The process terminates when either accumulator reaches
-a threshold \code{b}. The parameter \code{k} is defined as \code{k = b - A}, representing
-the distance from the maximum starting point \code{A} to the threshold \code{b}.
+from \code{Uniform(0, bias)}. The process terminates when either accumulator reaches
+a threshold \code{b}. The parameter \code{bs} is defined as \code{bs = b - bias}, representing
+the distance from the maximum starting point \code{bias} to the threshold \code{b}.
 Therefore, the effective distance to threshold for a given trial is
-\code{alpha = b - z = k + A - z}.
+\code{bs = b - z = bs + bias - z}.
 
-The finishing time for a single accumulator, given its drift rate \code{v}, \code{k}, \code{A}, and \code{ndt},
+The finishing time for a single accumulator, given its drift rate \code{v}, \code{bs}, \code{bias}, and \code{ndt},
 is simulated by:
 \enumerate{
-\item Sampling a starting point \code{z ~ Uniform(0, A)}.
-\item Calculating the distance \code{alpha = k + A - z}.
-\item If \code{v > 0}, simulating the time to reach \code{alpha} from an Inverse Gaussian distribution
-with mean \code{alpha / v} and shape \code{alpha^2}. This simulation uses an
+\item Sampling a starting point \code{z ~ Uniform(0, bias)}.
+\item Calculating the distance \code{bs = bs + bias - z}.
+\item If \code{v > 0}, simulating the time to reach \code{bs} from an Inverse Gaussian distribution
+with mean \code{bs / v} and shape \code{bs^2}. This simulation uses an
 internal implementation based on Michael et al. (1976).
 \item If \code{v = 0}, the finishing time is considered infinite (\code{Inf}).
 \item Adding the non-decision time \code{ndt} to finite finishing times.
@@ -80,13 +80,13 @@ used within their RDM simulation).
 }
 \examples{
 # Basic simulation with two positive drifts
-sim_data_pos <- rrdm(n = 1000, vzero = 0.8, vone = 0.6, k = 0.5, A = 0.2, ndt = 0.15)
+sim_data_pos <- rrdm(n = 1000, vzero = 0.8, vone = 0.6, bs = 0.5, bias = 0.2, ndt = 0.15)
 head(sim_data_pos)
 mean(sim_data_pos$choice == 1) # Proportion of choices for accumulator 1
 hist(sim_data_pos$rt, breaks = 30, main = "Simulated RDM RTs (v>0)")
 
 # Simulation with one drift rate = 0
-sim_data_zero <- rrdm(n = 1000, vzero = 0.8, vone = 0, k = 0.5, A = 0.2, ndt = 0.15)
+sim_data_zero <- rrdm(n = 1000, vzero = 0.8, vone = 0, bs = 0.5, bias = 0.2, ndt = 0.15)
 head(sim_data_zero)
 mean(sim_data_zero$choice == 1) # Should be 1 (or very close due to floating point)
 hist(sim_data_zero$rt, breaks = 30, main = "Simulated RDM RTs (vone=0)")

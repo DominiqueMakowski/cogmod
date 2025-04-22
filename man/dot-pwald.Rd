@@ -4,12 +4,12 @@
 \alias{.pwald}
 \title{Analytical CDF for Wald with Uniform Start Point Variability}
 \usage{
-.pwald(x, nu, k, A, ndt, lower.tail = TRUE, log.p = FALSE)
+.pwald(x, drift, bs, bias, ndt, lower.tail = TRUE, log.p = FALSE)
 }
 \description{
 Calculates the cumulative distribution function (CDF) for the time it takes a
-diffusion process with drift \code{nu}, starting point \code{z ~ U(0, A)}, to reach
-threshold \code{b = k + A}, shifted by \code{ndt}. Based on Tillman et al. (2020).
+diffusion process with drift \code{drift}, starting point \code{z ~ U(0, bias)}, to reach
+threshold \code{b = bs + bias}, shifted by \code{ndt}. Based on Tillman et al. (2020).
 This function calculates the CDF for the \emph{unadjusted} time \code{x}.
 }
 \keyword{internal}

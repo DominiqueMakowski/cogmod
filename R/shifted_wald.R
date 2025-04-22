@@ -4,7 +4,7 @@
 #' Density, distribution function, and random generation for the Shifted Wald
 #' distribution, also known as the Shifted Inverse Gaussian distribution. This
 #' distribution is commonly used in modeling reaction times in cognitive tasks.
-#' It is characterized by a drift rate (`nu`), a decision threshold (`alpha`),
+#' It is characterized by a drift rate (`drift`), a decision threshold (`bs`),
 #' and a non-decision time (`ndt`).
 #'
 #' Functions:
@@ -14,20 +14,20 @@
 #'
 #' @details
 #' The Shifted Wald distribution describes the time it takes for a Wiener diffusion
-#' process starting at 0 to reach a threshold `alpha` > 0, given a positive drift
-#' rate `nu` > 0. The resulting time is then shifted by a non-decision time `ndt` >= 0.
+#' process starting at 0 to reach a threshold `bs` > 0, given a positive drift
+#' rate `drift` > 0. The resulting time is then shifted by a non-decision time `ndt` >= 0.
 #'
 #' The distribution is mathematically equivalent to shifting an Inverse Gaussian
-#' distribution with mean `mu = alpha / nu` and shape parameter `lambda = alpha^2`.
-#' That is, `ShiftedWald(nu, alpha, ndt) = InverseGaussian(mean = alpha/nu, shape = alpha^2) + ndt`.
+#' distribution with mean `mu = bs / drift` and shape parameter `lambda = bs^2`.
+#' That is, `ShiftedWald(drift, bs, ndt) = InverseGaussian(mean = bs/drift, shape = bs^2) + ndt`.
 #'
 #' The random generation algorithm implemented here is based on the method described
 #' by Michael, Schucany, and Haas (1976), as used in the `statmod` package.
 #'
 #' @param n Number of observations. If `length(n) > 1`, the length is taken to be the number required.
-#' @param nu Drift rate. Must be positive. Represents the average speed of evidence accumulation.
+#' @param drift Drift rate. Must be positive. Represents the average speed of evidence accumulation.
 #'   Range: (0, Inf).
-#' @param alpha Decision threshold. Must be positive. Represents the amount of evidence needed
+#' @param bs Decision threshold (boundary separation). Must be positive. Represents the amount of evidence needed
 #'   to make a decision. Range: (0, Inf).
 #' @param ndt Non-decision time (shift parameter). Must be non-negative. Represents time for
 #'   processes like stimulus encoding and response execution. Range: [0, Inf).
@@ -48,17 +48,17 @@
 #'
 #' @examples
 #' # Simulate 1000 RTs
-#' rts <- rshifted_wald(1000, nu = 3, alpha = 0.5, ndt = 0.2)
+#' rts <- rshifted_wald(1000, drift = 3, bs = 0.5, ndt = 0.2)
 #' hist(rts, breaks = 50, main = "Simulated Shifted Wald RTs", xlab = "Reaction Time")
 #'
 #' @export
-rshifted_wald <- function(n, nu = 3, alpha = 0.5, ndt = 0.2) {
+rshifted_wald <- function(n, drift = 3, bs = 0.5, ndt = 0.2) {
   # Prepare and validate all inputs for RNG
-  params <- .prepare_shifted_wald(x = NULL, n = n, nu = nu, alpha = alpha, ndt = ndt)
+  params <- .prepare_shifted_wald(x = NULL, n = n, drift = drift, bs = bs, ndt = ndt)
 
   # Parameters for inverse Gaussian
-  mu     <- params$alpha / params$nu
-  lambda <- params$alpha^2
+  mu     <- params$bs / params$drift
+  lambda <- params$bs^2
 
   # Generate IG draws via the two-root method
   y <- stats::rnorm(params$ndraws)^2
@@ -81,9 +81,9 @@ rshifted_wald <- function(n, nu = 3, alpha = 0.5, ndt = 0.2) {
 #' @param x Vector of quantiles (observed reaction times).
 #' @param log Logical; if TRUE, probabilities p are given as log(p).
 #' @export
-dshifted_wald <- function(x, nu = 3, alpha = 0.5, ndt = 0.2, log = FALSE) {
+dshifted_wald <- function(x, drift = 3, bs = 0.5, ndt = 0.2, log = FALSE) {
   # Prepare and validate inputs for density
-  params <- .prepare_shifted_wald(x = x, n = NULL, nu = nu, alpha = alpha, ndt = ndt)
+  params <- .prepare_shifted_wald(x = x, n = NULL, drift = drift, bs = bs, ndt = ndt)
 
   # Time relative to non-decision component
   x_adj <- params$x - params$ndt
@@ -92,8 +92,8 @@ dshifted_wald <- function(x, nu = 3, alpha = 0.5, ndt = 0.2, log = FALSE) {
   ## Valid indices where x > ndt
   valid <- x_adj > 0
   if (any(valid)) {
-    mu    <- params$alpha[valid] / params$nu[valid]
-    lambda<- params$alpha[valid]^2
+    mu    <- params$bs[valid] / params$drift[valid]
+    lambda<- params$bs[valid]^2
     xa    <- x_adj[valid]
 
     # Standard inverse Gaussian log-PDF
@@ -118,8 +118,8 @@ dshifted_wald <- function(x, nu = 3, alpha = 0.5, ndt = 0.2, log = FALSE) {
 #' @param lower.tail Logical; if TRUE (default), probabilities are `P[X <= x]`, otherwise, `P[X > x]`.
 #' @param log.p Logical; if TRUE, probabilities p are given as log(p). Defaults to FALSE.
 #' @export
-pshifted_wald <- function(q, nu = 3, alpha = 0.5, ndt = 0.2, lower.tail = TRUE, log.p = FALSE) {
-  params <- .prepare_shifted_wald(x = q, n = NULL, nu = nu, alpha = alpha, ndt = ndt)
+pshifted_wald <- function(q, drift = 3, bs = 0.5, ndt = 0.2, lower.tail = TRUE, log.p = FALSE) {
+  params <- .prepare_shifted_wald(x = q, n = NULL, drift = drift, bs = bs, ndt = ndt)
 
   t    <- params$x - params$ndt
   cdf  <- rep(NA_real_, params$ndraws)
@@ -134,8 +134,8 @@ pshifted_wald <- function(q, nu = 3, alpha = 0.5, ndt = 0.2, lower.tail = TRUE, 
   # Remaining finite t > 0
   calc_idx <- (t > 0) & !inf_idx
   if (any(calc_idx)) {
-    mu     <- params$alpha[calc_idx] / params$nu[calc_idx]
-    lambda <- params$alpha[calc_idx]^2
+    mu     <- params$bs[calc_idx] / params$drift[calc_idx]
+    lambda <- params$bs[calc_idx]^2
     tv     <- t[calc_idx]
 
     sqrt_l_t <- sqrt(lambda / tv)
@@ -163,10 +163,10 @@ pshifted_wald <- function(q, nu = 3, alpha = 0.5, ndt = 0.2, lower.tail = TRUE, 
 
 
 #' @keywords internal
-.prepare_shifted_wald <- function(x = NULL, n = NULL, nu, alpha, ndt) {
+.prepare_shifted_wald <- function(x = NULL, n = NULL, drift, bs, ndt) {
   # Validate parameters once
-  if (any(nu <= 0))    stop("Drift rate 'nu' must be positive.")
-  if (any(alpha <= 0)) stop("Threshold 'alpha' must be positive.")
+  if (any(drift <= 0))    stop("Drift rate 'drift' must be positive.")
+  if (any(bs <= 0)) stop("Threshold 'bs' must be positive.")
   if (any(ndt < 0))    stop("Non-decision time 'ndt' must be non-negative.")
 
   # Determine target length:
@@ -185,8 +185,8 @@ pshifted_wald <- function(q, nu = 3, alpha = 0.5, ndt = 0.2, lower.tail = TRUE, 
 
   # Recycle vectors to length m
   params <- list(
-    nu    = rep(nu,    length.out = m),
-    alpha = rep(alpha, length.out = m),
+    drift    = rep(drift,    length.out = m),
+    bs = rep(bs, length.out = m),
     ndt   = rep(ndt,   length.out = m)
   )
 

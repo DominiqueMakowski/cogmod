@@ -4,13 +4,13 @@
 // Log-likelihood for a single observation from the Shifted Wald distribution.
 // Calculation is done directly without a separate inv_gaussian helper.
 // Y: observed reaction time.
-// mu: drift rate (equivalent to nu in R functions). Must be positive.
-// alpha: decision threshold. Must be positive.
+// mu: drift rate (equivalent to drift in R functions). Must be positive.
+// bs: decision threshold. Must be positive.
 // tau: Scale factor for non-decision time (0-1, scaled by minimum RT).
 // minrt: Minimum possible reaction time (used to scale tau).
-real shifted_wald_lpdf(real Y, real mu, real alpha, real tau, real minrt) {
+real shifted_wald_lpdf(real Y, real mu, real bs, real tau, real minrt) {
   // Parameter checks
-  if (mu <= 0 || alpha <= 0 || tau < 0 || tau > 1 || minrt < 0) return negative_infinity();
+  if (mu <= 0 || bs <= 0 || tau < 0 || tau > 1 || minrt < 0) return negative_infinity();
 
   // Compute non-decision time and adjusted time
   real ndt   = tau * minrt;
@@ -18,8 +18,8 @@ real shifted_wald_lpdf(real Y, real mu, real alpha, real tau, real minrt) {
   if (t_adj <= 0) return negative_infinity();
 
   // Inverse-Gaussian parameters
-  real ig_mu     = alpha / mu;
-  real ig_lambda = square(alpha);
+  real ig_mu     = bs / mu;
+  real ig_lambda = square(bs);
 
   // Log-density
   real log_term = 0.5 * (log(ig_lambda) - (log(2) + log(pi())) - 3 * log(t_adj));
@@ -33,15 +33,6 @@ real shifted_wald_lpdf(real Y, real mu, real alpha, real tau, real minrt) {
 
 
 #' @rdname rshifted_wald
-#' @examples
-#' \dontrun{
-#' # You can expose the lpdf function as follows:
-#' if (requireNamespace("cmdstanr", quietly = TRUE)) {
-#'   sw_lpdf <- shifted_wald_lpdf_expose()
-#'   # Example call (using nu, alpha, ndt for clarity, map to mu, alpha, tau*minrt)
-#'   sw_lpdf(Y = 0.5, mu = 3, alpha = 0.5, tau = 0.5, minrt = 0.4) # ndt = 0.2
-#' }
-#' }
 #' @export
 shifted_wald_lpdf_expose <- function() {
   insight::check_if_installed("cmdstanr")
@@ -72,18 +63,18 @@ shifted_wald_stanvars <- function() {
 #' \dontrun{
 #' # Example brms formula using shifted_wald family
 #' # bf(rt ~ condition + (1|subject),
-#' #    alpha ~ 1,
+#' #    bs ~ 1,
 #' #    tau ~ condition,
 #' #    minrt ~ 1,  # Often fixed or estimated per subject
 #' #    family = shifted_wald())
 #' }
-shifted_wald <- function(link_mu = "log", link_alpha = "log",
+shifted_wald <- function(link_mu = "log", link_bs = "log",
                          link_tau = "logit", link_minrt = "identity") {
   brms::custom_family(
     name = "shifted_wald",
-    dpars = c("mu", "alpha", "tau", "minrt"),
-    links = c(link_mu, link_alpha, link_tau, link_minrt),
-    lb = c(0, 0, 0, 0), # Lower bounds: mu>0, alpha>0, tau>=0, minrt>=0
+    dpars = c("mu", "bs", "tau", "minrt"),
+    links = c(link_mu, link_bs, link_tau, link_minrt),
+    lb = c(0, 0, 0, 0), # Lower bounds: mu>0, bs>0, tau>=0, minrt>=0
     ub = c(NA, NA, 1, NA), # Upper bound: tau<=1
     type = "real" # Continuous outcome variable (RT)
   )
@@ -104,7 +95,7 @@ log_lik_shifted_wald <- function(i, prep) {
 
   # Get parameters for observation i across all draws
   mu    <- brms::get_dpar(prep, "mu", i = i)
-  alpha <- brms::get_dpar(prep, "alpha", i = i)
+  bs <- brms::get_dpar(prep, "bs", i = i)
   tau   <- brms::get_dpar(prep, "tau", i = i)
   minrt <- brms::get_dpar(prep, "minrt", i = i) # Get minrt parameter
 
@@ -119,8 +110,8 @@ log_lik_shifted_wald <- function(i, prep) {
   ndt <- tau * minrt
 
   # Calculate log-likelihood using the vectorized dshifted_wald function
-  # Note: dshifted_wald uses 'nu', 'alpha', 'ndt'
-  ll <- dshifted_wald(x = y_vec, nu = mu, alpha = alpha, ndt = ndt, log = TRUE)
+  # Note: dshifted_wald uses 'drift', 'bs', 'ndt'
+  ll <- dshifted_wald(x = y_vec, drift = mu, bs = bs, ndt = ndt, log = TRUE)
 
   # Ensure no NaN/NA values (dshifted_wald should return -Inf for zero density)
   ll[is.nan(ll) | is.na(ll)] <- -Inf
@@ -135,7 +126,7 @@ log_lik_shifted_wald <- function(i, prep) {
 posterior_predict_shifted_wald <- function(i, prep, ...) {
   # Get parameters for observation i across all draws
   mu    <- brms::get_dpar(prep, "mu", i = i)
-  alpha <- brms::get_dpar(prep, "alpha", i = i)
+  bs <- brms::get_dpar(prep, "bs", i = i)
   tau   <- brms::get_dpar(prep, "tau", i = i)
   minrt <- brms::get_dpar(prep, "minrt", i = i)
 
@@ -146,8 +137,8 @@ posterior_predict_shifted_wald <- function(i, prep, ...) {
   ndt <- tau * minrt
 
   # Simulate using rshifted_wald (vectorized)
-  # Note: rshifted_wald uses 'nu', 'alpha', 'ndt'
-  final_out <- rshifted_wald(n = n_draws, nu = mu, alpha = alpha, ndt = ndt)
+  # Note: rshifted_wald uses 'drift', 'bs', 'ndt'
+  final_out <- rshifted_wald(n = n_draws, drift = mu, bs = bs, ndt = ndt)
 
   # Return as a matrix (draws x 1)
   as.matrix(final_out)
@@ -160,7 +151,7 @@ posterior_predict_shifted_wald <- function(i, prep, ...) {
 posterior_epred_shifted_wald <- function(prep) {
   # Extract draws for the necessary parameters (matrices: draws x observations)
   mu    <- brms::get_dpar(prep, "mu")
-  alpha <- brms::get_dpar(prep, "alpha")
+  bs <- brms::get_dpar(prep, "bs")
   tau   <- brms::get_dpar(prep, "tau")
   minrt <- brms::get_dpar(prep, "minrt")
 
@@ -169,8 +160,8 @@ posterior_epred_shifted_wald <- function(prep) {
 
   # Calculate the expectation (mean) for each draw and observation
   # E[ShiftedWald] = E[InverseGaussian] + ndt
-  # E[InverseGaussian(mean=alpha/mu, shape=alpha^2)] = alpha / mu
-  epred <- (alpha / mu) + ndt
+  # E[InverseGaussian(mean=bs/mu, shape=bs^2)] = bs / mu
+  epred <- (bs / mu) + ndt
 
   # Check for potential division by zero or invalid results (should be handled by priors/links)
   epred[!is.finite(epred)] <- NA # Or handle more gracefully if needed
