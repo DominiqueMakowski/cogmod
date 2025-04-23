@@ -88,13 +88,6 @@ betagate_stanvars <- function() {
 #' @rdname rbetagate
 #' @param link_mu,link_phi,link_pex,link_bex Link functions for the parameters.
 #' @export
-#' @examples
-#' \dontrun{
-#' # Default usage:
-#' family = betagate()
-#' # Custom link for phi:
-#' family = betagate(link_phi = "log")
-#' }
 betagate <- function(link_mu = "logit", link_phi = "softplus", link_pex = "logit", link_bex = "logit") {
   brms::custom_family(
     name = "betagate",

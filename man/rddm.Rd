@@ -68,16 +68,12 @@ The 'ddm' family in this package is not a full re-implementation of the DDM, but
 race models in the package.
 }
 \examples{
-\donttest{
-
 # Simulate data
-data <- rddm(1000, drift = 0.2, bs = 1, bias = 0.5, ndt = 0.3)
-hist(data[data$response == 0, "rt"], breaks = 50, main = "Reaction Times", xlab = "RT")
-hist(data[data$response == 1, "rt"], breaks = 50, add = TRUE, col = rgb(1, 0, 0, 0.5))
+# data <- rddm(1000, drift = 0.2, bs = 1, bias = 0.5, ndt = 0.3)
+# hist(data[data$response == 0, "rt"], breaks = 50, main = "Reaction Times", xlab = "RT")
+# hist(data[data$response == 1, "rt"], breaks = 50, add = TRUE, col = rgb(1, 0, 0, 0.5))
 
 # Compute density
-dddm(x = c(0.5, 0.7), drift = 0.2, bs = 1, bias = 0.5, resp = c(0, 1), ndt = 0.3)
-
-}
+# dddm(x = c(0.5, 0.7), drift = 0.2, bs = 1, bias = 0.5, resp = c(0, 1), ndt = 0.3)
 
 }

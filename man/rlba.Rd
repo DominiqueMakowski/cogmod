@@ -140,13 +140,11 @@ This parameter shifts all reaction times by a constant amount.
 }
 }
 \examples{
-lba_data_rel <- rlba(n = 1000, vzero = 3, vdelta = -0.5,
-                     sigmazero = 0.5, sigmadelta = 0,
-                     A = 0.5, k = 0.5, ndt = 0.3)
-hist(lba_data_rel$rt[lba_data_rel$response == 0], breaks = 50,
-     col = rgb(0,0,1,0.5), xlab = "RT", main = "LBA Simulation (Relative Params)")
-hist(lba_data_rel$rt[lba_data_rel$response == 1], breaks = 50,
-     col = rgb(1,0,0,0.5), add = TRUE)
+df <- rlba(n = 1000, vzero = 3, vdelta = -0.5,
+           sigmazero = 0.5, sigmadelta = 0,
+           A = 0.5, k = 0.5, ndt = 0.3)
+hist(df$rt[df$response == 0], breaks = 50, col = rgb(0,0,1,0.5))
+hist(df$rt[df$response == 1], breaks = 50, col = rgb(1,0,0,0.5), add = TRUE)
 
 # You can expose the lpdf function as follows:
 # lba_lpdf <- lba_lpdf_expose()

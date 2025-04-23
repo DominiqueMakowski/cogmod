@@ -42,7 +42,7 @@
 #'
 #' @examples
 #' # Simulate data
-#' data <- rlnr(1000, nuzero = 0, nuone = 0.5, sigmazero = 1, sigmaone = 0.8, ndt = 0.2)
+#' data <- rlnr(1000, nuzero = 1, nuone = 0.5, sigmazero = 1, sigmaone = 0.8, ndt = 0.2)
 #' hist(data[data$response == 0, "rt"], breaks = 50, main = "Reaction Times", xlab = "RT")
 #' hist(data[data$response == 1, "rt"], breaks = 50, add = TRUE, col = rgb(1, 0, 0, 0.5))
 #'

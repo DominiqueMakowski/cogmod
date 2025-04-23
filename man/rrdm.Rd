@@ -79,18 +79,7 @@ speeded decision making. \emph{Psychonomic Bulletin & Review}, \emph{27}, 911-93
 used within their RDM simulation).
 }
 \examples{
-# Basic simulation with two positive drifts
-sim_data_pos <- rrdm(n = 1000, vzero = 0.8, vone = 0.6, bs = 0.5, bias = 0.2, ndt = 0.15)
-head(sim_data_pos)
-mean(sim_data_pos$choice == 1) # Proportion of choices for accumulator 1
-hist(sim_data_pos$rt, breaks = 30, main = "Simulated RDM RTs (v>0)")
-
-# Simulation with one drift rate = 0
-sim_data_zero <- rrdm(n = 1000, vzero = 0.8, vone = 0, bs = 0.5, bias = 0.2, ndt = 0.15)
-head(sim_data_zero)
-mean(sim_data_zero$choice == 1) # Should be 1 (or very close due to floating point)
-hist(sim_data_zero$rt, breaks = 30, main = "Simulated RDM RTs (vone=0)")
-# Note: RT distribution differs from shifted_wald due to starting point variability
+rdm_pos <- rrdm(n = 1000, vzero = 0.8, vone = 0.6, bs = 0.5, bias = 0.2, ndt = 0.15)
 
 }
 \references{
@@ -107,5 +96,5 @@ Statistical Methodology}, \emph{40}(3), 263-275.
 }
 }
 \seealso{
-\code{rshifted_wald}
+\code{rrt_invgaussian}
 }

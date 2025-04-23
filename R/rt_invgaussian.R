@@ -1,4 +1,4 @@
-#' @title Shifted Wald Model (Inverse Gaussian)
+#' @title Inverse Gaussian Model (Shifted Wald)
 #'
 #' @description
 #' Density, distribution function, and random generation for the Shifted Wald
@@ -8,9 +8,9 @@
 #' and a non-decision time (`ndt`).
 #'
 #' Functions:
-#' - `rshifted_wald()`: Simulates random draws from the Shifted Wald model.
-#' - `dshifted_wald()`: Computes the density (likelihood) of the Shifted Wald distribution.
-#' - `pshifted_wald()`: Computes the cumulative distribution function (CDF).
+#' - `rrt_invgaussian()`: Simulates random draws from the Shifted Wald model.
+#' - `drt_invgaussian()`: Computes the density (likelihood) of the Shifted Wald distribution.
+#' - `prt_invgaussian()`: Computes the cumulative distribution function (CDF).
 #'
 #' @details
 #' The Shifted Wald distribution describes the time it takes for a Wiener diffusion
@@ -32,8 +32,6 @@
 #' @param ndt Non-decision time (shift parameter). Must be non-negative. Represents time for
 #'   processes like stimulus encoding and response execution. Range: [0, Inf).
 #'
-#' @return `rshifted_wald` returns a vector of random deviates.
-#'
 #' @references
 #' - Michael, J. R., Schucany, W. R., & Haas, R. W. (1976). Generating Random Variates Using
 #'     Transformations with Multiple Roots. *The American Statistician*, *30*(2), 88–90. \doi{10.2307/2683801}
@@ -48,11 +46,11 @@
 #'
 #' @examples
 #' # Simulate 1000 RTs
-#' rts <- rshifted_wald(1000, drift = 3, bs = 0.5, ndt = 0.2)
-#' hist(rts, breaks = 50, main = "Simulated Shifted Wald RTs", xlab = "Reaction Time")
+#' rts <- rrt_invgaussian(1000, drift = 3, bs = 0.5, ndt = 0.2)
+#' # hist(rts, breaks = 50, main = "Simulated Shifted Wald RTs", xlab = "Reaction Time")
 #'
 #' @export
-rshifted_wald <- function(n, drift = 3, bs = 0.5, ndt = 0.2) {
+rrt_invgaussian <- function(n, drift = 3, bs = 0.5, ndt = 0.2) {
   # Prepare and validate all inputs for RNG
   params <- .prepare_shifted_wald(x = NULL, n = n, drift = drift, bs = bs, ndt = ndt)
 
@@ -77,11 +75,11 @@ rshifted_wald <- function(n, drift = 3, bs = 0.5, ndt = 0.2) {
 
 
 
-#' @rdname rshifted_wald
+#' @rdname rrt_invgaussian
 #' @param x Vector of quantiles (observed reaction times).
 #' @param log Logical; if TRUE, probabilities p are given as log(p).
 #' @export
-dshifted_wald <- function(x, drift = 3, bs = 0.5, ndt = 0.2, log = FALSE) {
+drt_invgaussian <- function(x, drift = 3, bs = 0.5, ndt = 0.2, log = FALSE) {
   # Prepare and validate inputs for density
   params <- .prepare_shifted_wald(x = x, n = NULL, drift = drift, bs = bs, ndt = ndt)
 
@@ -113,12 +111,12 @@ dshifted_wald <- function(x, drift = 3, bs = 0.5, ndt = 0.2, log = FALSE) {
 }
 
 
-#' @rdname rshifted_wald
+#' @rdname rrt_invgaussian
 #' @param q Vector of quantiles (observed reaction times).
 #' @param lower.tail Logical; if TRUE (default), probabilities are `P[X <= x]`, otherwise, `P[X > x]`.
 #' @param log.p Logical; if TRUE, probabilities p are given as log(p). Defaults to FALSE.
 #' @export
-pshifted_wald <- function(q, drift = 3, bs = 0.5, ndt = 0.2, lower.tail = TRUE, log.p = FALSE) {
+prt_invgaussian <- function(q, drift = 3, bs = 0.5, ndt = 0.2, lower.tail = TRUE, log.p = FALSE) {
   params <- .prepare_shifted_wald(x = q, n = NULL, drift = drift, bs = bs, ndt = ndt)
 
   t    <- params$x - params$ndt

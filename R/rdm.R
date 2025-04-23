@@ -67,21 +67,9 @@
 #'     statistical application—a review. *Journal of the Royal Statistical Society Series B:
 #'     Statistical Methodology*, *40*(3), 263-275.
 #'
-#' @seealso `rshifted_wald`
-#'
+#' @seealso `rrt_invgaussian`
 #' @examples
-#' # Basic simulation with two positive drifts
-#' sim_data_pos <- rrdm(n = 1000, vzero = 0.8, vone = 0.6, bs = 0.5, bias = 0.2, ndt = 0.15)
-#' head(sim_data_pos)
-#' mean(sim_data_pos$choice == 1) # Proportion of choices for accumulator 1
-#' hist(sim_data_pos$rt, breaks = 30, main = "Simulated RDM RTs (v>0)")
-#'
-#' # Simulation with one drift rate = 0
-#' sim_data_zero <- rrdm(n = 1000, vzero = 0.8, vone = 0, bs = 0.5, bias = 0.2, ndt = 0.15)
-#' head(sim_data_zero)
-#' mean(sim_data_zero$choice == 1) # Should be 1 (or very close due to floating point)
-#' hist(sim_data_zero$rt, breaks = 30, main = "Simulated RDM RTs (vone=0)")
-#' # Note: RT distribution differs from shifted_wald due to starting point variability
+#' rdm_pos <- rrdm(n = 1000, vzero = 0.8, vone = 0.6, bs = 0.5, bias = 0.2, ndt = 0.15)
 #'
 #' @export
 rrdm <- function(n, vzero, vone, bs, bias, ndt) {
@@ -96,7 +84,7 @@ rrdm <- function(n, vzero, vone, bs, bias, ndt) {
     # Calculate alpha based on bs and bias (no z variability in this simplified case)
     alpha_fixed <- params$bs + params$bias
     return(data.frame(
-      rt = rshifted_wald(n = nobs, drift = params$vone, bs = alpha_fixed, ndt = params$ndt),
+      rt = rrt_invgaussian(n = nobs, drift = params$vone, bs = alpha_fixed, ndt = params$ndt),
       choice = rep(2L, nobs)
     ))
   }
@@ -104,7 +92,7 @@ rrdm <- function(n, vzero, vone, bs, bias, ndt) {
     # Calculate alpha based on bs and bias (no z variability in this simplified case)
     alpha_fixed <- params$bs + params$bias
     return(data.frame(
-      rt = rshifted_wald(n = nobs, drift = params$vzero, bs = alpha_fixed, ndt = params$ndt),
+      rt = rrt_invgaussian(n = nobs, drift = params$vzero, bs = alpha_fixed, ndt = params$ndt),
       choice = rep(1L, nobs)
     ))
   }
@@ -130,16 +118,16 @@ rrdm <- function(n, vzero, vone, bs, bias, ndt) {
   # Prepare non-decision time vector (interleaving ndt_i, ndt_i for each trial i)
   ndt_vec_interleaved <- rep(params$ndt, each = 2) # Length = nobs * 2
 
-  # Simulate finishing times using rshifted_wald
+  # Simulate finishing times using rrt_invgaussian
   # Pass the correctly sized and structured vectors
-  finish_time_vec <- rshifted_wald(n = num_accumulators_total,
+  finish_time_vec <- rrt_invgaussian(n = num_accumulators_total,
                                    drift = v_vec,
                                    bs = alpha_vec,
                                    ndt = ndt_vec_interleaved)
 
   # Ensure the length matches before reshaping (should pass now)
   if (length(finish_time_vec) != num_accumulators_total) {
-    stop("Internal error: Length of finish_time_vec does not match expected size after rshifted_wald.")
+    stop("Internal error: Length of finish_time_vec does not match expected size after rrt_invgaussian.")
   }
 
   # Reshape into a matrix: nobs rows, 2 columns (acc1, acc2)
@@ -162,7 +150,7 @@ rrdm <- function(n, vzero, vone, bs, bias, ndt) {
 
 
 #' @rdname rrdm
-#' @inheritParams rshifted_wald
+#' @inheritParams rrt_invgaussian
 #' @export
 drdm <- function(x, vzero, vone, bs, bias, ndt, log = FALSE) {  
   # Prepare and validate parameters

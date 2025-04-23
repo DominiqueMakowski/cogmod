@@ -392,6 +392,10 @@ df |>
 
 ![](man/figures/unnamed-chunk-14-1.png)
 
+``` r
+dfcorrect <- df[df$response == 0,]
+```
+
 #### RT-only Models
 
 We are going to start with models that only predict the reaction time,
@@ -400,13 +404,16 @@ trials (i.e., the ones with `response == 0`).
 
 ##### Normal
 
+<details class="code-fold">
+<summary>Code</summary>
+
 ``` r
 f <- bf(
   rt ~ 1
 )
 
 m_normal <- brm(f,
-  data = df[df$response == 0,], 
+  data = dfcorrect, 
   init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
@@ -416,7 +423,12 @@ m_normal <- brms::add_criterion(m_normal, "loo")
 saveRDS(m_normal, file = "man/figures/m_normal.rds")
 ```
 
+</details>
+
 ##### ExGaussian
+
+<details class="code-fold">
+<summary>Code</summary>
 
 ``` r
 f <- bf(
@@ -427,7 +439,7 @@ f <- bf(
 )
 
 m_exgauss <- brm(f,
-  data = df[df$response == 0,], 
+  data = dfcorrect, 
   family = exgaussian(), 
   init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
@@ -438,26 +450,30 @@ m_exgauss <- brms::add_criterion(m_exgauss, "loo")
 saveRDS(m_exgauss, file = "man/figures/m_exgauss.rds")
 ```
 
+</details>
+
 ##### Shifted LogNormal
+
+<details class="code-fold">
+<summary>Code</summary>
 
 ``` r
 f <- bf(
   rt ~ 1,
   sigma ~ 1,
-  ndt ~ 1,
-  family = shifted_lognormal(
-    link_sigma = "log",
-    link_ndt = "identity"
-  )
+  tau ~ 1,
+  minrt = min(dfcorrect$rt),
+  family = rt_lognormal()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "ndt", ub=min(df$rt))  |> 
-  brms::validate_prior(f, data = df[df$response == 0,]) 
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
+  brms::validate_prior(f, data = dfcorrect)
 
 m_lognormal <- brm(
   f,
   prior = priors,
-  data = df[df$response == 0,], 
+  data = dfcorrect, 
+  stanvars = rt_lognormal_stanvars(),
   init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
@@ -467,7 +483,12 @@ m_lognormal <- brms::add_criterion(m_lognormal, "loo")
 saveRDS(m_lognormal, file = "man/figures/m_lognormal.rds")
 ```
 
-##### Shifted Wald (Inverse Gaussian)
+</details>
+
+##### Inverse Gaussian (Shifted Wald)
+
+<details class="code-fold">
+<summary>Code</summary>
 
 ``` r
 f <- bf(
@@ -475,13 +496,17 @@ f <- bf(
   bs ~ 1,
   tau ~ 1,
   minrt = min(df$rt),
-  family = shifted_wald()
+  family = rt_invgaussian()
 )
 
-m_wald <- brm(f,
-  data = df[df$response == 0,], 
-  family = shifted_wald(), 
-  stanvars = shifted_wald_stanvars(),
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
+  brms::validate_prior(f, data = dfcorrect)
+
+m_wald <- brm(
+  f,
+  prior = priors,
+  data = dfcorrect, 
+  stanvars = rt_invgaussian_stanvars(),
   init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
@@ -491,36 +516,172 @@ m_wald <- brms::add_criterion(m_wald, "loo")
 saveRDS(m_wald, file = "man/figures/m_wald.rds")
 ```
 
-<!-- ##### Shifted LogNormal (using LNR) -->
-<!-- ```{r} -->
-<!-- #| eval: false -->
-<!-- f <- bf( -->
-<!--   rt | dec(response) ~ 1, -->
-<!--   sigmazero ~ 1, -->
-<!--   tau = ~ 1, -->
-<!--   mudelta = -3, -->
-<!--   sigmadelta = 0, -->
-<!--   minrt = min(df$rt), -->
-<!--   family = lnr() -->
-<!-- ) -->
-<!-- m_lnr0 <- brm( -->
-<!--   f, -->
-<!--   data = df[df$response == 0,],  -->
-<!--   stanvars = lnr_stanvars(), -->
-<!--   init = 0.5, -->
-<!--   chains = 4, iter = 1000, backend = "cmdstanr" -->
-<!-- ) -->
-<!-- # options(error = recover) -->
-<!-- # m_lnr0 <- brms::add_criterion(m_lnr0, "loo", importance_resampling = FALSE)  -->
-<!-- # x <- log_lik(m_lnr0) -->
-<!-- # x[x==Inf] -->
-<!-- # loo::waic(m_lnr0) -->
-<!-- saveRDS(m_lnr0, file = "man/figures/m_lnr0.rds") -->
-<!-- insight::get_predicted(m_lnr0, iterations = 5, predict = "prediction") |>  -->
-<!--   as.data.frame() -->
-<!-- x <- estimate_prediction(m_lnr0, keep_iterations = 5) |>  -->
-<!--   as.data.frame() -->
-<!-- ``` -->
+</details>
+
+##### Weibull
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+f <- bf(
+  rt ~ 1,
+  sigma ~ 1,
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = rt_weibull()
+)
+
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
+  brms::validate_prior(f, data = dfcorrect)
+
+m_weibull <- brm(
+  f,
+  prior = priors,
+  data = dfcorrect, 
+  stanvars = rt_weibull_stanvars(),
+  init = 0,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_weibull <- brms::add_criterion(m_weibull, "loo") 
+
+saveRDS(m_weibull, file = "man/figures/m_weibull.rds")
+```
+
+</details>
+
+##### LogWeibull (Shifted Gumbel)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+f <- bf(
+  rt ~ 1,
+  sigma ~ 1,
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = rt_logweibull()
+)
+
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
+  brms::validate_prior(f, data = dfcorrect)
+
+m_logweibull <- brm(
+  f,
+  prior = priors,
+  data = dfcorrect, 
+  stanvars = rt_logweibull_stanvars(),
+  init = 0,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_logweibull <- brms::add_criterion(m_logweibull, "loo") 
+
+saveRDS(m_logweibull, file = "man/figures/m_logweibull.rds")
+```
+
+</details>
+
+##### Inverse Weibull (Shifted Fréchet)
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+f <- bf(
+  rt ~ 1,
+  sigma ~ 1,
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = rt_invweibull()
+)
+
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
+  brms::validate_prior(f, data = dfcorrect)
+
+m_invweibull <- brm(
+  f,
+  prior = priors,
+  data = dfcorrect, 
+  stanvars = rt_invweibull_stanvars(),
+  init = 0,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_invweibull <- brms::add_criterion(m_invweibull, "loo") 
+
+saveRDS(m_invweibull, file = "man/figures/m_invweibull.rds")
+```
+
+</details>
+
+##### Gamma
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+f <- bf(
+  rt ~ 1,
+  sigma ~ 1,
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = rt_gamma()
+)
+
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
+  brms::validate_prior(f, data = dfcorrect)
+
+m_gamma <- brm(
+  f,
+  prior = priors,
+  data = dfcorrect, 
+  stanvars = rt_gamma_stanvars(),
+  init = 0,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_gamma <- brms::add_criterion(m_gamma, "loo") 
+
+saveRDS(m_gamma, file = "man/figures/m_gamma.rds")
+```
+
+</details>
+
+##### Inverse Gamma
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+f <- bf(
+  rt ~ 1,
+  sigma ~ 1,
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = rt_invgamma()
+)
+
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
+  brms::validate_prior(f, data = dfcorrect)
+
+m_invgamma <- brm(
+  f,
+  prior = priors,
+  data = dfcorrect, 
+  stanvars = rt_invgamma_stanvars(),
+  init = 0,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_invgamma <- brms::add_criterion(m_invgamma, "loo") 
+
+saveRDS(m_invgamma, file = "man/figures/m_invgamma.rds")
+```
+
+</details>
 
 ##### Model Comparison
 
@@ -536,8 +697,15 @@ m_normal <- readRDS("man/figures/m_normal.rds")
 m_exgauss <- readRDS("man/figures/m_exgauss.rds")
 m_lognormal <- readRDS("man/figures/m_lognormal.rds")
 m_wald <- readRDS("man/figures/m_wald.rds")
+m_weibull <- readRDS("man/figures/m_wald.rds")
+m_logweibull <- readRDS("man/figures/m_logweibull.rds")
+m_invweibull <- readRDS("man/figures/m_invweibull.rds")
+m_gamma <- readRDS("man/figures/m_gamma.rds")
+m_invgamma <- readRDS("man/figures/m_invgamma.rds")
 
-loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald) |> 
+loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald, 
+                 m_weibull, m_logweibull, m_invweibull,
+                 m_gamma, m_invgamma) |> 
   parameters(include_ENP = TRUE)
 ```
 
@@ -545,35 +713,56 @@ loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald) |>
 
     # Fixed Effects
 
-    Name        |   LOOIC |  ENP |    ELPD | Difference | Difference_SE |      p
-    ----------------------------------------------------------------------------
-    m_lognormal | 1014.33 | 2.64 | -507.17 |       0.00 |          0.00 |       
-    m_wald      | 1015.35 | 4.53 | -507.68 |      -0.51 |          2.25 | 0.821 
-    m_exgauss   | 1052.01 | 3.15 | -526.00 |     -18.84 |          3.18 | < .001
-    m_normal    | 1616.12 | 5.14 | -808.06 |    -300.89 |         45.03 | < .001
+    Name         |   LOOIC |  ENP |     ELPD | Difference | Difference_SE |      p
+    ------------------------------------------------------------------------------
+    m_wald       |  941.45 | 2.83 |  -470.73 |       0.00 |          0.00 |       
+    m_weibull    |  941.45 | 2.83 |  -470.73 |       0.00 |          0.00 |       
+    m_lognormal  |  942.34 | 2.92 |  -471.17 |      -0.44 |          1.27 | 0.726 
+    m_invgamma   |  957.25 | 2.17 |  -478.63 |      -7.90 |          3.94 | 0.045 
+    m_gamma      |  957.27 | 2.83 |  -478.64 |      -7.91 |          4.11 | 0.054 
+    m_exgauss    |  960.26 | 2.74 |  -480.13 |      -9.41 |          4.08 | 0.021 
+    m_invweibull | 1100.95 | 2.39 |  -550.47 |     -79.75 |         11.04 | < .001
+    m_normal     | 1578.76 | 4.16 |  -789.38 |    -318.65 |         31.17 | < .001
+    m_logweibull | 2628.31 | 1.02 | -1314.15 |    -843.43 |         25.27 | < .001
 
 <details class="code-fold">
 <summary>Code</summary>
 
 ``` r
+# `iterations` controls the actual number of iterations used (e.g., for the point-estimate)
+# and `keep_iterations` the number included.
 pred <- rbind(
-  estimate_prediction(m_normal, keep_iterations = 100) |>
+  estimate_prediction(m_normal, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
     data_modify(Model = "Normal"),
-  estimate_prediction(m_exgauss, keep_iterations = 100) |>
+  estimate_prediction(m_exgauss, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
     data_modify(Model = "ExGaussian"),
-  estimate_prediction(m_lognormal, keep_iterations = 100) |>
+  estimate_prediction(m_lognormal, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
     data_modify(Model = "LogNormal"),
-  estimate_prediction(m_wald, keep_iterations = 100) |>
+  estimate_prediction(m_wald, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
-    data_modify(Model = "Wald")
-  # estimate_prediction(m_lnr0, keep_iterations = 100) |>
-  #   datawizard::data_filter(Component == "rt") |>
-  #   datawizard::data_select(-c("Component", "response", "rt")) |> 
-  #   reshape_iterations() |>
-  #   datawizard::data_modify(Model = "LNR", Residuals = NA)
+    data_modify(Model = "InvGaussian"),
+  estimate_prediction(m_weibull, keep_iterations = 100, iterations = 100) |>
+    reshape_iterations() |>
+    data_modify(Model = "Weibull"),
+  # Fréchet and Gumbel have a very heavy right tail, and can produce very large values
+  # Hence we need to truncate the draws
+  estimate_prediction(m_logweibull, keep_iterations = 100, iterations = 100) |>
+    reshape_iterations() |>
+    data_modify(Model = "LogWeibull") |> 
+    data_filter(iter_value < 5),
+  estimate_prediction(m_invweibull, keep_iterations = 100, iterations = 100) |>
+    reshape_iterations() |>
+    data_modify(Model = "InvWeibull") |> 
+    data_filter(iter_value < 5),
+  estimate_prediction(m_gamma, keep_iterations = 100, iterations = 100) |>
+    reshape_iterations() |>
+    data_modify(Model = "Gamma"),
+  estimate_prediction(m_invgamma, keep_iterations = 100, iterations = 100) |>
+    reshape_iterations() |>
+    data_modify(Model = "InvGamma")
 )
 
 
@@ -590,7 +779,7 @@ pred |>
 
 </details>
 
-![](man/figures/unnamed-chunk-20-1.png)
+![](man/figures/unnamed-chunk-25-1.png)
 
 #### Decision Making (Choice + RT)
 
@@ -762,4 +951,4 @@ df |>
 
 </details>
 
-![](man/figures/unnamed-chunk-25-1.png)
+![](man/figures/unnamed-chunk-30-1.png)

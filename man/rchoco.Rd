@@ -134,17 +134,17 @@ for producing ones more easily, while \code{bex < 0.5} suggests a bias towards z
 # 10\% at mid, 50/50 split otherwise, symmetric confidence/precision
 x1 <- rchoco(n=5000, p = 0.5, confright = 0.5, precright = 4,
   confleft = 0.5, precleft = 4, pex = 0.1, bex = 0.5, pmid = 0, mid = 0.5)
-hist(x1, breaks = 50, main = "CHOCO: Symmetric Confidence/Precision", xlab = "y")
+# hist(x1, breaks = 50, main = "CHOCO: Symmetric Confidence/Precision", xlab = "y")
 
 # No mid mass, 70\% probability on right, higher confidence left (closer to 0)
 x2 <- rchoco(n=5000, p = 0.7, confright = 0.5, precright = 3,
   confleft = 0.8, precleft = 5, pex = 0.15, bex = 0.7, pmid = 0, mid = 0.5)
-hist(x2, breaks = 50, main = "CHOCO: Asymmetric p, Higher Conf Left", xlab = "y")
+# hist(x2, breaks = 50, main = "CHOCO: Asymmetric p, Higher Conf Left", xlab = "y")
 
 # Lower confidence overall (closer to mid), high probability in the middle
 x3 <- rchoco(n=5000, p = 0.5, confright = 0.2, precright = 3,
   confleft = 0.2, precleft = 3, pex = 0, bex = 0.5, pmid = 0.05, mid = 0.5)
-hist(x3, breaks = 50, main = "CHOCO: Low confidence overall", xlab = "y")
+# hist(x3, breaks = 50, main = "CHOCO: Low confidence overall", xlab = "y")
 \dontrun{
 # Example usage in brm formula:
 # bf(y ~ x1 + (1|group),

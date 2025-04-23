@@ -60,15 +60,15 @@
 #' @examples
 #' # Symmetric gates (c0=0.05, c1=0.95), pex=0.1, bex=0.5
 #' x1 <- rbetagate(10000, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5)
-#' hist(x1, breaks=50, main="rbetagate: Symmetric Cutpoints (pex=0.1)")
+#' # hist(x1, breaks=50, main="rbetagate: Symmetric Cutpoints (pex=0.1)")
 #'
 #' # Asymmetric gates (c0=0.15, c1=0.95), pex=0.2, bex=0.25
 #' x2 <- rbetagate(10000, mu = 0.5, phi = 3, pex = 0.2, bex = 0.25)
-#' hist(x2, breaks=50, main="rbetagate: Asymmetric Cutpoints (pex=0.2, bex=0.25)")
+#' # hist(x2, breaks=50, main="rbetagate: Asymmetric Cutpoints (pex=0.2, bex=0.25)")
 #'
 #' # No gating (pure Beta)
 #' x3 <- rbetagate(10000, mu = 0.7, phi = 5, pex = 0, bex = 0.5)
-#' hist(x3, breaks=50, main="rbetagate: No Extreme Values (pex=0)")
+#' # hist(x3, breaks=50, main="rbetagate: No Extreme Values (pex=0)")
 #'
 #' @export
 rbetagate <- function(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5) {

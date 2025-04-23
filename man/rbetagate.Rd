@@ -108,15 +108,15 @@ for producing ones more easily, while \code{bex < 0.5} suggests a bias towards z
 \examples{
 # Symmetric gates (c0=0.05, c1=0.95), pex=0.1, bex=0.5
 x1 <- rbetagate(10000, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5)
-hist(x1, breaks=50, main="rbetagate: Symmetric Cutpoints (pex=0.1)")
+# hist(x1, breaks=50, main="rbetagate: Symmetric Cutpoints (pex=0.1)")
 
 # Asymmetric gates (c0=0.15, c1=0.95), pex=0.2, bex=0.25
 x2 <- rbetagate(10000, mu = 0.5, phi = 3, pex = 0.2, bex = 0.25)
-hist(x2, breaks=50, main="rbetagate: Asymmetric Cutpoints (pex=0.2, bex=0.25)")
+# hist(x2, breaks=50, main="rbetagate: Asymmetric Cutpoints (pex=0.2, bex=0.25)")
 
 # No gating (pure Beta)
 x3 <- rbetagate(10000, mu = 0.7, phi = 5, pex = 0, bex = 0.5)
-hist(x3, breaks=50, main="rbetagate: No Extreme Values (pex=0)")
+# hist(x3, breaks=50, main="rbetagate: No Extreme Values (pex=0)")
 
 x <- seq(0, 1, length.out = 1001)
 densities <- dbetagate(x, mu = 0.5, phi = 5, pex = 0.2, bex = 0.5)
@@ -125,12 +125,6 @@ plot(x, densities, type = "l", main = "Density Function", xlab = "y", ylab = "De
 # betagate_lpdf <- betagate_lpdf_expose()
 # betagate_lpdf(y = 0.5, mu = 0.6, phi = 10, pex = 0.2, bex = 0.5)
 
-\dontrun{
-# Default usage:
-family = betagate()
-# Custom link for phi:
-family = betagate(link_phi = "log")
-}
 }
 \references{
 \itemize{

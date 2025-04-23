@@ -1,5 +1,5 @@
 #' @keywords internal
-.shifted_wald_lpdf <- function() {
+.rt_invgaussian_lpdf <- function() {
 "
 // Log-likelihood for a single observation from the Shifted Wald distribution.
 // Calculation is done directly without a separate inv_gaussian helper.
@@ -8,7 +8,7 @@
 // bs: decision threshold. Must be positive.
 // tau: Scale factor for non-decision time (0-1, scaled by minimum RT).
 // minrt: Minimum possible reaction time (used to scale tau).
-real shifted_wald_lpdf(real Y, real mu, real bs, real tau, real minrt) {
+real rt_invgaussian_lpdf(real Y, real mu, real bs, real tau, real minrt) {
   // Parameter checks
   if (mu <= 0 || bs <= 0 || tau < 0 || tau > 1 || minrt < 0) return negative_infinity();
 
@@ -32,46 +32,36 @@ real shifted_wald_lpdf(real Y, real mu, real bs, real tau, real minrt) {
 }
 
 
-#' @rdname rshifted_wald
+#' @rdname rrt_invgaussian
 #' @export
-shifted_wald_lpdf_expose <- function() {
+rt_invgaussian_lpdf_expose <- function() {
   insight::check_if_installed("cmdstanr")
 
   # Wrap the function Stan block
   stancode <- paste0(
 "functions {
-", .shifted_wald_lpdf(), "
+", .rt_invgaussian_lpdf(), "
 }")
 
   mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(stancode))
   mod$expose_functions()
-  mod$functions$shifted_wald_lpdf
+  mod$functions$rt_invgaussian_lpdf
 }
 
 
-#' @rdname rshifted_wald
+#' @rdname rrt_invgaussian
 #' @export
-shifted_wald_stanvars <- function() {
-  brms::stanvar(scode = .shifted_wald_lpdf(), block = "functions")
+rt_invgaussian_stanvars <- function() {
+  brms::stanvar(scode = .rt_invgaussian_lpdf(), block = "functions")
 }
 
 
-#' @rdname rshifted_wald
-#' @param link_mu,link_alpha,link_tau,link_minrt Link functions.
+#' @rdname rrt_invgaussian
+#' @param link_mu,link_bs,link_tau,link_minrt Link functions for the parameters.
 #' @export
-#' @examples
-#' \dontrun{
-#' # Example brms formula using shifted_wald family
-#' # bf(rt ~ condition + (1|subject),
-#' #    bs ~ 1,
-#' #    tau ~ condition,
-#' #    minrt ~ 1,  # Often fixed or estimated per subject
-#' #    family = shifted_wald())
-#' }
-shifted_wald <- function(link_mu = "log", link_bs = "log",
-                         link_tau = "logit", link_minrt = "identity") {
+rt_invgaussian <- function(link_mu = "softplus", link_bs = "softplus", link_tau = "logit", link_minrt = "identity") {
   brms::custom_family(
-    name = "shifted_wald",
+    name = "rt_invgaussian",
     dpars = c("mu", "bs", "tau", "minrt"),
     links = c(link_mu, link_bs, link_tau, link_minrt),
     lb = c(0, 0, 0, 0), # Lower bounds: mu>0, bs>0, tau>=0, minrt>=0
@@ -83,10 +73,10 @@ shifted_wald <- function(link_mu = "log", link_bs = "log",
 
 # brms methods ------------------------------------------------------------
 
-#' @rdname rshifted_wald
+#' @rdname rrt_invgaussian
 #' @inheritParams rbetagate
 #' @export
-log_lik_shifted_wald <- function(i, prep) {
+log_lik_rt_invgaussian <- function(i, prep, ...) {
   # Extract observation
   # Assuming the response variable is named 'Y' in the data
   if (!"Y" %in% names(prep$data)) stop("Outcome variable 'Y' not found in prep$data.")
@@ -109,21 +99,21 @@ log_lik_shifted_wald <- function(i, prep) {
   # Calculate non-decision time (vectorized)
   ndt <- tau * minrt
 
-  # Calculate log-likelihood using the vectorized dshifted_wald function
-  # Note: dshifted_wald uses 'drift', 'bs', 'ndt'
-  ll <- dshifted_wald(x = y_vec, drift = mu, bs = bs, ndt = ndt, log = TRUE)
+  # Calculate log-likelihood using the vectorized drt_invgaussian function
+  # Note: drt_invgaussian uses 'drift', 'bs', 'ndt'
+  ll <- drt_invgaussian(x = y_vec, drift = mu, bs = bs, ndt = ndt, log = TRUE, ...)
 
-  # Ensure no NaN/NA values (dshifted_wald should return -Inf for zero density)
+  # Ensure no NaN/NA values (drt_invgaussian should return -Inf for zero density)
   ll[is.nan(ll) | is.na(ll)] <- -Inf
 
   ll # Return the vector of log-likelihoods for all draws
 }
 
 
-#' @rdname rshifted_wald
+#' @rdname rrt_invgaussian
 #' @inheritParams rbetagate
 #' @export
-posterior_predict_shifted_wald <- function(i, prep, ...) {
+posterior_predict_rt_invgaussian <- function(i, prep, ...) {
   # Get parameters for observation i across all draws
   mu    <- brms::get_dpar(prep, "mu", i = i)
   bs <- brms::get_dpar(prep, "bs", i = i)
@@ -136,19 +126,19 @@ posterior_predict_shifted_wald <- function(i, prep, ...) {
   # Calculate non-decision time (vectorized)
   ndt <- tau * minrt
 
-  # Simulate using rshifted_wald (vectorized)
-  # Note: rshifted_wald uses 'drift', 'bs', 'ndt'
-  final_out <- rshifted_wald(n = n_draws, drift = mu, bs = bs, ndt = ndt)
+  # Simulate using rrt_invgaussian (vectorized)
+  # Note: rrt_invgaussian uses 'drift', 'bs', 'ndt'
+  final_out <- rrt_invgaussian(n = n_draws, drift = mu, bs = bs, ndt = ndt)
 
   # Return as a matrix (draws x 1)
   as.matrix(final_out)
 }
 
 
-#' @rdname rshifted_wald
+#' @rdname rrt_invgaussian
 #' @inheritParams rbetagate
 #' @export
-posterior_epred_shifted_wald <- function(prep) {
+posterior_epred_rt_invgaussian <- function(prep) {
   # Extract draws for the necessary parameters (matrices: draws x observations)
   mu    <- brms::get_dpar(prep, "mu")
   bs <- brms::get_dpar(prep, "bs")
@@ -162,9 +152,6 @@ posterior_epred_shifted_wald <- function(prep) {
   # E[ShiftedWald] = E[InverseGaussian] + ndt
   # E[InverseGaussian(mean=bs/mu, shape=bs^2)] = bs / mu
   epred <- (bs / mu) + ndt
-
-  # Check for potential division by zero or invalid results (should be handled by priors/links)
-  epred[!is.finite(epred)] <- NA # Or handle more gracefully if needed
 
   epred # Return the matrix of posterior expectations (draws x observations)
 }
