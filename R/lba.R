@@ -63,52 +63,66 @@
 #' hist(df$rt[df$response == 1], breaks = 50, col = rgb(1,0,0,0.5), add = TRUE)
 #'
 #' @export
-rlba <- function(n, vzero = 3, vdelta = 0, sigmazero = 1, sigmadelta = 0, A = 0.5, k = 0.5, ndt = 0.3) {
+rlba <- function(n, 
+                 driftzero = 3, 
+                 driftone = 3, 
+                 sigmazero = 1, 
+                 sigmaone = 1, 
+                 bs = 0.5, 
+                 bias = 0.5, 
+                 ndt = 0.3) {
   # --- Input Validation ---
   if (length(n) != 1 || n <= 0 || n != floor(n))
     stop("n must be a single positive integer.")
-  if (A <= 0 || k <= 0 || sigmazero <= 0 || ndt < 0)
-    stop("A, k, sigmazero must be positive, and ndt must be non-negative.")
-
-  # --- Derived Parameters ---
-  b <- A + k                              # Decision threshold
-  v1 <- vzero + vdelta                    # Mean drift rate for accumulator 1
-  sigma1 <- sigmazero * exp(sigmadelta)     # SD of drift rate for accumulator 1
-
+  if (bias <= 0 || bs <= 0 || sigmazero <= 0 || sigmaone <= 0 || ndt < 0)
+    stop("bias, bs, sigmazero, and sigmaone must be positive, and ndt must be non-negative.")
+  
+  # --- Derived Parameter ---
+  # Decision threshold is defined as the sum of bias and boundary separation.
+  b <- bias + bs
+  
   # --- Drift Rate Sampling ---
+  # Create a matrix to hold drift rates for both accumulators (columns).
   rates_matrix <- matrix(NA_real_, nrow = n, ncol = 2)
   valid_trials <- rep(FALSE, n)
+  
+  # We repeatedly sample drift rates until each trial has at least one positive drift rate.
   while (any(!valid_trials)) {
     remaining <- which(!valid_trials)
     n_remaining <- length(remaining)
-    # Sample drift rates for each accumulator
-    rates_0 <- stats::rnorm(n_remaining, mean = vzero, sd = sigmazero)
-    rates_1 <- stats::rnorm(n_remaining, mean = v1, sd = sigma1)
+    
+    # Sample drift rates independently for each accumulator:
+    rates_0 <- rnorm(n_remaining, mean = driftzero, sd = sigmazero)
+    rates_1 <- rnorm(n_remaining, mean = driftone, sd = sigmaone)
     rates_matrix[remaining, ] <- cbind(rates_0, rates_1)
-    # Valid if at least one accumulator has a positive rate
+    
+    # A trial is valid if at least one accumulator has a positive drift.
     valid_trials[remaining] <- rowSums(rates_matrix[remaining, , drop = FALSE] > 0) > 0
   }
-
-  # --- Starting Points ---
-  start_points <- matrix(stats::runif(n * 2, min = 0, max = A), nrow = n, ncol = 2)
-
+  
+  # --- Starting Points Sampling ---
+  # Starting points are drawn uniformly from [0, bias] for each accumulator.
+  start_points <- matrix(runif(n * 2, min = 0, max = bias), nrow = n, ncol = 2)
+  
   # --- Decision Times Calculation ---
+  # For each accumulator, the decision time is computed as (b - starting_point)/drift_rate.
   decision_times <- (b - start_points) / rates_matrix
-  # Set any trial with non-positive rate (in a given accumulator) to Inf for that accumulator.
+  # If an accumulator’s drift is not positive, set its decision time to Inf.
   decision_times[rates_matrix <= 0] <- Inf
-
+  
   # --- Determine Winner ---
-  # which.min returns the index (1 or 2), convert to 0-based for consistency with other functions.
+  # For each trial, pick the accumulator with the smallest decision time.
+  # Subtract 1 from the index to obtain 0-based response codes (if desired).
   choices <- apply(decision_times, 1, which.min) - 1
   min_decision_times <- apply(decision_times, 1, min)
-
+  
   # --- Reaction Times ---
+  # Overall reaction time is the nondecision time (ndt) plus the minimum decision time.
   rts <- ndt + min_decision_times
-
-  # --- Return as Data Frame ---
+  
+  # --- Return Results as a Data Frame ---
   data.frame(rt = rts, response = choices)
 }
-
 
 
 

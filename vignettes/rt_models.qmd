@@ -15,12 +15,46 @@ format:
 
 ```{r}
 #| label: setup
+#| message: false
+#| warning: false
 
 library(cogmod)
 library(easystats)
 library(ggplot2)
 ```
 
+
+## The Data
+
+For this chapter, we will be using the data from [Wagenmakers et al., (2008)](https://doi.org/10.1016/j.jml.2007.04.006) - Experiment 1 also reanalyzed by [Heathcote & Love (2012)](https://doi.org/10.3389/fpsyg.2012.00292), that contains responses and response times for several participants in two conditions (where instructions emphasized either **speed** or **accuracy**).
+Using the same procedure as the authors, we excluded all trials with uninterpretable response time, i.e., responses that are too fast (<180 ms) or too slow (>2 sec instead of >3 sec).
+
 ```{r}
-plot(1:10)
+#| code-fold: false
+
+set.seed(123)  # For reproducibility
+
+df <- read.csv("https://raw.githubusercontent.com/DominiqueMakowski/CognitiveModels/main/data/wagenmakers2008.csv")
+
+# Show 10 first rows
+head(df, 10)
+```
+
+<!-- In the previous chapter, we modeled the error rate (the probability of making an error) using a logistic model, and observed that it was higher in the `"Speed"` condition.  -->
+<!-- But how about speed?  -->
+We are going to first take interest in the response times (RT) of **Correct** answers only (as we can assume that errors are underpinned by a different *generative process*). 
+
+After filtering out the errors, we create a new column, `Accuracy`, which is the "binarization" of the `Condition` column, and is equal to 1 when the condition is `"Accuracy"` and 0 when it is `"Speed"`.
+
+```{r}
+#| output: false
+
+df <- df[df$Error == 0, ]
+```
+
+
+```{r}
+ggplot(df, aes(x = RT, fill = Condition)) +
+  geom_histogram(bins = 100, alpha = 0.8, position = "identity") +
+  theme_minimal()
 ```
