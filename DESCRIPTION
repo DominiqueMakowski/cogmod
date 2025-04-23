@@ -26,7 +26,10 @@ Suggests:
     testthat,
     cmdstanr,
     knitr,
-    quarto
+    quarto,
+    dplyr,
+    ggplot2,
+    easystats
 Remotes:
     stan-dev/cmdstanr
 Roxygen: list(markdown = TRUE)

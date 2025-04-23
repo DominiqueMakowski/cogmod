@@ -17,6 +17,8 @@ format:
 #| label: setup
 
 library(cogmod)
+library(easystats)
+library(ggplot2)
 ```
 
 ```{r}
