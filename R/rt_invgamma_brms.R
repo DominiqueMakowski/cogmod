@@ -49,12 +49,7 @@ real rt_invgamma_lpdf(real Y, real mu, real sigma, real tau, real minrt) {
 "
 }
 
-#' Expose Stan function for Shifted Inverse Gamma LPDF
-#'
-#' Makes the Stan implementation of the Shifted Inverse Gamma log probability density
-#' function available in R for testing or direct use. Requires `cmdstanr`.
-#'
-#' @return The exposed Stan function `rt_invgamma_lpdf`.
+#' @rdname rt_invgamma
 #' @export
 rt_invgamma_lpdf_expose <- function() {
   insight::check_if_installed("cmdstanr")
@@ -71,12 +66,7 @@ rt_invgamma_lpdf_expose <- function() {
 }
 
 
-#' Stan variables for Shifted Inverse Gamma
-#'
-#' Provides the Stan code block necessary for the Shifted Inverse Gamma distribution
-#' to be used within `brms`.
-#'
-#' @return A `brms::stanvar` object containing the Stan function code.
+#' @rdname rt_invgamma
 #' @export
 rt_invgamma_stanvars <- function() {
   brms::stanvar(scode = .rt_invgamma_lpdf(), block = "functions")
@@ -86,14 +76,8 @@ rt_invgamma_stanvars <- function() {
 
 # brms methods ------------------------------------------------------------
 
-#' Log-likelihood for Shifted Inverse Gamma
-#'
-#' Calculates the log-likelihood for the Shifted Inverse Gamma distribution for
-#' use with `brms`. Uses base R functions.
-#'
-#' @param i Observation index.
-#' @param prep A `brms::brmsprep` object.
-#' @return A vector of log-likelihood values for observation `i` across posterior draws.
+#' @rdname rt_invgamma
+#' @inheritParams lnr
 #' @export
 log_lik_rt_invgamma <- function(i, prep) {
   # Extract observation
@@ -137,15 +121,7 @@ log_lik_rt_invgamma <- function(i, prep) {
 }
 
 
-#' Posterior predictions for Shifted Inverse Gamma
-#'
-#' Generates posterior predictions for the Shifted Inverse Gamma distribution for
-#' use with `brms`. Uses base R functions.
-#'
-#' @param i Observation index.
-#' @param prep A `brms::brmsprep` object.
-#' @param ... Additional arguments (unused).
-#' @return A matrix of posterior predictions (draws x 1).
+#' @rdname rt_invgamma
 #' @export
 posterior_predict_rt_invgamma <- function(i, prep, ...) {
   # Get parameters for observation i across all draws
@@ -173,13 +149,7 @@ posterior_predict_rt_invgamma <- function(i, prep, ...) {
 }
 
 
-#' Posterior expected value for Shifted Inverse Gamma
-#'
-#' Calculates the posterior expected value (mean) for the Shifted Inverse Gamma
-#' distribution for use with `brms`.
-#'
-#' @param prep A `brms::brmsprep` object.
-#' @return A matrix of posterior expected values (draws x observations).
+#' @rdname rt_invgamma
 #' @export
 posterior_epred_rt_invgamma <- function(prep) {
   # Extract draws for the necessary parameters (matrices: draws x observations)

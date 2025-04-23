@@ -2,6 +2,11 @@
 % Please edit documentation in R/rt_invgamma_brms.R
 \name{rt_invgamma}
 \alias{rt_invgamma}
+\alias{rt_invgamma_lpdf_expose}
+\alias{rt_invgamma_stanvars}
+\alias{log_lik_rt_invgamma}
+\alias{posterior_predict_rt_invgamma}
+\alias{posterior_epred_rt_invgamma}
 \title{Shifted Inverse Gamma Model for brms}
 \usage{
 rt_invgamma(
@@ -10,9 +15,23 @@ rt_invgamma(
   link_tau = "logit",
   link_minrt = "identity"
 )
+
+rt_invgamma_lpdf_expose()
+
+rt_invgamma_stanvars()
+
+log_lik_rt_invgamma(i, prep)
+
+posterior_predict_rt_invgamma(i, prep, ...)
+
+posterior_epred_rt_invgamma(prep)
 }
 \arguments{
 \item{link_mu, link_sigma, link_tau, link_minrt}{Link functions for the parameters.}
+
+\item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
+
+\item{...}{Additional arguments.}
 }
 \value{
 A \code{brms::custom_family} object.
