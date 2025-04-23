@@ -10,3 +10,4 @@ README.qmd
 ^papers
 ^vignettes/\.quarto$
 ^vignettes/*_files$
+^vignettes/models/
