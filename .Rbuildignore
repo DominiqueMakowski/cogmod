@@ -8,3 +8,5 @@ README.qmd
 ^pkgdown$
 ^\.github$
 ^papers
+^vignettes/\.quarto$
+^vignettes/*_files$

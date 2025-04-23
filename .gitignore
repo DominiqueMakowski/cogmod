@@ -53,3 +53,4 @@ revdep/data.sqlite
 README.knit.md
 docs
 papers/
+**/.quarto/
