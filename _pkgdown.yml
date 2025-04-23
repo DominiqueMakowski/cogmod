@@ -11,9 +11,11 @@ reference:
       contents:
           - rchoco
     - title: "Decision Making Data (Choice and RT)"
-    - subtitle: "LogNormal Race Model (LNR)"
       contents:
           - rlnr
+          - rlba
+          - rddm
+          - rrdm
     - title: "RT-only Models"
       contents:
           - rt_lognormal
