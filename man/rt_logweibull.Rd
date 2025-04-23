@@ -10,7 +10,7 @@
 \title{Shifted Log-Weibull Model (Gumbel Distribution)}
 \usage{
 rt_logweibull(
-  link_mu = "softplus",
+  link_mu = "identity",
   link_sigma = "softplus",
   link_tau = "logit",
   link_minrt = "identity"

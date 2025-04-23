@@ -67,6 +67,8 @@ ggplot(df, aes(x = RT)) +
 
 ## Models
 
+::: {.panel-tabset}
+
 ### Normal
 
 ```{r}
@@ -340,7 +342,7 @@ saveRDS(m_invgamma, file = "models/m_invgamma.rds")
 ```
 
 
-
+:::
 
 
 ## Model Comparison
