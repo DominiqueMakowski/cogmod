@@ -4,14 +4,22 @@ template:
 
 reference:
     - title: "Subjective Scales Data"
-    - subtitle: "Beta-Extreme (BeXt) Model"
+    - subtitle: "Beta-Gate Model"
       contents:
-          - rbext
+          - rbetagate
     - subtitle: "Choice-Confidence (CHOCO) Model"
       contents:
           - rchoco
     - title: "Decision Making Data (Choice and RT)"
     - subtitle: "LogNormal Race Model (LNR)"
       contents:
-          - rshifted_wald
           - rlnr
+    - title: "RT-only Models"
+      contents:
+          - rt_lognormal
+          - rrt_invgaussian
+          - rt_gamma
+          - rt_invgamma
+          - rt_weibull
+          - rt_logweibull
+          - rt_invweibull
