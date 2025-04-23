@@ -10,13 +10,13 @@
 #' @param link_mu,link_sigma,link_tau,link_minrt Link functions for the parameters.
 #'
 #' @export
-rt_logweibull <- function(link_mu = "softplus", link_sigma = "softplus",
+rt_logweibull <- function(link_mu = "identity", link_sigma = "softplus",
                           link_tau = "logit", link_minrt = "identity") {
   brms::custom_family(
     name = "rt_logweibull", 
     dpars = c("mu", "sigma", "tau", "minrt"), 
     links = c(link_mu, link_sigma, link_tau, link_minrt),
-    lb = c(0, 0, 0, 0), # Lower bounds: mu > 0, sigma > 0, tau >= 0, minrt > 0
+    lb = c(NA, 0, 0, 0), # Lower bounds: mu > 0, sigma > 0, tau >= 0, minrt > 0
     ub = c(NA, NA, 1, NA), # Upper bound: tau <= 1
     type = "real" # Continuous outcome variable (RT)
   )
@@ -33,7 +33,7 @@ rt_logweibull <- function(link_mu = "softplus", link_sigma = "softplus",
 // minrt: Minimum possible reaction time (> 0).
 real rt_logweibull_lpdf(real Y, real mu, real sigma, real tau, real minrt) {
     // Parameter checks
-    if (mu <= 0 || sigma <= 0 || tau < 0 || tau > 1 || minrt <= 0) return negative_infinity();
+    if (sigma <= 0 || tau < 0 || tau > 1 || minrt <= 0) return negative_infinity();
 
     // Compute non-decision time and adjusted time
     real ndt   = tau * minrt;
@@ -142,7 +142,7 @@ posterior_epred_rt_logweibull <- function(prep) {
   minrt <- brms::get_dpar(prep, "minrt")
 
   ndt <- tau * minrt
-  epred <- exp(mu + sigma * 0.5772156649) + ndt
+  epred <- exp(mu + sigma * 0.5772156649) + ndt  # The Euler-Mascheroni constant
 
   epred
 }

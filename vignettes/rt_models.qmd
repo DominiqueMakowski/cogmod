@@ -350,6 +350,7 @@ that CHOCO provides a significantly better fit than the other models.
 
 ```{r}
 #| code-fold: true
+#| eval: false
 
 m_normal <- readRDS("models/m_normal.rds")
 m_exgauss <- readRDS("models/m_exgauss.rds")
@@ -371,6 +372,7 @@ loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
 
 ```{r}
 #| code-fold: true
+#| eval: false
 
 # `iterations` controls the actual number of iterations used (e.g., for the point-estimate)
 # and `keep_iterations` the number included.
@@ -390,16 +392,12 @@ pred <- rbind(
   estimate_prediction(m_weibull, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
     data_modify(Model = "Weibull"),
-  # Fréchet and Gumbel have a very heavy right tail, and can produce very large values
-  # Hence we need to truncate the draws
   estimate_prediction(m_logweibull, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
-    data_modify(Model = "LogWeibull") |>
-    data_filter(iter_value < 2.5),
+    data_modify(Model = "LogWeibull"),
   estimate_prediction(m_invweibull, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
-    data_modify(Model = "InvWeibull") |>
-    data_filter(iter_value < 2.5),
+    data_modify(Model = "InvWeibull"),
   estimate_prediction(m_gamma, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
     data_modify(Model = "Gamma"),
