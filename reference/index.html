@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.12</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.17</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -16,6 +16,10 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+<li class="nav-item dropdown">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/rt_models.html">RT-only Models</a></li>
+  </ul></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
 <li class="nav-item"><a class="nav-link" href="https://github.com/DominiqueMakowski/cogmod/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
@@ -38,7 +42,7 @@
 
     </div><div class="section level2">
 
-      <h3 id="beta-extreme-bext-model">Beta-Extreme (BeXt) Model<a class="anchor" aria-label="anchor" href="#beta-extreme-bext-model"></a></h3>
+      <h3 id="beta-gate-model">Beta-Gate Model<a class="anchor" aria-label="anchor" href="#beta-gate-model"></a></h3>
 
 
 
@@ -49,10 +53,10 @@
 
       <dl><dt>
 
-          <code><a href="rbext.html">rbext()</a></code> <code><a href="rbext.html">dbext()</a></code> <code><a href="rbext.html">bext_lpdf_expose()</a></code> <code><a href="rbext.html">bext_stanvars()</a></code> <code><a href="rbext.html">bext()</a></code> <code><a href="rbext.html">log_lik_bext()</a></code> <code><a href="rbext.html">posterior_predict_bext()</a></code> <code><a href="rbext.html">posterior_epred_bext()</a></code>
+          <code><a href="rbetagate.html">rbetagate()</a></code> <code><a href="rbetagate.html">dbetagate()</a></code> <code><a href="rbetagate.html">betagate_lpdf_expose()</a></code> <code><a href="rbetagate.html">betagate_stanvars()</a></code> <code><a href="rbetagate.html">betagate()</a></code> <code><a href="rbetagate.html">log_lik_betagate()</a></code> <code><a href="rbetagate.html">posterior_predict_betagate()</a></code> <code><a href="rbetagate.html">posterior_epred_betagate()</a></code>
 
         </dt>
-        <dd>Beta-Extreme (BEXT) Model</dd>
+        <dd>Beta-Gate Model</dd>
       </dl></div><div class="section level2">
 
       <h3 id="choice-confidence-choco-model">Choice-Confidence (CHOCO) Model<a class="anchor" aria-label="anchor" href="#choice-confidence-choco-model"></a></h3>
@@ -69,16 +73,10 @@
           <code><a href="rchoco.html">rchoco()</a></code> <code><a href="rchoco.html">dchoco()</a></code> <code><a href="rchoco.html">choco_lpdf_expose()</a></code> <code><a href="rchoco.html">choco_stanvars()</a></code> <code><a href="rchoco.html">choco()</a></code> <code><a href="rchoco.html">log_lik_choco()</a></code> <code><a href="rchoco.html">posterior_predict_choco()</a></code> <code><a href="rchoco.html">posterior_epred_choco()</a></code>
 
         </dt>
-        <dd>Choice-Confidence (CHOCO) Model Simulation</dd>
+        <dd>Choice-Confidence (CHOCO) Model</dd>
       </dl></div><div class="section level2">
       <h2 id="decision-making-data-choice-and-rt-">Decision Making Data (Choice and RT)<a class="anchor" aria-label="anchor" href="#decision-making-data-choice-and-rt-"></a></h2>
 
-
-
-
-    </div><div class="section level2">
-
-      <h3 id="lognormal-race-model-lnr-">LogNormal Race Model (LNR)<a class="anchor" aria-label="anchor" href="#lognormal-race-model-lnr-"></a></h3>
 
 
 
@@ -89,16 +87,81 @@
 
       <dl><dt>
 
-          <code><a href="rshifted_wald.html">rshifted_wald()</a></code> <code><a href="rshifted_wald.html">dshifted_wald()</a></code> <code><a href="rshifted_wald.html">shifted_wald_lpdf_expose()</a></code> <code><a href="rshifted_wald.html">shifted_wald_stanvars()</a></code> <code><a href="rshifted_wald.html">shifted_wald()</a></code> <code><a href="rshifted_wald.html">log_lik_shifted_wald()</a></code> <code><a href="rshifted_wald.html">posterior_predict_shifted_wald()</a></code> <code><a href="rshifted_wald.html">posterior_epred_shifted_wald()</a></code>
-
-        </dt>
-        <dd>Shifted Wald (Shifted Inverse Gaussian) Model Functions</dd>
-      </dl><dl><dt>
-
           <code><a href="rlnr.html">rlnr()</a></code> <code><a href="rlnr.html">dlnr()</a></code> <code><a href="rlnr.html">lnr_lpdf_expose()</a></code> <code><a href="rlnr.html">lnr_stanvars()</a></code> <code><a href="rlnr.html">lnr()</a></code> <code><a href="rlnr.html">log_lik_lnr()</a></code> <code><a href="rlnr.html">posterior_predict_lnr()</a></code> <code><a href="rlnr.html">posterior_epred_lnr()</a></code>
 
         </dt>
         <dd>Log-Normal Race (LNR) Model</dd>
+      </dl><dl><dt>
+
+          <code><a href="rlba.html">rlba()</a></code> <code><a href="rlba.html">dlba()</a></code> <code><a href="rlba.html">lba_lpdf_expose()</a></code> <code><a href="rlba.html">lba_stanvars()</a></code> <code><a href="rlba.html">lba()</a></code> <code><a href="rlba.html">log_lik_lba()</a></code> <code><a href="rlba.html">posterior_predict_lba()</a></code> <code><a href="rlba.html">posterior_epred_lba()</a></code>
+
+        </dt>
+        <dd>Linear Ballistic Accumulator (LBA) Model Simulation</dd>
+      </dl><dl><dt>
+
+          <code><a href="rddm.html">rddm()</a></code> <code><a href="rddm.html">dddm()</a></code> <code><a href="rddm.html">ddm_lpdf_expose()</a></code> <code><a href="rddm.html">ddm_stanvars()</a></code> <code><a href="rddm.html">ddm()</a></code> <code><a href="rddm.html">log_lik_ddm()</a></code> <code><a href="rddm.html">posterior_epred_ddm()</a></code> <code><a href="rddm.html">posterior_predict_ddm()</a></code>
+
+        </dt>
+        <dd>Drift Diffusion Model (DDM)</dd>
+      </dl><dl><dt>
+
+          <code><a href="rrdm.html">rrdm()</a></code> <code><a href="rrdm.html">drdm()</a></code>
+
+        </dt>
+        <dd>Simulate from the Two-Accumulator Racing Diffusion Model (RDM)</dd>
+      </dl></div><div class="section level2">
+      <h2 id="rt-only-models">RT-only Models<a class="anchor" aria-label="anchor" href="#rt-only-models"></a></h2>
+
+
+
+
+    </div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="rt_lognormal.html">rt_lognormal()</a></code> <code><a href="rt_lognormal.html">rt_lognormal_lpdf_expose()</a></code> <code><a href="rt_lognormal.html">rt_lognormal_stanvars()</a></code> <code><a href="rt_lognormal.html">log_lik_rt_lognormal()</a></code> <code><a href="rt_lognormal.html">posterior_predict_rt_lognormal()</a></code> <code><a href="rt_lognormal.html">posterior_epred_rt_lognormal()</a></code>
+
+        </dt>
+        <dd>Shifted Lognormal Model</dd>
+      </dl><dl><dt>
+
+          <code><a href="rrt_invgaussian.html">rrt_invgaussian()</a></code> <code><a href="rrt_invgaussian.html">drt_invgaussian()</a></code> <code><a href="rrt_invgaussian.html">prt_invgaussian()</a></code> <code><a href="rrt_invgaussian.html">rt_invgaussian_lpdf_expose()</a></code> <code><a href="rrt_invgaussian.html">rt_invgaussian_stanvars()</a></code> <code><a href="rrt_invgaussian.html">rt_invgaussian()</a></code> <code><a href="rrt_invgaussian.html">log_lik_rt_invgaussian()</a></code> <code><a href="rrt_invgaussian.html">posterior_predict_rt_invgaussian()</a></code> <code><a href="rrt_invgaussian.html">posterior_epred_rt_invgaussian()</a></code>
+
+        </dt>
+        <dd>Inverse Gaussian Model (Shifted Wald)</dd>
+      </dl><dl><dt>
+
+          <code><a href="rt_gamma.html">rt_gamma()</a></code> <code><a href="rt_gamma.html">rt_gamma_lpdf_expose()</a></code> <code><a href="rt_gamma.html">rt_gamma_stanvars()</a></code> <code><a href="rt_gamma.html">log_lik_rt_gamma()</a></code> <code><a href="rt_gamma.html">posterior_predict_rt_gamma()</a></code> <code><a href="rt_gamma.html">posterior_epred_rt_gamma()</a></code>
+
+        </dt>
+        <dd>Shifted Gamma Model for brms</dd>
+      </dl><dl><dt>
+
+          <code><a href="rt_invgamma.html">rt_invgamma()</a></code> <code><a href="rt_invgamma.html">rt_invgamma_lpdf_expose()</a></code> <code><a href="rt_invgamma.html">rt_invgamma_stanvars()</a></code> <code><a href="rt_invgamma.html">log_lik_rt_invgamma()</a></code> <code><a href="rt_invgamma.html">posterior_predict_rt_invgamma()</a></code> <code><a href="rt_invgamma.html">posterior_epred_rt_invgamma()</a></code>
+
+        </dt>
+        <dd>Shifted Inverse Gamma Model for brms</dd>
+      </dl><dl><dt>
+
+          <code><a href="rt_weibull.html">rt_weibull()</a></code> <code><a href="rt_weibull.html">rt_weibull_lpdf_expose()</a></code> <code><a href="rt_weibull.html">rt_weibull_stanvars()</a></code> <code><a href="rt_weibull.html">log_lik_rt_weibull()</a></code> <code><a href="rt_weibull.html">posterior_predict_rt_weibull()</a></code> <code><a href="rt_weibull.html">posterior_epred_rt_weibull()</a></code>
+
+        </dt>
+        <dd>Shifted Weibull Model</dd>
+      </dl><dl><dt>
+
+          <code><a href="rt_logweibull.html">rt_logweibull()</a></code> <code><a href="rt_logweibull.html">rt_logweibull_lpdf_expose()</a></code> <code><a href="rt_logweibull.html">rt_logweibull_stanvars()</a></code> <code><a href="rt_logweibull.html">log_lik_rt_logweibull()</a></code> <code><a href="rt_logweibull.html">posterior_predict_rt_logweibull()</a></code> <code><a href="rt_logweibull.html">posterior_epred_rt_logweibull()</a></code>
+
+        </dt>
+        <dd>Shifted Log-Weibull Model (Gumbel Distribution)</dd>
+      </dl><dl><dt>
+
+          <code><a href="rt_invweibull.html">rt_invweibull()</a></code> <code><a href="rt_invweibull.html">rt_invweibull_lpdf_expose()</a></code> <code><a href="rt_invweibull.html">rt_invweibull_stanvars()</a></code> <code><a href="rt_invweibull.html">log_lik_rt_invweibull()</a></code> <code><a href="rt_invweibull.html">posterior_predict_rt_invweibull()</a></code> <code><a href="rt_invweibull.html">posterior_epred_rt_invweibull()</a></code>
+
+        </dt>
+        <dd>Shifted Inverse Weibull Model (Fréchet Distribution)</dd>
       </dl></div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
