@@ -194,6 +194,17 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_choco</span>, file <span class="op">=</span> <span class="st">"models/m_choco.rds"</span><span class="op">)</span></span></code></pre></div>
 </div>
+</section></section><section class="level2"><h2 id="model-comparison">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison"></a>
+</h2>
+<section class="level3"><h3 id="model-fit">Model Fit<a class="anchor" aria-label="anchor" href="#model-fit"></a>
+</h3>
+<p>We can compare these models together using the <code>loo</code> package, which shows that CHOCO provides a significantly better fit than the other models.</p>
+<div class="cell">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |&gt; </span></span>
+<span><span class="co">#   parameters(include_ENP = TRUE)</span></span></code></pre></div>
+</details>
+</div>
 </section></section><script id="quarto-html-after-body" type="application/javascript">
 window.document.addEventListener("DOMContentLoaded", function (event) {
   const toggleBodyColorMode = (bsSheetEl) => {
