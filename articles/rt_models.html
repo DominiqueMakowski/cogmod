@@ -136,6 +136,7 @@
 <li><a href="#tabset-1-9">Inverse Gamma</a></li>
 </ul>
 <ul class="nav nav-tabs" id="NA" role="tablist"><li role="presentation" class="nav-item"><button data-bs-toggle="tab" data-bs-target="#NA" id="NA-tab" type="button" role="tab" aria-controls="NA" aria-selected="true" class="active nav-link">
+<p>A basic linear model.</p>
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -386,6 +387,8 @@
 </div>
 </section><section class="level2"><h2 id="model-comparison">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison"></a>
 </h2>
+<section class="level3"><h3 id="model-fit">Model Fit<a class="anchor" aria-label="anchor" href="#model-fit"></a>
+</h3>
 <p>We can compare these models together using the <code>loo</code> package, which shows that CHOCO provides a significantly better fit than the other models.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb14"><pre class="downlit sourceCode r">
@@ -394,10 +397,12 @@
 <span><span class="co">#                  m_gamma, m_invgamma) |&gt;</span></span>
 <span><span class="co">#   parameters(include_ENP = TRUE)</span></span></code></pre></div>
 </div>
+</section><section class="level3"><h3 id="posterior-predictive-check">Posterior Predictive Check<a class="anchor" aria-label="anchor" href="#posterior-predictive-check"></a>
+</h3>
+<p><code>iterations</code> controls the actual number of iterations used (e.g., for the point-estimate) and <code>keep_iterations</code> the number included.</p>
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb15"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># `iterations` controls the actual number of iterations used (e.g., for the point-estimate)</span></span>
-<span><span class="co"># and `keep_iterations` the number included.</span></span>
+<code class="sourceCode R"><span></span>
 <span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_normal</span>, keep_iterations <span class="op">=</span> <span class="fl">100</span>, iterations <span class="op">=</span> <span class="fl">100</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
@@ -427,6 +432,7 @@
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"InvGamma"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
+<span><span class="co">#&gt; Loading required namespace: rstan</span></span>
 <span></span>
 <span></span>
 <span><span class="va">pred</span> <span class="op">|&gt;</span> </span>
@@ -438,9 +444,14 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">Model</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_cartesian.html" class="external-link">coord_cartesian</a></span><span class="op">(</span>xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">see</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/see/reference/scale_color_material.html" class="external-link">scale_color_material_d</a></span><span class="op">(</span>guide <span class="op">=</span> <span class="st">"none"</span><span class="op">)</span></span></code></pre></div>
-</details>
+</details><div class="cell-output-display">
+<div>
+<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-15-1.png" width="672"></p>
+</figure>
 </div>
-</section><script id="quarto-html-after-body" type="application/javascript">
+</div>
+</div>
+</section></section><script id="quarto-html-after-body" type="application/javascript">
 window.document.addEventListener("DOMContentLoaded", function (event) {
   const toggleBodyColorMode = (bsSheetEl) => {
     const mode = bsSheetEl.getAttribute("data-mode");
