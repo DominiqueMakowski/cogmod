@@ -370,10 +370,10 @@ m_invgamma <- readRDS(url(paste0(path, "m_invgamma.rds")))
 ```{r}
 #| code-fold: false
 
-loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
-                 m_weibull, m_logweibull, m_invweibull,
-                 m_gamma, m_invgamma) |>
-  parameters(include_ENP = TRUE)
+# loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
+#                  m_weibull, m_logweibull, m_invweibull,
+#                  m_gamma, m_invgamma) |>
+#   parameters(include_ENP = TRUE)
 ```
 
 
