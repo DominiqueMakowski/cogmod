@@ -25,3 +25,4 @@ reference:
           - rt_weibull
           - rt_logweibull
           - rt_invweibull
+          - rrt_lba

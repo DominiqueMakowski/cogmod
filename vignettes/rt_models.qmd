@@ -393,8 +393,8 @@ rbind(
 ) |> 
   ggplot(aes(x = Model, y = total, fill = Model)) +
   geom_boxplot() +
-  labs(y = "Sampling Duration (min)") +
-  see::scale_fill_material_d(guide = "none") +
+  labs(y = "Sampling Duration (s)") +
+  scale_fill_material_d(guide = "none") +
   # scale_y_log10() +
   theme_minimal() 
 ```
@@ -437,8 +437,7 @@ pred <- rbind(
     data_modify(Model = "InvGamma")
 )
 
-
-pred |> 
+p <- pred |> 
   ggplot(aes(x=iter_value)) +
   geom_histogram(data = df, aes(x=RT, y = after_stat(density), fill = Condition), 
                  position = "identity", bins=120, alpha = 0.8) +
@@ -447,7 +446,15 @@ pred |>
   facet_wrap(~Model) +
   coord_cartesian(xlim = c(0, 2)) +
   scale_fill_manual(values = c("darkgreen", "darkred")) +
-  see::scale_color_material_d(guide = "none") +
-  labs(y = "RT (s)")
+  scale_color_material_d(guide = "none") +
+  labs(x = "RT (s)")
+p
 ```
 
+
+```{r}
+#| echo: false
+#| eval: false
+
+ggsave("../man/figures/rt_models1.png", p, width = 10, height = 8, bg = "white")
+```

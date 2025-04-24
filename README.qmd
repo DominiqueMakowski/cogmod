@@ -39,7 +39,7 @@ if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
 remotes::install_github("DominiqueMakowski/cogmod")
 ```
 
-## Available Distributions 
+## Main Distributions
 
 
 ### CHOCO Model
@@ -121,6 +121,8 @@ ggplot(df, aes(x = value, fill = group)) +
 
 ### Beta-Gate
 
+The Beta-Gate model corresponds to a reparametrized ordered beta model ([Kubinec, 2023](https://doi.org/10.1017/pan.2022.20)). In the ordered Beta model, the extreme values (0 and 1) arise from censoring an underlying latent process based on cutpoints ("gates"). Values falling past the gates are considered extremes (zeros and ones). The difference from the Ordered Beta is the way the cutpoints are defined, as well as the scale of the precision parameter phi.
+
 ```{r}
 #| echo: false
 #| eval: false
@@ -178,243 +180,24 @@ ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
 
 ### Subjective Ratings
 
+- [**See this tutorial**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
 
-#### Simulate Data
-
-```{r}
-#| fig-width: 10
-#| fig-height: 7
-#| warning: false
-#| message: false
-
-options(mc.cores = parallel::detectCores() - 2)
-
-library(easystats)
-library(brms)
-library(cmdstanr)
-
-df <- data.frame()
-for(x in seq(0.1, 0.9, by = 0.1)) {
-  df <- data.frame(x = x,
-                   score = rchoco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3, 
-                                  confleft = 1-x, pex = 0.03, bex = 0.6, pmid = 0)) |> 
-    rbind(df)
-}
-
-df |>
-  ggplot(aes(x = score, y = after_stat(density))) +
-  geom_histogram(bins = 100, fill = "#2196F3") +
-  labs(title = "Rating Distribution", x = "Score", y = "Density") +
-  theme_minimal()
-```
-
-
-#### ZOIB Model
-
-The Zero-One Inflated Beta (ZOIB) model assumes that the data can be modeled as a mixture of two logistic regression processes for the boundary values (0 and 1) and a beta regression process for the continuous proportions in-between.
-
-
-```{r}
-#| eval: false
-
-f <- bf(
-  score ~ x,
-  phi ~ x,
-  zoi ~ x,
-  coi ~ x, 
-  family = zero_one_inflated_beta()
-)
-
-m_zoib <- brm(f,
-  data = df, family = zero_one_inflated_beta(), init = 0,
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_zoib <- brms::add_criterion(m_zoib, "loo")  # For later model comparison
-
-saveRDS(m_zoib, file = "man/figures/m_zoib.rds")
-```
-
-
-#### XBX Model
-
-[Kosmidis & Zeileis (2024)](https://arxiv.org/abs/2409.07233) introduce a generalization of the classic beta regression model with extended support [0, 1]. Specifically, the extended-support beta distribution (`xbeta`) leverages an underlying symmetric four-parameter beta distribution with exceedence parameter nu to obtain support [-nu, 1 + nu] that is subsequently censored to [0, 1] in order to obtain point masses at the boundary values 0 and 1.
-
-```{r}
-#| eval: false
-
-f <- bf(
-  score ~ x,
-  phi ~ x,
-  kappa ~ x, 
-  family = xbeta()
-)
-
-m_xbx <- brm(f,
-  data = df, family = xbeta(), init = 0,
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_xbx <- brms::add_criterion(m_xbx, "loo")  # For later model comparison
-
-saveRDS(m_xbx, file = "man/figures/m_xbx.rds")
-```
-
-
-#### Beta-Gate Model
-
-The [**Beta-Gate model**](https://dominiquemakowski.github.io/cogmod/reference/rbetagate.html) corresponds to a reparametrized Ordered Beta model ([Kubinec, 2023](https://doi.org/10.1017/pan.2022.20)). In this model, observed 0s and 1s represent instances where the underlying continuous response tendency fell beyond lower or upper boundary points ('gates').
-
-```{r}
-#| eval: false
-
-f <- bf(
-  score ~ x,
-  phi ~ x,
-  pex ~ x,
-  bex ~ x, 
-  family = betagate()
-)
-
-m_betagate <- brm(f,
-  data = df, family = betagate(), stanvars = betagate_stanvars(), init = 0,
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_betagate <- brms::add_criterion(m_betagate, "loo")  # For later model comparison
-
-saveRDS(m_betagate, file = "man/figures/m_betagate.rds")
-```
-
-#### CHOCO Model
-
-See the [**documentation**](https://dominiquemakowski.github.io/cogmod/reference/rchoco.html) of the Choice-Confidence (CHOCO).
-
-```{r}
-#| eval: false
-
-f <- bf(
-  score ~ x,
-  confright ~ x,
-  confleft ~ x,
-  precright ~ x,
-  precleft ~ x,
-  pex ~ x,
-  bex ~ x,
-  pmid = 0, 
-  family = choco()
-)
-
-m_choco <- brm(f,
-  data = df, family = choco(), stanvars = choco_stanvars(), init = 0,
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_choco <- brms::add_criterion(m_choco, "loo")  # For later model comparison
-
-saveRDS(m_choco, file = "man/figures/m_choco.rds")
-```
-
-
-#### Model Comparison
-
-We can compare these models together using the `loo` package, which shows
-that CHOCO provides a significantly better fit than the other models.
-
-```{r}
-#| code-fold: true
-
-m_zoib <- readRDS("man/figures/m_zoib.rds")
-m_xbx <- readRDS("man/figures/m_xbx.rds")
-m_betagate <- readRDS("man/figures/m_betagate.rds")
-m_choco <- readRDS("man/figures/m_choco.rds")
-
-loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |> 
-  parameters(include_ENP = TRUE)
-```
-
-Running posterior predictive checks allows to visualize the predicted distributions from various models.
-We can see how typical Beta-related models fail to capture the bimodal nature of the data, which is 
-well captured by the CHOCO model.
-
-
-```{r}
-#| code-fold: true
-
-pred <- rbind(
-  estimate_prediction(m_zoib, keep_iterations = 200) |>
-    reshape_iterations() |>
-    data_modify(Model = "ZOIB"),
-  estimate_prediction(m_xbx, keep_iterations = 200) |>
-    reshape_iterations() |>
-    data_modify(Model = "XBX"),
-  estimate_prediction(m_betagate, keep_iterations = 200) |>
-    reshape_iterations() |>
-    data_modify(Model = "Beta-Gate"),
-  estimate_prediction(m_choco, keep_iterations = 200) |>
-    reshape_iterations() |>
-    data_modify(Model = "CHOCO")
-)
-
-insight::get_data(m_zoib) |>
-  ggplot(aes(x = score, y = after_stat(density))) +
-  geom_histogram(bins = 100, fill = "#2196F3") +
-  labs(title = "Rating Distribution", x = "Score", y = "Density") +
-  theme_minimal() + 
-  geom_histogram(
-    data = pred, aes(x = iter_value, group = as.factor(iter_group)),
-    bins = 100, alpha = 0.02, position = "identity", fill = "#FF5722"
-  ) +
-  facet_wrap(~Model)
-```
-
-
-#### Effect Visualisation
-
-We can see how the predicted distribution changes as a function of **x** and gets "pushed" to the right. 
-Moreover, we can also visualize the effect of **x** on specific parameters, showing that it mostly affects the parameter **conf** (the mean confidence - i.e., central tendency - on the right side), **confleft** (the relative confidence of the left side), and **mu**, which corresponds to the ***p*** probability of answering on the right. This is consistent with our expectations, and reflects 
-the larger and more concentrated mass on the right of the scale for higher value of **x** (in brown).
-
-```{r}
-#| fig-width: 10
-#| fig-height: 8
-#| code-fold: true
-
-p1 <- modelbased::estimate_prediction(m_choco, data = "grid", length = 4, keep_iterations = 500) |> 
-  reshape_iterations() |> 
-  ggplot(aes(x = iter_value, fill = as.factor(x))) +
-  geom_histogram(alpha = 0.6, bins = 100, position = "identity") +
-  scale_fill_bluebrown_d() +
-  theme_minimal()
-
-# Predict various parameters
-pred_params <- data.frame()
-for(param in c("expectation", "confright", "confleft", "precright", "precleft", "pex")) {
-  pred_params <- m_choco |> 
-    modelbased::estimate_prediction(data = "grid", length = 20, predict = param) |>
-    as.data.frame() |> 
-    dplyr::mutate(Parameter = param) |>  # TODO: replace by data_modify after PR
-    rbind(pred_params)
-}
-
-p2 <- pred_params |> 
-  ggplot(aes(x = x, y = Predicted)) +
-  geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Parameter), alpha = 0.2) +
-  geom_line(aes(color = Parameter), linewidth = 1) +
-  facet_wrap(~Parameter, scales = "free_y", ncol=3) +
-  scale_fill_viridis_d() +
-  scale_color_viridis_d() +
-  theme_minimal()
-
-p1 / p2
-```
-
-
+![](man/figures/subjective_ratings1.png)
 
 ### Cognitive Tasks
 
+#### RT-only Models
 
-#### Simulate Data
+- [**See this tutorial**](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html)
+
+![](man/figures/rt_models1.png)
+
+
+#### Decision Making (Choice + RT)
+
+
+
+##### Simulate Data
 
 ```{r}
 #| fig-width: 10
@@ -437,9 +220,6 @@ dfcorrect <- df[df$response == 0,]
 
 
 
-
-
-#### Decision Making (Choice + RT)
 
 
 ##### Drift Diffusion Model (DDM)
@@ -544,6 +324,8 @@ saveRDS(m_lnr, file = "man/figures/m_lnr.rds")
 ##### Model Comparison
 
 ```{r}
+#| eval: false
+
 m_ddm <- readRDS("man/figures/m_ddm.rds")
 m_lnr <- readRDS("man/figures/m_lnr.rds")
 
@@ -552,6 +334,7 @@ loo::loo_compare(m_ddm, m_lnr) |>
 ```
 
 ```{r}
+#| eval: false
 #| code-fold: true
 
 
