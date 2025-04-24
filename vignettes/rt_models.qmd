@@ -55,13 +55,13 @@ We are going to first take interest in the response times (RT) of **Correct** an
 #| output: false
 
 df <- df[df$Error == 0, ]
-df <- df[df$Condition == "Accuracy", ]
 ```
 
 
 ```{r}
-ggplot(df, aes(x = RT)) +
+ggplot(df, aes(x = RT, fill = Condition)) +
   geom_histogram(bins = 120, alpha = 0.8, position = "identity") +
+  scale_fill_manual(values = c("darkgreen", "darkred")) +
   theme_minimal()
 ```
 
@@ -76,7 +76,7 @@ A basic linear model.
 #| code-fold: true
 
 f <- bf(
-  RT ~ 1
+  RT ~ Condition
 )
 
 m_normal <- brm(f,
@@ -99,9 +99,9 @@ saveRDS(m_normal, file = "models/m_normal.rds")
 #| code-fold: true
 
 f <- bf(
-  RT ~ 1,
-  sigma ~ 1,
-  beta ~ 1,
+  RT ~ Condition,
+  sigma ~ Condition,
+  beta ~ Condition,
   family = exgaussian()
 )
 
@@ -125,9 +125,9 @@ saveRDS(m_exgauss, file = "models/m_exgauss.rds")
 #| code-fold: true
 
 f <- bf(
-  RT ~ 1,
-  sigma ~ 1,
-  tau ~ 1,
+  RT ~ Condition,
+  sigma ~ Condition,
+  tau ~ Condition,
   minrt = min(df$RT),
   family = rt_lognormal()
 )
@@ -156,9 +156,9 @@ saveRDS(m_lognormal, file = "models/m_lognormal.rds")
 #| code-fold: true
 
 f <- bf(
-  RT ~ 1,
-  bs ~ 1,
-  tau ~ 1,
+  RT ~ Condition,
+  bs ~ Condition,
+  tau ~ Condition,
   minrt = min(df$RT),
   family = rt_invgaussian()
 )
@@ -188,9 +188,9 @@ saveRDS(m_wald, file = "models/m_wald.rds")
 #| code-fold: true
 
 f <- bf(
-  RT ~ 1,
-  sigma ~ 1,
-  tau ~ 1,
+  RT ~ Condition,
+  sigma ~ Condition,
+  tau ~ Condition,
   minrt = min(df$RT),
   family = rt_weibull()
 )
@@ -220,9 +220,9 @@ saveRDS(m_weibull, file = "models/m_weibull.rds")
 #| code-fold: true
 
 f <- bf(
-  RT ~ 1,
-  sigma ~ 1,
-  tau ~ 1,
+  RT ~ Condition,
+  sigma ~ Condition,
+  tau ~ Condition,
   minrt = min(df$RT),
   family = rt_logweibull()
 )
@@ -252,9 +252,9 @@ saveRDS(m_logweibull, file = "models/m_logweibull.rds")
 #| code-fold: true
 
 f <- bf(
-  RT ~ 1,
-  sigma ~ 1,
-  tau ~ 1,
+  RT ~ Condition,
+  sigma ~ Condition,
+  tau ~ Condition,
   minrt = min(df$RT),
   family = rt_invweibull()
 )
@@ -286,9 +286,9 @@ saveRDS(m_invweibull, file = "models/m_invweibull.rds")
 #| code-fold: true
 
 f <- bf(
-  RT ~ 1,
-  sigma ~ 1,
-  tau ~ 1,
+  RT ~ Condition,
+  sigma ~ Condition,
+  tau ~ Condition,
   minrt = min(df$RT),
   family = rt_gamma()
 )
@@ -317,9 +317,9 @@ saveRDS(m_gamma, file = "models/m_gamma.rds")
 #| code-fold: true
 
 f <- bf(
-  RT ~ 1,
-  sigma ~ 1,
-  tau ~ 1,
+  RT ~ Condition,
+  sigma ~ Condition,
+  tau ~ Condition,
   minrt = min(df$RT),
   family = rt_invgamma()
 )
@@ -376,6 +376,29 @@ m_invgamma <- readRDS(url(paste0(path, "m_invgamma.rds")))
 #   parameters(include_ENP = TRUE)
 ```
 
+
+### Sampling Duration
+
+```{r}
+rbind(
+  data_modify(attributes(m_normal$fit)$metadata$time$chain, Model="Gaussian"),
+  data_modify(attributes(m_exgauss$fit)$metadata$time$chain, Model="ExGaussian"),
+  data_modify(attributes(m_lognormal$fit)$metadata$time$chain, Model="LogNormal"),
+  data_modify(attributes(m_wald$fit)$metadata$time$chain, Model="Wald"),
+  data_modify(attributes(m_weibull$fit)$metadata$time$chain, Model="Weibull"),
+  data_modify(attributes(m_logweibull$fit)$metadata$time$chain, Model="LogWeibull"),
+  data_modify(attributes(m_invweibull$fit)$metadata$time$chain, Model="InvWeibull"),
+  data_modify(attributes(m_gamma$fit)$metadata$time$chain, Model="Gamma"),
+  data_modify(attributes(m_invgamma$fit)$metadata$time$chain, Model="InvGamma")
+) |> 
+  ggplot(aes(x = Model, y = total, fill = Model)) +
+  geom_boxplot() +
+  labs(y = "Sampling Duration (min)") +
+  see::scale_fill_material_d(guide = "none") +
+  # scale_y_log10() +
+  theme_minimal() 
+```
+
 ### Posterior Predictive Check
 
 `iterations` controls the actual number of iterations used (e.g., for the point-estimate) and `keep_iterations` the number included.
@@ -385,31 +408,31 @@ m_invgamma <- readRDS(url(paste0(path, "m_invgamma.rds")))
 
 
 pred <- rbind(
-  estimate_prediction(m_normal, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_normal, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "Normal"),
-  estimate_prediction(m_exgauss, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_exgauss, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "ExGaussian"),
-  estimate_prediction(m_lognormal, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_lognormal, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "LogNormal"),
-  estimate_prediction(m_wald, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_wald, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "InvGaussian"),
-  estimate_prediction(m_weibull, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_weibull, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "Weibull"),
-  estimate_prediction(m_logweibull, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_logweibull, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "LogWeibull"),
-  estimate_prediction(m_invweibull, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_invweibull, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "InvWeibull"),
-  estimate_prediction(m_gamma, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_gamma, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "Gamma"),
-  estimate_prediction(m_invgamma, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_invgamma, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "InvGamma")
 )
@@ -417,12 +440,13 @@ pred <- rbind(
 
 pred |> 
   ggplot(aes(x=iter_value)) +
-  geom_histogram(data = df, aes(x=RT, y = after_stat(density)), 
-                 fill = "black", bins=120) +
-  geom_line(aes(color=Model, group=iter_group), stat="density", alpha=0.3) +
+  geom_histogram(data = df, aes(x=RT, y = after_stat(density), fill = Condition), 
+                 position = "identity", bins=120, alpha = 0.8) +
+  geom_line(aes(color=Model, group=interaction(Condition, iter_group)), stat="density", alpha=0.2) +
   theme_minimal() +
   facet_wrap(~Model) +
   coord_cartesian(xlim = c(0, 2)) +
+  scale_fill_manual(values = c("darkgreen", "darkred")) +
   see::scale_color_material_d(guide = "none") +
   labs(y = "RT (s)")
 ```
