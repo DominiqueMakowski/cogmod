@@ -171,6 +171,8 @@ m_zoib <- readRDS(url(paste0(path, "m_zoib.rds")))
 m_xbx <- readRDS(url(paste0(path, "m_xbx.rds")))
 m_betagate <- readRDS(url(paste0(path, "m_betagate.rds")))
 m_choco <- readRDS(url(paste0(path, "m_choco.rds")))
+
+df <- get_data(m_zoib)
 ```
 
 
@@ -211,26 +213,27 @@ Running posterior predictive checks allows to visualize the predicted distributi
 We can see how typical Beta-related models fail to capture the bimodal nature of the data, which is 
 well captured by the CHOCO model.
 
+Note: `iterations` controls the actual number of iterations used (e.g., for the point-estimate) and `keep_iterations` the number included.
 
 ```{r}
 #| code-fold: true
 
 pred <- rbind(
-  estimate_prediction(m_zoib, keep_iterations = 200) |>
+  estimate_prediction(m_zoib, keep_iterations = 200, iterations = 200) |>
     reshape_iterations() |>
     data_modify(Model = "ZOIB"),
-  estimate_prediction(m_xbx, keep_iterations = 200) |>
+  estimate_prediction(m_xbx, keep_iterations = 200, iterations = 200) |>
     reshape_iterations() |>
     data_modify(Model = "XBX"),
-  estimate_prediction(m_betagate, keep_iterations = 200) |>
+  estimate_prediction(m_betagate, keep_iterations = 200, iterations = 200) |>
     reshape_iterations() |>
     data_modify(Model = "Beta-Gate"),
-  estimate_prediction(m_choco, keep_iterations = 200) |>
+  estimate_prediction(m_choco, keep_iterations = 200, iterations = 200) |>
     reshape_iterations() |>
     data_modify(Model = "CHOCO")
 )
 
-get_data(m_zoib) |>
+df |>
   ggplot(aes(x = score, y = after_stat(density))) +
   geom_histogram(bins = 100, fill = "#2196F3") +
   labs(title = "Rating Distribution", x = "Score", y = "Density") +
