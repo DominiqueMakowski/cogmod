@@ -29,6 +29,12 @@ library(cmdstanr)
 options(mc.cores = parallel::detectCores() - 2)
 ```
 
+```{r}
+#| echo: false
+
+path <- system.file("vignettes", "models", package = "cogmod")
+```
+
 
 ## The Data
 
@@ -46,7 +52,7 @@ df <- df[df$RT > 0.2 & df$Participant %in% c(1, 2, 3), ]
 # Show 10 first rows
 head(df, 10)
 
-print(list.files("vignettes/models/"))
+print(list.files(path))
 ```
 
 <!-- In the previous chapter, we modeled the error rate (the probability of making an error) using a logistic model, and observed that it was higher in the `"Speed"` condition.  -->
