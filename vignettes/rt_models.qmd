@@ -29,12 +29,6 @@ library(cmdstanr)
 options(mc.cores = parallel::detectCores() - 2)
 ```
 
-```{r}
-#| echo: false
-
-path <- system.file("vignettes", "models", package = "cogmod")
-```
-
 
 ## The Data
 
@@ -51,8 +45,6 @@ df <- df[df$RT > 0.2 & df$Participant %in% c(1, 2, 3), ]
 
 # Show 10 first rows
 head(df, 10)
-
-print(list.files(path))
 ```
 
 <!-- In the previous chapter, we modeled the error rate (the probability of making an error) using a logistic model, and observed that it was higher in the `"Speed"` condition.  -->
@@ -359,18 +351,24 @@ We can compare these models together using the `loo` package, which shows
 that CHOCO provides a significantly better fit than the other models.
 
 ```{r}
-#| code-fold: true
-#| eval: false
+#| echo: false
 
-m_normal <- readRDS("models/m_normal.rds")
-m_exgauss <- readRDS("models/m_exgauss.rds")
-m_lognormal <- readRDS("models/m_lognormal.rds")
-m_wald <- readRDS("models/m_wald.rds")
-m_weibull <- readRDS("models/m_wald.rds")
-m_logweibull <- readRDS("models/m_logweibull.rds")
-m_invweibull <- readRDS("models/m_invweibull.rds")
-m_gamma <- readRDS("models/m_gamma.rds")
-m_invgamma <- readRDS("models/m_invgamma.rds")
+path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"
+
+m_normal <- readRDS(url(paste0(path, "m_normal.rds")))
+m_exgauss <- readRDS(url(paste0(path, "m_exgauss.rds")))
+m_lognormal <- readRDS(url(paste0(path, "m_lognormal.rds")))
+m_wald <- readRDS(url(paste0(path, "m_wald.rds")))
+m_weibull <- readRDS(url(paste0(path, "m_weibull.rds")))
+m_logweibull <- readRDS(url(paste0(path, "m_logweibull.rds")))
+m_invweibull <- readRDS(url(paste0(path, "m_invweibull.rds")))
+m_gamma <- readRDS(url(paste0(path, "m_gamma.rds")))
+m_invgamma <- readRDS(url(paste0(path, "m_invgamma.rds")))
+```
+
+
+```{r}
+#| code-fold: false
 
 loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
                  m_weibull, m_logweibull, m_invweibull,
