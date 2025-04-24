@@ -71,6 +71,8 @@ ggplot(df, aes(x = RT)) +
 
 ### Normal
 
+A basic linear model.
+
 ```{r}
 #| eval: false
 #| code-fold: true
@@ -347,6 +349,8 @@ saveRDS(m_invgamma, file = "models/m_invgamma.rds")
 
 ## Model Comparison
 
+### Model Fit
+
 We can compare these models together using the `loo` package, which shows
 that CHOCO provides a significantly better fit than the other models.
 
@@ -376,14 +380,14 @@ m_invgamma <- readRDS(url(paste0(path, "m_invgamma.rds")))
 #   parameters(include_ENP = TRUE)
 ```
 
+### Posterior Predictive Check
 
+`iterations` controls the actual number of iterations used (e.g., for the point-estimate) and `keep_iterations` the number included.
 
 ```{r}
 #| code-fold: true
-#| eval: false
 
-# `iterations` controls the actual number of iterations used (e.g., for the point-estimate)
-# and `keep_iterations` the number included.
+
 pred <- rbind(
   estimate_prediction(m_normal, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
