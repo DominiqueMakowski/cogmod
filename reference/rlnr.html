@@ -31,7 +31,7 @@ log_lik_lnr(): For brms, computes the log-likelihood of observed data.
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.17</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.18</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,6 +43,7 @@ log_lik_lnr(): For brms, computes the log-likelihood of observed data.
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/rt_models.html">RT-only Models</a></li>
+    <li><a class="dropdown-item" href="../articles/subjective_ratings.html">Subjective Ratings</a></li>
   </ul></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -68,7 +69,7 @@ The observed RT includes a non-decision time component (ndt).</p>
 <p>Functions:</p><ul><li><p><code>rlnr()</code>: Simulates random draws from the LNR model.</p></li>
 <li><p><code>dlnr()</code>: Computes the likelihood/density of observed reaction times under the LNR model.</p></li>
 <li><p><code>lnr()</code>: Creates a custom family to be used with <code>brms</code>.</p></li>
-<li><p><code>lnr_stanvars()</code>: For <code>brms</code>, generates a <code>stanvars</code> object to pass to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code> when fitting the model.</p></li>
+<li><p><code>lnr_stanvars()</code>: For <code>brms</code>, generates a <code>stanvars</code> object to pass to <code>brm()</code> when fitting the model.</p></li>
 <li><p><code>posterior_predict_lnr()</code>: For <code>brms</code>, simulates predicted outcomes using sampled parameters.</p></li>
 <li><p><code>log_lik_lnr()</code>: For <code>brms</code>, computes the log-likelihood of observed data.</p></li>
 </ul></div>

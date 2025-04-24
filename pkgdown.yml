@@ -3,7 +3,8 @@ pkgdown: 2.1.1
 pkgdown_sha: ~
 articles:
   rt_models: rt_models.html
-last_built: 2025-04-24T14:06Z
+  subjective_ratings: subjective_ratings.html
+last_built: 2025-04-24T19:40Z
 urls:
   reference: https://github.com/DominiqueMakowski/cogmod/reference
   article: https://github.com/DominiqueMakowski/cogmod/articles
