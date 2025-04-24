@@ -214,7 +214,6 @@ well captured by the CHOCO model.
 
 ```{r}
 #| code-fold: true
-#| eval: false
 
 pred <- rbind(
   estimate_prediction(m_zoib, keep_iterations = 200) |>
