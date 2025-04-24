@@ -13,25 +13,26 @@
 \usage{
 rlba(
   n,
-  vzero = 3,
-  vdelta = 0,
+  driftzero = 3,
+  driftone = 3,
   sigmazero = 1,
-  sigmadelta = 0,
-  A = 0.5,
-  k = 0.5,
-  ndt = 0.3
+  sigmaone = 1,
+  sigmabias = 0.5,
+  bs = 0.5,
+  ndt = 0.3,
+  max_iter = 100
 )
 
 dlba(
   x,
-  response,
-  vzero = 3,
-  vdelta = 0,
+  driftzero = 3,
+  driftone = 3,
   sigmazero = 1,
-  sigmadelta = 0,
-  A = 0.5,
-  k = 0.5,
+  sigmaone = 1,
+  sigmabias = 0.5,
+  bs = 0.5,
   ndt = 0.3,
+  response,
   log = FALSE
 )
 
@@ -41,11 +42,11 @@ lba_stanvars()
 
 lba(
   link_mu = "identity",
-  link_vdelta = "identity",
+  link_driftone = "identity",
   link_sigmazero = "softplus",
-  link_sigmadelta = "identity",
-  link_A = "softplus",
-  link_k = "softplus",
+  link_sigmaone = "softplus",
+  link_sigmabias = "softplus",
+  link_bs = "softplus",
   link_tau = "logit",
   link_minrt = "identity"
 )
@@ -59,19 +60,25 @@ posterior_epred_lba(prep)
 \arguments{
 \item{n}{Number of simulated trials. Must be a positive integer.}
 
-\item{vzero}{Mean drift rate for the first accumulator (accumulator 0). Range: (-Inf, Inf).}
+\item{driftzero}{Mean drift rate for the first accumulator (accumulator 0). Range: (-Inf, Inf).}
 
-\item{vdelta}{Additive deviation for the mean drift rate of accumulator 1 (\code{v1 = vzero + vdelta}). Range: (-Inf, Inf).}
+\item{driftone}{Mean drift rate for the second accumulator (accumulator 1). Range: (-Inf, Inf).}
 
-\item{sigmazero}{Standard deviation of the drift rate for the first accumulator (accumulator 0). Must be positive. Range: (0, Inf).}
+\item{sigmazero}{Standard deviation of the drift rate for the first accumulator. Must be positive. Range: (0, Inf).}
 
-\item{sigmadelta}{Log-deviation for the standard deviation of accumulator 1 (\code{sigma1 = sigmazero * exp(sigmadelta)}). Range: (-Inf, Inf).}
+\item{sigmaone}{Standard deviation of the drift rate for the second accumulator. Must be positive. Range: (0, Inf).}
 
-\item{A}{Maximum start point for the uniform distribution of starting evidence \verb{[0, A]}. Must be positive. Range: (0, Inf). Default: 0.8.}
+\item{sigmabias}{Maximum starting point for the uniform distribution of starting evidence (0, sigmabias). Must be positive.
+Range: (0, Inf). Default: 0.5.}
 
-\item{k}{Difference between the decision threshold \code{b} and the maximum start point \code{A} (i.e., \code{b = A + k}). Must be positive. Range: (0, Inf). Default: 0.2.}
+\item{bs}{Additional amount beyond \code{sigmabias} to set the decision threshold (b = sigmabias + bs). Must be positive.
+Range: (0, Inf). Default: 0.5.}
 
-\item{ndt}{Non-decision time (shift parameter). Represents time for processes like encoding and motor response. Must be non-negative. Range: [0, Inf). Default: 0.3.}
+\item{ndt}{Non-decision time, representing processes such as encoding and motor response. Must be non-negative.
+Range: [0, Inf). Default: 0.3.}
+
+\item{max_iter}{Maximum iterations allowed (per trial) for resampling drift rates if both
+are non-positive. Default: 100.}
 
 \item{x}{The observed reaction time (RT). Must be greater than \code{ndt}.}
 
@@ -79,70 +86,47 @@ posterior_epred_lba(prep)
 
 \item{log}{Logical; if TRUE, returns the log-density. Default: FALSE.}
 
-\item{link_mu, link_vdelta, link_sigmazero, link_sigmadelta, link_A, link_k, link_tau, link_minrt}{Link function for the parameters.}
+\item{link_mu, link_driftone, link_sigmazero, link_sigmaone, link_sigmabias, link_bs, link_tau, link_minrt}{Link functions for the parameters.}
 
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
 \item{...}{Additional arguments.}
 }
-\value{
-A data frame with \code{n} rows and columns:
-\itemize{
-\item \code{rt}: Simulated reaction time.
-\item \code{response}: The index (0 or 1) of the winning accumulator/choice.
-}
-}
 \description{
 Simulates random draws (reaction times and choices) from a two-choice Linear Ballistic Accumulator (LBA) model.
-This version uses a parameterization where the second accumulator's parameters are defined relative to the first.
-The LBA model assumes that evidence for each choice option accumulates linearly and independently
-until one accumulator reaches a threshold. The start point of accumulation is variable, drawn
-from a uniform distribution \verb{[0, A]}. Drift rates are also variable, drawn from a normal distribution.
+
+In this parametrization, each accumulator has its own independent drift rate distribution:
+\itemize{
+\item Accumulator 0 has drift drawn from N(driftzero, sigmazero^2).
+\item Accumulator 1 has drift drawn from N(driftone, sigmaone^2).
+}
+
+For each trial, drift rates are sampled on an individual basis until at least one of the two is positive.
+The starting point for each accumulator is sampled uniformly from (0, sigmabias). The decision threshold is defined as sigmabias + bs.
+The decision time for an accumulator is calculated as (b - start)/drift, and if its drift is not positive, its decision time is set to Inf.
+The winning accumulator (the one whose decision time is minimal) determines the response, and the final reaction time is the sum of its decision time
+and a fixed non-decision time (ndt).
 }
 \details{
-The LBA model assumes that evidence for each choice option accumulates linearly and independently
-until one accumulator reaches a threshold. The start point of accumulation is variable, drawn
-from a uniform distribution \verb{[0, A]}. Drift rates are also variable, drawn from a normal distribution.
-
-The simulation follows the standard LBA process:
-\enumerate{
-\item For each trial:
-\itemize{
-\item Sample drift rates \code{rate_0} from \code{Normal(vzero, sigmazero)} and \code{rate_1} from \code{Normal(vzero + vdelta, sigmazero * exp(sigmadelta))}.
-\item Sample start points \code{start_0} and \code{start_1} from \code{Uniform(0, A)}.
-}
-\item Resample drift rates for a trial if \emph{both} sampled rates are non-positive (<= 0).
-\item Calculate the time \code{dt_i} for each accumulator to reach the threshold \code{b = A + k}: \code{dt_i = (b - start_i) / rate_i}. If \code{rate_i <= 0}, \code{dt_i} is effectively infinity.
-\item The accumulator with the minimum positive \code{dt_i} determines the choice (\code{response}) and the decision time (\code{min(dt_i)}).
-\item The final reaction time is \code{rt = min(dt_i) + ndt}.
-}
-
 \strong{Psychological Interpretation:}
 \itemize{
-\item \strong{Drift Rate (\code{vzero}, \code{vdelta})}: Reflects the rate at which evidence accumulates for each choice. Higher drift rates indicate faster
+\item \strong{Drift Rate (\code{driftzero}, \code{driftone})}: Reflects the rate at which evidence accumulates for each choice. Higher drift rates indicate faster
 evidence accumulation and a higher likelihood of selecting the corresponding choice. Differences in drift rates between accumulators
-(via \code{vdelta}) can represent differences in preference, difficulty, or bias between the two options.
-\item \strong{Drift Rate Variability (\code{sigmazero}, \code{sigmadelta})}: Captures trial-to-trial variability in the evidence accumulation process.
+can represent differences in preference, difficulty, or bias between the two options.
+\item \strong{Drift Rate Variability (\code{sigmazero}, \code{sigmaone})}: Captures trial-to-trial variability in the evidence accumulation process.
 Higher variability indicates less consistent evidence accumulation, leading to greater variability in reaction times and choices.
-\item \strong{Start Point Variability (\code{A})}: Represents the range of initial evidence levels for each accumulator. Larger values of \code{A} introduce
+\item \strong{Start Point Variability (\code{sigmabias})}: Represents the range of initial evidence levels for each accumulator. Larger values of \code{sigmabias} introduce
 more variability in reaction times, as the starting point can vary more widely between trials.
-\item \strong{Threshold (\code{b = A + k})}: Represents the amount of evidence required to make a decision. Higher thresholds lead to longer reaction times
+\item \strong{Threshold (\code{b = sigmabias + bs})}: Boundary separation (\code{bs}). Represents the amount of evidence required to make a decision. Higher thresholds lead to longer reaction times
 but more accurate decisions, as more evidence is required before a choice is made.
 \item \strong{Non-Decision Time (\code{ndt})}: Accounts for processes unrelated to evidence accumulation, such as sensory encoding and motor response.
 This parameter shifts all reaction times by a constant amount.
 }
-
-\strong{Special Cases:}
-\itemize{
-\item When \code{vdelta = 0} and \code{sigmadelta = 0}, the two accumulators are symmetric, meaning both choices are equally likely (assuming no bias in the start points or thresholds).
-\item When \code{A} is small relative to \code{k}, the model behaves more deterministically, as the start point variability has less influence on reaction times.
-\item When \code{sigmazero} or \code{sigmadelta} are large, the model produces more variable reaction times and less predictable choices.
-}
 }
 \examples{
-df <- rlba(n = 1000, vzero = 3, vdelta = -0.5,
-           sigmazero = 0.5, sigmadelta = 0,
-           A = 0.5, k = 0.5, ndt = 0.3)
+df <- rlba(n = 1000, driftzero = 3, driftone = 2,
+           sigmazero = 0.5, sigmaone = 0.5,
+           sigmabias = 0.5, bs = 0.5, ndt = 0.3)
 hist(df$rt[df$response == 0], breaks = 50, col = rgb(0,0,1,0.5))
 hist(df$rt[df$response == 1], breaks = 50, col = rgb(1,0,0,0.5), add = TRUE)
 
@@ -152,5 +136,8 @@ hist(df$rt[df$response == 1], breaks = 50, col = rgb(1,0,0,0.5), add = TRUE)
 
 }
 \references{
-Brown, S. D., & Heathcote, A. (2008). The simplest complete model of choice response time: Linear ballistic accumulation. \emph{Cognitive Psychology}, \emph{57}(3), 153-178. \doi{10.1016/j.cogpsych.2007.12.002}
+\itemize{
+\item Brown, S. D., & Heathcote, A. (2008). The simplest complete model of choice response time: Linear ballistic accumulation.
+\emph{Cognitive Psychology}, \emph{57}(3), 153-178. \doi{10.1016/j.cogpsych.2007.12.002}
+}
 }

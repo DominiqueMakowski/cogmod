@@ -2,239 +2,206 @@
 #'
 #' @description
 #' Simulates random draws (reaction times and choices) from a two-choice Linear Ballistic Accumulator (LBA) model.
-#' This version uses a parameterization where the second accumulator's parameters are defined relative to the first.
-#' The LBA model assumes that evidence for each choice option accumulates linearly and independently
-#' until one accumulator reaches a threshold. The start point of accumulation is variable, drawn
-#' from a uniform distribution `[0, A]`. Drift rates are also variable, drawn from a normal distribution.
+#'
+#' In this parametrization, each accumulator has its own independent drift rate distribution:
+#' - Accumulator 0 has drift drawn from N(driftzero, sigmazero^2).
+#' - Accumulator 1 has drift drawn from N(driftone, sigmaone^2).
+#'
+#' For each trial, drift rates are sampled on an individual basis until at least one of the two is positive.
+#' The starting point for each accumulator is sampled uniformly from (0, sigmabias). The decision threshold is defined as sigmabias + bs.
+#' The decision time for an accumulator is calculated as (b - start)/drift, and if its drift is not positive, its decision time is set to Inf.
+#' The winning accumulator (the one whose decision time is minimal) determines the response, and the final reaction time is the sum of its decision time
+#' and a fixed non-decision time (ndt).
 #'
 #' @param n Number of simulated trials. Must be a positive integer.
-#' @param vzero Mean drift rate for the first accumulator (accumulator 0). Range: (-Inf, Inf).
-#' @param vdelta Additive deviation for the mean drift rate of accumulator 1 (`v1 = vzero + vdelta`). Range: (-Inf, Inf).
-#' @param sigmazero Standard deviation of the drift rate for the first accumulator (accumulator 0). Must be positive. Range: (0, Inf).
-#' @param sigmadelta Log-deviation for the standard deviation of accumulator 1 (`sigma1 = sigmazero * exp(sigmadelta)`). Range: (-Inf, Inf).
-#' @param A Maximum start point for the uniform distribution of starting evidence `[0, A]`. Must be positive. Range: (0, Inf). Default: 0.8.
-#' @param k Difference between the decision threshold `b` and the maximum start point `A` (i.e., `b = A + k`). Must be positive. Range: (0, Inf). Default: 0.2.
-#' @param ndt Non-decision time (shift parameter). Represents time for processes like encoding and motor response. Must be non-negative. Range: [0, Inf). Default: 0.3.
-#'
-#' @return A data frame with `n` rows and columns:
-#'   - `rt`: Simulated reaction time.
-#'   - `response`: The index (0 or 1) of the winning accumulator/choice.
+#' @param driftzero Mean drift rate for the first accumulator (accumulator 0). Range: (-Inf, Inf).
+#' @param driftone Mean drift rate for the second accumulator (accumulator 1). Range: (-Inf, Inf).
+#' @param sigmazero Standard deviation of the drift rate for the first accumulator. Must be positive. Range: (0, Inf).
+#' @param sigmaone Standard deviation of the drift rate for the second accumulator. Must be positive. Range: (0, Inf).
+#' @param sigmabias Maximum starting point for the uniform distribution of starting evidence (0, sigmabias). Must be positive.
+#'   Range: (0, Inf). Default: 0.5.
+#' @param bs Additional amount beyond `sigmabias` to set the decision threshold (b = sigmabias + bs). Must be positive.
+#'   Range: (0, Inf). Default: 0.5.
+#' @param ndt Non-decision time, representing processes such as encoding and motor response. Must be non-negative.
+#'   Range: [0, Inf). Default: 0.3.
+#' @param max_iter Maximum iterations allowed (per trial) for resampling drift rates if both
+#'   are non-positive. Default: 100.
 #'
 #' @details
-#' The LBA model assumes that evidence for each choice option accumulates linearly and independently
-#' until one accumulator reaches a threshold. The start point of accumulation is variable, drawn
-#' from a uniform distribution `[0, A]`. Drift rates are also variable, drawn from a normal distribution.
-#'
-#' The simulation follows the standard LBA process:
-#' 1. For each trial:
-#'    - Sample drift rates `rate_0` from `Normal(vzero, sigmazero)` and `rate_1` from `Normal(vzero + vdelta, sigmazero * exp(sigmadelta))`.
-#'    - Sample start points `start_0` and `start_1` from `Uniform(0, A)`.
-#' 2. Resample drift rates for a trial if *both* sampled rates are non-positive (<= 0).
-#' 3. Calculate the time `dt_i` for each accumulator to reach the threshold `b = A + k`: `dt_i = (b - start_i) / rate_i`. If `rate_i <= 0`, `dt_i` is effectively infinity.
-#' 4. The accumulator with the minimum positive `dt_i` determines the choice (`response`) and the decision time (`min(dt_i)`).
-#' 5. The final reaction time is `rt = min(dt_i) + ndt`.
-#'
 #' **Psychological Interpretation:**
-#' - **Drift Rate (`vzero`, `vdelta`)**: Reflects the rate at which evidence accumulates for each choice. Higher drift rates indicate faster 
-#'   evidence accumulation and a higher likelihood of selecting the corresponding choice. Differences in drift rates between accumulators 
-#'   (via `vdelta`) can represent differences in preference, difficulty, or bias between the two options.
-#' - **Drift Rate Variability (`sigmazero`, `sigmadelta`)**: Captures trial-to-trial variability in the evidence accumulation process. 
+#' - **Drift Rate (`driftzero`, `driftone`)**: Reflects the rate at which evidence accumulates for each choice. Higher drift rates indicate faster
+#'   evidence accumulation and a higher likelihood of selecting the corresponding choice. Differences in drift rates between accumulators
+#'   can represent differences in preference, difficulty, or bias between the two options.
+#' - **Drift Rate Variability (`sigmazero`, `sigmaone`)**: Captures trial-to-trial variability in the evidence accumulation process.
 #'   Higher variability indicates less consistent evidence accumulation, leading to greater variability in reaction times and choices.
-#' - **Start Point Variability (`A`)**: Represents the range of initial evidence levels for each accumulator. Larger values of `A` introduce 
+#' - **Start Point Variability (`sigmabias`)**: Represents the range of initial evidence levels for each accumulator. Larger values of `sigmabias` introduce
 #'   more variability in reaction times, as the starting point can vary more widely between trials.
-#' - **Threshold (`b = A + k`)**: Represents the amount of evidence required to make a decision. Higher thresholds lead to longer reaction times 
+#' - **Threshold (`b = sigmabias + bs`)**: Boundary separation (`bs`). Represents the amount of evidence required to make a decision. Higher thresholds lead to longer reaction times
 #'   but more accurate decisions, as more evidence is required before a choice is made.
-#' - **Non-Decision Time (`ndt`)**: Accounts for processes unrelated to evidence accumulation, such as sensory encoding and motor response. 
+#' - **Non-Decision Time (`ndt`)**: Accounts for processes unrelated to evidence accumulation, such as sensory encoding and motor response.
 #'   This parameter shifts all reaction times by a constant amount.
 #'
-#' **Special Cases:**
-#' - When `vdelta = 0` and `sigmadelta = 0`, the two accumulators are symmetric, meaning both choices are equally likely (assuming no bias in the start points or thresholds).
-#' - When `A` is small relative to `k`, the model behaves more deterministically, as the start point variability has less influence on reaction times.
-#' - When `sigmazero` or `sigmadelta` are large, the model produces more variable reaction times and less predictable choices.
-#'
 #' @references
-#' Brown, S. D., & Heathcote, A. (2008). The simplest complete model of choice response time: Linear ballistic accumulation. *Cognitive Psychology*, *57*(3), 153-178. \doi{10.1016/j.cogpsych.2007.12.002}
+#' - Brown, S. D., & Heathcote, A. (2008). The simplest complete model of choice response time: Linear ballistic accumulation.
+#'     *Cognitive Psychology*, *57*(3), 153-178. \doi{10.1016/j.cogpsych.2007.12.002}
 #'
 #' @examples
-#' df <- rlba(n = 1000, vzero = 3, vdelta = -0.5,
-#'            sigmazero = 0.5, sigmadelta = 0,
-#'            A = 0.5, k = 0.5, ndt = 0.3)
+#' df <- rlba(n = 1000, driftzero = 3, driftone = 2,
+#'            sigmazero = 0.5, sigmaone = 0.5,
+#'            sigmabias = 0.5, bs = 0.5, ndt = 0.3)
 #' hist(df$rt[df$response == 0], breaks = 50, col = rgb(0,0,1,0.5))
 #' hist(df$rt[df$response == 1], breaks = 50, col = rgb(1,0,0,0.5), add = TRUE)
 #'
 #' @export
-rlba <- function(n, 
-                 driftzero = 3, 
-                 driftone = 3, 
-                 sigmazero = 1, 
-                 sigmaone = 1, 
-                 bs = 0.5, 
-                 bias = 0.5, 
-                 ndt = 0.3) {
+rlba <- function(n,
+                 driftzero = 3,
+                 driftone = 3,
+                 sigmazero = 1,
+                 sigmaone = 1,
+                 sigmabias = 0.5,
+                 bs = 0.5,
+                 ndt = 0.3,
+                 max_iter = 100) {
+
   # --- Input Validation ---
   if (length(n) != 1 || n <= 0 || n != floor(n))
     stop("n must be a single positive integer.")
-  if (bias <= 0 || bs <= 0 || sigmazero <= 0 || sigmaone <= 0 || ndt < 0)
-    stop("bias, bs, sigmazero, and sigmaone must be positive, and ndt must be non-negative.")
-  
+  if (sigmabias <= 0 || bs <= 0 || sigmazero <= 0 || sigmaone <= 0 || ndt < 0)
+    stop("sigmabias, bs, sigmazero, sigmaone must be positive; ndt must be non-negative.")
+
   # --- Derived Parameter ---
-  # Decision threshold is defined as the sum of bias and boundary separation.
-  b <- bias + bs
-  
-  # --- Drift Rate Sampling ---
-  # Create a matrix to hold drift rates for both accumulators (columns).
-  rates_matrix <- matrix(NA_real_, nrow = n, ncol = 2)
-  valid_trials <- rep(FALSE, n)
-  
-  # We repeatedly sample drift rates until each trial has at least one positive drift rate.
-  while (any(!valid_trials)) {
-    remaining <- which(!valid_trials)
-    n_remaining <- length(remaining)
+  b <- sigmabias + bs  # Decision threshold
+
+  # --- Prepare Output ---
+  rates0 <- numeric(n)
+  rates1 <- numeric(n)
+  choices <- integer(n)
+  rts <- numeric(n)
+
+  for (i in seq_len(n)) {
+    # Sample both drift rates until at least one is positive.
+    iter <- 0
+    repeat {
+      iter <- iter + 1
+      v0 <- stats::rnorm(1, mean = driftzero, sd = sigmazero)
+      v1 <- stats::rnorm(1, mean = driftone, sd = sigmaone)
+      if (v0 > 0 || v1 > 0) break
+      if (iter >= max_iter) {
+        warning(sprintf("Trial %d reached max_iter; forcing accumulator 0 positive.", i))
+        v0 <- abs(stats::rnorm(1, mean = driftzero, sd = sigmazero))
+        break
+      }
+    }
+    rates0[i] <- v0
+    rates1[i] <- v1
+
+    # Compute starting points from U(0, sigmabias)
+    start0 <- stats::runif(1, min = 0, max = sigmabias)
+    start1 <- stats::runif(1, min = 0, max = sigmabias)
     
-    # Sample drift rates independently for each accumulator:
-    rates_0 <- rnorm(n_remaining, mean = driftzero, sd = sigmazero)
-    rates_1 <- rnorm(n_remaining, mean = driftone, sd = sigmaone)
-    rates_matrix[remaining, ] <- cbind(rates_0, rates_1)
+    # Compute decision times using only positive drifts, treat non-positive as Inf.
+    time0 <- if (v0 > 0) { (b - start0) / v0 } else { Inf }
+    time1 <- if (v1 > 0) { (b - start1) / v1 } else { Inf }
     
-    # A trial is valid if at least one accumulator has a positive drift.
-    valid_trials[remaining] <- rowSums(rates_matrix[remaining, , drop = FALSE] > 0) > 0
+    # Choose the accumulator that reached threshold first.
+    if (time0 < time1) {
+      choices[i] <- 0
+      rts[i] <- ndt + time0
+    } else {
+      choices[i] <- 1
+      rts[i] <- ndt + time1
+    }
   }
   
-  # --- Starting Points Sampling ---
-  # Starting points are drawn uniformly from [0, bias] for each accumulator.
-  start_points <- matrix(runif(n * 2, min = 0, max = bias), nrow = n, ncol = 2)
-  
-  # --- Decision Times Calculation ---
-  # For each accumulator, the decision time is computed as (b - starting_point)/drift_rate.
-  decision_times <- (b - start_points) / rates_matrix
-  # If an accumulator’s drift is not positive, set its decision time to Inf.
-  decision_times[rates_matrix <= 0] <- Inf
-  
-  # --- Determine Winner ---
-  # For each trial, pick the accumulator with the smallest decision time.
-  # Subtract 1 from the index to obtain 0-based response codes (if desired).
-  choices <- apply(decision_times, 1, which.min) - 1
-  min_decision_times <- apply(decision_times, 1, min)
-  
-  # --- Reaction Times ---
-  # Overall reaction time is the nondecision time (ndt) plus the minimum decision time.
-  rts <- ndt + min_decision_times
-  
-  # --- Return Results as a Data Frame ---
+  # Return Results
   data.frame(rt = rts, response = choices)
 }
 
 
 
+
+
+
+
+
 #' The density function `dlba` calculates the likelihood of observing a specific
-#' reaction time `x` and response `response`, given the LBA parameters. It is
+#' reaction time `rt` and response `response`, given the LBA parameters. It is
 #' based on the formulation by Brown & Heathcote (2008), where the likelihood
 #' is the product of the probability density of the winning accumulator finishing
-#' at time `t = x - ndt` and the probability (survival function) that the losing
-#' accumulator has not finished by time `t`. The density is normalized by
-#' `(1 - pnegative)`, where `pnegative` is the probability that both drift rates
-#' are non-positive, to account for the resampling process in `rlba`.
+#' at time `t = rt - ndt` and the probability (survival function) that the losing
+#' accumulator has not finished by time `t`. This implementation assumes that
+#' the `rlba` function ensures at least one positive drift per trial, so no
+#' additional normalization by `(1 - pnegative)` is required.
 #' @rdname rlba
 #' @inheritParams rlnr
 #' @export
-dlba <- function(x, response,
-                 vzero = 3, vdelta = 0,
-                 sigmazero = 1, sigmadelta = 0,
-                 A = 0.5, k = 0.5, ndt = 0.3, log = FALSE) {
-  eps <- 1e-10
+dlba <- function(x, driftzero = 3, driftone = 3, sigmazero = 1, sigmaone = 1,
+                 sigmabias = 0.5, bs = 0.5, ndt = 0.3, response, log = FALSE) {
+  # Return -Inf (or a very small positive number) for RT below ndt.
+  below_ndt <- x < ndt
+  out <- if (log) rep(-Inf, length(x)) else rep(.Machine$double.eps, length(x))
   
-  # --- Input Validation ---
-  if (any(sigmazero <= 0) || any(A <= 0) || any(k <= 0) || any(ndt < 0)) {
-    warning("sigmazero, A, k must be positive and ndt non-negative. Returning 0 density / -Inf log-density.")
-    return(if (log) -Inf else 0)
-  }
+  keep <- !below_ndt
+  if (any(keep)) {
+    A <- sigmabias
+    b <- sigmabias + bs
+    dt <- x[keep] - ndt
+    dens <- rep(.Machine$double.eps, length(dt))
+    
+    valid <- dt > 0
+    if (any(valid)) {
+      idx0 <- valid & (response[keep] == 0)
+      if (any(idx0)) {
+        f0 <- .lba_defectivedensity(dt[idx0], driftzero, sigmazero, A, b)
+        F1 <- .lba_cumulative(dt[idx0], driftone, sigmaone, A, b)
+        dens[idx0] <- f0 * (1 - F1)
+      }
+      idx1 <- valid & (response[keep] == 1)
+      if (any(idx1)) {
+        f1 <- .lba_defectivedensity(dt[idx1], driftone, sigmaone, A, b)
+        F0 <- .lba_cumulative(dt[idx1], driftzero, sigmazero, A, b)
+        dens[idx1] <- f1 * (1 - F0)
+      }
+    }
 
-  # --- Vectorization ---
-  n <- max(length(x), length(response), length(vzero), length(vdelta),
-           length(sigmazero), length(sigmadelta), length(A), length(k), length(ndt))
-  x <- rep_len(x, n)
-  response <- rep_len(response, n)
-  vzero <- rep_len(vzero, n)
-  vdelta <- rep_len(vdelta, n)
-  sigmazero <- rep_len(sigmazero, n)
-  sigmadelta <- rep_len(sigmadelta, n)
-  A <- rep_len(A, n)
-  k <- rep_len(k, n)
-  ndt <- rep_len(ndt, n)
-  
-  # --- Adjusted Decision Time ---
-  t_adj <- x - ndt
-  
-  # Initialize log-density vector
-  log_density <- rep(-Inf, n)
-  
-  # Identify valid cases
-  valid_rt_idx <- which(t_adj > eps)
-  valid_resp_idx <- which(response %in% c(0, 1))
-  valid_params_idx <- which(
-    is.finite(vzero) & is.finite(vdelta) &
-    is.finite(sigmazero) & is.finite(sigmadelta) &
-    is.finite(A) & is.finite(k) & is.finite(ndt)
-  )
-  valid_idx <- Reduce(intersect, list(valid_rt_idx, valid_resp_idx, valid_params_idx))
-  
-  if (length(valid_idx) == 0) {
-    return(if (log) log_density else exp(log_density))
+    dens[dens < .Machine$double.eps] <- .Machine$double.eps
+    
+    if (log)
+      out[keep] <- log(dens)
+    else
+      out[keep] <- dens
   }
   
-  # --- Extract parameters for valid indices ---
-  t_adj_v   <- t_adj[valid_idx]
-  response_v <- response[valid_idx]
-  v0        <- vzero[valid_idx]
-  v1        <- vzero[valid_idx] + vdelta[valid_idx]
-  s0        <- sigmazero[valid_idx]
-  s1        <- sigmazero[valid_idx] * exp(sigmadelta[valid_idx])
-  A_v       <- A[valid_idx]
-  k_v       <- k[valid_idx]
-  b_v       <- A_v + k_v
-  
-  # Determine winning and losing accumulators
-  v_win <- ifelse(response_v == 0, v0, v1)
-  s_win <- ifelse(response_v == 0, s0, s1)
-  v_loss <- ifelse(response_v == 0, v1, v0)
-  s_loss <- ifelse(response_v == 0, s1, s0)
-  
-  # --- Winner PDF Calculation ---
-  st_win <- s_win * t_adj_v
-  st_win[st_win < eps] <- eps
-  z1_win <- (b_v - A_v - v_win * t_adj_v) / st_win
-  z2_win <- (b_v - v_win * t_adj_v) / st_win
-  
-  # Compute PDF using the standard LBA density formula.
-  pdf_win <- (v_win * (stats::pnorm(z2_win) - stats::pnorm(z1_win)) +
-              s_win * (stats::dnorm(z1_win) - stats::dnorm(z2_win))) / A_v
-  pdf_win <- pmax(pdf_win, eps)
-  
-  # --- Loser Survival Function Calculation ---
-  st_loss <- s_loss * t_adj_v
-  st_loss[st_loss < eps] <- eps
-  z1_loss <- (b_v - A_v - v_loss * t_adj_v) / st_loss
-  z2_loss <- (b_v - v_loss * t_adj_v) / st_loss
-  
-  cdf_loss <- 1 + (1 / A_v) * (
-    (b_v - A_v - v_loss * t_adj_v) * stats::pnorm(z1_loss) +
-      st_loss * stats::dnorm(z1_loss) -
-      (b_v - v_loss * t_adj_v) * stats::pnorm(z2_loss) -
-      st_loss * stats::dnorm(z2_loss)
-  )
-  # Clamp CDF to [0,1]
-  cdf_loss <- pmin(pmax(cdf_loss, 0), 1)
-  surv_loss <- pmax(1 - cdf_loss, eps)
-  
-  # --- pnegative Correction ---
-  pneg0 <- stats::pnorm(-v0 / s0)
-  pneg1 <- stats::pnorm(-v1 / s1)
-  pnegative <- pneg0 * pneg1
-  correction <- -log(pmax(1 - pnegative, eps))
-  
-  # --- Total Log-Density ---
-  log_dens_valid <- log(pdf_win) + log(surv_loss) + correction
-  log_density[valid_idx] <- log_dens_valid
-  
-  return(if (log) log_density else exp(log_density))
+  out
+}
+
+
+
+
+# Internal helper functions --------------------------------------------------
+
+# Helper function: defective density for an accumulator
+#' @keywords internal
+.lba_defectivedensity <- function(dt, v, s, A, b) {
+  # dt: decision time(s) (must be positive)
+  # v: mean drift for the accumulator
+  # s: standard deviation for the accumulator's drift
+  # A: start point range (sigmabias)
+  # b: decision threshold (sigmabias + bs)
+  n1 <- (b - A - v * dt) / (dt * s)
+  n2 <- (b - v * dt) / (dt * s)
+  f_val <- (1/A) * (-v * stats::pnorm(n1) + s * stats::dnorm(n1) +
+                     v * stats::pnorm(n2) - s * stats::dnorm(n2))
+  f_val
+}
+
+# Helper function: cumulative density function for an accumulator
+#' @keywords internal
+.lba_cumulative <- function(dt, v, s, A, b) {
+  n1 <- (b - A - v * dt) / (dt * s)
+  n2 <- (b - v * dt) / (dt * s)
+  F_val <- 1 + ((b - A - v * dt) / A) * stats::pnorm(n1) -
+    ((b - v * dt) / A) * stats::pnorm(n2) +
+    ((dt * s) / A) * (stats::dnorm(n1) - stats::dnorm(n2))
+  F_val
 }
