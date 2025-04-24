@@ -159,3 +159,29 @@ m_choco <- brms::add_criterion(m_choco, "loo")  # For later model comparison
 saveRDS(m_choco, file = "models/m_choco.rds")
 ```
 
+
+## Model Comparison
+
+```{r}
+#| echo: false
+
+path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"
+
+m_zoib <- readRDS(url(paste0(path, "m_zoib.rds")))
+m_xbx <- readRDS(url(paste0(path, "m_xbx.rds")))
+m_betagate <- readRDS(url(paste0(path, "m_betagate.rds")))
+m_choco <- readRDS(url(paste0(path, "m_choco.rds")))
+```
+
+
+### Model Fit
+
+We can compare these models together using the `loo` package, which shows
+that CHOCO provides a significantly better fit than the other models.
+
+```{r}
+#| code-fold: true
+
+# loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |> 
+#   parameters(include_ENP = TRUE)
+```
