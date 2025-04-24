@@ -123,12 +123,8 @@
 </div>
 </section><section class="level2"><h2 id="models">Models<a class="anchor" aria-label="anchor" href="#models"></a>
 </h2>
-<div class="panel-tabset">
-<ul id="tabset-1" class="panel-tabset-tabby">
-<li><a data-tabby-default="" href="#tabset-1-1">Normal</a></li>
-<li><a href="#tabset-1-2">ExGaussian</a></li>
-</ul>
-<ul class="nav nav-tabs" id="NA" role="tablist"><li role="presentation" class="nav-item"><button data-bs-toggle="tab" data-bs-target="#NA" id="NA-tab" type="button" role="tab" aria-controls="NA" aria-selected="true" class="active nav-link">
+<section class="level3"><h3 id="normal">Normal<a class="anchor" aria-label="anchor" href="#normal"></a>
+</h3>
 <p>A basic linear model.</p>
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
@@ -147,10 +143,8 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_normal</span>, file <span class="op">=</span> <span class="st">"models/m_normal.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
 </div>
-</button></li></ul>
-<div class="tab-content"><div class="active  tab-pane" id="NA" role="tabpanel" aria-labelledby="NA-tab">
-
-<div id="tabset-1-2">
+</section><section class="level3"><h3 id="exgaussian">ExGaussian<a class="anchor" aria-label="anchor" href="#exgaussian"></a>
+</h3>
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -172,16 +166,216 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_exgauss</span>, file <span class="op">=</span> <span class="st">"models/m_exgauss.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
 </div>
+</section><section class="level3"><h3 id="shifted-lognormal">Shifted LogNormal<a class="anchor" aria-label="anchor" href="#shifted-lognormal"></a>
+</h3>
+<div class="cell">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">RT</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">sigma</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">RT</span><span class="op">)</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rt_lognormal.html">rt_lognormal</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"tau"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">validate_prior</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_lognormal</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
+<span>  <span class="va">f</span>,</span>
+<span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_lognormal.html">rt_lognormal_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_lognormal</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lognormal</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_lognormal</span>, file <span class="op">=</span> <span class="st">"models/m_lognormal.rds"</span><span class="op">)</span></span></code></pre></div>
+</details>
 </div>
-</div></div>
+</section><section class="level3"><h3 id="inverse-gaussian-shifted-wald">Inverse Gaussian (Shifted Wald)<a class="anchor" aria-label="anchor" href="#inverse-gaussian-shifted-wald"></a>
+</h3>
+<div class="cell">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">RT</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">bs</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">RT</span><span class="op">)</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rrt_invgaussian.html">rt_invgaussian</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"tau"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">validate_prior</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_wald</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
+<span>  <span class="va">f</span>,</span>
+<span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rrt_invgaussian.html">rt_invgaussian_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_wald</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_wald</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_wald</span>, file <span class="op">=</span> <span class="st">"models/m_wald.rds"</span><span class="op">)</span></span></code></pre></div>
+</details>
 </div>
-</section><section class="level2"><h2 id="model-comparison">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison"></a>
+</section><section class="level3"><h3 id="weibull">Weibull<a class="anchor" aria-label="anchor" href="#weibull"></a>
+</h3>
+<div class="cell">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">RT</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">sigma</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">RT</span><span class="op">)</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rt_weibull.html">rt_weibull</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"tau"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">validate_prior</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_weibull</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
+<span>  <span class="va">f</span>,</span>
+<span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_weibull.html">rt_weibull_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_weibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_weibull</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_weibull</span>, file <span class="op">=</span> <span class="st">"models/m_weibull.rds"</span><span class="op">)</span></span></code></pre></div>
+</details>
+</div>
+</section><section class="level3"><h3 id="logweibull-shifted-gumbel">LogWeibull (Shifted Gumbel)<a class="anchor" aria-label="anchor" href="#logweibull-shifted-gumbel"></a>
+</h3>
+<div class="cell">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">RT</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">sigma</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">RT</span><span class="op">)</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rt_logweibull.html">rt_logweibull</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"tau"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">validate_prior</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_logweibull</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
+<span>  <span class="va">f</span>,</span>
+<span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_logweibull.html">rt_logweibull_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_logweibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_logweibull</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_logweibull</span>, file <span class="op">=</span> <span class="st">"models/m_logweibull.rds"</span><span class="op">)</span></span></code></pre></div>
+</details>
+</div>
+</section><section class="level3"><h3 id="inverse-weibull-shifted-fréchet">Inverse Weibull (Shifted Fréchet)<a class="anchor" aria-label="anchor" href="#inverse-weibull-shifted-fr%C3%A9chet"></a>
+</h3>
+<div class="cell">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">RT</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">sigma</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">RT</span><span class="op">)</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rt_invweibull.html">rt_invweibull</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"tau"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">validate_prior</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_invweibull</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
+<span>  <span class="va">f</span>,</span>
+<span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_invweibull.html">rt_invweibull_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_invweibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_invweibull</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_invweibull</span>, file <span class="op">=</span> <span class="st">"models/m_invweibull.rds"</span><span class="op">)</span></span></code></pre></div>
+</details>
+</div>
+</section><section class="level3"><h3 id="gamma">Gamma<a class="anchor" aria-label="anchor" href="#gamma"></a>
+</h3>
+<div class="cell">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">RT</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">sigma</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">RT</span><span class="op">)</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rt_gamma.html">rt_gamma</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"tau"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">validate_prior</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_gamma</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
+<span>  <span class="va">f</span>,</span>
+<span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_gamma.html">rt_gamma_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_gamma</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_gamma</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_gamma</span>, file <span class="op">=</span> <span class="st">"models/m_gamma.rds"</span><span class="op">)</span></span></code></pre></div>
+</details>
+</div>
+</section><section class="level3"><h3 id="inverse-gamma">Inverse Gamma<a class="anchor" aria-label="anchor" href="#inverse-gamma"></a>
+</h3>
+<div class="cell">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">RT</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">sigma</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">RT</span><span class="op">)</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rt_invgamma.html">rt_invgamma</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"tau"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">validate_prior</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_invgamma</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
+<span>  <span class="va">f</span>,</span>
+<span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_invgamma.html">rt_invgamma_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_invgamma</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_invgamma</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_invgamma</span>, file <span class="op">=</span> <span class="st">"models/m_invgamma.rds"</span><span class="op">)</span></span></code></pre></div>
+</details>
+</div>
+</section></section><section class="level2"><h2 id="model-comparison">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison"></a>
 </h2>
 <section class="level3"><h3 id="model-fit">Model Fit<a class="anchor" aria-label="anchor" href="#model-fit"></a>
 </h3>
 <p>We can compare these models together using the <code>loo</code> package, which shows that CHOCO provides a significantly better fit than the other models.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,</span></span>
 <span><span class="co">#                  m_weibull, m_logweibull, m_invweibull,</span></span>
 <span><span class="co">#                  m_gamma, m_invgamma) |&gt;</span></span>
@@ -191,7 +385,7 @@
 </h3>
 <p><code>iterations</code> controls the actual number of iterations used (e.g., for the point-estimate) and <code>keep_iterations</code> the number included.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_normal</span>, keep_iterations <span class="op">=</span> <span class="fl">100</span>, iterations <span class="op">=</span> <span class="fl">100</span><span class="op">)</span> <span class="op">|&gt;</span></span>
@@ -237,7 +431,7 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>y <span class="op">=</span> <span class="st">"RT (s)"</span><span class="op">)</span></span></code></pre></div>
 </details><div class="cell-output-display">
 <div>
-<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-8-1.png" width="672"></p>
+<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-15-1.png" width="672"></p>
 </figure>
 </div>
 </div>
