@@ -220,16 +220,16 @@ Note: `iterations` controls the actual number of iterations used (e.g., for the 
 #| eval: false
 
 pred <- rbind(
-  estimate_prediction(m_zoib, keep_iterations = 200, iterations = 200) |>
+  estimate_prediction(m_zoib, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "ZOIB"),
-  estimate_prediction(m_xbx, keep_iterations = 200, iterations = 200) |>
+  estimate_prediction(m_xbx, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "XBX"),
-  estimate_prediction(m_betagate, keep_iterations = 200, iterations = 200) |>
+  estimate_prediction(m_betagate, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "Beta-Gate"),
-  estimate_prediction(m_choco, keep_iterations = 200, iterations = 200) |>
+  estimate_prediction(m_choco, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "CHOCO")
 )
@@ -268,26 +268,25 @@ p1 <- estimate_prediction(m_choco, data = "grid", length = 4, keep_iterations = 
   theme_minimal()
 p1
 
-# UNCOMMENT ONCE LATEST DATAWIZARD ON CRAN
-# # Predict various parameters
-# pred_params <- data.frame()
-# for(param in c("mu", "confright", "confleft", "precright", "precleft", "pex")) {
-#   pred_params <- m_choco |>
-#     estimate_prediction(data = "grid", length = 20, predict = param) |>
-#     as.data.frame() |>
-#     dplyr::mutate(Parameter = param) |>  # TODO: replace by data_modify after PR
-#     rbind(pred_params)
-# }
-# 
-# p2 <- pred_params |>
-#   ggplot(aes(x = x, y = Predicted)) +
-#   geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Parameter), alpha = 0.2) +
-#   geom_line(aes(color = Parameter), linewidth = 1) +
-#   facet_wrap(~Parameter, scales = "free_y", ncol=3) +
-#   scale_fill_viridis_d() +
-#   scale_color_viridis_d() +
-#   theme_minimal()
-# p2
+# Predict various parameters
+pred_params <- data.frame()
+for(param in c("mu", "confright", "confleft", "precright", "precleft", "pex")) {
+  pred_params <- m_choco |>
+    estimate_prediction(data = "grid", length = 20, predict = param) |>
+    as.data.frame() |>
+    data_modify(Parameter = param) |> 
+    rbind(pred_params)
+}
+
+p2 <- pred_params |>
+  ggplot(aes(x = x, y = Predicted)) +
+  geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Parameter), alpha = 0.2) +
+  geom_line(aes(color = Parameter), linewidth = 1) +
+  facet_wrap(~Parameter, scales = "free_y", ncol=3) +
+  scale_fill_viridis_d() +
+  scale_color_viridis_d() +
+  theme_minimal()
+p2
 ```
 
 
