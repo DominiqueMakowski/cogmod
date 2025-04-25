@@ -4,54 +4,58 @@
 .rt_lba_lpdf <- function() {
 "
 // Log density function for the one-accumulator LBA model.
-// Y: observed reaction time.
-// mu: mean drift rate of the accumulator (named 'mu' because of brms requirements).
-// sigma: standard deviation of the drift.
-// sigmabias: the range of the starting point (A = sigmabias).
-// bs: additive component so that the decision threshold is b = sigmabias + bs.
-// tau: scale factor for non-decision time (scaled by minrt).
-// minrt: minimum possible reaction time (used to scale tau).
-real rt_lba_lpdf(real Y, real mu, real sigma, real sigmabias, real bs, real tau, real minrt) {
-  
-  // Derived parameters.
-  real A = sigmabias;         // Uniform start-point range: U(0, A)
-  real b = A + bs;            // Decision threshold.
-  real ndt = tau * minrt;  // Non-decision time.
-  real eps = 1e-10; // Small value for numerical stability.
-  
-  // If the observed RT is less than or equal to non-decision time, no decision is made.
+real rt_lba_lpdf(
+  real Y,
+  real mu,         // drift rate (named 'mu' to match Stan's convention)
+  real sigma,      // standard deviation of drift
+  real sigmabias,  // A = sigmabias
+  real bs,         // so b = A + bs
+  real tau,        // scales minrt to yield ndt = tau*minrt
+  real minrt       // minimum possible RT
+) {
+  // Derived params
+  real A    = sigmabias;      // start uniform [0,A]
+  real b    = A + bs;         // threshold
+  real ndt  = tau * minrt;    // non-decision time
+  real eps  = 1e-10;
+
+  // Must exceed non-dec time
   if (Y <= ndt) return negative_infinity();
-  
-  // Adjusted (decision) time.
   real T = Y - ndt;
-  
-  // Compute st = sigma * T; use a small floor for stability.
+  if (T <= 0) return negative_infinity();
+
+  // st = sigma * T
   real st = sigma * T;
   st = fmax(st, eps);
-  
-  // Compute z-values.
-  // z1 corresponds to lower limit (based on threshold b - A),
-  // z2 corresponds to upper limit (based on threshold b).
-  real z1 = (b - A - mu * T) / st;
-  real z2 = (b - mu * T) / st;
-  
-  // Compute the standard normal PDF at the z-values.
-  // (Stan does not have a built-in normal_pdf; this is done via exp(normal_lpdf(...)).)
-  real phi_z1 = exp(normal_lpdf(z1 | 0, 1));
-  real phi_z2 = exp(normal_lpdf(z2 | 0, 1));
-  
-  // Compute the defective density using the conventional formula:
-  real f_val = (1 / A) * ( mu * (Phi(z2) - Phi(z1))
-                           + sigma * (phi_z1 - phi_z2) );
-  
-  // Normalize by the probability that the drift is positive.
-  real prob_positive_drift = 1 - Phi((0 - mu) / sigma);
-  f_val = f_val / prob_positive_drift;
-  
-  // Floor the density for numerical stability.
-  f_val = fmax(f_val, eps);
-  
-  return log(f_val);
+
+  // Standardize
+  real z = mu / sigma;
+  real z1    = (b - A - mu * T) / st; // = (b - A)/(sigma * T) - z
+  real z2    = (b - mu * T)   / st;   // = b/(sigma * T) - z
+
+  // Phi(z)
+  real phi1 = exp(std_normal_lpdf(z1));
+  real phi2 = exp(std_normal_lpdf(z2));
+
+  // Phi(z) - In Stan's log-CDF world (un-log at the end)
+  real lcdf1 = std_normal_lcdf(z1);  // log phi(z1)
+  real lcdf2 = std_normal_lcdf(z2);  // log phi(z2)
+  real cdf1  = exp(lcdf1);
+  real cdf2  = exp(lcdf2);
+
+  // Defective density:
+  // comp = mu*(phi(z2)-phi(z1)) + sigma*(phi(z1)-phi(z2))
+  real comp = mu * (cdf2 - cdf1)
+            + sigma * (phi1  - phi2);
+  comp = fmax(comp, eps);
+
+  // log normalization = log[1 - phi(-mu/sigma)] = log[1 - phi(-z)]
+  // = log1m_exp(log phi(-z)) because log phi(-z) = std_normal_lcdf(-z)
+  real log_denom = log1m_exp(std_normal_lcdf(-z));
+
+  // Final log density
+  // = -log(A) + log(comp) - log(1 - phi(-z))
+  return -log(A) + log(comp) - log_denom;
 }
 "
 }
@@ -62,13 +66,13 @@ real rt_lba_lpdf(real Y, real mu, real sigma, real sigmabias, real bs, real tau,
 #' @export
 rt_lba_lpdf_expose <- function() {
   insight::check_if_installed("cmdstanr")
-  
+
   # This wraps the (new) Stan function rt_lba_lpdf using our new parametrization.
   stancode <- paste0(
 "functions {
 ", .rt_lba_lpdf(), "
 }")
-  
+
   mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(stancode))
   mod$expose_functions()
   mod$functions$rt_lba_lpdf
@@ -84,7 +88,7 @@ rt_lba_stanvars <- function() {
 #' @rdname rrt_lba
 #' @param link_mu,link_sigma,link_sigmabias,link_bs,link_tau,link_minrt Link functions for the parameters.
 #' @export
-rt_lba <- function(link_mu = "identity",
+rt_lba <- function(link_mu = "softplus",
                    link_sigma = "softplus",
                    link_sigmabias = "softplus",
                    link_bs = "softplus",
@@ -103,72 +107,64 @@ rt_lba <- function(link_mu = "identity",
 # brms Post-processing Functions ------------------------------------------
 
 #' @rdname rrt_lba
-#' @inheritParams rlnr
 #' @export
 log_lik_rt_lba <- function(i, prep) {
-  # Extract observed reaction time for observation i
+  # Extract the observed reaction time for observation i
   y <- prep$data$Y[i]
-  if (is.na(y)) return(NA_real_) # Handle missing RTs
+  if (is.na(y)) return(NA_real_)  # Handle missing RTs
 
-  # Get the parameter draws for observation i:
-  driftzero <- brms::get_dpar(prep, "mu", i = i)
-  driftone <- brms::get_dpar(prep, "driftone", i = i)
-  sigmazero <- brms::get_dpar(prep, "sigmazero", i = i)
-  sigmaone <- brms::get_dpar(prep, "sigmaone", i = i)
-  sigmabias <- brms::get_dpar(prep, "sigmabias", i = i)
-  bs <- brms::get_dpar(prep, "bs", i = i)
-  tau <- brms::get_dpar(prep, "tau", i = i)
-  minrt <- brms::get_dpar(prep, "minrt", i = i)  # Minimum possible reaction time
+  # Extract posterior draws for observation i.
+  # (Note: Under the new single-accumulator parametrization, we have one drift parameter.)
+  drift     <- brms::get_dpar(prep, "mu", i = i)      # drift parameter
+  sigma  <- brms::get_dpar(prep, "sigma", i = i)   # drift rate SD
+  sigmabias  <- brms::get_dpar(prep, "sigmabias", i = i)
+  bs         <- brms::get_dpar(prep, "bs", i = i)
+  tau        <- brms::get_dpar(prep, "tau", i = i)
+  minrt      <- brms::get_dpar(prep, "minrt", i = i)     # Minimum possible RT
 
-  # Calculate non-decision time from tau and minrt
+  # Calculate non-decision time from tau and minrt.
   ndt <- tau * minrt
 
-  # Get decision indicator for observation i (should be 0 or 1).
-  response <- prep$data[["dec"]][i]
-  if (!response %in% c(0, 1)) {
-    warning("Response (dec) must be 0 or 1. Got: ", response, " for observation ", i)
-    return(rep(-Inf, length(driftzero)))
-  }
-
-  # Compute log-likelihood using our R density function 'dlba'
-  ll <- dlba(x = y, response = response,
-             driftzero = driftzero, driftone = driftone,
-             sigmazero = sigmazero, sigmaone = sigmaone,
-             sigmabias = sigmabias, bs = bs, ndt = ndt,
+  # For a single-accumulator LBA, there is no response indicator,
+  # so we simply compute the log density via our R density function `dlba`
+  # (which here expects: x (RT), drift, sigma, sigmabias, bs, and ndt).
+  ll <- drt_lba(x = y,
+             drift = drift,
+             sigma = sigma,
+             sigmabias = sigmabias,
+             bs = bs,
+             ndt = ndt,
              log = TRUE)
-  ll  # Return vector of log-likelihoods (one per draw)
+  ll  # Return the vector of log-likelihoods (one per posterior draw)
 }
 
 #' @rdname rrt_lba
+#' @inheritParams rlnr
 #' @export
 posterior_predict_rt_lba <- function(i, prep, ...) {
-  # Get the parameter draws for observation i:
-  driftzero <- brms::get_dpar(prep, "mu", i = i)
-  driftone <- brms::get_dpar(prep, "driftone", i = i)
-  sigmazero <- brms::get_dpar(prep, "sigmazero", i = i)
-  sigmaone <- brms::get_dpar(prep, "sigmaone", i = i)
+  # Extract the posterior draws (using the new parametrization)
+  drift    <- brms::get_dpar(prep, "mu", i = i)
+  sigma <- brms::get_dpar(prep, "sigma", i = i)
   sigmabias <- brms::get_dpar(prep, "sigmabias", i = i)
-  bs <- brms::get_dpar(prep, "bs", i = i)
-  tau <- brms::get_dpar(prep, "tau", i = i)
-  minrt <- brms::get_dpar(prep, "minrt", i = i)
+  bs        <- brms::get_dpar(prep, "bs", i = i)
+  tau       <- brms::get_dpar(prep, "tau", i = i)
+  minrt     <- brms::get_dpar(prep, "minrt", i = i)
 
-  # Calculate non-decision time from tau and minrt
+  # Calculate non-decision time.
   ndt <- tau * minrt
-  
-  # Number of posterior draws:
-  n_draws <- length(driftzero)
-  
-  # Generate predictions using the R simulation function 'rlba'
-  # It is assumed that 'rlba' is vectorized over parameters.
-  sim_data <- rlba(n = n_draws,
-                   driftzero = driftzero,
-                   driftone = driftone,
-                   sigmazero = sigmazero,
-                   sigmaone = sigmaone,
-                   sigmabias = sigmabias,
-                   bs = bs,
-                   ndt = ndt)
-  as.matrix(sim_data)  
+
+  # Number of posterior draws.
+  n_draws <- length(drift)
+
+  # Generate predictions via the simulation function `rrt_lba`
+  # (which now is for a single accumulator with parameters: drift, sigma, sigmabias, bs, ndt)
+  sim_data <- rrt_lba(n = n_draws,
+                      drift   = drift,
+                      sigma   = sigma,
+                      sigmabias = sigmabias,
+                      bs      = bs,
+                      ndt     = ndt)
+  as.matrix(sim_data)
 }
 
 #' @rdname rrt_lba

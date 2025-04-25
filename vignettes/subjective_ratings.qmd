@@ -268,25 +268,25 @@ p1 <- estimate_prediction(m_choco, data = "grid", length = 4, keep_iterations = 
   theme_minimal()
 p1
 
-# Predict various parameters
-pred_params <- data.frame()
-for(param in c("mu", "confright", "confleft", "precright", "precleft", "pex")) {
-  pred_params <- m_choco |>
-    estimate_prediction(data = "grid", length = 20, predict = param) |>
-    as.data.frame() |>
-    data_modify(Parameter = param) |> 
-    rbind(pred_params)
-}
-
-p2 <- pred_params |>
-  ggplot(aes(x = x, y = Predicted)) +
-  geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Parameter), alpha = 0.2) +
-  geom_line(aes(color = Parameter), linewidth = 1) +
-  facet_wrap(~Parameter, scales = "free_y", ncol=3) +
-  scale_fill_viridis_d() +
-  scale_color_viridis_d() +
-  theme_minimal()
-p2
+# # Predict various parameters
+# pred_params <- data.frame()
+# for(param in c("mu", "confright", "confleft", "precright", "precleft", "pex")) {
+#   pred_params <- m_choco |>
+#     estimate_prediction(data = "grid", length = 20, predict = param) |>
+#     as.data.frame() |>
+#     data_modify(Parameter = param) |> 
+#     rbind(pred_params)
+# }
+# 
+# p2 <- pred_params |>
+#   ggplot(aes(x = x, y = Predicted)) +
+#   geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Parameter), alpha = 0.2) +
+#   geom_line(aes(color = Parameter), linewidth = 1) +
+#   facet_wrap(~Parameter, scales = "free_y", ncol=3) +
+#   scale_fill_viridis_d() +
+#   scale_color_viridis_d() +
+#   theme_minimal()
+# p2
 ```
 
 

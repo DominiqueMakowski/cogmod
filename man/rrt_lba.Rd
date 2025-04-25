@@ -15,7 +15,7 @@ rrt_lba(n, drift = 3, sigma = 1, sigmabias = 0.5, bs = 0.5, ndt = 0.3)
 
 drt_lba(
   x,
-  drift = 1,
+  drift = 3,
   sigma = 1,
   sigmabias = 0.5,
   bs = 0.5,
@@ -28,7 +28,7 @@ rt_lba_lpdf_expose()
 rt_lba_stanvars()
 
 rt_lba(
-  link_mu = "identity",
+  link_mu = "softplus",
   link_sigma = "softplus",
   link_sigmabias = "softplus",
   link_bs = "softplus",

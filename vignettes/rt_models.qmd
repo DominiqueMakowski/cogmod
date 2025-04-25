@@ -341,6 +341,45 @@ m_invgamma <- brms::add_criterion(m_invgamma, "loo")
 saveRDS(m_invgamma, file = "models/m_invgamma.rds")
 ```
 
+### Linear Ballistic Accumulator
+
+```{r}
+#| eval: false
+#| code-fold: true
+
+f <- bf(
+  RT ~ Condition,
+  sigma = 1,
+  sigmabias ~ Condition,
+  bs ~ Condition,
+  tau ~ Condition,
+  minrt = min(df$RT),
+  family = rt_lba()
+)
+
+priors <- c(
+  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "mu"),
+  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmabias"),
+  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "bs"),
+  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau")
+  )|>
+  brms::validate_prior(f, data = df)
+
+m_lba <- brm(
+  f,
+  prior = priors,
+  data = df, 
+  stanvars = rt_lba_stanvars(),
+  init = 0.5,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_lba <- brms::add_criterion(m_lba, "loo") 
+
+saveRDS(m_lba, file = "models/m_lba.rds")
+```
+
+
 
 
 ## Model Comparison
@@ -364,16 +403,17 @@ m_logweibull <- readRDS(url(paste0(path, "m_logweibull.rds")))
 m_invweibull <- readRDS(url(paste0(path, "m_invweibull.rds")))
 m_gamma <- readRDS(url(paste0(path, "m_gamma.rds")))
 m_invgamma <- readRDS(url(paste0(path, "m_invgamma.rds")))
+m_lba <- readRDS(url(paste0(path, "m_lba.rds")))
 ```
 
 
 ```{r}
 #| code-fold: false
 
-# loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
-#                  m_weibull, m_logweibull, m_invweibull,
-#                  m_gamma, m_invgamma) |>
-#   parameters(include_ENP = TRUE)
+loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
+                 m_weibull, m_logweibull, m_invweibull,
+                 m_gamma, m_invgamma, m_lba) |>
+  parameters(include_ENP = TRUE)
 ```
 
 
@@ -389,7 +429,8 @@ rbind(
   data_modify(attributes(m_logweibull$fit)$metadata$time$chain, Model="LogWeibull"),
   data_modify(attributes(m_invweibull$fit)$metadata$time$chain, Model="InvWeibull"),
   data_modify(attributes(m_gamma$fit)$metadata$time$chain, Model="Gamma"),
-  data_modify(attributes(m_invgamma$fit)$metadata$time$chain, Model="InvGamma")
+  data_modify(attributes(m_invgamma$fit)$metadata$time$chain, Model="InvGamma"),
+  data_modify(attributes(m_lba$fit)$metadata$time$chain, Model="LBA")
 ) |> 
   ggplot(aes(x = Model, y = total, fill = Model)) +
   geom_boxplot() +
@@ -408,9 +449,9 @@ rbind(
 
 
 pred <- rbind(
-  estimate_prediction(m_normal, keep_iterations = 50, iterations = 50) |>
-    reshape_iterations() |>
-    data_modify(Model = "Normal"),
+  # estimate_prediction(m_normal, keep_iterations = 50, iterations = 50) |>
+  #   reshape_iterations() |>
+  #   data_modify(Model = "Normal"),
   estimate_prediction(m_exgauss, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "ExGaussian"),
@@ -434,7 +475,11 @@ pred <- rbind(
     data_modify(Model = "Gamma"),
   estimate_prediction(m_invgamma, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
-    data_modify(Model = "InvGamma")
+    data_modify(Model = "InvGamma"),
+  estimate_prediction(m_lba, keep_iterations = 50, iterations = 50) |>
+    reshape_iterations() |>
+    data_modify(Model = "LBA") |> 
+    data_filter(iter_value < 2)
 )
 
 p <- pred |> 
