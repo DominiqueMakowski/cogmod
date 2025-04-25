@@ -4,7 +4,7 @@ pkgdown_sha: ~
 articles:
   rt_models: rt_models.html
   subjective_ratings: subjective_ratings.html
-last_built: 2025-04-25T07:18Z
+last_built: 2025-04-25T07:45Z
 urls:
   reference: https://github.com/DominiqueMakowski/cogmod/reference
   article: https://github.com/DominiqueMakowski/cogmod/articles

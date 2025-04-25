@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.18</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.19</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -238,16 +238,16 @@
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
-<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_zoib</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span>, iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_zoib</span>, keep_iterations <span class="op">=</span> <span class="fl">50</span>, iterations <span class="op">=</span> <span class="fl">50</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"ZOIB"</span><span class="op">)</span>,</span>
-<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_xbx</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span>, iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_xbx</span>, keep_iterations <span class="op">=</span> <span class="fl">50</span>, iterations <span class="op">=</span> <span class="fl">50</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"XBX"</span><span class="op">)</span>,</span>
-<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_betagate</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span>, iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_betagate</span>, keep_iterations <span class="op">=</span> <span class="fl">50</span>, iterations <span class="op">=</span> <span class="fl">50</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"Beta-Gate"</span><span class="op">)</span>,</span>
-<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_choco</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span>, iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_choco</span>, keep_iterations <span class="op">=</span> <span class="fl">50</span>, iterations <span class="op">=</span> <span class="fl">50</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"CHOCO"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
@@ -285,14 +285,13 @@
 </div>
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
-<span><span class="co"># UNCOMMENT ONCE LATEST DATAWIZARD ON CRAN</span></span>
 <span><span class="co"># # Predict various parameters</span></span>
 <span><span class="co"># pred_params &lt;- data.frame()</span></span>
 <span><span class="co"># for(param in c("mu", "confright", "confleft", "precright", "precleft", "pex")) {</span></span>
 <span><span class="co">#   pred_params &lt;- m_choco |&gt;</span></span>
 <span><span class="co">#     estimate_prediction(data = "grid", length = 20, predict = param) |&gt;</span></span>
 <span><span class="co">#     as.data.frame() |&gt;</span></span>
-<span><span class="co">#     dplyr::mutate(Parameter = param) |&gt;  # TODO: replace by data_modify after PR</span></span>
+<span><span class="co">#     data_modify(Parameter = param) |&gt; </span></span>
 <span><span class="co">#     rbind(pred_params)</span></span>
 <span><span class="co"># }</span></span>
 <span><span class="co"># </span></span>

@@ -9,7 +9,7 @@ version of the Linear Ballistic Accumulator (LBA) model."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.18</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.19</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -50,7 +50,7 @@ version of the Linear Ballistic Accumulator (LBA) model.</p>
 <span></span>
 <span><span class="fu">drt_lba</span><span class="op">(</span></span>
 <span>  <span class="va">x</span>,</span>
-<span>  drift <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  drift <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  sigma <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  sigmabias <span class="op">=</span> <span class="fl">0.5</span>,</span>
 <span>  bs <span class="op">=</span> <span class="fl">0.5</span>,</span>
@@ -63,7 +63,7 @@ version of the Linear Ballistic Accumulator (LBA) model.</p>
 <span><span class="fu">rt_lba_stanvars</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">rt_lba</span><span class="op">(</span></span>
-<span>  link_mu <span class="op">=</span> <span class="st">"identity"</span>,</span>
+<span>  link_mu <span class="op">=</span> <span class="st">"softplus"</span>,</span>
 <span>  link_sigma <span class="op">=</span> <span class="st">"softplus"</span>,</span>
 <span>  link_sigmabias <span class="op">=</span> <span class="st">"softplus"</span>,</span>
 <span>  link_bs <span class="op">=</span> <span class="st">"softplus"</span>,</span>
