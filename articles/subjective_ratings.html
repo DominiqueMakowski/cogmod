@@ -196,11 +196,14 @@
 </div>
 </section></section><section class="level2"><h2 id="model-comparison">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison"></a>
 </h2>
+<div class="cell">
+<pre><code><span><span class="co">#&gt; Loading required namespace: rstan</span></span></code></pre>
+</div>
 <section class="level3"><h3 id="model-fit">Model Fit<a class="anchor" aria-label="anchor" href="#model-fit"></a>
 </h3>
 <p>We can compare these models together using the <code>loo</code> package, which shows that CHOCO provides a significantly better fit than the other models.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |&gt; </span></span>
 <span><span class="co">#   parameters(include_ENP = TRUE)</span></span></code></pre></div>
 </details>
@@ -208,7 +211,7 @@
 </section><section class="level3"><h3 id="sampling-duration">Sampling Duration<a class="anchor" aria-label="anchor" href="#sampling-duration"></a>
 </h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_zoib</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model<span class="op">=</span><span class="st">"ZOIB"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_xbx</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model<span class="op">=</span><span class="st">"XBX"</span><span class="op">)</span>,</span>
@@ -231,24 +234,25 @@
 </section><section class="level3"><h3 id="posterior-predictive-check">Posterior Predictive Check<a class="anchor" aria-label="anchor" href="#posterior-predictive-check"></a>
 </h3>
 <p>Running posterior predictive checks allows to visualize the predicted distributions from various models. We can see how typical Beta-related models fail to capture the bimodal nature of the data, which is well captured by the CHOCO model.</p>
+<p>Note: <code>iterations</code> controls the actual number of iterations used (e.g., for the point-estimate) and <code>keep_iterations</code> the number included.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
-<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_zoib</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_zoib</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span>, iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"ZOIB"</span><span class="op">)</span>,</span>
-<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_xbx</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_xbx</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span>, iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"XBX"</span><span class="op">)</span>,</span>
-<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_betagate</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_betagate</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span>, iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"Beta-Gate"</span><span class="op">)</span>,</span>
-<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_choco</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_choco</span>, keep_iterations <span class="op">=</span> <span class="fl">200</span>, iterations <span class="op">=</span> <span class="fl">200</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"CHOCO"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">get_data</span><span class="op">(</span><span class="va">m_zoib</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span><span class="va">df</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">score</span>, y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">density</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>bins <span class="op">=</span> <span class="fl">100</span>, fill <span class="op">=</span> <span class="st">"#2196F3"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Rating Distribution"</span>, x <span class="op">=</span> <span class="st">"Score"</span>, y <span class="op">=</span> <span class="st">"Density"</span><span class="op">)</span> <span class="op">+</span></span>
@@ -264,16 +268,23 @@
 </h2>
 <p>We can see how the predicted distribution changes as a function of <strong>x</strong> and gets “pushed” to the right. Moreover, we can also visualize the effect of <strong>x</strong> on specific parameters, showing that it mostly affects the parameter <strong>conf</strong> (the mean confidence - i.e., central tendency - on the right side), <strong>confleft</strong> (the relative confidence of the left side), and <strong>mu</strong>, which corresponds to the <strong><em>p</em></strong> probability of answering on the right. This is consistent with our expectations, and reflects the larger and more concentrated mass on the right of the scale for higher value of <strong>x</strong> (in brown).</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_choco</span>, data <span class="op">=</span> <span class="st">"grid"</span>, length <span class="op">=</span> <span class="fl">4</span>, keep_iterations <span class="op">=</span> <span class="fl">500</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_choco</span>, data <span class="op">=</span> <span class="st">"grid"</span>, length <span class="op">=</span> <span class="fl">4</span>, keep_iterations <span class="op">=</span> <span class="fl">500</span>, iterations <span class="op">=</span> <span class="fl">500</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">iter_value</span>, fill <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>alpha <span class="op">=</span> <span class="fl">0.6</span>, bins <span class="op">=</span> <span class="fl">100</span>, position <span class="op">=</span> <span class="st">"identity"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">scale_fill_bluebrown_d</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"Rating"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="va">p1</span></span>
-<span></span>
+<span><span class="va">p1</span></span></code></pre></div>
+</details><div class="cell-output-display">
+<div>
+<figure><p><img src="subjective_ratings_files/figure-html/unnamed-chunk-10-1.png" width="960"></p>
+</figure>
+</div>
+</div>
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span></span>
 <span><span class="co"># UNCOMMENT ONCE LATEST DATAWIZARD ON CRAN</span></span>
 <span><span class="co"># # Predict various parameters</span></span>
 <span><span class="co"># pred_params &lt;- data.frame()</span></span>
