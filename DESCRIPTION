@@ -27,6 +27,7 @@ Suggests:
     cmdstanr,
     knitr,
     quarto,
+    loo,
     dplyr,
     ggplot2,
     easystats,

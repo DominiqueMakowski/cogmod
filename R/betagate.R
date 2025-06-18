@@ -24,12 +24,12 @@
 #' @param mu Mean of the underlying Beta distribution (0 < mu < 1).
 #' @param phi Precision parameter of the underlying Beta distribution (phi > 0).
 #'   Note: `precision = phi * 2`. `phi = 1` corresponds to uniform when `mu = 0.5`.
-#' @param pex Controls the location of the lower and upper boundary gates (`0 <= pex <= 1`). It defines 
-#'   the total probability mass allocated to the extremes (0 or 1).  Higher `pex` increases the probability 
+#' @param pex Controls the location of the lower and upper boundary gates (`0 <= pex <= 1`). It defines
+#'   the total probability mass allocated to the extremes (0 or 1).  Higher `pex` increases the probability
 #'   of extreme values (0 or 1).
 #' @param bex Balances the extreme probability mass `pex` between 0 and 1 (`0 <= bex <= 1`). A balance
-#'   of `0.5` means that the 'gates' are symmetrically placed around the center of the distribution, and 
-#'   values higher or lower than `0.5` will shift the relative "ease" of crossing the gates towards 1 
+#'   of `0.5` means that the 'gates' are symmetrically placed around the center of the distribution, and
+#'   values higher or lower than `0.5` will shift the relative "ease" of crossing the gates towards 1
 #'   or 0, respectively.
 #'
 #' @details
@@ -168,8 +168,6 @@ dbetagate <- function(x, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5, log = FALSE) {
   if (any(phi <= 0)) stop("phi must be positive.")
   if (any(pex < 0 | pex > 1)) stop("pex must be between 0 and 1.")
   if (any(bex < 0 | bex > 1)) stop("bex must be between 0 and 1.")
-  # Allow x=0 and x=1
-  if (any(x < 0 | x > 1)) warning("x must be between 0 and 1.")
 
   # --- Vectorization ---
   n <- length(x)

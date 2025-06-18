@@ -342,6 +342,5 @@ test_that("Stan betagate_lpdf matches R dbetagate function", {
   expect_error(dbetagate(0.5, mu = 0.5, phi = -1, pex = 0.1, bex = 0.5), "phi must be positive.")
   expect_error(dbetagate(0.5, mu = 0.5, phi = 5, pex = 1.1, bex = 0.5), "pex must be between 0 and 1.")
   expect_error(dbetagate(0.5, mu = 0.5, phi = 5, pex = 0.1, bex = -0.2), "bex must be between 0 and 1.")
-  expect_warning(dbetagate(-0.1, mu = 0.5, phi = 5, pex = 0.1, bex = 0.5), "x must be between 0 and 1.")
 
 })

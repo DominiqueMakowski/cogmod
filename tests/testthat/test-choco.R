@@ -391,8 +391,4 @@ test_that("Stan choco_lpdf matches R dchoco function", {
     dchoco(0.5, p = 0.5, confright = 0.5, precright = 5, confleft = 0.5, precleft = -1, pex = 0.1, bex = 0.5, pmid = 0.1, mid = 0.5),
     "precleft must be positive"
   )
-  expect_warning(
-    dchoco(-0.1, p = 0.5, confright = 0.5, precright = 5, confleft = 0.5, precleft = 5, pex = 0.1, bex = 0.5, pmid = 0.1, mid = 0.5),
-    "x must be between 0 and 1"
-  )
 })
