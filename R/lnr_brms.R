@@ -2,7 +2,7 @@
 
 #' @keywords internal
 .lnr_lpdf <- function() {
-"
+  "
 // Log-likelihood for a single observation from the Log-Normal Race model.
 // Uses the 'nu' parameterization where meanlog = -nu (higher nu = faster).
 // Y: observed reaction time.
@@ -34,7 +34,7 @@ real lnr_lpdf(real Y, real mu, real nuone, real sigmazero, real sigmaone, real t
   // Check if adjusted time is valid (must be positive)
   if (t_adj < eps) return negative_infinity();
 
-  // --- 2. Log-likelihood using built-in lognormal functions ---
+  // --- 3. Log-likelihood using built-in lognormal functions ---
   // Calculate log-likelihood based on the winning accumulator (dec)
   if (dec == 0) {
     // Accumulator 0 finished first
@@ -66,16 +66,17 @@ lnr_lpdf_expose <- function() {
 
   # Wrap the function Stan block (done normally by brms on model compilation)
   stancode <- paste0(
-"functions {
-", .lnr_lpdf(), "
-}")
+    "functions {
+",
+    .lnr_lpdf(),
+    "
+}"
+  )
 
   mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(stancode))
   mod$expose_functions()
   mod$functions$lnr_lpdf
 }
-
-
 
 
 #' @rdname rlnr
@@ -91,20 +92,31 @@ lnr_stanvars <- function() {
 #' @param link_tau Link function for the tau parameter (non-decision time proportion).
 #' @param link_minrt Link function for the minrt parameter (minimum RT scale).
 #' @export
-lnr <- function(link_nuzero = "identity", link_nuone = "identity",
-                link_sigmazero = "softplus", link_sigmaone = "softplus",
-                link_tau = "logit", link_minrt = "identity") {
+lnr <- function(
+  link_nuzero = "identity",
+  link_nuone = "identity",
+  link_sigmazero = "softplus",
+  link_sigmaone = "softplus",
+  link_tau = "logit",
+  link_minrt = "identity"
+) {
   brms::custom_family(
     name = "lnr",
     dpars = c("mu", "nuone", "sigmazero", "sigmaone", "tau", "minrt"),
-    links = c(link_nuzero, link_nuone, link_sigmazero, link_sigmaone, link_tau, link_minrt),
+    links = c(
+      link_nuzero,
+      link_nuone,
+      link_sigmazero,
+      link_sigmaone,
+      link_tau,
+      link_minrt
+    ),
     lb = c(NA, NA, 0, 0, 0, 0), # Lower bounds for sigma > 0, tau >= 0, minrt >= 0
     ub = c(NA, NA, NA, NA, 1, NA), # Upper bound for tau <= 1
     type = "real", # Response variable type
     vars = "dec[n]" # Required additional data variable for the decision
   )
 }
-
 
 
 # brms --------------------------------------------------------------------
@@ -115,7 +127,9 @@ lnr <- function(link_nuzero = "identity", link_nuone = "identity",
 log_lik_lnr <- function(i, prep) {
   # Extract observation (response variable, usually RT)
   y <- prep$data$Y[i]
-  if (is.na(y)) return(NA_real_) # Return NA if response is missing
+  if (is.na(y)) {
+    return(NA_real_)
+  } # Return NA if response is missing
 
   # Get parameters for observation i across all posterior draws
   nuzero <- brms::get_dpar(prep, "mu", i = i)
@@ -132,20 +146,32 @@ log_lik_lnr <- function(i, prep) {
   response <- prep$data$dec[i] # Assumes 'dec' column exists in the data
   # Basic check for valid response coding (0 or 1)
   if (!response %in% c(0, 1)) {
-    warning("Response ('dec') must be 0 or 1. Found: ", response, " for observation ", i, ". Returning -Inf log-likelihood.")
+    warning(
+      "Response ('dec') must be 0 or 1. Found: ",
+      response,
+      " for observation ",
+      i,
+      ". Returning -Inf log-likelihood."
+    )
     # Return -Inf for all draws for this observation
     return(rep(-Inf, length(nuzero)))
   }
 
   # Compute log-likelihood using the R density function dlnr
   # dlnr is already vectorized over its parameters
-  ll <- dlnr(x = y, nuzero = nuzero, nuone = nuone,
-             sigmazero = sigmazero, sigmaone = sigmaone,
-             ndt = ndt, response = response, log = TRUE)
+  ll <- dlnr(
+    x = y,
+    nuzero = nuzero,
+    nuone = nuone,
+    sigmazero = sigmazero,
+    sigmaone = sigmaone,
+    ndt = ndt,
+    response = response,
+    log = TRUE
+  )
 
   ll # Return vector of log-likelihoods (one per posterior draw)
 }
-
 
 
 #' @rdname rlnr
@@ -167,16 +193,19 @@ posterior_predict_lnr <- function(i, prep, ...) {
   # Generate predictions using the R random number generator rlnr
   # rlnr is already vectorized over its parameters
   n_draws <- length(nuzero) # Number of posterior draws
-  sim_data <- rlnr(n = n_draws, nuzero = nuzero, nuone = nuone,
-                   sigmazero = sigmazero, sigmaone = sigmaone,
-                   ndt = ndt)
+  sim_data <- rlnr(
+    n = n_draws,
+    nuzero = nuzero,
+    nuone = nuone,
+    sigmazero = sigmazero,
+    sigmaone = sigmaone,
+    ndt = ndt
+  )
 
   # Return simulated data as a matrix (draws x variables)
   # The variables are 'rt' and 'response' from rlnr output
   as.matrix(sim_data)
 }
-
-
 
 
 # Note: It's often better not to define posterior_epred for complex models like race models
@@ -190,11 +219,12 @@ posterior_predict_lnr <- function(i, prep, ...) {
 #' @rdname rlnr
 #' @export
 posterior_epred_lnr <- function(prep) {
-  stop("Computing posterior_epred for complex models like race models is computationally prohibitive",
-       " and the user is better off computing 'prediction' rather than 'expectation' and",
-       " using the posterior draws to compute any quantities of interest.")
+  stop(
+    "Computing posterior_epred for complex models like race models is computationally prohibitive",
+    " and the user is better off computing 'prediction' rather than 'expectation' and",
+    " using the posterior draws to compute any quantities of interest."
+  )
 }
-
 
 # --- Commented out internal helper for epred ---
 # #' Calculate Marginal Probability for LNR (Internal Helper)
