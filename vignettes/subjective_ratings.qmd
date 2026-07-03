@@ -187,9 +187,18 @@ that CHOCO provides a significantly better fit than the other models.
 ```{r}
 #| code-fold: true
 
-# loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |> 
+# loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |>
 #   parameters(include_ENP = TRUE)
 ```
+
+
+
+Name       |  LOOIC |  ENP |   ELPD | Difference | Difference_SE |      p
+-------------------------------------------------------------------------
+m_choco    | -770.7 | 8.93 | 385.33 |       0.00 |          0.00 |       
+m_betagate | -159.8 | 7.21 |  79.88 |    -305.45 |         16.68 | < .001
+m_zoib     | -159.7 | 7.00 |  79.86 |    -305.46 |         16.99 | < .001
+m_xbx      | -145.0 | 5.11 |  72.51 |    -312.81 |         16.81 | < .001
 
 
 #### Sampling Duration
@@ -237,19 +246,28 @@ pred <- rbind(
     data_modify(Model = "CHOCO")
 )
 
-df |>
+p <- df |>
   ggplot(aes(x = score, y = after_stat(density))) +
   geom_histogram(bins = 100, fill = "#2196F3") +
-  labs(title = "Rating Distribution", x = "Score", y = "Density") +
+  labs(title = "Posterior Predictive Check", x = "Score", y = "Density") +
   theme_minimal() + 
+  theme(plot.title = element_text(face = "bold")) +
   geom_histogram(
     data = pred, aes(x = iter_value, group = as.factor(iter_group)),
-    bins = 100, alpha = 0.02, position = "identity", fill = "#FF5722"
+    bins = 100, alpha = 0.03, position = "identity", fill = "#FF5722"
   ) +
   facet_wrap(~Model)
+p
 ```
 
+```{r}
+#| echo: false
+#| eval: false
 
+ggsave("../man/figures/subjective_ratings1.png", p, width = 12, height = 8, bg = "white")
+```
+
+![](../man/figures/subjective_ratings1.png)
 ### Effect Visualisation
 
 We can see how the predicted distribution changes as a function of **x** and gets "pushed" to the right. 
@@ -271,25 +289,25 @@ p1 <- estimate_prediction(m_choco, data = "grid", length = 4, keep_iterations = 
   theme_minimal()
 p1
 
-# # Predict various parameters
-# pred_params <- data.frame()
-# for(param in c("mu", "confright", "confleft", "precright", "precleft", "pex")) {
-#   pred_params <- m_choco |>
-#     estimate_prediction(data = "grid", length = 20, predict = param) |>
-#     as.data.frame() |>
-#     data_modify(Parameter = param) |> 
-#     rbind(pred_params)
-# }
-# 
-# p2 <- pred_params |>
-#   ggplot(aes(x = x, y = Predicted)) +
-#   geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Parameter), alpha = 0.2) +
-#   geom_line(aes(color = Parameter), linewidth = 1) +
-#   facet_wrap(~Parameter, scales = "free_y", ncol=3) +
-#   scale_fill_viridis_d() +
-#   scale_color_viridis_d() +
-#   theme_minimal()
-# p2
+# Predict various parameters
+pred_params <- data.frame()
+for(param in c("mu", "confright", "confleft", "precright", "precleft", "pex")) {
+  pred_params <- m_choco |>
+    estimate_prediction(data = "grid", length = 20, predict = param) |>
+    as.data.frame() |>
+    data_modify(Parameter = param) |>
+    rbind(pred_params)
+}
+
+p2 <- pred_params |>
+  ggplot(aes(x = x, y = Predicted)) +
+  geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Parameter), alpha = 0.2) +
+  geom_line(aes(color = Parameter), linewidth = 1) +
+  facet_wrap(~Parameter, scales = "free_y", ncol=3) +
+  scale_fill_viridis_d() +
+  scale_color_viridis_d() +
+  theme_minimal()
+p2
 ```
 
 
@@ -299,8 +317,10 @@ p1
 
 library(patchwork)
 
-ggsave("../man/figures/subjective_ratings1.png", p1 / p2, width = 12, height = 8, bg = "white")
+ggsave("../man/figures/subjective_ratings2.png", p1 / p2, width = 12, height = 8, bg = "white")
 ```
+
+![](../man/figures/subjective_ratings2.png)
 
 ## Likert Scales
 
@@ -345,10 +365,11 @@ f <- bf(
   family = brms::beta_binomial()
 )
 
+
 m_betabinomial <- brm(f,
-  data = mutate(df, rating = rating - 1), 
+  data = data_modify(df, rating = rating - 1), 
   family = brms::beta_binomial(), init = 0,
-  chains = 4, iter = 500, backend = "cmdstanr"
+  chains = 4, iter = 500, backend = "cmdstanr", 
 )
 
 m_betabinomial <- brms::add_criterion(m_betabinomial, "loo")  # For later model comparison
@@ -422,19 +443,20 @@ df <- get_data(m_betadiscrete)
 
 
 We can compare these models together using the `loo` package.
+
 ```{r}
 #| code-fold: true
 #| eval: false
 
-loo::loo_compare(m_betabinomial, m_betadiscrete, m_cumulative) |>
-  report::report()
+# loo::loo_compare(m_betabinomial, m_betadiscrete, m_cumulative) |>
+#   report::report()
 ```
 
 
 
 ```{r}
 #| code-fold: true
-#| eval: false
+
 
 pred <- rbind(
   estimate_prediction(m_betabinomial, keep_iterations = 50, iterations = 50) |>
@@ -449,16 +471,15 @@ pred <- rbind(
 )  
   
   
-  
 pred_counts <- pred |> 
-  summarize(n = n(), .by = c("Model", "iter_group", "iter_value")) |> 
-  summarize(n_median = median(n),
+  dplyr::summarize(n = dplyr::n(), .by = c("Model", "iter_group", "iter_value")) |> 
+  dplyr::summarize(n_median = median(n),
             ci_low = quantile(n, 0.025),
             ci_high = quantile(n, 0.975),
             .by = c("Model", "iter_value"))
 
 
-df |>
+p <- df |>
   ggplot(aes(x = rating)) +
   geom_bar(stat = "count", fill = "#2196F3") +
   geom_line(data = pred_counts, aes(x = iter_value, y = n_median), color = "#FF5722", linewidth = 1) +
@@ -468,6 +489,17 @@ df |>
     color = "#FF5722", size = 1
   ) +
   labs(title = "Rating Distribution", x = "Score", y = "Density") +
+  coord_cartesian(y = c(0, 350)) +
   theme_minimal() +
   facet_wrap(~Model)
+p
 ```
+
+```{r}
+#| echo: false
+#| eval: false
+
+ggsave("../man/figures/subjective_ratings3.png", p, width = 12, height = 8, bg = "white")
+```
+
+![](../man/figures/subjective_ratings3.png)
