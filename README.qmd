@@ -191,9 +191,16 @@ ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
 
 ### Subjective Ratings
 
+#### Bounded Continuous Distributions (Analog Scales)
+
 - [**See this tutorial**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
+  - [x] Choice-Confidence (CHOCO) models (Bi-modal Beta)
+  - [x] Beta-gate (Ordered Beta for 0-1 inflated Beta)
 
 ![](man/figures/subjective_ratings1.png)
+#### Bounded Discrete Distributions (Likert Scales)
+
+
 
 ### Cognitive Tasks
 

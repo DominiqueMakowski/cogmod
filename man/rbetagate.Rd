@@ -35,10 +35,15 @@ posterior_epred_betagate(prep)
 \arguments{
 \item{n}{Number of simulated values.}
 
-\item{mu}{Mean of the underlying Beta distribution (0 < mu < 1).}
+\item{mu}{Mean of the underlying Beta distribution (\verb{0 < mu < 1}).}
 
-\item{phi}{Precision parameter of the underlying Beta distribution (phi > 0).
-Note: \code{precision = phi * 2}. \code{phi = 1} corresponds to uniform when \code{mu = 0.5}.}
+\item{phi}{Precision parameter of the underlying Beta distribution (must be strictly positive).
+Can be conceptualized as an "agreement" indicator: higher \code{phi} means less
+dispersion (more agreement) among ratings, holding \code{mu} fixed.
+Note: In many implementations, \code{phi} is parametrized differently, and correspond to
+the double of our \code{phi} argument (cogmod's \code{phi} = standard's \code{phi} * 2). Our parametrization
+Makes it \code{phi = 1} corresponds to uniform when \code{mu = 0.5}, which makes setting priors more convenient
+(e.g., on the logit scale)}
 
 \item{pex}{Controls the location of the lower and upper boundary gates (\verb{0 <= pex <= 1}). It defines
 the total probability mass allocated to the extremes (0 or 1).  Higher \code{pex} increases the probability

@@ -21,9 +21,14 @@
 #' In Beta-gate models, extreme values arise naturally from thresholding a single latent process.
 #'
 #' @param n Number of simulated values.
-#' @param mu Mean of the underlying Beta distribution (0 < mu < 1).
-#' @param phi Precision parameter of the underlying Beta distribution (phi > 0).
-#'   Note: `precision = phi * 2`. `phi = 1` corresponds to uniform when `mu = 0.5`.
+#' @param mu Mean of the underlying Beta distribution (`0 < mu < 1`).
+#' @param phi Precision parameter of the underlying Beta distribution (must be strictly positive).
+#'   Can be conceptualized as an "agreement" indicator: higher `phi` means less
+#'   dispersion (more agreement) among ratings, holding `mu` fixed.
+#'   Note: In many implementations, `phi` is parametrized differently, and correspond to
+#'   the double of our `phi` argument (cogmod's `phi` = standard's `phi` * 2). Our parametrization
+#'   Makes it `phi = 1` corresponds to uniform when `mu = 0.5`, which makes setting priors more convenient
+#'   (e.g., on the logit scale)
 #' @param pex Controls the location of the lower and upper boundary gates (`0 <= pex <= 1`). It defines
 #'   the total probability mass allocated to the extremes (0 or 1).  Higher `pex` increases the probability
 #'   of extreme values (0 or 1).
@@ -82,12 +87,12 @@ rbetagate <- function(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5) {
   # --- Vectorization ---
   n_out <- max(n, length(mu), length(phi), length(pex), length(bex))
   if (n_out > 1 || n > 1) { # Ensure vectorization if n>1 even if params are scalar
-      mu <- rep(mu, length.out = n_out)
-      phi <- rep(phi, length.out = n_out)
-      pex <- rep(pex, length.out = n_out)
-      bex <- rep(bex, length.out = n_out)
+    mu <- rep(mu, length.out = n_out)
+    phi <- rep(phi, length.out = n_out)
+    pex <- rep(pex, length.out = n_out)
+    bex <- rep(bex, length.out = n_out)
   } else {
-      n_out <- n # Case where n=1 and params are scalar
+    n_out <- n # Case where n=1 and params are scalar
   }
 
   # --- Parameter Calculation ---
@@ -140,16 +145,16 @@ rbetagate <- function(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5) {
   final_out[outcome_category == 3] <- 1
   mid_indices <- which(outcome_category == 2)
   if (length(mid_indices) > 0) {
-      final_out[mid_indices] <- beta_draws[mid_indices]
+    final_out[mid_indices] <- beta_draws[mid_indices]
   }
 
   # Ensure output length matches original n if n was the max dimension
   if (n_out == n && n > 0) {
-      return(final_out[1:n])
+    return(final_out[1:n])
   } else if (n_out > n && n == 1) {
-      return(final_out) # Return vector if n=1 but params were vectors
+    return(final_out) # Return vector if n=1 but params were vectors
   } else {
-      return(final_out) # Default case
+    return(final_out) # Default case
   }
 }
 
@@ -226,8 +231,9 @@ dbetagate <- function(x, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5, log = FALSE) {
     # Calculate Beta density component
     # Need to handle case where prob_mid is zero (e.g., pex=1)
     beta_dens <- ifelse(prob_mid[idx_mid] > eps,
-                        stats::dbeta(x[idx_mid], shape1 = shape1[idx_mid], shape2 = shape2[idx_mid], log = FALSE),
-                        0)
+      stats::dbeta(x[idx_mid], shape1 = shape1[idx_mid], shape2 = shape2[idx_mid], log = FALSE),
+      0
+    )
     # Total density is P(middle category) * BetaPDF(x | params)
     density[idx_mid] <- prob_mid[idx_mid] * beta_dens
   }

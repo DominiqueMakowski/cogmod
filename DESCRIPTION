@@ -1,7 +1,7 @@
 Package: cogmod
 Type: Package
 Title: Cognitive Models for Subjective Scales and Decision Making Tasks in R
-Version: 0.0.19
+Version: 0.0.20
 Authors@R: c(
     person(
       "Dominique", "Makowski",
@@ -45,6 +45,6 @@ Remotes:
     easystats/performance, 
     easystats/modelbased
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 VignetteBuilder: 
     quarto
