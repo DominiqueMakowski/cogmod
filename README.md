@@ -1,6 +1,18 @@
 # cogmod
 
 
+<!-- cogitR -->
+
+<!-- cogbox -->
+
+<!-- brainexplain -->
+
+<!-- brainy: The R package for Computational Cognitive Models -->
+
+<!-- BrainieR -->
+
+<!-- ComputationalCognition -->
+
 [![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
 [![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
 
@@ -9,6 +21,11 @@
 ## Status
 
 ![Status](https://img.shields.io/badge/status-WIP-orange.svg)
+
+This R package is dedicated to facilitate the application of
+computational cognitive models in R under a Bayesian framework. These
+are useful in the field of cognitive science and computational
+neuropsycholology.
 
 **This package is very much totally exploratory - currently made for my
 own needs.** It’s not meant to be stable and robust at this stage. Use
@@ -126,10 +143,15 @@ ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
 
 ### Subjective Ratings
 
+#### Bounded Continuous Distributions (Analog Scales)
+
 - [**See this
   tutorial**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
+  - [x] Choice-Confidence (CHOCO) models (Bi-modal Beta)
+  - [x] Beta-gate (Ordered Beta for 0-1 inflated Beta)
 
-![](man/figures/subjective_ratings1.png)
+![](man/figures/subjective_ratings1.png) \#### Bounded Discrete
+Distributions (Likert Scales)
 
 ### Cognitive Tasks
 

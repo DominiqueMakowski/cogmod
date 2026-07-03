@@ -4,10 +4,11 @@ template:
 
 reference:
     - title: "Subjective Scales Data"
-    - subtitle: "Beta-Gate Model"
+    - subtitle: "Unimodal Distributions"
       contents:
+          - rbetadiscrete
           - rbetagate
-    - subtitle: "Choice-Confidence (CHOCO) Model"
+    - subtitle: "Multiprocess Models"
       contents:
           - rchoco
     - title: "Decision Making Data (Choice and RT)"
@@ -26,3 +27,6 @@ reference:
           - rt_logweibull
           - rt_invweibull
           - rrt_lba
+    - title: "Other"
+      contents:
+          - conf_sdt

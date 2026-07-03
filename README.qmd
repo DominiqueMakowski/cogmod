@@ -195,13 +195,16 @@ ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
 
 - [**See this tutorial**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
   - [x] Choice-Confidence (CHOCO) models (Bi-modal Beta)
-  - [x] Beta-gate (Ordered Beta for 0-1 inflated Beta)
+  - [x] Beta-gate (Ordered Beta, [Kubinec, 2023](https://doi.org/10.1017/pan.2022.20))
 
 ![](man/figures/subjective_ratings1.png)
+
 #### Bounded Discrete Distributions (Likert Scales)
 
-
-
+- [**See this tutorial**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
+  - [x] Discrete-Beta ([Sciandra, 2024](https://link.springer.com/article/10.1007/s10651-023-00592-5))
+  
+  
 ### Cognitive Tasks
 
 #### RT-only Models
