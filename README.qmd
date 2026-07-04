@@ -67,6 +67,7 @@ The [**Choice-Confidence (CHOCO)**](https://dominiquemakowski.github.io/cogmod/r
 library(ggplot2)
 library(patchwork)
 library(cogmod)
+library(rstan)
 
 # Simulate data using rchoco() with two parameter sets
 df1 <- rchoco(n = 5000, confright = 0.8, confleft = 0.7, pex = 0.05)
@@ -204,7 +205,8 @@ ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
 - [**See this tutorial**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
   - [x] Discrete-Beta ([Sciandra, 2024](https://link.springer.com/article/10.1007/s10651-023-00592-5))
   
-  
+![](man/figures/subjective_ratings3.png)
+
 ### Cognitive Tasks
 
 #### RT-only Models
