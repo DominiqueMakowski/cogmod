@@ -16,7 +16,7 @@
 [![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
 [![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
 
-*Models of Cognition: for Subjective Scales and Decision Making Tasks in
+*Models of Cognition for Subjective Scales and Decision Making Tasks in
 R*
 
 ## Status
@@ -29,19 +29,48 @@ are useful in the field of cognitive science and computational
 neuropsycholology.
 
 **This package is under development.** It’s not meant to be stable and
-robust at this stage. Use at your own risks.
+robust at this stage. Use at your own risks. If you have suggestions for
+improvement, please get in touch!
 
-- If you have suggestions for improvement, please get in touch!
 - I’ve been seeking the best way to implement various sequential models
   for a long time, initially trying and [failing in
   R](https://github.com/DominiqueMakowski/easyRT), then developing a lot
-  of hopes for a Julia solution - but that’s not there *yet*, so I’m
-  back at making some new attempts in R.
-  - If you are interested in Sequential Sampling Models, see this
-    amazing [Julia
-    package](https://github.com/itsdfish/SequentialSamplingModels.jl)
-  - See also this attempt at [**creating
-    tutorials**](https://dominiquemakowski.github.io/CognitiveModels/)
+  of hopes for a Julia solution (see the
+  [SequentialSamplingModels.jl](https://github.com/itsdfish/SequentialSamplingModels.jl)),
+  but I’m back at making some new attempts in R.
+- See also this attempt at [**creating
+  tutorials**](https://dominiquemakowski.github.io/CognitiveModels/)
+
+## What are Computational Cognitive Models?
+
+Measures from cognitive tasks, such as decision-making paradigms
+involving ratings or fast responses, often yield noisy and complex
+patterns of results. Three approaches exist:
+
+- **The *Normal* Way**: The traditional approach involves not bothering
+  with any of these facts, assume that all data is Normally distributed,
+  and use simple summary statistics: computing means (which is what
+  linear models do) and assessing their differences using *t*-tests,
+  ANOVAs, or regression models. This is often neither appropriate for
+  the data, nor does it provide with very informative insights into the
+  cognitive mechanisms at stake.
+- **The Better-Fit Way**: This approach focuses on trying to better
+  match or account for the particular shape of the distribution of the
+  data. Solutions range from data transformation (e.g., log-transforming
+  reaction times to make them more suitable to linear models), using
+  robust statistics, or using more complex distributions, enabled thanks
+  to recent technical advances. While using better suited models leads
+  to major improvements, there are often no theorethical links between
+  the parameters of many of these models and cognitive processes.
+- **The Computational Way**: The most recent approach is to use models
+  that are specifically designed to approximate or account for the
+  cognitive processes at stake. For instance, Evidence Accumulation
+  Models conceptualize response time as the outcome of a noisy process
+  of evidence accumulation in the brain. And Choice-Confidence models
+  explain the bi-modal distributions often found with slider scales as
+  the combination of a dual-process of discrete choice and continuous
+  evaluation. These models combine a good distributional fit to the data
+  with more meaningful parameters.
 
 ![Illustration animation of Drift Diffusion
 Models](man/figures/video_ddm.gif)
