@@ -186,20 +186,23 @@ that CHOCO provides a significantly better fit than the other models.
 
 ```{r}
 #| code-fold: true
+#| eval: false
 
-# loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |>
-#   parameters(include_ENP = TRUE)
+loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |>
+  parameters(include_ENP = TRUE)
 ```
 
 
 
-Name       |  LOOIC |  ENP |   ELPD | Difference | Difference_SE |      p
--------------------------------------------------------------------------
-m_choco    | -770.7 | 8.93 | 385.33 |       0.00 |          0.00 |       
-m_betagate | -159.8 | 7.21 |  79.88 |    -305.45 |         16.68 | < .001
-m_zoib     | -159.7 | 7.00 |  79.86 |    -305.46 |         16.99 | < .001
-m_xbx      | -145.0 | 5.11 |  72.51 |    -312.81 |         16.81 | < .001
+| Name | LOOIC | ENP | ELPD | Difference | Difference_SE | p |
+| --- | --- | --- | --- | --- | --- | --- |
+| m_choco | -770.7 | 8.93 | 385.33 | 0.00 | 0.00 |  |
+| m_betagate | -159.8 | 7.21 | 79.88 | -305.45 | 16.68 | < .001 |
+| m_zoib | -159.7 | 7.00 | 79.86 | -305.46 | 16.99 | < .001 |
+| m_xbx | -145.0 | 5.11 | 72.51 | -312.81 | 16.81 | < .001 |
 
+Note that you can also use `report::report()` on the output of `loo_compare()`
+to get a textual summary.
 
 #### Sampling Duration
 
@@ -499,7 +502,7 @@ p
 #| echo: false
 #| eval: false
 
-ggsave("../man/figures/subjective_ratings3.png", p, width = 12, height = 8, bg = "white")
+ggsave("../man/figures/subjective_ratings3.png", p, width = 12, height = 5, bg = "white")
 ```
 
 ![](../man/figures/subjective_ratings3.png)
