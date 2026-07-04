@@ -41,7 +41,7 @@ These are useful in the field of cognitive science and computational neuropsycho
   - See also this attempt at [**creating tutorials**](https://dominiquemakowski.github.io/CognitiveModels/)
   
   
-{{< video man/figures/video_ddm.mp4 title="Animation of Drift Diffusion Model" >}}
+![Illustration animation of Drift Diffusion Models](man/figures/video_ddm.gif)
 
 ## Installation
 
