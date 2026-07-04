@@ -1,0 +1,338 @@
+# cogmod
+
+[![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
+[![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
+
+*Cognitive Models for Subjective Scales and Decision Making Tasks in R*
+
+## Status
+
+![Status](https://img.shields.io/badge/status-WIP-orange.svg)
+
+Status
+
+This R package is dedicated to facilitate the application of
+computational cognitive models in R under a Bayesian framework. These
+are useful in the field of cognitive science and computational
+neuropsycholology.
+
+**This package is very much totally exploratory - currently made for my
+own needs.** It’s not meant to be stable and robust at this stage. Use
+at your own risks.
+
+- If you have suggestions for improvement, please get in touch!
+- I’ve been seeking the best way to implement various sequential models
+  for a long time, initially trying and [failing in
+  R](https://github.com/DominiqueMakowski/easyRT), then developing a lot
+  of hopes for a Julia solution - but that’s not there *yet*, so I’m
+  back at making some new attempts in R.
+  - If you are interested in Sequential Sampling Models, see this
+    amazing [Julia
+    package](https://github.com/itsdfish/SequentialSamplingModels.jl)
+  - See also this attempt at [**creating
+    tutorials**](https://dominiquemakowski.github.io/CognitiveModels/)
+
+## Installation
+
+``` r
+
+if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
+
+remotes::install_github("DominiqueMakowski/cogmod")
+```
+
+## Main Distributions
+
+### CHOCO Model
+
+The [**Choice-Confidence
+(CHOCO)**](https://dominiquemakowski.github.io/cogmod/reference/rchoco.html)
+model is useful to model data from subjective ratings, such as
+Likert-type or analog scales, in which the left and the right side
+correspond to different processes or higher order categorical responses
+(e.g., “disagree” vs. “agree”, “true” vs. “false”). They can be used to
+jointly model choice (left or right) and confidence (the degree of left
+or right).
+
+Code
+
+``` r
+
+library(ggplot2)
+library(patchwork)
+library(cogmod)
+
+# Simulate data using rchoco() with two parameter sets
+df1 <- rchoco(n = 5000, confright = 0.8, confleft = 0.7, pex = 0.05)
+df2 <- rchoco(n = 5000, confright = 0.3, confleft = 0.3, pex = 0.1)
+df3 <- rchoco(n = 5000, confright = 0.3, confleft = 0.3, pex = 0.1, 
+               precright = 1.5, precleft = 1.5, pmid = 0.01)
+
+# Combine data into a single data frame
+df <- data.frame(
+  value = c(df1, df2, df3),
+  group = rep(c(
+    "confright = 0.5, confleft = 0.4, pex = 0.2",
+    "confright = 0.7, confleft = 0.6, pex = 0.1",
+    "confright = 0.3, confleft = 0.3, pex = 0.1"
+  ), each = 5000)
+)
+
+# Create the histogram
+ggplot(df, aes(x = value, fill = group)) +
+  geom_histogram(alpha = 0.8, position = "identity", bins = 70) +
+  labs(title = "CHOCO Distribution", x = "Value", y = "", fill = "Parameters") +
+  theme_minimal() +
+  scale_fill_manual(values = c("#E91E63", "#9C27B0", "#FF9800"))
+```
+
+![](reference/figures/unnamed-chunk-2-1.png)
+
+### Beta-Gate
+
+The Beta-Gate model corresponds to a reparametrized ordered beta model
+([Kubinec, 2023](https://doi.org/10.1017/pan.2022.20)). In the ordered
+Beta model, the extreme values (0 and 1) arise from censoring an
+underlying latent process based on cutpoints (“gates”). Values falling
+past the gates are considered extremes (zeros and ones). The difference
+from the Ordered Beta is the way the cutpoints are defined, as well as
+the scale of the precision parameter phi.
+
+![](reference/figures/betagate.png)
+
+### LNR Model
+
+The Log-Normal Race (LNR) model is useful for modeling reaction times
+and errors in decision-making tasks. The model assumes that each
+accumulator draws a value from a LogNormal distribution (shifted by a
+non-decision time τ). The winning accumulator (minimum draw) determines
+the observed reaction time and choice.
+
+Code
+
+``` r
+
+# Simulate data using rlnr()
+lnr_data <- rlnr(n = 5000, nuzero = 1, nuone = 0.5, sigmazero = 1, sigmaone = 0.5, ndt = 0.2)
+
+# Create histograms for each choice
+ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
+  geom_histogram(alpha = 0.8, position = "identity", bins = 50) +
+  labs(title = "LogNormal Race Model", x = "Reaction Time", y = "Frequency", fill = "Choice") +
+  theme_minimal() +
+  scale_fill_manual(values = c("#4CAF50", "#FF5722"))
+```
+
+![](reference/figures/unnamed-chunk-5-1.png)
+
+## Usage with `brms`
+
+### Subjective Ratings
+
+#### Bounded Continuous Distributions (Analog Scales)
+
+[**See this
+tutorial**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
+
+Choice-Confidence (CHOCO) models (Bi-modal Beta)
+
+Beta-gate (Ordered Beta for 0-1 inflated Beta)
+
+![](reference/figures/subjective_ratings1.png) \#### Bounded Discrete
+Distributions (Likert Scales)
+
+### Cognitive Tasks
+
+#### RT-only Models
+
+- [**See this
+  tutorial**](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html)
+
+![](reference/figures/rt_models1.png)
+
+#### Decision Making (Choice + RT)
+
+##### Simulate Data
+
+``` r
+
+df <- rlnr(n = 3000, nuzero = 0.2, nuone = 0, sigmazero = 0.8, sigmaone = 0.5, ndt = 0.2) |> 
+  datawizard::data_filter(rt < 5)
+
+df |>
+  ggplot(aes(x = rt, fill = factor(response))) +
+  geom_histogram(alpha = 0.8, position = "identity", bins = 100) +
+  labs(title = "RT Distribution", x = "Reaction Time", y = "Frequency", fill = "Choice") +
+  theme_minimal() +
+  scale_fill_manual(values = c("#009688", "#E91E63"))
+```
+
+![](reference/figures/unnamed-chunk-6-1.png)
+
+``` r
+
+dfcorrect <- df[df$response == 0,]
+```
+
+##### Drift Diffusion Model (DDM)
+
+``` r
+
+f <- bf(
+  rt | dec(response) ~ 1,
+  bs ~ 1,
+  bias ~ 1,
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = ddm()
+)
+
+m_ddm <- brm(f,
+  data = df,
+  init = 0,
+  family = ddm(),
+  stanvars = ddm_stanvars(),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_ddm <- brms::add_criterion(m_ddm, "loo") 
+
+saveRDS(m_ddm, file = "man/figures/m_ddm.rds")
+```
+
+##### Linear Ballistic Accumulator (LBA)
+
+``` r
+
+f <- bf(
+  rt | dec(response) ~ 1,
+  vdelta ~ 1,
+  sigmazero ~ 1,
+  sigmadelta ~ 1,
+  A ~ 1, 
+  k ~ 1,
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = lba()
+)
+
+priors <- c(
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau"),
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "A"),
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "k"),
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = ""),
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "vdelta"),
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmazero")
+  ) |>
+    brms::validate_prior(f, data = df)
+
+
+m_lba <- brm(f,
+  data = df,
+  init = 1,
+  prior = priors,
+  family = lba(),
+  stanvars = lba_stanvars(),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_lba <- brms::add_criterion(m_lba, "loo")
+
+saveRDS(m_lba, file = "man/figures/m_lba.rds")
+```
+
+##### LogNormal Race (LNR)
+
+``` r
+
+f <- bf(
+  rt | dec(response) ~ 1,
+  nuone ~ 1,
+  sigmazero ~ 1,
+  sigmaone ~ 1,
+  tau ~ 1,
+  minrt = min(df$rt),
+  family = lnr()
+)
+
+m_lnr <- brm(f,
+  data = df,
+  init = 0,
+  family = lnr(),
+  stanvars = lnr_stanvars(),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_lnr <- brms::add_criterion(m_lnr, "loo")
+
+saveRDS(m_lnr, file = "man/figures/m_lnr.rds")
+```
+
+##### Model Comparison
+
+``` r
+
+m_ddm <- readRDS("man/figures/m_ddm.rds")
+m_lnr <- readRDS("man/figures/m_lnr.rds")
+
+loo::loo_compare(m_ddm, m_lnr) |> 
+  parameters::parameters()
+```
+
+Code
+
+``` r
+
+pred <- estimate_prediction(m_lnr, data = df, iterations = 100, keep_iterations = TRUE) |>
+  as.data.frame() |> 
+  reshape_iterations() |> 
+  datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index"))  |>
+  datawizard::data_to_wide(id_cols=c("Row", "iter_group"), values_from="iter_value", names_from="Component")
+pred <- datawizard::data_filter(pred, "rt < 4")
+
+
+.density_rt_response <- function(rt, response, length.out = 100) {
+  rt_choice0 <- rt[response == 0]
+  rt_choice1 <- rt[response == 1]
+  xaxis <- seq(0, max(rt_choice0, rt_choice1)* 1.1, length.out = length.out)
+  
+  insight::check_if_installed("logspline")
+  rbind(
+    data.frame(x = xaxis, 
+               y = logspline::dlogspline(xaxis, logspline::logspline(rt_choice0)),
+               response = 0),
+    data.frame(x = xaxis,
+               y = -logspline::dlogspline(xaxis, logspline::logspline(rt_choice1)),
+               response = 1)
+  )
+}
+
+density_rt_response <- function(data, rt="rt", response="response", by=NULL, length.out = 100) {
+  if (is.null(by)) {
+    out <- .density_rt_response(data[[rt]], data[[response]], length.out = length.out)
+  } else {
+    out <- sapply(split(data, data[[by]]), function(x) {
+      d <- .density_rt_response(x[[rt]], x[[response]], length.out = length.out)
+      d[[by]] <- x[[by]][1]
+      d
+      }, simplify = FALSE)
+    out <- do.call(rbind, out)
+    out[[by]] <- as.factor(out[[by]])
+  }
+  out[[response]] <- as.factor(out[[response]])
+  row.names(out) <- NULL
+  out
+}
+
+
+  
+dat <- density_rt_response(pred, rt="rt", response="response", by="iter_group")
+
+df |> 
+  ggplot(aes(x=rt)) +
+  geom_histogram(data=df[df$response == 0,], aes(y=after_stat(density)), fill="darkgreen", bins=100) +
+  geom_histogram(data=df[df$response == 1,], aes(y=after_stat(-density)), fill="darkred", bins=100) +
+  geom_line(data=dat, aes(x=x, y=y, color = response, group =  interaction(response, iter_group)), alpha=0.1) +
+  scale_color_manual(values = c("green", "red")) +
+  theme_minimal()
+```

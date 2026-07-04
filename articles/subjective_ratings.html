@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Subjective Ratings • cogmod</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><script src="subjective_ratings_files/libs/quarto-html/popper.min.js"></script><script src="subjective_ratings_files/libs/quarto-html/tippy.umd.min.js"></script><link href="subjective_ratings_files/libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="subjective_ratings_files/libs/quarto-html/light-border.css" rel="stylesheet">
@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.19</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.20</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -76,10 +76,13 @@
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://mc-stan.org/cmdstanr/" class="external-link">cmdstanr</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">options</a></span><span class="op">(</span>mc.cores <span class="op">=</span> <span class="fu">parallel</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/parallel/detectCores.html" class="external-link">detectCores</a></span><span class="op">(</span><span class="op">)</span> <span class="op">-</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">options</a></span><span class="op">(</span>mc.cores <span class="op">=</span> <span class="fu">parallel</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/parallel/detectCores.html" class="external-link">detectCores</a></span><span class="op">(</span><span class="op">)</span> <span class="op">-</span> <span class="fl">2</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">33</span><span class="op">)</span></span></code></pre></div>
 </div>
-<section class="level2"><h2 id="simulate-data">Simulate Data<a class="anchor" aria-label="anchor" href="#simulate-data"></a>
+<section class="level2"><h2 id="analog-scales">Analog Scales<a class="anchor" aria-label="anchor" href="#analog-scales"></a>
 </h2>
+<section class="level3"><h3 id="simulate-data">Simulate Data<a class="anchor" aria-label="anchor" href="#simulate-data"></a>
+</h3>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="op">)</span></span>
@@ -101,10 +104,10 @@
 </div>
 </div>
 </div>
-</section><section class="level2"><h2 id="models">Models<a class="anchor" aria-label="anchor" href="#models"></a>
-</h2>
-<section class="level3"><h3 id="zoib-model">ZOIB Model<a class="anchor" aria-label="anchor" href="#zoib-model"></a>
+</section><section class="level3"><h3 id="models">Models<a class="anchor" aria-label="anchor" href="#models"></a>
 </h3>
+<section class="level4"><h4 id="zoib-model">ZOIB Model<a class="anchor" aria-label="anchor" href="#zoib-model"></a>
+</h4>
 <p>The Zero-One Inflated Beta (ZOIB) model assumes that the data can be modeled as a mixture of two logistic regression processes for the boundary values (0 and 1) and a beta regression process for the continuous proportions in-between.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb3"><pre class="downlit sourceCode r">
@@ -125,8 +128,8 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_zoib</span>, file <span class="op">=</span> <span class="st">"models/m_zoib.rds"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level3"><h3 id="xbx-model">XBX Model<a class="anchor" aria-label="anchor" href="#xbx-model"></a>
-</h3>
+</section><section class="level4"><h4 id="xbx-model">XBX Model<a class="anchor" aria-label="anchor" href="#xbx-model"></a>
+</h4>
 <p><a href="https://arxiv.org/abs/2409.07233" class="external-link">Kosmidis &amp; Zeileis (2024)</a> introduce a generalization of the classic beta regression model with extended support [0, 1]. Specifically, the extended-support beta distribution (<code>xbeta</code>) leverages an underlying symmetric four-parameter beta distribution with exceedence parameter nu to obtain support [-nu, 1 + nu] that is subsequently censored to [0, 1] in order to obtain point masses at the boundary values 0 and 1.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="downlit sourceCode r">
@@ -134,11 +137,11 @@
 <span>  <span class="va">score</span> <span class="op">~</span> <span class="va">x</span>,</span>
 <span>  <span class="va">phi</span> <span class="op">~</span> <span class="va">x</span>,</span>
 <span>  <span class="va">kappa</span> <span class="op">~</span> <span class="va">x</span>, </span>
-<span>  family <span class="op">=</span> <span class="fu">xbeta</span><span class="op">(</span><span class="op">)</span></span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">xbeta</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">m_xbx</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, family <span class="op">=</span> <span class="fu">xbeta</span><span class="op">(</span><span class="op">)</span>, init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, family <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">xbeta</a></span><span class="op">(</span><span class="op">)</span>, init <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -146,8 +149,8 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_xbx</span>, file <span class="op">=</span> <span class="st">"models/m_xbx.rds"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level3"><h3 id="beta-gate-model">Beta-Gate Model<a class="anchor" aria-label="anchor" href="#beta-gate-model"></a>
-</h3>
+</section><section class="level4"><h4 id="beta-gate-model">Beta-Gate Model<a class="anchor" aria-label="anchor" href="#beta-gate-model"></a>
+</h4>
 <p>The <a href="https://dominiquemakowski.github.io/cogmod/reference/rbetagate.html" class="external-link"><strong>Beta-Gate model</strong></a> corresponds to a reparametrized Ordered Beta model (<a href="https://doi.org/10.1017/pan.2022.20" class="external-link">Kubinec, 2023</a>). In this model, observed 0s and 1s represent instances where the underlying continuous response tendency fell beyond lower or upper boundary points (‘gates’).</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
@@ -168,8 +171,8 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_betagate</span>, file <span class="op">=</span> <span class="st">"models/m_betagate.rds"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level3"><h3 id="choco-model">CHOCO Model<a class="anchor" aria-label="anchor" href="#choco-model"></a>
-</h3>
+</section><section class="level4"><h4 id="choco-model">CHOCO Model<a class="anchor" aria-label="anchor" href="#choco-model"></a>
+</h4>
 <p>See the <a href="https://dominiquemakowski.github.io/cogmod/reference/rchoco.html" class="external-link"><strong>documentation</strong></a> of the Choice-Confidence (CHOCO).</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
@@ -194,22 +197,72 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_choco</span>, file <span class="op">=</span> <span class="st">"models/m_choco.rds"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section></section><section class="level2"><h2 id="model-comparison">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison"></a>
-</h2>
+</section></section><section class="level3"><h3 id="model-comparison">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison"></a>
+</h3>
 <div class="cell">
 <pre><code><span><span class="co">#&gt; Loading required namespace: rstan</span></span></code></pre>
 </div>
-<section class="level3"><h3 id="model-fit">Model Fit<a class="anchor" aria-label="anchor" href="#model-fit"></a>
-</h3>
+<section class="level4"><h4 id="model-fit">Model Fit<a class="anchor" aria-label="anchor" href="#model-fit"></a>
+</h4>
 <p>We can compare these models together using the <code>loo</code> package, which shows that CHOCO provides a significantly better fit than the other models.</p>
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |&gt; </span></span>
-<span><span class="co">#   parameters(include_ENP = TRUE)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">loo</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare</a></span><span class="op">(</span><span class="va">m_zoib</span>, <span class="va">m_xbx</span>, <span class="va">m_betagate</span>, <span class="va">m_choco</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">parameters</span><span class="op">(</span>include_ENP <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 </details>
 </div>
-</section><section class="level3"><h3 id="sampling-duration">Sampling Duration<a class="anchor" aria-label="anchor" href="#sampling-duration"></a>
-</h3>
+<table class="table caption-top">
+<thead><tr class="header">
+<th>Name</th>
+<th>LOOIC</th>
+<th>ENP</th>
+<th>ELPD</th>
+<th>Difference</th>
+<th>Difference_SE</th>
+<th>p</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>m_choco</td>
+<td>-770.7</td>
+<td>8.93</td>
+<td>385.33</td>
+<td>0.00</td>
+<td>0.00</td>
+<td></td>
+</tr>
+<tr class="even">
+<td>m_betagate</td>
+<td>-159.8</td>
+<td>7.21</td>
+<td>79.88</td>
+<td>-305.45</td>
+<td>16.68</td>
+<td>&lt; .001</td>
+</tr>
+<tr class="odd">
+<td>m_zoib</td>
+<td>-159.7</td>
+<td>7.00</td>
+<td>79.86</td>
+<td>-305.46</td>
+<td>16.99</td>
+<td>&lt; .001</td>
+</tr>
+<tr class="even">
+<td>m_xbx</td>
+<td>-145.0</td>
+<td>5.11</td>
+<td>72.51</td>
+<td>-312.81</td>
+<td>16.81</td>
+<td>&lt; .001</td>
+</tr>
+</tbody>
+</table>
+<p>Note that you can also use <code><a href="https://easystats.github.io/report/reference/report.html" class="external-link">report::report()</a></code> on the output of <code><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare()</a></code> to get a textual summary.</p>
+</section><section class="level4"><h4 id="sampling-duration">Sampling Duration<a class="anchor" aria-label="anchor" href="#sampling-duration"></a>
+</h4>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
@@ -231,8 +284,8 @@
 </div>
 </div>
 </div>
-</section><section class="level3"><h3 id="posterior-predictive-check">Posterior Predictive Check<a class="anchor" aria-label="anchor" href="#posterior-predictive-check"></a>
-</h3>
+</section><section class="level4"><h4 id="posterior-predictive-check">Posterior Predictive Check<a class="anchor" aria-label="anchor" href="#posterior-predictive-check"></a>
+</h4>
 <p>Running posterior predictive checks allows to visualize the predicted distributions from various models. We can see how typical Beta-related models fail to capture the bimodal nature of the data, which is well captured by the CHOCO model.</p>
 <p>Note: <code>iterations</code> controls the actual number of iterations used (e.g., for the point-estimate) and <code>keep_iterations</code> the number included.</p>
 <div class="cell">
@@ -252,20 +305,21 @@
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"CHOCO"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">df</span> <span class="op">|&gt;</span></span>
+<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="va">df</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">score</span>, y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">density</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>bins <span class="op">=</span> <span class="fl">100</span>, fill <span class="op">=</span> <span class="st">"#2196F3"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Rating Distribution"</span>, x <span class="op">=</span> <span class="st">"Score"</span>, y <span class="op">=</span> <span class="st">"Density"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Posterior Predictive Check"</span>, x <span class="op">=</span> <span class="st">"Score"</span>, y <span class="op">=</span> <span class="st">"Density"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>plot.title <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>face <span class="op">=</span> <span class="st">"bold"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span></span>
 <span>    data <span class="op">=</span> <span class="va">pred</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">iter_value</span>, group <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">iter_group</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>    bins <span class="op">=</span> <span class="fl">100</span>, alpha <span class="op">=</span> <span class="fl">0.02</span>, position <span class="op">=</span> <span class="st">"identity"</span>, fill <span class="op">=</span> <span class="st">"#FF5722"</span></span>
+<span>    bins <span class="op">=</span> <span class="fl">100</span>, alpha <span class="op">=</span> <span class="fl">0.03</span>, position <span class="op">=</span> <span class="st">"identity"</span>, fill <span class="op">=</span> <span class="st">"#FF5722"</span></span>
 <span>  <span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">Model</span><span class="op">)</span></span></code></pre></div>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">Model</span><span class="op">)</span></span>
+<span><span class="va">p</span></span></code></pre></div>
 </details>
 </div>
-</section></section><section class="level2"><h2 id="effect-visualisation">Effect Visualisation<a class="anchor" aria-label="anchor" href="#effect-visualisation"></a>
-</h2>
+<p><img src="../reference/figures/subjective_ratings1.png"> ### Effect Visualisation</p>
 <p>We can see how the predicted distribution changes as a function of <strong>x</strong> and gets “pushed” to the right. Moreover, we can also visualize the effect of <strong>x</strong> on specific parameters, showing that it mostly affects the parameter <strong>conf</strong> (the mean confidence - i.e., central tendency - on the right side), <strong>confleft</strong> (the relative confidence of the left side), and <strong>mu</strong>, which corresponds to the <strong><em>p</em></strong> probability of answering on the right. This is consistent with our expectations, and reflects the larger and more concentrated mass on the right of the scale for higher value of <strong>x</strong> (in brown).</p>
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb11"><pre class="downlit sourceCode r">
@@ -279,34 +333,187 @@
 <span><span class="va">p1</span></span></code></pre></div>
 </details><div class="cell-output-display">
 <div>
-<figure><p><img src="subjective_ratings_files/figure-html/unnamed-chunk-10-1.png" width="960"></p>
+<figure><p><img src="subjective_ratings_files/figure-html/unnamed-chunk-11-1.png" width="960"></p>
 </figure>
 </div>
 </div>
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
-<span><span class="co"># # Predict various parameters</span></span>
-<span><span class="co"># pred_params &lt;- data.frame()</span></span>
-<span><span class="co"># for(param in c("mu", "confright", "confleft", "precright", "precleft", "pex")) {</span></span>
-<span><span class="co">#   pred_params &lt;- m_choco |&gt;</span></span>
-<span><span class="co">#     estimate_prediction(data = "grid", length = 20, predict = param) |&gt;</span></span>
-<span><span class="co">#     as.data.frame() |&gt;</span></span>
-<span><span class="co">#     data_modify(Parameter = param) |&gt; </span></span>
-<span><span class="co">#     rbind(pred_params)</span></span>
-<span><span class="co"># }</span></span>
-<span><span class="co"># </span></span>
-<span><span class="co"># p2 &lt;- pred_params |&gt;</span></span>
-<span><span class="co">#   ggplot(aes(x = x, y = Predicted)) +</span></span>
-<span><span class="co">#   geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = Parameter), alpha = 0.2) +</span></span>
-<span><span class="co">#   geom_line(aes(color = Parameter), linewidth = 1) +</span></span>
-<span><span class="co">#   facet_wrap(~Parameter, scales = "free_y", ncol=3) +</span></span>
-<span><span class="co">#   scale_fill_viridis_d() +</span></span>
-<span><span class="co">#   scale_color_viridis_d() +</span></span>
-<span><span class="co">#   theme_minimal()</span></span>
-<span><span class="co"># p2</span></span></code></pre></div>
+<span><span class="co"># Predict various parameters</span></span>
+<span><span class="va">pred_params</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="kw">for</span><span class="op">(</span><span class="va">param</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"mu"</span>, <span class="st">"confright"</span>, <span class="st">"confleft"</span>, <span class="st">"precright"</span>, <span class="st">"precleft"</span>, <span class="st">"pex"</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">pred_params</span> <span class="op">&lt;-</span> <span class="va">m_choco</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">estimate_prediction</span><span class="op">(</span>data <span class="op">=</span> <span class="st">"grid"</span>, length <span class="op">=</span> <span class="fl">20</span>, predict <span class="op">=</span> <span class="va">param</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">data_modify</span><span class="op">(</span>Parameter <span class="op">=</span> <span class="va">param</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="va">pred_params</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">p2</span> <span class="op">&lt;-</span> <span class="va">pred_params</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">x</span>, y <span class="op">=</span> <span class="va">Predicted</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_ribbon.html" class="external-link">geom_ribbon</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>ymin <span class="op">=</span> <span class="va">CI_low</span>, ymax <span class="op">=</span> <span class="va">CI_high</span>, fill <span class="op">=</span> <span class="va">Parameter</span><span class="op">)</span>, alpha <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>color <span class="op">=</span> <span class="va">Parameter</span><span class="op">)</span>, linewidth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">Parameter</span>, scales <span class="op">=</span> <span class="st">"free_y"</span>, ncol<span class="op">=</span><span class="fl">3</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_viridis.html" class="external-link">scale_fill_viridis_d</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_viridis.html" class="external-link">scale_color_viridis_d</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">p2</span></span></code></pre></div>
+</details><div class="cell-output-display">
+<div>
+<figure><p><img src="subjective_ratings_files/figure-html/unnamed-chunk-11-2.png" width="960"></p>
+</figure>
+</div>
+</div>
+</div>
+<p><img src="../reference/figures/subjective_ratings2.png"></p>
+</section></section></section><section class="level2"><h2 id="likert-scales">Likert Scales<a class="anchor" aria-label="anchor" href="#likert-scales"></a>
+</h2>
+<section class="level3"><h3 id="simulate-data-1">Simulate Data<a class="anchor" aria-label="anchor" href="#simulate-data-1"></a>
+</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">33</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="kw">for</span><span class="op">(</span><span class="va">x</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">0.2</span>, <span class="fl">0.8</span>, by <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">rating</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/rbetadiscrete.html">rbetadiscrete</a></span><span class="op">(</span>n<span class="op">=</span><span class="fl">200</span>, mu <span class="op">=</span> <span class="va">x</span>, phi <span class="op">=</span> <span class="fl">3</span>, k <span class="op">=</span> <span class="fl">6</span><span class="op">)</span></span>
+<span>  <span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="va">df</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">x</span>, rating <span class="op">=</span> <span class="va">rating</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">df</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">rating</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_bar.html" class="external-link">geom_bar</a></span><span class="op">(</span>stat <span class="op">=</span> <span class="st">"count"</span>, fill <span class="op">=</span> <span class="st">"#2196F3"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Rating Distribution"</span>, x <span class="op">=</span> <span class="st">"Score"</span>, y <span class="op">=</span> <span class="st">"Density"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<div class="cell-output-display">
+<div>
+<figure><p><img src="subjective_ratings_files/figure-html/unnamed-chunk-13-1.png" width="960"></p>
+</figure>
+</div>
+</div>
+</div>
+</section><section class="level3"><h3 id="models-1">Models<a class="anchor" aria-label="anchor" href="#models-1"></a>
+</h3>
+<section class="level4"><h4 id="beta-binomial">Beta-Binomial<a class="anchor" aria-label="anchor" href="#beta-binomial"></a>
+</h4>
+<p>The Beta-Binomial is a common default for bounded count data, though it wasn’t designed for it. Its distribution consists of a two-stage mixture: conditional on a success probability <em>p</em>, the response follows a <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><mi>i</mi><mi>n</mi><mi>o</mi><mi>m</mi><mi>i</mi><mi>a</mi><mi>l</mi><mo stretchy="false" form="prefix">(</mo><mi>n</mi><mo>,</mo><mi>p</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">Binomial(n, p)</annotation></semantics></math>, while <em>p</em> itself varies according to a Beta distribution. This lets it absorb extra-binomial variation (overdispersion) arising when raters differ systematically in their response tendencies. This model makes sense when a rating is literally a count of successes a(e.g. items endorsed out of a checklist), but for a single holistic judgment on a <em>K</em>-point scale, it’s better understood as a descriptive tool than a model of the response process itself.</p>
+<p><strong>NOTE:</strong> the Beta-Binomial distribution in brms is defined on [0, n], so we need to shift the ratings down by 1 (1-6 -&gt; 0-5).</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">rating</span> <span class="op">|</span> <span class="fu">trials</span><span class="op">(</span><span class="fl">5</span><span class="op">)</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  <span class="va">phi</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">beta_binomial</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span></span>
+<span><span class="va">m_betabinomial</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
+<span>  data <span class="op">=</span> <span class="fu">data_modify</span><span class="op">(</span><span class="va">df</span>, rating <span class="op">=</span> <span class="va">rating</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span>, </span>
+<span>  family <span class="op">=</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">beta_binomial</a></span><span class="op">(</span><span class="op">)</span>, init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span>, </span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_betabinomial</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_betabinomial</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># For later model comparison</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_betabinomial</span>, file <span class="op">=</span> <span class="st">"models/m_betabinomial.rds"</span><span class="op">)</span></span></code></pre></div>
+</div>
+</section><section class="level4"><h4 id="beta-discrete">Beta-Discrete<a class="anchor" aria-label="anchor" href="#beta-discrete"></a>
+</h4>
+<p>The Discrete Beta model (<a href="https://link.springer.com/article/10.1007/s10651-023-00592-5" class="external-link">Sciandra, 2024</a>) was developed for modeling discrete rating data, i.e., discrete responses on a fixed integer scale (1-K). It assumes the observed rating is the discretised counterpart of a continuous, unobservable latent response, but rather than estimating <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">K-1</annotation></semantics></math> threshold parameters (like the Ordinal model), the Discrete Beta fixes these thresholds at evenly spaced points, and instead lets a Beta distribution govern the proportions. This reverses the usual logic (fixed distribution, estimated thresholds) and, because the Beta distribution can take on a wide range of shapes (including non-monotonic convex shapes like “J” and “U” shapes that many ordinal models struggle to reproduce), it yields a distribution that is both highly flexible and remarkably parsimonious, requiring only two parameters regardless of how many categories the scale has.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">rating</span> <span class="op">|</span> <span class="fu">vint</span><span class="op">(</span><span class="fl">6</span><span class="op">)</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  <span class="va">phi</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rbetadiscrete.html">betadiscrete</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_betadiscrete</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, family <span class="op">=</span> <span class="fu"><a href="../reference/rbetadiscrete.html">betadiscrete</a></span><span class="op">(</span><span class="op">)</span>, stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rbetadiscrete.html">betadiscrete_stanvars</a></span><span class="op">(</span><span class="op">)</span>, init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_betadiscrete</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_betadiscrete</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># For later model comparison</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_betadiscrete</span>, file <span class="op">=</span> <span class="st">"models/m_betadiscrete.rds"</span><span class="op">)</span></span></code></pre></div>
+</div>
+</section><section class="level4"><h4 id="ordinal-cumulative">Ordinal (Cumulative)<a class="anchor" aria-label="anchor" href="#ordinal-cumulative"></a>
+</h4>
+<p>Ordinal models (also known as cumulative models) posit a continuous latent variable, partitioned by <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">K-1</annotation></semantics></math> estimated thresholds. Because thresholds are freely estimated rather than fixed, the model doesn’t assume equally-spaced categories. This maps onto signal-detection accounts of ordinal judgment, where a continuous perception is filtered through response criteria that can be unevenly spaced (e.g. reluctance to use extremes). That flexibility comes at the cost of extra parameters relative to Beta-Discrete, and these thresholds parameters are estimated on an arbitrary latent scale, which are not really interpretable in and of themselves.</p>
+<p>Furthermore, because these threshold parameters are highly sample-dependent, comparing latent estimates across different populations is notoriously difficult, which introduces challenges for measurement invariance and, ultimately, replicability. For instance, fitting the same cumulative model to a new sample can yield a different set of threshold estimates, but these differences do not necessarily reflect changes in the underlying cognitive process, but may instead arise from shifts in the latent scale or response criteria. Consequently, parameter estimates obtained from independently fitted ordinal models are often not directly comparable, complicating cross-study replication and meta-analytic synthesis unless a common latent scale is explicitly established.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">rating</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  <span class="va">disc</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">cumulative</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_cumulative</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, family <span class="op">=</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">cumulative</a></span><span class="op">(</span><span class="op">)</span>, init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_cumulative</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_cumulative</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># For later model comparison</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_cumulative</span>, file <span class="op">=</span> <span class="st">"models/m_cumulative.rds"</span><span class="op">)</span></span></code></pre></div>
+</div>
+</section></section><section class="level3"><h3 id="model-comparison-1">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison-1"></a>
+</h3>
+<p>We can compare these models together using the <code>loo</code> package.</p>
+<div class="cell">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># loo::loo_compare(m_betabinomial, m_betadiscrete, m_cumulative) |&gt;</span></span>
+<span><span class="co">#   report::report()</span></span></code></pre></div>
 </details>
 </div>
-</section><script id="quarto-html-after-body" type="application/javascript">
+<div class="cell">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span></span>
+<span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_betabinomial</span>, keep_iterations <span class="op">=</span> <span class="fl">100</span>, iterations <span class="op">=</span> <span class="fl">100</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">data_modify</span><span class="op">(</span>iter_value <span class="op">=</span> <span class="va">iter_value</span> <span class="op">+</span> <span class="fl">1</span>, Model <span class="op">=</span> <span class="st">"Beta-Binomial"</span><span class="op">)</span>,</span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_betadiscrete</span>, keep_iterations <span class="op">=</span> <span class="fl">100</span>, iterations <span class="op">=</span> <span class="fl">100</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"Beta-Discrete"</span><span class="op">)</span>,</span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_cumulative</span>, keep_iterations <span class="op">=</span> <span class="fl">100</span>, iterations <span class="op">=</span> <span class="fl">100</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"Cumulative"</span><span class="op">)</span></span>
+<span><span class="op">)</span>  </span>
+<span>  </span>
+<span>  </span>
+<span><span class="va">pred_counts</span> <span class="op">&lt;-</span> <span class="va">pred</span> <span class="op">|&gt;</span> </span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/summarise.html" class="external-link">summarize</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/context.html" class="external-link">n</a></span><span class="op">(</span><span class="op">)</span>, .by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Model"</span>, <span class="st">"iter_group"</span>, <span class="st">"iter_value"</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/summarise.html" class="external-link">summarize</a></span><span class="op">(</span>n_median <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/median.html" class="external-link">median</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span>,</span>
+<span>            ci_low <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html" class="external-link">quantile</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0.025</span><span class="op">)</span>,</span>
+<span>            ci_high <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html" class="external-link">quantile</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0.975</span><span class="op">)</span>,</span>
+<span>            .by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Model"</span>, <span class="st">"iter_value"</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span></span>
+<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="va">df</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">rating</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_bar.html" class="external-link">geom_bar</a></span><span class="op">(</span>stat <span class="op">=</span> <span class="st">"count"</span>, fill <span class="op">=</span> <span class="st">"#2196F3"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">pred_counts</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">iter_value</span>, y <span class="op">=</span> <span class="va">n_median</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"#FF5722"</span>, linewidth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_linerange.html" class="external-link">geom_pointrange</a></span><span class="op">(</span></span>
+<span>    data <span class="op">=</span> <span class="va">pred_counts</span>,</span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">iter_value</span>, y <span class="op">=</span> <span class="va">n_median</span>, ymin <span class="op">=</span> <span class="va">ci_low</span>, ymax <span class="op">=</span> <span class="va">ci_high</span><span class="op">)</span>,</span>
+<span>    color <span class="op">=</span> <span class="st">"#FF5722"</span>, size <span class="op">=</span> <span class="fl">1</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Rating Distribution"</span>, x <span class="op">=</span> <span class="st">"Score"</span>, y <span class="op">=</span> <span class="st">"Density"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_cartesian.html" class="external-link">coord_cartesian</a></span><span class="op">(</span>y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">350</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">Model</span><span class="op">)</span></span>
+<span><span class="va">p</span></span></code></pre></div>
+</details><div class="cell-output-display">
+<div>
+<figure><p><img src="subjective_ratings_files/figure-html/unnamed-chunk-19-1.png" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p><img src="../reference/figures/subjective_ratings3.png"></p>
+</section></section><script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
       var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
       var mailtoRegex = new RegExp(/^mailto:/);
@@ -399,7 +606,7 @@
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer>
