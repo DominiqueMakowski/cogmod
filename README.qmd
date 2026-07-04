@@ -40,8 +40,9 @@ These are useful in the field of cognitive science and computational neuropsycho
   - If you are interested in Sequential Sampling Models, see this amazing [Julia package](https://github.com/itsdfish/SequentialSamplingModels.jl)
   - See also this attempt at [**creating tutorials**](https://dominiquemakowski.github.io/CognitiveModels/)
   
-![](man/figures/video_ddm.mp4)
   
+{{< video man/figures/video_ddm.mp4 title="Animation of Drift Diffusion Model" >}}
+
 ## Installation
 
 ```{r}
