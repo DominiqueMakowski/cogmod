@@ -32,10 +32,10 @@ robust at this stage. Use at your own risks.
   - See also this attempt at [**creating
     tutorials**](https://dominiquemakowski.github.io/CognitiveModels/)
 
-[Animation of Drift Diffusion
-Model](https://github.com/DominiqueMakowski/cogmod/man/figures/video_ddm.mp4)
+![Illustration animation of Drift Diffusion
+Models](reference/figures/video_ddm.gif)
 
-Animation of Drift Diffusion Model
+Illustration animation of Drift Diffusion Models
 
 ## Installation
 
