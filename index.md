@@ -3,7 +3,8 @@
 [![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
 [![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
 
-*Cognitive Models for Subjective Scales and Decision Making Tasks in R*
+*Models of Cognition: for Subjective Scales and Decision Making Tasks in
+R*
 
 ## Status
 
@@ -16,9 +17,8 @@ computational cognitive models in R under a Bayesian framework. These
 are useful in the field of cognitive science and computational
 neuropsycholology.
 
-**This package is very much totally exploratory - currently made for my
-own needs.** It’s not meant to be stable and robust at this stage. Use
-at your own risks.
+**This package is under development.** It’s not meant to be stable and
+robust at this stage. Use at your own risks.
 
 - If you have suggestions for improvement, please get in touch!
 - I’ve been seeking the best way to implement various sequential models
@@ -31,6 +31,8 @@ at your own risks.
     package](https://github.com/itsdfish/SequentialSamplingModels.jl)
   - See also this attempt at [**creating
     tutorials**](https://dominiquemakowski.github.io/CognitiveModels/)
+
+[Video](https://github.com/DominiqueMakowski/cogmod/man/figures/video_ddm.mp4)
 
 ## Installation
 
@@ -61,6 +63,7 @@ Code
 library(ggplot2)
 library(patchwork)
 library(cogmod)
+library(rstan)
 
 # Simulate data using rchoco() with two parameter sets
 df1 <- rchoco(n = 5000, confright = 0.8, confleft = 0.7, pex = 0.05)
@@ -136,10 +139,20 @@ tutorial**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratin
 
 Choice-Confidence (CHOCO) models (Bi-modal Beta)
 
-Beta-gate (Ordered Beta for 0-1 inflated Beta)
+Beta-gate (Ordered Beta, [Kubinec,
+2023](https://doi.org/10.1017/pan.2022.20))
 
-![](reference/figures/subjective_ratings1.png) \#### Bounded Discrete
-Distributions (Likert Scales)
+![](reference/figures/subjective_ratings2.png)
+
+#### Bounded Discrete Distributions (Likert Scales)
+
+[**See this
+tutorial**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html#likert-scales)
+
+Discrete-Beta ([Sciandra,
+2024](https://link.springer.com/article/10.1007/s10651-023-00592-5))
+
+![](reference/figures/subjective_ratings3.png)
 
 ### Cognitive Tasks
 

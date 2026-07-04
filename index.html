@@ -62,7 +62,7 @@
 <!-- BrainieR -->
 <!-- ComputationalCognition -->
 <p><a href="https://dominiquemakowski.github.io/cogmod/" class="external-link"><img src="https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63" alt="Documentation"></a> <a href="https://dominiquemakowski.github.io/cogmod/reference/index.html" class="external-link"><img src="https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3" alt="Models"></a></p>
-<p><em>Cognitive Models for Subjective Scales and Decision Making Tasks in R</em></p>
+<p><em>Models of Cognition: for Subjective Scales and Decision Making Tasks in R</em></p>
 <div class="section level2">
 <h2 id="status">Status<a class="anchor" aria-label="anchor" href="#status"></a>
 </h2>
@@ -70,7 +70,7 @@
 <img src="https://img.shields.io/badge/status-WIP-orange.svg" alt="Status"><div class="figcaption">Status</div>
 </div>
 <p>This R package is dedicated to facilitate the application of computational cognitive models in R under a Bayesian framework. These are useful in the field of cognitive science and computational neuropsycholology.</p>
-<p><strong>This package is very much totally exploratory - currently made for my own needs.</strong> It’s not meant to be stable and robust at this stage. Use at your own risks.</p>
+<p><strong>This package is under development.</strong> It’s not meant to be stable and robust at this stage. Use at your own risks.</p>
 <ul>
 <li>If you have suggestions for improvement, please get in touch!</li>
 <li>I’ve been seeking the best way to implement various sequential models for a long time, initially trying and <a href="https://github.com/DominiqueMakowski/easyRT" class="external-link">failing in R</a>, then developing a lot of hopes for a Julia solution - but that’s not there <em>yet</em>, so I’m back at making some new attempts in R.
@@ -82,6 +82,7 @@
 </ul>
 </li>
 </ul>
+<p><video src="man/figures/video_ddm.mp4" controls=""><a href="man/figures/video_ddm.mp4">Video</a></video></p>
 </div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
@@ -104,6 +105,7 @@ Code
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://patchwork.data-imaginist.com" class="external-link">patchwork</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/DominiqueMakowski/cogmod">cogmod</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://mc-stan.org/rstan/" class="external-link">rstan</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Simulate data using rchoco() with two parameter sets</span></span>
 <span><span class="va">df1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rchoco.html">rchoco</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">5000</span>, confright <span class="op">=</span> <span class="fl">0.8</span>, confleft <span class="op">=</span> <span class="fl">0.7</span>, pex <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span></span>
@@ -169,11 +171,24 @@ Code
 <a href="https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html" class="external-link"><strong>See this tutorial</strong></a>
 <ul class="task-list">
 <li><label><input type="checkbox" checked>Choice-Confidence (CHOCO) models (Bi-modal Beta)</label></li>
-<li><label><input type="checkbox" checked>Beta-gate (Ordered Beta for 0-1 inflated Beta)</label></li>
+<li><label><input type="checkbox" checked>Beta-gate (Ordered Beta, <a href="https://doi.org/10.1017/pan.2022.20" class="external-link">Kubinec, 2023</a>)</label></li>
 </ul>
 </li>
 </ul>
-<p><img src="reference/figures/subjective_ratings1.png"> #### Bounded Discrete Distributions (Likert Scales)</p>
+<p><img src="reference/figures/subjective_ratings2.png"></p>
+</div>
+<div class="section level4">
+<h4 id="bounded-discrete-distributions-likert-scales">Bounded Discrete Distributions (Likert Scales)<a class="anchor" aria-label="anchor" href="#bounded-discrete-distributions-likert-scales"></a>
+</h4>
+<ul>
+<li>
+<a href="https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html#likert-scales" class="external-link"><strong>See this tutorial</strong></a>
+<ul class="task-list">
+<li><label><input type="checkbox" checked>Discrete-Beta (<a href="https://link.springer.com/article/10.1007/s10651-023-00592-5" class="external-link">Sciandra, 2024</a>)</label></li>
+</ul>
+</li>
+</ul>
+<p><img src="reference/figures/subjective_ratings3.png"></p>
 </div>
 </div>
 <div class="section level3">
