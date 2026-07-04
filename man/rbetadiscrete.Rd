@@ -97,7 +97,7 @@ draw a continuous \eqn{X \sim Beta(\alpha, \beta)} and set
 
 \strong{Special cases:}
 \itemize{
-\item \code{mu = 0.5}, \code{phi = 3} (i.e. \code{alpha = beta = 1}): reduces to the discrete
+\item \code{mu = 0.5}, \code{phi = 1} (i.e. \code{alpha = beta = 1}): reduces to the discrete
 Uniform distribution on \code{1:k}.
 \item \verb{alpha, beta < 1}: "U"/"J"-shaped, with mass concentrated in the tails.
 \item \verb{alpha, beta > 1}: concave, with mass concentrated around the middle
@@ -114,7 +114,7 @@ y <- rbetadiscrete(1000, mu = 0.66, phi = 3.51, k = 10)
 # hist(y, breaks = 0:10)
 
 # discrete Uniform special case
-dbetadiscrete(1:5, mu = 0.5, phi = 3, k = 5)
+dbetadiscrete(1:5, mu = 0.5, phi = 1, k = 5)
 
 # You can expose the lpmf function as follows:
 # betadiscrete_lpmf <- betadiscrete_lpmf_expose()

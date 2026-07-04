@@ -409,6 +409,8 @@ saveRDS(m_betadiscrete, file = "models/m_betadiscrete.rds")
 
 Ordinal models (also known as cumulative models) posit a continuous latent variable, partitioned by $K-1$ estimated thresholds. Because thresholds are freely estimated rather than fixed, the model doesn't assume equally-spaced categories. This maps onto signal-detection accounts of ordinal judgment, where a continuous perception is filtered through response criteria that can be unevenly spaced (e.g. reluctance to use extremes). That flexibility comes at the cost of extra parameters relative to Beta-Discrete, and these thresholds parameters are estimated on an arbitrary latent scale, which are not really interpretable in and of themselves. 
 
+Furthermore, because these threshold parameters are highly sample-dependent, comparing latent estimates across different populations is notoriously difficult, which introduces challenges for measurement invariance and, ultimately, replicability. For instance, fitting the same cumulative model to a new sample can yield a different set of threshold estimates, but these differences do not necessarily reflect changes in the underlying cognitive process, but may instead arise from shifts in the latent scale or response criteria. Consequently, parameter estimates obtained from independently fitted ordinal models are often not directly comparable, complicating cross-study replication and meta-analytic synthesis unless a common latent scale is explicitly established.
+
 
 ```{r}
 #| eval: false
@@ -462,13 +464,13 @@ We can compare these models together using the `loo` package.
 
 
 pred <- rbind(
-  estimate_prediction(m_betabinomial, keep_iterations = 50, iterations = 50) |>
+  estimate_prediction(m_betabinomial, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
     data_modify(iter_value = iter_value + 1, Model = "Beta-Binomial"),
-  estimate_prediction(m_betadiscrete, keep_iterations = 50, iterations = 50) |>
+  estimate_prediction(m_betadiscrete, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
     data_modify(Model = "Beta-Discrete"),
-  estimate_prediction(m_cumulative, keep_iterations = 50, iterations = 50) |>
+  estimate_prediction(m_cumulative, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
     data_modify(Model = "Cumulative")
 )  

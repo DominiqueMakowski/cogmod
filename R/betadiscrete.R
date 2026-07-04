@@ -35,7 +35,7 @@
 #' \eqn{R = \lceil k X \rceil}, clipped to `[1, k]`.
 #'
 #' **Special cases:**
-#' - `mu = 0.5`, `phi = 3` (i.e. `alpha = beta = 1`): reduces to the discrete
+#' - `mu = 0.5`, `phi = 1` (i.e. `alpha = beta = 1`): reduces to the discrete
 #'   Uniform distribution on `1:k`.
 #' - `alpha, beta < 1`: "U"/"J"-shaped, with mass concentrated in the tails.
 #' - `alpha, beta > 1`: concave, with mass concentrated around the middle
@@ -63,7 +63,7 @@
 #' # hist(y, breaks = 0:10)
 #'
 #' # discrete Uniform special case
-#' dbetadiscrete(1:5, mu = 0.5, phi = 3, k = 5)
+#' dbetadiscrete(1:5, mu = 0.5, phi = 1, k = 5)
 #'
 #' @export
 rbetadiscrete <- function(n, mu = 0.5, phi = 3, k = 5) {
