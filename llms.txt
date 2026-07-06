@@ -33,33 +33,38 @@ improvement, please get in touch!
 ## What are Computational Cognitive Models?
 
 Measures from cognitive tasks, such as decision-making paradigms
-involving ratings or fast responses, often yield noisy and complex
-patterns of results. Three approaches exist:
+involving fast responses or ratings, often produce noisy and complex
+patterns of results. Broadly speaking, there are three ways of analysing
+such data.
 
-- **The *Normal* Way**: The traditional approach involves not bothering
-  with any of these facts, assume that all data is Normally distributed,
-  and use simple summary statistics: computing means (which is what
-  linear models do) and assessing their differences using *t*-tests,
-  ANOVAs, or regression models. This is often neither appropriate for
-  the data, nor does it provide with very informative insights into the
-  cognitive mechanisms at stake.
-- **The Better-Fit Way**: This approach focuses on trying to better
-  match or account for the particular shape of the distribution of the
-  data. Solutions range from data transformation (e.g., log-transforming
-  reaction times to make them more suitable to linear models), using
-  robust statistics, or using more complex distributions, enabled thanks
-  to recent technical advances. While using better suited models leads
-  to major improvements, there are often no theorethical links between
-  the parameters of many of these models and cognitive processes.
-- **The Computational Way**: The most recent approach is to use models
-  that are specifically designed to approximate or account for the
-  cognitive processes at stake. For instance, Evidence Accumulation
+- **The Summary Statistics Approach**: The traditional approach often
+  involves not bothering with any of the distinctive characteristics of
+  cognitive data, assume that observations are Normally distributed, and
+  summarise them using simple statistics such as means (which is what
+  linear models do). This is the approach underlying most t-tests,
+  ANOVAs, and linear regression models. Although often convenient, these
+  methods may provide a poor description of the data and offer only
+  limited insight into the cognitive processes that generated the
+  observations.
+- **The Distributional Approach**: A more principled approach is to
+  choose statistical models that better account for these particular
+  empirical distributions. This can involve transforming the data (for
+  example, log-transforming reaction times so that linear models are
+  more justified), using robust statistical methods (resilient to
+  non-normality), or adopting more appropriate probability distributions
+  (e.g., using Ex-Gaussian models for RTs). While these approaches often
+  improve model fit and statistical inference, there can be a gap
+  between the descripitive distributional parameters estimated and the
+  cognitive mechanisms underlying the data generation process.
+- **The Computational Approach**: The most recent approach is to use
+  models that are specifically designed to approximate or account for
+  the cognitive processes at stake. For instance, Evidence Accumulation
   Models conceptualize response time as the outcome of a noisy process
   of evidence accumulation in the brain. And Choice-Confidence models
   explain the bi-modal distributions often found with slider scales as
   the combination of a dual-process of discrete choice and continuous
   evaluation. These models combine a good distributional fit to the data
-  with more meaningful parameters.
+  with more meaningful and cognitively interpretable parameters.
 
 ![Illustration animation of Drift Diffusion
 Models](reference/figures/video_ddm.gif)
