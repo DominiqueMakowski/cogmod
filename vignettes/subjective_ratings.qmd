@@ -357,7 +357,7 @@ df |>
 
 The Beta-Binomial is a common default for bounded count data, though it wasn't designed for it. Its distribution consists of a two-stage mixture: conditional on a success probability *p*, the response follows a $Binomial(n, p)$, while *p* itself varies according to a Beta distribution. This lets it absorb extra-binomial variation (overdispersion) arising when raters differ systematically in their response tendencies. This model makes sense when a rating is literally a count of successes a(e.g. items endorsed out of a checklist), but for a single holistic judgment on a *K*-point scale, it's better understood as a descriptive tool than a model of the response process itself.
 
-**NOTE:** the Beta-Binomial distribution in brms is defined on [0, n], so we need to shift the ratings down by 1 (1-6 -> 0-5).
+**Note:** the Beta-Binomial distribution in brms is defined on [0, n], so we need to shift the ratings down by 1 (1-6 -> 0-5).
 
 ```{r}
 #| eval: false
@@ -385,6 +385,8 @@ saveRDS(m_betabinomial, file = "models/m_betabinomial.rds")
 
 The Discrete Beta model ([Sciandra, 2024](https://link.springer.com/article/10.1007/s10651-023-00592-5)) was developed for modeling discrete rating data, i.e., discrete responses on a fixed integer scale (1-K). It assumes the observed rating is the discretised counterpart of a continuous, unobservable latent response, but rather than estimating $K-1$ threshold parameters (like the Ordinal model), the Discrete Beta fixes these thresholds at evenly spaced points, and instead lets a Beta distribution govern the proportions. This reverses the usual logic (fixed distribution, estimated thresholds) and, because the Beta distribution can take on a wide range of shapes (including non-monotonic convex shapes like "J" and "U" shapes that many ordinal models struggle to reproduce), it yields a distribution that is both highly flexible and remarkably parsimonious, requiring only two parameters regardless of how many categories the scale has.
 
+**Note:** The Beta-Discrete implementation in `cogmod` allows for a "hurdle" (zero-inflated) component (the `pzero` argument), which as to be pinned to zero in the formula to use a pure Beta-Discrete distribution.
+
 
 ```{r}
 #| eval: false
@@ -392,6 +394,7 @@ The Discrete Beta model ([Sciandra, 2024](https://link.springer.com/article/10.1
 f <- bf(
   rating | vint(6) ~ x,
   phi ~ x,
+  pzero = 0,  # No zero-inflation
   family = betadiscrete()
 )
 
@@ -472,7 +475,7 @@ pred <- rbind(
     data_modify(Model = "Beta-Discrete"),
   estimate_prediction(m_cumulative, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
-    data_modify(Model = "Cumulative")
+    data_modify(Model = "Ordinal")
 )  
   
   
