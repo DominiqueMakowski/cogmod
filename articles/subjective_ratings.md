@@ -342,7 +342,7 @@ count of successes a(e.g. items endorsed out of a checklist), but for a
 single holistic judgment on a *K*-point scale, it’s better understood as
 a descriptive tool than a model of the response process itself.
 
-**NOTE:** the Beta-Binomial distribution in brms is defined on \[0, n\],
+**Note:** the Beta-Binomial distribution in brms is defined on \[0, n\],
 so we need to shift the ratings down by 1 (1-6 -\> 0-5).
 
 ``` r
@@ -383,11 +383,17 @@ distribution that is both highly flexible and remarkably parsimonious,
 requiring only two parameters regardless of how many categories the
 scale has.
 
+**Note:** The Beta-Discrete implementation in `cogmod` allows for a
+“hurdle” (zero-inflated) component (the `pzero` argument), which as to
+be pinned to zero in the formula to use a pure Beta-Discrete
+distribution.
+
 ``` r
 
 f <- bf(
   rating | vint(6) ~ x,
   phi ~ x,
+  pzero = 0,  # No zero-inflation
   family = betadiscrete()
 )
 
@@ -471,7 +477,7 @@ pred <- rbind(
     data_modify(Model = "Beta-Discrete"),
   estimate_prediction(m_cumulative, keep_iterations = 100, iterations = 100) |>
     reshape_iterations() |>
-    data_modify(Model = "Cumulative")
+    data_modify(Model = "Ordinal")
 )  
   
   

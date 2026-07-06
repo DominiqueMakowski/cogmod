@@ -397,7 +397,7 @@
 <section class="level4"><h4 id="beta-binomial">Beta-Binomial<a class="anchor" aria-label="anchor" href="#beta-binomial"></a>
 </h4>
 <p>The Beta-Binomial is a common default for bounded count data, though it wasn’t designed for it. Its distribution consists of a two-stage mixture: conditional on a success probability <em>p</em>, the response follows a <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><mi>i</mi><mi>n</mi><mi>o</mi><mi>m</mi><mi>i</mi><mi>a</mi><mi>l</mi><mo stretchy="false" form="prefix">(</mo><mi>n</mi><mo>,</mo><mi>p</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">Binomial(n, p)</annotation></semantics></math>, while <em>p</em> itself varies according to a Beta distribution. This lets it absorb extra-binomial variation (overdispersion) arising when raters differ systematically in their response tendencies. This model makes sense when a rating is literally a count of successes a(e.g. items endorsed out of a checklist), but for a single holistic judgment on a <em>K</em>-point scale, it’s better understood as a descriptive tool than a model of the response process itself.</p>
-<p><strong>NOTE:</strong> the Beta-Binomial distribution in brms is defined on [0, n], so we need to shift the ratings down by 1 (1-6 -&gt; 0-5).</p>
+<p><strong>Note:</strong> the Beta-Binomial distribution in brms is defined on [0, n], so we need to shift the ratings down by 1 (1-6 -&gt; 0-5).</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -420,11 +420,13 @@
 </section><section class="level4"><h4 id="beta-discrete">Beta-Discrete<a class="anchor" aria-label="anchor" href="#beta-discrete"></a>
 </h4>
 <p>The Discrete Beta model (<a href="https://link.springer.com/article/10.1007/s10651-023-00592-5" class="external-link">Sciandra, 2024</a>) was developed for modeling discrete rating data, i.e., discrete responses on a fixed integer scale (1-K). It assumes the observed rating is the discretised counterpart of a continuous, unobservable latent response, but rather than estimating <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">K-1</annotation></semantics></math> threshold parameters (like the Ordinal model), the Discrete Beta fixes these thresholds at evenly spaced points, and instead lets a Beta distribution govern the proportions. This reverses the usual logic (fixed distribution, estimated thresholds) and, because the Beta distribution can take on a wide range of shapes (including non-monotonic convex shapes like “J” and “U” shapes that many ordinal models struggle to reproduce), it yields a distribution that is both highly flexible and remarkably parsimonious, requiring only two parameters regardless of how many categories the scale has.</p>
+<p><strong>Note:</strong> The Beta-Discrete implementation in <code>cogmod</code> allows for a “hurdle” (zero-inflated) component (the <code>pzero</code> argument), which as to be pinned to zero in the formula to use a pure Beta-Discrete distribution.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">rating</span> <span class="op">|</span> <span class="fu">vint</span><span class="op">(</span><span class="fl">6</span><span class="op">)</span> <span class="op">~</span> <span class="va">x</span>,</span>
 <span>  <span class="va">phi</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  pzero <span class="op">=</span> <span class="fl">0</span>,  <span class="co"># No zero-inflation</span></span>
 <span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rbetadiscrete.html">betadiscrete</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -479,7 +481,7 @@
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"Beta-Discrete"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_cumulative</span>, keep_iterations <span class="op">=</span> <span class="fl">100</span>, iterations <span class="op">=</span> <span class="fl">100</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"Cumulative"</span><span class="op">)</span></span>
+<span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"Ordinal"</span><span class="op">)</span></span>
 <span><span class="op">)</span>  </span>
 <span>  </span>
 <span>  </span>

@@ -70,19 +70,35 @@ proportional-odds models cannot capture (Sciandra et al., 2024).</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">rbetadiscrete</span><span class="op">(</span><span class="va">n</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, phi <span class="op">=</span> <span class="fl">3</span>, k <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">rbetadiscrete</span><span class="op">(</span><span class="va">n</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, phi <span class="op">=</span> <span class="fl">3</span>, k <span class="op">=</span> <span class="fl">5</span>, pzero <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">dbetadiscrete</span><span class="op">(</span><span class="va">x</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, phi <span class="op">=</span> <span class="fl">3</span>, k <span class="op">=</span> <span class="fl">5</span>, log <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="fu">dbetadiscrete</span><span class="op">(</span><span class="va">x</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, phi <span class="op">=</span> <span class="fl">3</span>, k <span class="op">=</span> <span class="fl">5</span>, pzero <span class="op">=</span> <span class="fl">0</span>, log <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">pbetadiscrete</span><span class="op">(</span><span class="va">q</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, phi <span class="op">=</span> <span class="fl">3</span>, k <span class="op">=</span> <span class="fl">5</span>, lower.tail <span class="op">=</span> <span class="cn">TRUE</span>, log.p <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="fu">pbetadiscrete</span><span class="op">(</span></span>
+<span>  <span class="va">q</span>,</span>
+<span>  mu <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>  phi <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  k <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  pzero <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  lower.tail <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  log.p <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">qbetadiscrete</span><span class="op">(</span><span class="va">p</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, phi <span class="op">=</span> <span class="fl">3</span>, k <span class="op">=</span> <span class="fl">5</span>, lower.tail <span class="op">=</span> <span class="cn">TRUE</span>, log.p <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="fu">qbetadiscrete</span><span class="op">(</span></span>
+<span>  <span class="va">p</span>,</span>
+<span>  mu <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>  phi <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  k <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  pzero <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  lower.tail <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  log.p <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">betadiscrete_lpmf_expose</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">betadiscrete_stanvars</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">betadiscrete</span><span class="op">(</span>link_mu <span class="op">=</span> <span class="st">"logit"</span>, link_phi <span class="op">=</span> <span class="st">"log"</span><span class="op">)</span></span>
+<span><span class="fu">betadiscrete</span><span class="op">(</span>link_mu <span class="op">=</span> <span class="st">"logit"</span>, link_phi <span class="op">=</span> <span class="st">"log"</span>, link_pzero <span class="op">=</span> <span class="st">"logit"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">log_lik_betadiscrete</span><span class="op">(</span><span class="va">i</span>, <span class="va">prep</span><span class="op">)</span></span>
 <span></span>
@@ -118,8 +134,17 @@ Makes it <code>phi = 1</code> corresponds to uniform when <code>mu = 0.5</code>,
 the response scale runs from 1 to <code>k</code>.</p></dd>
 
 
+<dt id="arg-pzero">pzero<a class="anchor" aria-label="anchor" href="#arg-pzero"></a></dt>
+<dd><p>Probability of an additional "hurdle" point mass at 0, on top of
+the <code>1:k</code> rating scale. Defaults to <code>0</code>, in which case the distribution
+reduces to the pure Discrete Beta model. Useful for rating scales that
+include an extra "zero" category (e.g., "not applicable" or a genuine
+zero response) that is not part of the underlying <code>1:k</code> continuum.</p></dd>
+
+
 <dt id="arg-x-q">x, q<a class="anchor" aria-label="anchor" href="#arg-x-q"></a></dt>
-<dd><p>Vector of quantiles (integer ratings between 1 and <code>k</code>).</p></dd>
+<dd><p>Vector of quantiles (integer ratings between 1 and <code>k</code>, or 0 if
+<code>pzero &gt; 0</code>).</p></dd>
 
 
 <dt id="arg-log-log-p">log, log.p<a class="anchor" aria-label="anchor" href="#arg-log-log-p"></a></dt>
@@ -136,8 +161,14 @@ on the log scale.</p></dd>
 <dd><p>Vector of probabilities.</p></dd>
 
 
-<dt id="arg-link-mu-link-phi">link_mu, link_phi<a class="anchor" aria-label="anchor" href="#arg-link-mu-link-phi"></a></dt>
-<dd><p>Link functions for the parameters.</p></dd>
+<dt id="arg-link-mu-link-phi-link-pzero">link_mu, link_phi, link_pzero<a class="anchor" aria-label="anchor" href="#arg-link-mu-link-phi-link-pzero"></a></dt>
+<dd><p>Link functions for the parameters. <code>pzero</code>
+defaults to a <code>"logit"</code> link. By default (i.e., if <code>pzero</code> is not included
+in the <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">brms::bf()</a></code> formula), it is estimated as a single, intercept-only
+value shared across all observations (as is done for <code>pmid</code> in
+<code><a href="rchoco.html">choco()</a></code>); it can instead be given predictors to let it vary (<code>pzero ~ x</code>),
+or fixed to a constant – e.g., <code>pzero = 0</code>, recovering the pure Discrete
+Beta model – directly in <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">brms::bf()</a></code> (as is done for <code>pmid</code> in <code><a href="rchoco.html">choco()</a></code>).</p></dd>
 
 
 <dt id="arg-i-prep">i, prep<a class="anchor" aria-label="anchor" href="#arg-i-prep"></a></dt>
@@ -152,9 +183,9 @@ on the log scale.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p><code>dbetadiscrete()</code> returns the probability mass; <code>pbetadiscrete()</code>
 returns the cumulative probability; <code>qbetadiscrete()</code> returns the
-quantile (an integer between 1 and <code>k</code>); <code>rbetadiscrete()</code> returns
-simulated ratings. All are vectorized over <code>x</code>/<code>q</code>/<code>p</code>, <code>mu</code>, <code>phi</code> and
-<code>k</code>.</p>
+quantile (an integer between 0 and <code>k</code>); <code>rbetadiscrete()</code> returns
+simulated ratings. All are vectorized over <code>x</code>/<code>q</code>/<code>p</code>, <code>mu</code>, <code>phi</code>,
+<code>pzero</code> and <code>k</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -166,12 +197,32 @@ where \(F_B\) is the Beta CDF.</p>
 <p><code>rbetadiscrete()</code> uses the equivalent, faster generative representation:
 draw a continuous \(X \sim Beta(\alpha, \beta)\) and set
 \(R = \lceil k X \rceil\), clipped to <code>[1, k]</code>.</p>
+<p>When <code>pzero &gt; 0</code>, a hurdle is added at 0: with probability <code>pzero</code> the
+response is 0, and with probability <code>1 - pzero</code> it is generated from the
+Discrete Beta distribution described above, i.e.
+$$P(R = 0) = \code{pzero}, \quad P(R = j) = (1 - \code{pzero}) \times [F_B(j/k) - F_B((j-1)/k)], \quad j = 1, \dots, k$$</p>
 <p><strong>Special cases:</strong></p><ul><li><p><code>mu = 0.5</code>, <code>phi = 1</code> (i.e. <code>alpha = beta = 1</code>): reduces to the discrete
 Uniform distribution on <code>1:k</code>.</p></li>
 <li><p><code>alpha, beta &lt; 1</code>: "U"/"J"-shaped, with mass concentrated in the tails.</p></li>
 <li><p><code>alpha, beta &gt; 1</code>: concave, with mass concentrated around the middle
 category.</p></li>
 <li><p><code>phi -&gt; Inf</code> (with <code>mu</code> fixed): mass concentrates on a single category.</p></li>
+<li><p><code>pzero = 0</code>: reduces to the pure Discrete Beta model (no hurdle).</p></li>
+</ul><p>Note that <code>y = 0</code> is always handled by <code>pzero</code> alone, and <code>k</code> always refers to the
+number of categories of the <em>non-zero</em> <code>1:k</code> part of the scale. What
+<em>does</em> require some care is deciding what <code>k</code> should be and whether to
+estimate or fix <code>pzero</code>, depending on how the zero in your data arose:</p><ul><li><p>Scale is <code>0:N</code> and 0 is <em>not</em> a hurdle (just the lowest of <code>N + 1</code>
+ordinary ordinal categories, e.g., a 0-10 rating scale with no excess of
+zeros): recode the data to <code>1:(N + 1)</code> (add 1 to every response), use
+<code>vint(N + 1)</code>, and fix <code>pzero = 0</code> as shown below.</p></li>
+<li><p>Scale is <code>0:N</code> and 0 <em>is</em> a hurdle (e.g., a mix of a genuine/excess "zero"
+response with an ordinal <code>1:N</code> scale): keep the data as-is, use <code>vint(N)</code>
+(i.e., the total number of categories <em>minus</em> the hurdle category), and
+let <code>pzero</code> be estimated (optionally with predictors, <code>pzero ~ x</code>).</p></li>
+<li><p>Scale is <code>1:N</code> with excess responses piling up at the low end (e.g., a
+floor effect at the lowest category): recode by subtracting 1
+(<code>1:N</code> becomes <code>0:(N - 1)</code>), then proceed as in the previous bullet,
+i.e., <code>vint(N - 1)</code> and estimate <code>pzero</code>.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -195,15 +246,35 @@ data. Environmental and Ecological Statistics, 31, 317-338.
 <span class="r-in"><span><span class="fu">dbetadiscrete</span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, phi <span class="op">=</span> <span class="fl">1</span>, k <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.2 0.2 0.2 0.2 0.2</span>
 <span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># hurdle at zero: 20% chance of a 0, otherwise pure Discrete Beta</span></span></span>
+<span class="r-in"><span><span class="fu">dbetadiscrete</span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">5</span>, mu <span class="op">=</span> <span class="fl">0.66</span>, phi <span class="op">=</span> <span class="fl">3.51</span>, k <span class="op">=</span> <span class="fl">5</span>, pzero <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.200000000 0.003364066 0.058336907 0.213310091 0.343484931 0.181504005</span>
+<span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># You can expose the lpmf function as follows:</span></span></span>
 <span class="r-in"><span><span class="co"># betadiscrete_lpmf &lt;- betadiscrete_lpmf_expose()</span></span></span>
-<span class="r-in"><span><span class="co"># betadiscrete_lpmf(y = 7, mu = 0.66, phi = 3.51, k = 10)</span></span></span>
+<span class="r-in"><span><span class="co"># betadiscrete_lpmf(y = 7, mu = 0.66, phi = 3.51, pzero = 0, k = 10)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Fitting with brms</span></span></span>
 <span class="r-in"><span><span class="co"># Note: Because `k` is fixed data rather than a distributional parameter, it</span></span></span>
 <span class="r-in"><span><span class="co"># must be passed to the model via the brms::vint() addition term</span></span></span>
 <span class="r-in"><span><span class="co"># fit &lt;- brms::brm(</span></span></span>
 <span class="r-in"><span><span class="co">#   brms::bf(rating | vint(k) ~ predictor),</span></span></span>
+<span class="r-in"><span><span class="co">#   data = data,</span></span></span>
+<span class="r-in"><span><span class="co">#   family = betadiscrete(),</span></span></span>
+<span class="r-in"><span><span class="co">#   stanvars = betadiscrete_stanvars()</span></span></span>
+<span class="r-in"><span><span class="co"># )</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># To also model the hurdle probability (e.g., proportion of zero ratings):</span></span></span>
+<span class="r-in"><span><span class="co"># fit &lt;- brms::brm(</span></span></span>
+<span class="r-in"><span><span class="co">#   brms::bf(rating | vint(k) ~ predictor, pzero ~ predictor),</span></span></span>
+<span class="r-in"><span><span class="co">#   data = data,</span></span></span>
+<span class="r-in"><span><span class="co">#   family = betadiscrete(),</span></span></span>
+<span class="r-in"><span><span class="co">#   stanvars = betadiscrete_stanvars()</span></span></span>
+<span class="r-in"><span><span class="co"># )</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># To fix pzero at exactly 0, e.g. because your scale has no hurdle:</span></span></span>
+<span class="r-in"><span><span class="co"># fit &lt;- brms::brm(</span></span></span>
+<span class="r-in"><span><span class="co">#   brms::bf(rating | vint(k) ~ predictor, pzero = 0),</span></span></span>
 <span class="r-in"><span><span class="co">#   data = data,</span></span></span>
 <span class="r-in"><span><span class="co">#   family = betadiscrete(),</span></span></span>
 <span class="r-in"><span><span class="co">#   stanvars = betadiscrete_stanvars()</span></span></span>
