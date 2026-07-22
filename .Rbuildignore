@@ -11,3 +11,4 @@ README.qmd
 ^vignettes/\.quarto$
 ^vignettes/*_files$
 ^vignettes/models/
+^data-raw$

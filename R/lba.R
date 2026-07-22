@@ -53,24 +53,29 @@
 #' hist(df$rt[df$response == 1], breaks = 50, col = rgb(1,0,0,0.5), add = TRUE)
 #'
 #' @export
-rlba <- function(n,
-                 driftzero = 3,
-                 driftone = 3,
-                 sigmazero = 1,
-                 sigmaone = 1,
-                 sigmabias = 0.5,
-                 bs = 0.5,
-                 ndt = 0.3,
-                 max_iter = 100) {
-
+rlba <- function(
+  n,
+  driftzero = 3,
+  driftone = 3,
+  sigmazero = 1,
+  sigmaone = 1,
+  sigmabias = 0.5,
+  bs = 0.5,
+  ndt = 0.3,
+  max_iter = 100
+) {
   # --- Input Validation ---
-  if (length(n) != 1 || n <= 0 || n != floor(n))
+  if (length(n) != 1 || n <= 0 || n != floor(n)) {
     stop("n must be a single positive integer.")
-  if (sigmabias <= 0 || bs <= 0 || sigmazero <= 0 || sigmaone <= 0 || ndt < 0)
-    stop("sigmabias, bs, sigmazero, sigmaone must be positive; ndt must be non-negative.")
+  }
+  if (sigmabias <= 0 || bs <= 0 || sigmazero <= 0 || sigmaone <= 0 || ndt < 0) {
+    stop(
+      "sigmabias, bs, sigmazero, sigmaone must be positive; ndt must be non-negative."
+    )
+  }
 
   # --- Derived Parameter ---
-  b <- sigmabias + bs  # Decision threshold
+  b <- sigmabias + bs # Decision threshold
 
   # --- Prepare Output ---
   rates0 <- numeric(n)
@@ -85,9 +90,14 @@ rlba <- function(n,
       iter <- iter + 1
       v0 <- stats::rnorm(1, mean = driftzero, sd = sigmazero)
       v1 <- stats::rnorm(1, mean = driftone, sd = sigmaone)
-      if (v0 > 0 || v1 > 0) break
+      if (v0 > 0 || v1 > 0) {
+        break
+      }
       if (iter >= max_iter) {
-        warning(sprintf("Trial %d reached max_iter; forcing accumulator 0 positive.", i))
+        warning(sprintf(
+          "Trial %d reached max_iter; forcing accumulator 0 positive.",
+          i
+        ))
         v0 <- abs(stats::rnorm(1, mean = driftzero, sd = sigmazero))
         break
       }
@@ -98,11 +108,19 @@ rlba <- function(n,
     # Compute starting points from U(0, sigmabias)
     start0 <- stats::runif(1, min = 0, max = sigmabias)
     start1 <- stats::runif(1, min = 0, max = sigmabias)
-    
+
     # Compute decision times using only positive drifts, treat non-positive as Inf.
-    time0 <- if (v0 > 0) { (b - start0) / v0 } else { Inf }
-    time1 <- if (v1 > 0) { (b - start1) / v1 } else { Inf }
-    
+    time0 <- if (v0 > 0) {
+      (b - start0) / v0
+    } else {
+      Inf
+    }
+    time1 <- if (v1 > 0) {
+      (b - start1) / v1
+    } else {
+      Inf
+    }
+
     # Choose the accumulator that reached threshold first.
     if (time0 < time1) {
       choices[i] <- 0
@@ -112,16 +130,10 @@ rlba <- function(n,
       rts[i] <- ndt + time1
     }
   }
-  
+
   # Return Results
   data.frame(rt = rts, response = choices)
 }
-
-
-
-
-
-
 
 
 #' The density function `dlba` calculates the likelihood of observing a specific
@@ -135,20 +147,30 @@ rlba <- function(n,
 #' @rdname rlba
 #' @inheritParams rlnr
 #' @export
-dlba <- function(x, driftzero = 3, driftone = 3, sigmazero = 1, sigmaone = 1,
-                 sigmabias = 0.5, bs = 0.5, ndt = 0.3, response, log = FALSE) {
+dlba <- function(
+  x,
+  driftzero = 3,
+  driftone = 3,
+  sigmazero = 1,
+  sigmaone = 1,
+  sigmabias = 0.5,
+  bs = 0.5,
+  ndt = 0.3,
+  response,
+  log = FALSE
+) {
   # Return -Inf (or a very small positive number) for RT below ndt.
   below_ndt <- x < ndt
   out <- if (log) rep(-Inf, length(x)) else rep(.Machine$double.eps, length(x))
-  
+
   keep <- !below_ndt
   if (any(keep)) {
     A <- sigmabias
     b <- sigmabias + bs
     dt <- x[keep] - ndt
     dens <- rep(.Machine$double.eps, length(dt))
-    
-    valid <- dt > 0
+
+    valid <- dt > 0 & !is.na(dt)
     if (any(valid)) {
       idx0 <- valid & (response[keep] == 0)
       if (any(idx0)) {
@@ -164,18 +186,20 @@ dlba <- function(x, driftzero = 3, driftone = 3, sigmazero = 1, sigmaone = 1,
       }
     }
 
+    # Guard against NA/NaN/Inf arising from extreme parameter draws (e.g. during
+    # warmup or in poorly-mixing chains) so downstream code (e.g. loo) doesn't crash.
+    dens[!is.finite(dens)] <- .Machine$double.eps
     dens[dens < .Machine$double.eps] <- .Machine$double.eps
-    
-    if (log)
+
+    if (log) {
       out[keep] <- log(dens)
-    else
+    } else {
       out[keep] <- dens
+    }
   }
-  
+
   out
 }
-
-
 
 
 # Internal helper functions --------------------------------------------------
@@ -190,8 +214,12 @@ dlba <- function(x, driftzero = 3, driftone = 3, sigmazero = 1, sigmaone = 1,
   # b: decision threshold (sigmabias + bs)
   n1 <- (b - A - v * dt) / (dt * s)
   n2 <- (b - v * dt) / (dt * s)
-  f_val <- (1/A) * (-v * stats::pnorm(n1) + s * stats::dnorm(n1) +
-                     v * stats::pnorm(n2) - s * stats::dnorm(n2))
+  f_val <- (1 / A) *
+    (-v *
+      stats::pnorm(n1) +
+      s * stats::dnorm(n1) +
+      v * stats::pnorm(n2) -
+      s * stats::dnorm(n2))
   f_val
 }
 
@@ -200,7 +228,8 @@ dlba <- function(x, driftzero = 3, driftone = 3, sigmazero = 1, sigmaone = 1,
 .lba_cumulative <- function(dt, v, s, A, b) {
   n1 <- (b - A - v * dt) / (dt * s)
   n2 <- (b - v * dt) / (dt * s)
-  F_val <- 1 + ((b - A - v * dt) / A) * stats::pnorm(n1) -
+  F_val <- 1 +
+    ((b - A - v * dt) / A) * stats::pnorm(n1) -
     ((b - v * dt) / A) * stats::pnorm(n2) +
     ((dt * s) / A) * (stats::dnorm(n1) - stats::dnorm(n2))
   F_val

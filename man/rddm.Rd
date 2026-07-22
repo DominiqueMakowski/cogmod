@@ -45,7 +45,9 @@ posterior_predict_ddm(i, prep, ...)
 \item{ndt}{Non-decision time. Must be non-negative.}
 
 \item{backend}{The backend to use for the simulation. Based on local benchmarks, \code{"rtdists"}
-is much faster for simulation but \code{"Rwiener"} is faster for density computation.}
+is much faster for simulation but \code{"Rwiener"} is faster for density computation. Note that
+the \code{"Rwiener"} backend (used by default for the density, e.g., in \code{log_lik()}/\code{loo()})
+requires the \code{RWiener} package to be installed.}
 
 \item{...}{Other arguments to be passed to \code{\link[brms:Wiener]{brms::rwiener()}} or \code{\link[brms:Wiener]{brms::dwiener()}},}
 

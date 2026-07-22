@@ -12,6 +12,8 @@
 #' (zeros and ones). The difference from the Ordered Beta is the way the cutpoints are defined,
 #' as well as the scale of the precision parameter phi.
 #'
+#' \if{html}{\figure{betagate.png}{options: width="100\%" alt="Figure: Beta-Gate distribution"}}
+#'
 #' It differs from the Zero-One-Inflated Beta (ZOIB) model in that the ZOIB model has `zoi`
 #' and `coi` parameters, directly controlling the likelihood of extreme values. Instead,
 #' Beta-Gate uses `pex` and `bex` to define "cutpoints" after which extreme values become likely.
@@ -78,15 +80,26 @@
 #' @export
 rbetagate <- function(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5) {
   # --- Input Validation ---
-  if (any(n <= 0 | n != floor(n))) stop("n must be a positive integer.")
-  if (any(mu <= 0 | mu >= 1)) stop("mu must be strictly between 0 and 1.")
-  if (any(phi <= 0)) stop("phi must be positive.")
-  if (any(pex < 0 | pex > 1)) stop("pex must be between 0 and 1.")
-  if (any(bex < 0 | bex > 1)) stop("bex must be between 0 and 1.")
+  if (any(n <= 0 | n != floor(n))) {
+    stop("n must be a positive integer.")
+  }
+  if (any(mu <= 0 | mu >= 1)) {
+    stop("mu must be strictly between 0 and 1.")
+  }
+  if (any(phi <= 0)) {
+    stop("phi must be positive.")
+  }
+  if (any(pex < 0 | pex > 1)) {
+    stop("pex must be between 0 and 1.")
+  }
+  if (any(bex < 0 | bex > 1)) {
+    stop("bex must be between 0 and 1.")
+  }
 
   # --- Vectorization ---
   n_out <- max(n, length(mu), length(phi), length(pex), length(bex))
-  if (n_out > 1 || n > 1) { # Ensure vectorization if n>1 even if params are scalar
+  if (n_out > 1 || n > 1) {
+    # Ensure vectorization if n>1 even if params are scalar
     mu <- rep(mu, length.out = n_out)
     phi <- rep(phi, length.out = n_out)
     pex <- rep(pex, length.out = n_out)
@@ -131,7 +144,9 @@ rbetagate <- function(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5) {
   # --- Simulation ---
   # Sample outcome category (0, middle, 1) for each observation
   # Uses Gumbel-max trick for efficient multinomial sampling
-  gumbel_noise <- -log(-log(matrix(stats::runif(n_out * 3), nrow = n_out, ncol = 3)))
+  gumbel_noise <- -log(
+    -log(matrix(stats::runif(n_out * 3), nrow = n_out, ncol = 3))
+  )
   outcome_category <- max.col(log(probs_matrix) + gumbel_noise) # 1 for 0, 2 for middle, 3 for 1
 
   # Generate underlying Beta draws for all (only used for middle category)
@@ -169,10 +184,18 @@ rbetagate <- function(n, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5) {
 #' @export
 dbetagate <- function(x, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5, log = FALSE) {
   # --- Input Validation ---
-  if (any(mu <= 0 | mu >= 1)) stop("mu must be strictly between 0 and 1.")
-  if (any(phi <= 0)) stop("phi must be positive.")
-  if (any(pex < 0 | pex > 1)) stop("pex must be between 0 and 1.")
-  if (any(bex < 0 | bex > 1)) stop("bex must be between 0 and 1.")
+  if (any(mu <= 0 | mu >= 1)) {
+    stop("mu must be strictly between 0 and 1.")
+  }
+  if (any(phi <= 0)) {
+    stop("phi must be positive.")
+  }
+  if (any(pex < 0 | pex > 1)) {
+    stop("pex must be between 0 and 1.")
+  }
+  if (any(bex < 0 | bex > 1)) {
+    stop("bex must be between 0 and 1.")
+  }
 
   # --- Vectorization ---
   n <- length(x)
@@ -230,8 +253,14 @@ dbetagate <- function(x, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5, log = FALSE) {
   if (length(idx_mid) > 0) {
     # Calculate Beta density component
     # Need to handle case where prob_mid is zero (e.g., pex=1)
-    beta_dens <- ifelse(prob_mid[idx_mid] > eps,
-      stats::dbeta(x[idx_mid], shape1 = shape1[idx_mid], shape2 = shape2[idx_mid], log = FALSE),
+    beta_dens <- ifelse(
+      prob_mid[idx_mid] > eps,
+      stats::dbeta(
+        x[idx_mid],
+        shape1 = shape1[idx_mid],
+        shape2 = shape2[idx_mid],
+        log = FALSE
+      ),
       0
     )
     # Total density is P(middle category) * BetaPDF(x | params)

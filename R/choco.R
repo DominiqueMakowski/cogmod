@@ -13,6 +13,8 @@
 #' distribution is controlled by the `pex` and `bex` parameters, influecing the ease of crossing
 #' the gate (and thus the probability of extreme values).
 #'
+#' \if{html}{\figure{choco.png}{options: width="100\%" alt="Figure: CHOCO distribution"}}
+#'
 #' @param n Number of simulated trials.
 #' @param p Proportion parameter determining the balance between the left and right sides
 #'   *after excluding* the probability mass at the middle (`pmid`). `P(Right Side | Not Middle) = p`.
@@ -68,81 +70,111 @@
 #' hist(x3, breaks = 50, main = "CHOCO: Low confidence overall", xlab = "y")
 #' @rdname rchoco
 #' @export
-rchoco <- function(n,
-                   p = 0.5,
-                   confright = 0.5,
-                   precright = 4,
-                   confleft = 0.5,
-                   precleft = 4,
-                   pex = 0.1,
-                   bex = 0.5,
-                   pmid = 0,
-                   mid = 0.5) {
-
+rchoco <- function(
+  n,
+  p = 0.5,
+  confright = 0.5,
+  precright = 4,
+  confleft = 0.5,
+  precleft = 4,
+  pex = 0.1,
+  bex = 0.5,
+  pmid = 0,
+  mid = 0.5
+) {
   # --- Input Validation ---
-  if (any(n <= 0 | n != floor(n))) stop("n must be a positive integer.")
-  if (any(mid <= 0 | mid >= 1)) stop("mid must be between 0 and 1 (exclusive).")
-  if (any(pex < 0 | pex > 1)) stop("pex must be between 0 and 1.")
-  if (any(bex < 0 | bex > 1)) stop("bex must be between 0 and 1.")
-  if (any(p < 0 | p > 1)) stop("p must be between 0 and 1.")
-  if (any(pmid < 0 | pmid > 1)) stop("pmid must be between 0 and 1.")
-  if (any(confright <= 0 | confright >= 1)) stop("confright must be between 0 and 1 (exclusive).")
-  if (any(precright <= 0)) stop("precright must be positive.")
-  if (any(confleft <= 0 | confleft >= 1)) stop("confleft must be between 0 and 1 (exclusive).")
-  if (any(precleft <= 0)) stop("precleft must be positive.")
+  if (any(n <= 0 | n != floor(n))) {
+    stop("n must be a positive integer.")
+  }
+  if (any(mid <= 0 | mid >= 1)) {
+    stop("mid must be between 0 and 1 (exclusive).")
+  }
+  if (any(pex < 0 | pex > 1)) {
+    stop("pex must be between 0 and 1.")
+  }
+  if (any(bex < 0 | bex > 1)) {
+    stop("bex must be between 0 and 1.")
+  }
+  if (any(p < 0 | p > 1)) {
+    stop("p must be between 0 and 1.")
+  }
+  if (any(pmid < 0 | pmid > 1)) {
+    stop("pmid must be between 0 and 1.")
+  }
+  if (any(confright <= 0 | confright >= 1)) {
+    stop("confright must be between 0 and 1 (exclusive).")
+  }
+  if (any(precright <= 0)) {
+    stop("precright must be positive.")
+  }
+  if (any(confleft <= 0 | confleft >= 1)) {
+    stop("confleft must be between 0 and 1 (exclusive).")
+  }
+  if (any(precleft <= 0)) {
+    stop("precleft must be positive.")
+  }
 
   # Recycle
   n_out <- n
-  p         <- rep(p,         length.out = n_out)
-  pex       <- rep(pex,       length.out = n_out)
-  bex       <- rep(bex,       length.out = n_out)
-  pmid      <- rep(pmid,      length.out = n_out)
-  mid       <- rep(mid,       length.out = n_out)
+  p <- rep(p, length.out = n_out)
+  pex <- rep(pex, length.out = n_out)
+  bex <- rep(bex, length.out = n_out)
+  pmid <- rep(pmid, length.out = n_out)
+  mid <- rep(mid, length.out = n_out)
   confright <- rep(confright, length.out = n_out)
   precright <- rep(precright, length.out = n_out)
-  confleft  <- rep(confleft,  length.out = n_out)
-  precleft  <- rep(precleft,  length.out = n_out)
+  confleft <- rep(confleft, length.out = n_out)
+  precleft <- rep(precleft, length.out = n_out)
 
   # Side probs
-  prob_not_mid  <- 1 - pmid
-  prob_left     <- prob_not_mid * (1 - p)
+  prob_not_mid <- 1 - pmid
+  prob_left <- prob_not_mid * (1 - p)
 
   # Underlying Beta-Gate params
-  mu_right  <- confright
+  mu_right <- confright
   phi_right <- precright
-  mu_left   <- 1 - confleft
-  phi_left  <- precleft
+  mu_left <- 1 - confleft
+  phi_left <- precleft
   pex_right <- pex * bex
-  pex_left  <- pex * (1 - bex)
+  pex_left <- pex * (1 - bex)
 
   # Draw side
   u <- stats::runif(n_out)
   out <- numeric(n_out)
-  is_mid   <- u < pmid
-  is_left  <- !is_mid & (u < pmid + prob_left)
-  is_right <- !(is_mid | is_left)  # Remaining are right
+  is_mid <- u < pmid
+  is_left <- !is_mid & (u < pmid + prob_left)
+  is_right <- !(is_mid | is_left) # Remaining are right
 
   # Assign mid
   out[is_mid] <- mid[is_mid]
 
-
   # Left component: draw from Beta-Gate on [0,1] then scale to [0,mid]
   idxleft <- which(is_left)
   n_left <- length(idxleft) # Store length
-  if(n_left > 0){ # Check if > 0 instead of just length()
-    yleft <- rbetagate(n_left, # Pass calculated n_left
-                       mu = mu_left[idxleft], phi = phi_left[idxleft],
-                       pex = pex_left[idxleft], bex = 0)
+  if (n_left > 0) {
+    # Check if > 0 instead of just length()
+    yleft <- rbetagate(
+      n_left, # Pass calculated n_left
+      mu = mu_left[idxleft],
+      phi = phi_left[idxleft],
+      pex = pex_left[idxleft],
+      bex = 0
+    )
     out[idxleft] <- yleft * mid[idxleft]
   }
 
   # Right component: draw from Beta-Gate on [0,1] then scale to [mid,1]
   idxright <- which(is_right)
   n_right <- length(idxright) # Store length
-  if(n_right > 0){ # Check if > 0
-    yright <- rbetagate(n_right, # Pass calculated n_right
-                        mu = mu_right[idxright], phi = phi_right[idxright],
-                        pex = pex_right[idxright], bex = 1)
+  if (n_right > 0) {
+    # Check if > 0
+    yright <- rbetagate(
+      n_right, # Pass calculated n_right
+      mu = mu_right[idxright],
+      phi = phi_right[idxright],
+      pex = pex_right[idxright],
+      bex = 1
+    )
     out[idxright] <- mid[idxright] + yright * (1 - mid[idxright])
   }
 
@@ -152,55 +184,74 @@ rchoco <- function(n,
 # Density function
 #' @rdname rchoco
 #' @export
-dchoco <- function(x,
-                    p = 0.5,
-                    confright = 0.5,
-                    precright = 4,
-                    confleft = 0.5,
-                    precleft = 4,
-                    pex = 0.1,
-                    bex = 0.5,
-                    pmid = 0,
-                    mid = 0.5,
-                    log = FALSE) {
-
+dchoco <- function(
+  x,
+  p = 0.5,
+  confright = 0.5,
+  precright = 4,
+  confleft = 0.5,
+  precleft = 4,
+  pex = 0.1,
+  bex = 0.5,
+  pmid = 0,
+  mid = 0.5,
+  log = FALSE
+) {
   # Input validation with warnings
-  if (any(p < 0 | p > 1)) stop("p must be between 0 and 1")
-  if (any(confright <= 0 | confright >= 1)) stop("confright must be between 0 and 1")
-  if (any(precright <= 0)) stop("precright must be positive")
-  if (any(confleft <= 0 | confleft >= 1)) stop("confleft must be between 0 and 1")
-  if (any(precleft <= 0)) stop("precleft must be positive")
-  if (any(pex < 0 | pex > 1)) stop("pex must be between 0 and 1")
-  if (any(bex < 0 | bex > 1)) stop("bex must be between 0 and 1")
-  if (any(pmid < 0 | pmid > 1)) stop("pmid must be between 0 and 1")
-  if (any(mid <= 0 | mid >= 1)) stop("mid must be between 0 and 1 (exclusive)")
+  if (any(p < 0 | p > 1)) {
+    stop("p must be between 0 and 1")
+  }
+  if (any(confright <= 0 | confright >= 1)) {
+    stop("confright must be between 0 and 1")
+  }
+  if (any(precright <= 0)) {
+    stop("precright must be positive")
+  }
+  if (any(confleft <= 0 | confleft >= 1)) {
+    stop("confleft must be between 0 and 1")
+  }
+  if (any(precleft <= 0)) {
+    stop("precleft must be positive")
+  }
+  if (any(pex < 0 | pex > 1)) {
+    stop("pex must be between 0 and 1")
+  }
+  if (any(bex < 0 | bex > 1)) {
+    stop("bex must be between 0 and 1")
+  }
+  if (any(pmid < 0 | pmid > 1)) {
+    stop("pmid must be between 0 and 1")
+  }
+  if (any(mid <= 0 | mid >= 1)) {
+    stop("mid must be between 0 and 1 (exclusive)")
+  }
 
   # Input & recycle
   x <- as.numeric(x)
   n <- length(x)
-  p         <- rep(p,         n)
-  pex       <- rep(pex,       n)
-  bex       <- rep(bex,       n)
-  pmid      <- rep(pmid,      n)
-  mid       <- rep(mid,       n)
+  p <- rep(p, n)
+  pex <- rep(pex, n)
+  bex <- rep(bex, n)
+  pmid <- rep(pmid, n)
+  mid <- rep(mid, n)
   confright <- rep(confright, n)
   precright <- rep(precright, n)
-  confleft  <- rep(confleft,  n)
-  precleft  <- rep(precleft,  n)
+  confleft <- rep(confleft, n)
+  precleft <- rep(precleft, n)
   eps <- 1e-10 # Define a small tolerance
 
   # Side probs
   prob_not_mid <- 1 - pmid
-  prob_left    <- prob_not_mid * (1 - p)
-  prob_right   <- prob_not_mid * p
+  prob_left <- prob_not_mid * (1 - p)
+  prob_right <- prob_not_mid * p
 
   # Underlying Beta-Gate params
-  mu_right  <- confright
+  mu_right <- confright
   phi_right <- precright
-  mu_left   <- 1 - confleft
-  phi_left  <- precleft
+  mu_left <- 1 - confleft
+  phi_left <- precleft
   pex_right <- pex * bex
-  pex_left  <- pex * (1 - bex)
+  pex_left <- pex * (1 - bex)
 
   # Initialize density
   dens <- numeric(n)
@@ -210,45 +261,65 @@ dchoco <- function(x,
 
   # Point-mass at mid
   idx_mid <- which(abs(x - mid) < eps)
-  if(length(idx_mid)) dens[idx_mid] <- pmid[idx_mid]
+  if (length(idx_mid)) {
+    dens[idx_mid] <- pmid[idx_mid]
+  }
 
   # Point-mass at 0 and 1
   idx0 <- which(abs(x - 0) < eps)
-  if(length(idx0)){
-    mass0 <- dbetagate(0,
-                       mu = mu_left[idx0], phi = phi_left[idx0],
-                       pex = pex_left[idx0], bex = 0)
+  if (length(idx0)) {
+    mass0 <- dbetagate(
+      0,
+      mu = mu_left[idx0],
+      phi = phi_left[idx0],
+      pex = pex_left[idx0],
+      bex = 0
+    )
     dens[idx0] <- prob_left[idx0] * mass0
   }
   idx1 <- which(abs(x - 1) < eps)
-  if(length(idx1)){
-    mass1 <- dbetagate(1,
-                       mu = mu_right[idx1], phi = phi_right[idx1],
-                       pex = pex_right[idx1], bex = 1)
+  if (length(idx1)) {
+    mass1 <- dbetagate(
+      1,
+      mu = mu_right[idx1],
+      phi = phi_right[idx1],
+      pex = pex_right[idx1],
+      bex = 1
+    )
     dens[idx1] <- prob_right[idx1] * mass1
   }
 
   # Continuous left part
   idxleft <- which(x > eps & x < mid - eps)
-  if(length(idxleft)){
+  if (length(idxleft)) {
     yleft <- x[idxleft] / mid[idxleft]
-    fleft <- dbetagate(yleft,
-                       mu = mu_left[idxleft], phi = phi_left[idxleft],
-                       pex = pex_left[idxleft], bex = 0)
+    fleft <- dbetagate(
+      yleft,
+      mu = mu_left[idxleft],
+      phi = phi_left[idxleft],
+      pex = pex_left[idxleft],
+      bex = 0
+    )
     dens[idxleft] <- prob_left[idxleft] * fleft / mid[idxleft]
   }
 
   # Continuous right part
   idxright <- which(x > mid + eps & x < 1 - eps)
-  if(length(idxright)){
+  if (length(idxright)) {
     yright <- (x[idxright] - mid[idxright]) / (1 - mid[idxright])
-    fright <- dbetagate(yright,
-                        mu = mu_right[idxright], phi = phi_right[idxright],
-                        pex = pex_right[idxright], bex = 1)
+    fright <- dbetagate(
+      yright,
+      mu = mu_right[idxright],
+      phi = phi_right[idxright],
+      pex = pex_right[idxright],
+      bex = 1
+    )
     dens[idxright] <- prob_right[idxright] * fright / (1 - mid[idxright])
   }
 
   # Return log-density if requested
-  if(log) dens <- ifelse(dens > 0, log(dens), -Inf)
+  if (log) {
+    dens <- ifelse(dens > 0, log(dens), -Inf)
+  }
   dens
 }

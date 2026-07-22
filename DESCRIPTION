@@ -36,7 +36,9 @@ Suggests:
     parameters,
     performance,
     modelbased,
-    reformulas
+    reformulas,
+    RWiener,
+    rtdists
 Remotes:
     stan-dev/cmdstanr,
     easystats/insight, 

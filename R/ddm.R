@@ -14,7 +14,9 @@
 #' @param ndt Non-decision time. Must be non-negative.
 #' @param ... Other arguments to be passed to [brms::rwiener()] or [brms::dwiener()],
 #' @param backend The backend to use for the simulation. Based on local benchmarks, `"rtdists"`
-#'   is much faster for simulation but `"Rwiener"` is faster for density computation.
+#'   is much faster for simulation but `"Rwiener"` is faster for density computation. Note that
+#'   the `"Rwiener"` backend (used by default for the density, e.g., in `log_lik()`/`loo()`)
+#'   requires the `RWiener` package to be installed.
 #'
 #' @examples
 #' # Simulate data
@@ -32,8 +34,15 @@ rddm <- function(n, drift, bs, bias, ndt, backend = "rtdists", ...) {
   params <- .prepare_ddm(n = n, drift = drift, bs = bs, bias = bias, ndt = ndt)
 
   # Simulate data using rwiener
-  sim_data <- brms::rwiener(params$n, alpha = params$bs, beta = params$bias,
-                            delta = params$drift, tau = params$ndt, backend = backend, ...)
+  sim_data <- brms::rwiener(
+    params$n,
+    alpha = params$bs,
+    beta = params$bias,
+    delta = params$drift,
+    tau = params$ndt,
+    backend = backend,
+    ...
+  )
 
   # Return as a data frame
   data.frame(rt = sim_data$q, response = sim_data$resp)
@@ -42,24 +51,64 @@ rddm <- function(n, drift, bs, bias, ndt, backend = "rtdists", ...) {
 #' @rdname rddm
 #' @inheritParams rlnr
 #' @export
-dddm <- function(x, drift, bs, bias, ndt, response, log = FALSE, backend = "Rwiener", ...) {
+dddm <- function(
+  x,
+  drift,
+  bs,
+  bias,
+  ndt,
+  response,
+  log = FALSE,
+  backend = "Rwiener",
+  ...
+) {
   # Prepare and validate parameters
-  params <- .prepare_ddm(x = x, drift = drift, bs = bs, bias = bias, ndt = ndt, response = response)
+  params <- .prepare_ddm(
+    x = x,
+    drift = drift,
+    bs = bs,
+    bias = bias,
+    ndt = ndt,
+    response = response
+  )
 
   # Compute density using dwiener
-  brms::dwiener(x = params$x, alpha = params$bs, beta = params$bias,
-                delta = params$drift, resp = params$response, tau = params$ndt, log = log, backend = backend, ...)
+  brms::dwiener(
+    x = params$x,
+    alpha = params$bs,
+    beta = params$bias,
+    delta = params$drift,
+    resp = params$response,
+    tau = params$ndt,
+    log = log,
+    backend = backend,
+    ...
+  )
 }
 
 
 # Internals ---------------------------------------------------------------
 
 #' @keywords internal
-.prepare_ddm <- function(n = NULL, x = NULL, drift, bs, bias, ndt, response = NULL) {
+.prepare_ddm <- function(
+  n = NULL,
+  x = NULL,
+  drift,
+  bs,
+  bias,
+  ndt,
+  response = NULL
+) {
   # --- Basic Validation ---
-  if (any(bs <= 0, na.rm = TRUE)) stop("bs must be positive.")
-  if (any(bias <= 0 | bias >= 1, na.rm = TRUE)) stop("bias must be in (0, 1).")
-  if (any(ndt < 0, na.rm = TRUE)) stop("ndt must be non-negative.")
+  if (any(bs <= 0, na.rm = TRUE)) {
+    stop("bs must be positive.")
+  }
+  if (any(bias <= 0 | bias >= 1, na.rm = TRUE)) {
+    stop("bias must be in (0, 1).")
+  }
+  if (any(ndt < 0, na.rm = TRUE)) {
+    stop("ndt must be non-negative.")
+  }
 
   # --- Determine Target Length ---
   if (!is.null(n)) {
@@ -67,12 +116,23 @@ dddm <- function(x, drift, bs, bias, ndt, response, log = FALSE, backend = "Rwie
     if (length(n) != 1 || n <= 0 || n != floor(n)) {
       stop("n must be a single positive integer.")
     }
-    m <- n  # Keep n as a single value for rwiener
+    m <- n # Keep n as a single value for rwiener
   } else if (!is.null(x)) {
     # For density computation (dddm)
-    if (is.null(response)) stop("response must be provided for dddm.")
-    if (any(!response %in% c(0, 1), na.rm = TRUE)) stop("response must contain only 0 or 1.")
-    param_lengths <- c(length(x), length(drift), length(bs), length(bias), length(ndt), length(response))
+    if (is.null(response)) {
+      stop("response must be provided for dddm.")
+    }
+    if (any(!response %in% c(0, 1), na.rm = TRUE)) {
+      stop("response must contain only 0 or 1.")
+    }
+    param_lengths <- c(
+      length(x),
+      length(drift),
+      length(bs),
+      length(bias),
+      length(ndt),
+      length(response)
+    )
     m <- max(param_lengths)
   } else {
     stop("Internal error: Either 'n' or 'x' must be provided.")
@@ -80,10 +140,10 @@ dddm <- function(x, drift, bs, bias, ndt, response, log = FALSE, backend = "Rwie
 
   # --- Recycle Parameters ---
   params <- list(
-    drift    = rep_len(drift, m),
+    drift = rep_len(drift, m),
     bs = rep_len(bs, m),
-    bias  = rep_len(bias, m),
-    ndt   = rep_len(ndt, m)
+    bias = rep_len(bias, m),
+    ndt = rep_len(ndt, m)
   )
 
   # Add x and response if provided
@@ -96,26 +156,12 @@ dddm <- function(x, drift, bs, bias, ndt, response, log = FALSE, backend = "Rwie
 
   # Add n for rddm
   if (!is.null(n)) {
-    params$n <- n  # Keep n as a single value
+    params$n <- n # Keep n as a single value
   }
 
   params$ndraws <- m
   params
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # CODE to BENCHMARK the backends
 
@@ -161,7 +207,6 @@ dddm <- function(x, drift, bs, bias, ndt, response, log = FALSE, backend = "Rwie
 # print("rwiener Benchmark:")
 # print(rwiener_benchmark)
 # autoplot(rwiener_benchmark) + ggtitle("rwiener Benchmark")
-
 
 # # Benchmark dwiener for both backends
 # dwiener_benchmark <- microbenchmark(

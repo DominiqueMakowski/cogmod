@@ -79,6 +79,8 @@ latent process based on cutpoints ("gates"). Values falling past the gates are c
 (zeros and ones). The difference from the Ordered Beta is the way the cutpoints are defined,
 as well as the scale of the precision parameter phi.
 
+\if{html}{\figure{betagate.png}{options: width="100\%" alt="Figure: Beta-Gate distribution"}}
+
 It differs from the Zero-One-Inflated Beta (ZOIB) model in that the ZOIB model has \code{zoi}
 and \code{coi} parameters, directly controlling the likelihood of extreme values. Instead,
 Beta-Gate uses \code{pex} and \code{bex} to define "cutpoints" after which extreme values become likely.
