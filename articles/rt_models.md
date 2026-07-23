@@ -170,6 +170,11 @@ saveRDS(m_lognormal, file = "models/m_lognormal.rds")
 
 ### Inverse Gaussian (Shifted Wald)
 
+The Shifted Wald model (also known as the Inverse Gaussian distribution)
+is actually equivalent to a one-response version of the Drift Diffusion
+Model (DDM) with no between-trial variability in drift rate, starting
+point, or non-decision time.
+
 Code
 
 ``` r

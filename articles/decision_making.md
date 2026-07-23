@@ -84,6 +84,13 @@ more cautious), `bias` is the starting point between the two boundaries
 (`0.5` = unbiased), and `tau` is the non-decision time (as a proportion
 of `minrt`).
 
+Note that we use the “simple” 4-parameter DDM here, which does not
+include between-trial variability in drift rate, starting point, or
+non-decision time, hence the `sigmadrift`, `sigmabias`, and `sigmatau`
+parameters are fixed to `0`. Estimating these parameters is possible,
+but considerably more expensive and often unnecessary for many
+applications.
+
 Code
 
 ``` r
@@ -94,15 +101,14 @@ f <- bf(
   bias ~ 1,
   tau ~ 1,
   minrt = min(df$RT),
+  sigmadrift = 0,
+  sigmabias = 0,
+  sigmatau = 0,
   family = ddm()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = df)
-
 m_ddm <- brm(f,
   data = df,
-  # prior = priors,
   init = 0,
   stanvars = ddm_stanvars(),
   chains = 4, iter = 500, backend = "cmdstanr"

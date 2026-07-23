@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.20</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.21</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -129,6 +129,7 @@
 <section class="level3"><h3 id="drift-diffusion-model-ddm">Drift Diffusion Model (DDM)<a class="anchor" aria-label="anchor" href="#drift-diffusion-model-ddm"></a>
 </h3>
 <p>The DDM assumes that evidence accumulates towards one of two boundaries at a rate <code>mu</code> (drift rate). <code>bs</code> is the boundary separation (higher = more cautious), <code>bias</code> is the starting point between the two boundaries (<code>0.5</code> = unbiased), and <code>tau</code> is the non-decision time (as a proportion of <code>minrt</code>).</p>
+<p>Note that we use the “simple” 4-parameter DDM here, which does not include between-trial variability in drift rate, starting point, or non-decision time, hence the <code>sigmadrift</code>, <code>sigmabias</code>, and <code>sigmatau</code> parameters are fixed to <code>0</code>. Estimating these parameters is possible, but considerably more expensive and often unnecessary for many applications.</p>
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -137,15 +138,14 @@
 <span>  <span class="va">bias</span> <span class="op">~</span> <span class="fl">1</span>,</span>
 <span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
 <span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">RT</span><span class="op">)</span>,</span>
+<span>  sigmadrift <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  sigmabias <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  sigmatau <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rddm.html">ddm</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"tau"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">validate_prior</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span></span>
-<span></span>
 <span><span class="va">m_ddm</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">df</span>,</span>
-<span>  <span class="co"># prior = priors,</span></span>
 <span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rddm.html">ddm_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
