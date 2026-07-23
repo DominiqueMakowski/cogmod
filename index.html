@@ -35,7 +35,8 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/rt_models.html">RT-only Models</a></li>
+<li><a class="dropdown-item" href="articles/decision_making.html">Decision Making Models</a></li>
+    <li><a class="dropdown-item" href="articles/rt_models.html">RT-only Models</a></li>
     <li><a class="dropdown-item" href="articles/subjective_ratings.html">Subjective Ratings</a></li>
   </ul>
 </li>
@@ -63,13 +64,13 @@
 <!-- ComputationalCognition -->
 <p><a href="https://dominiquemakowski.github.io/cogmod/" class="external-link"><img src="https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63" alt="Documentation"></a> <a href="https://dominiquemakowski.github.io/cogmod/reference/index.html" class="external-link"><img src="https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3" alt="Models"></a></p>
 <p><em>Models of Cognition for Subjective Scales and Decision Making Tasks in R</em></p>
+<p>This R package is dedicated to facilitate the application of computational cognitive models in R under a Bayesian framework. These are useful in the field of cognitive science and computational neuropsycholology.</p>
 <div class="section level2">
 <h2 id="status">Status<a class="anchor" aria-label="anchor" href="#status"></a>
 </h2>
 <div class="float">
 <img src="https://img.shields.io/badge/status-WIP-orange.svg" alt="Status"><div class="figcaption">Status</div>
 </div>
-<p>This R package is dedicated to facilitate the application of computational cognitive models in R under a Bayesian framework. These are useful in the field of cognitive science and computational neuropsycholology.</p>
 <p><strong>This package is under development.</strong> It’s not meant to be stable and robust at this stage. Use at your own risks. If you have suggestions for improvement, please get in touch!</p>
 <ul>
 <li>I’ve been seeking the best way to implement various sequential models for a long time, initially trying and <a href="https://github.com/DominiqueMakowski/easyRT" class="external-link">failing in R</a>, then developing a lot of hopes for a Julia solution (see the <a href="https://github.com/itsdfish/SequentialSamplingModels.jl" class="external-link">SequentialSamplingModels.jl</a>), but I’m back at making some new attempts in R.</li>
@@ -78,14 +79,50 @@
 </ul>
 </div>
 <div class="section level2">
-<h2 id="what-are-computational-cognitive-models">What are Computational Cognitive Models?<a class="anchor" aria-label="anchor" href="#what-are-computational-cognitive-models"></a>
+<h2 id="features">Features<a class="anchor" aria-label="anchor" href="#features"></a>
 </h2>
-<p>Measures from cognitive tasks, such as decision-making paradigms involving fast responses or ratings, often produce noisy and complex patterns of results. Broadly speaking, there are three ways of analysing such data.</p>
 <ul>
 <li>
-<strong>The Summary Statistics Approach</strong>: The traditional approach often involves not bothering with any of the distinctive characteristics of cognitive data, assume that observations are Normally distributed, and summarise them using simple statistics such as means (which is what linear models do). This is the approach underlying most t-tests, ANOVAs, and linear regression models. Although often convenient, these methods may provide a poor description of the data and offer only limited insight into the cognitive processes that generated the observations.</li>
+<a href="https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html" class="external-link"><strong>Models for Subjective Ratings Data (Likert/Slider Scales)</strong></a>
+<ul class="task-list">
+<li><label><input type="checkbox" checked>Choice-Confidence (CHOCO) models (Bi-modal Beta)</label></li>
+<li><label><input type="checkbox" checked>Beta-gate (Ordered Beta, <a href="https://doi.org/10.1017/pan.2022.20" class="external-link">Kubinec, 2023</a>)</label></li>
+<li><label><input type="checkbox" checked>Discrete-Beta (<a href="https://link.springer.com/article/10.1007/s10651-023-00592-5" class="external-link">Sciandra, 2024</a>)</label></li>
+</ul>
+</li>
 <li>
-<strong>The Distributional Approach</strong>: A more principled approach is to choose statistical models that better account for these particular empirical distributions. This can involve transforming the data (for example, log-transforming reaction times so that linear models are more justified), using robust statistical methods (resilient to non-normality), or adopting more appropriate probability distributions (e.g., using Ex-Gaussian models for RTs). While these approaches often improve model fit and statistical inference, there can be a gap between the descripitive distributional parameters estimated and the cognitive mechanisms underlying the data generation process.</li>
+<a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html" class="external-link"><strong>Models for Reaction Times</strong></a>
+<ul class="task-list">
+<li><label><input type="checkbox" checked>Ex-Gaussian model (with the classical parameterization in which <code>mu</code> and <code>sigma</code> index the Gaussian component alone and <code>tau</code> the exponential tail - unlike <code>brms</code>’s native <code><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">exgaussian()</a></code>, whose <code>mu</code> indexes the mean of the entire distribution)</label></li>
+<li><label><input type="checkbox" checked>Shifted LogNormal</label></li>
+<li><label><input type="checkbox" checked>Shifted Wald (Inverse Gaussian)</label></li>
+<li><label><input type="checkbox" checked>Weibull</label></li>
+<li><label><input type="checkbox" checked>LogWeibull (Gumbel)</label></li>
+<li><label><input type="checkbox" checked>Inverse Weibull (Fréchet)</label></li>
+<li><label><input type="checkbox" checked>Gamma</label></li>
+<li><label><input type="checkbox" checked>Inverse Gamma</label></li>
+</ul>
+</li>
+<li>
+<a href="https://dominiquemakowski.github.io/cogmod/articles/decision_making.html" class="external-link"><strong>Models for Decision Making (Choice + RT)</strong></a>
+<ul class="task-list">
+<li><label><input type="checkbox" checked>Drift Diffusion Model (DDM)</label></li>
+<li><label><input type="checkbox" checked>Linear Ballistic Accumulator (LBA)</label></li>
+<li><label><input type="checkbox" checked>LogNormal Race (LNR)</label></li>
+</ul>
+</li>
+</ul>
+<p><img src="reference/figures/rt_models1.png"></p>
+</div>
+<div class="section level2">
+<h2 id="what-are-computational-cognitive-models">What are Computational Cognitive Models?<a class="anchor" aria-label="anchor" href="#what-are-computational-cognitive-models"></a>
+</h2>
+<p>Measures from cognitive tasks, such as decision-making paradigms involving fast responses or ratings, often produce noisy, specific, and complex patterns of results. Broadly speaking, there are three ways of analysing such data.</p>
+<ul>
+<li>
+<strong>The Summary Statistics Approach</strong>: The traditional approach often involves not bothering with any of the distinctive characteristics of cognitive data, assume that observations are Normally distributed, and summarise them using simple statistics such as means (which is what linear models do). This is the approach underlying most <em>t</em>-tests, ANOVAs, and linear regression models. Although often convenient, these methods may provide a poor description of the data and offer only limited insight into the cognitive processes that generated the observations.</li>
+<li>
+<strong>The Distributional Approach</strong>: A more principled approach is to choose statistical models that better account for these particular distributions. This can involve transforming the data (for example, log-transforming reaction times so that linear models are more justified), using robust statistical methods (resilient to non-normality), or adopting more appropriate probability distributions (e.g., using Ex-Gaussian models for RTs). While these approaches often improve model fit and statistical inference, there can be a gap between the descriptive distributional parameters estimated and the cognitive mechanisms underlying the data generation process.</li>
 <li>
 <strong>The Computational Approach</strong>: The most recent approach is to use models that are specifically designed to approximate or account for the cognitive processes at stake. For instance, Evidence Accumulation Models conceptualize response time as the outcome of a noisy process of evidence accumulation in the brain. And Choice-Confidence models explain the bi-modal distributions often found with slider scales as the combination of a dual-process of discrete choice and continuous evaluation. These models combine a good distributional fit to the data with more meaningful and cognitively interpretable parameters.</li>
 </ul>
@@ -102,294 +139,67 @@
 <span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"DominiqueMakowski/cogmod"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="main-distributions">Main Distributions<a class="anchor" aria-label="anchor" href="#main-distributions"></a>
+<h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
 </h2>
-<div class="section level3">
-<h3 id="choco-model">CHOCO Model<a class="anchor" aria-label="anchor" href="#choco-model"></a>
-</h3>
-<p>The <a href="https://dominiquemakowski.github.io/cogmod/reference/rchoco.html" class="external-link"><strong>Choice-Confidence (CHOCO)</strong></a> model is useful to model data from subjective ratings, such as Likert-type or analog scales, in which the left and the right side correspond to different processes or higher order categorical responses (e.g., “disagree” vs. “agree”, “true” vs. “false”). They can be used to jointly model choice (left or right) and confidence (the degree of left or right).</p>
+<p>For each model implemented, <code>cogmod</code> provides a <strong><code>brms</code>-compatible custom family</strong> (e.g., <code><a href="reference/rchoco.html">choco()</a></code>) together with a <strong><code>stanvars</code> object</strong> (e.g., <code><a href="reference/rchoco.html">choco_stanvars()</a></code>) that injects the Stan code required to evaluate it. Both simply need to be passed to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code> via the <code>family</code> and <code>stanvars</code> arguments - everything else (formula syntax, post-processing, predictions…) works like any other <code>brms</code> model.</p>
+<p>Below, we simulate some data from the <a href="https://dominiquemakowski.github.io/cogmod/reference/rchoco.html" class="external-link"><strong>Choice-Confidence (CHOCO) model</strong></a>, a distribution useful to describe bimodal ratings (e.g., confidence or slider scales) as a mixture of a discrete choice (left vs. right side of the scale) and a continuous Beta-distributed evaluation.</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/DominiqueMakowski/cogmod">cogmod</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://easystats.github.io/easystats/" class="external-link">easystats</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">33</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">x</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">0.1</span>, <span class="fl">0.9</span>, by <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">score</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rchoco.html">rchoco</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">100</span>, p <span class="op">=</span> <span class="fl">0.4</span> <span class="op">+</span> <span class="va">x</span> <span class="op">/</span> <span class="fl">2</span>, confright <span class="op">=</span> <span class="fl">0.4</span> <span class="op">+</span> <span class="va">x</span> <span class="op">/</span> <span class="fl">3</span>,</span>
+<span>                   confleft <span class="op">=</span> <span class="fl">1</span> <span class="op">-</span> <span class="va">x</span>, pex <span class="op">=</span> <span class="fl">0.03</span>, bex <span class="op">=</span> <span class="fl">0.6</span>, pmid <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
+<span>  <span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="va">df</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">x</span>, score <span class="op">=</span> <span class="va">score</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span></span></code></pre></div>
+<p>A <code>brms</code> model can then be specified by adding <code>family = choco()</code> to the formula, and passing <code>stanvars = choco_stanvars()</code> to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code>:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">score</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  <span class="va">confright</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  <span class="va">confleft</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  <span class="va">precright</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  <span class="va">precleft</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  <span class="va">pex</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  <span class="va">bex</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  pmid <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="reference/rchoco.html">choco</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_choco</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, family <span class="op">=</span> <span class="fu"><a href="reference/rchoco.html">choco</a></span><span class="op">(</span><span class="op">)</span>, stanvars <span class="op">=</span> <span class="fu"><a href="reference/rchoco.html">choco_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>We can then analyze its results, and check its predictions like with any other models.</p>
 <details class="code-fold"><summary>
 Code
-</summary><div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://patchwork.data-imaginist.com" class="external-link">patchwork</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/DominiqueMakowski/cogmod">cogmod</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://mc-stan.org/rstan/" class="external-link">rstan</a></span><span class="op">)</span></span>
+</summary><div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Load a pre-fitted model for demonstration purposes</span></span>
+<span><span class="va">path</span> <span class="op">&lt;-</span> <span class="st">"https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"</span></span>
+<span><span class="va">m_choco</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/connections.html" class="external-link">url</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">path</span>, <span class="st">"m_choco.rds"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</details><div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Generate predictions with easystats</span></span>
+<span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_choco</span>, keep_iterations <span class="op">=</span> <span class="fl">50</span>, iterations <span class="op">=</span> <span class="fl">50</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Simulate data using rchoco() with two parameter sets</span></span>
-<span><span class="va">df1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rchoco.html">rchoco</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">5000</span>, confright <span class="op">=</span> <span class="fl">0.8</span>, confleft <span class="op">=</span> <span class="fl">0.7</span>, pex <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span></span>
-<span><span class="va">df2</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rchoco.html">rchoco</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">5000</span>, confright <span class="op">=</span> <span class="fl">0.3</span>, confleft <span class="op">=</span> <span class="fl">0.3</span>, pex <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span></span>
-<span><span class="va">df3</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rchoco.html">rchoco</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">5000</span>, confright <span class="op">=</span> <span class="fl">0.3</span>, confleft <span class="op">=</span> <span class="fl">0.3</span>, pex <span class="op">=</span> <span class="fl">0.1</span>, </span>
-<span>               precright <span class="op">=</span> <span class="fl">1.5</span>, precleft <span class="op">=</span> <span class="fl">1.5</span>, pmid <span class="op">=</span> <span class="fl">0.01</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Combine data into a single data frame</span></span>
-<span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  value <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">df1</span>, <span class="va">df2</span>, <span class="va">df3</span><span class="op">)</span>,</span>
-<span>  group <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="st">"confright = 0.5, confleft = 0.4, pex = 0.2"</span>,</span>
-<span>    <span class="st">"confright = 0.7, confleft = 0.6, pex = 0.1"</span>,</span>
-<span>    <span class="st">"confright = 0.3, confleft = 0.3, pex = 0.1"</span></span>
-<span>  <span class="op">)</span>, each <span class="op">=</span> <span class="fl">5000</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Create the histogram</span></span>
-<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">df</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">value</span>, fill <span class="op">=</span> <span class="va">group</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>alpha <span class="op">=</span> <span class="fl">0.8</span>, position <span class="op">=</span> <span class="st">"identity"</span>, bins <span class="op">=</span> <span class="fl">70</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"CHOCO Distribution"</span>, x <span class="op">=</span> <span class="st">"Value"</span>, y <span class="op">=</span> <span class="st">""</span>, fill <span class="op">=</span> <span class="st">"Parameters"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"#E91E63"</span>, <span class="st">"#9C27B0"</span>, <span class="st">"#FF9800"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-</details><p><img src="reference/figures/unnamed-chunk-2-1.png"></p>
-</div>
-<div class="section level3">
-<h3 id="beta-gate">Beta-Gate<a class="anchor" aria-label="anchor" href="#beta-gate"></a>
-</h3>
-<p>The Beta-Gate model corresponds to a reparametrized ordered beta model (<a href="https://doi.org/10.1017/pan.2022.20" class="external-link">Kubinec, 2023</a>). In the ordered Beta model, the extreme values (0 and 1) arise from censoring an underlying latent process based on cutpoints (“gates”). Values falling past the gates are considered extremes (zeros and ones). The difference from the Ordered Beta is the way the cutpoints are defined, as well as the scale of the precision parameter phi.</p>
-<p><img src="reference/figures/betagate.png"></p>
-</div>
-<div class="section level3">
-<h3 id="lnr-model">LNR Model<a class="anchor" aria-label="anchor" href="#lnr-model"></a>
-</h3>
-<p>The Log-Normal Race (LNR) model is useful for modeling reaction times and errors in decision-making tasks. The model assumes that each accumulator draws a value from a LogNormal distribution (shifted by a non-decision time τ). The winning accumulator (minimum draw) determines the observed reaction time and choice.</p>
-<details class="code-fold"><summary>
-Code
-</summary><div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Simulate data using rlnr()</span></span>
-<span><span class="va">lnr_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rlnr.html">rlnr</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">5000</span>, nuzero <span class="op">=</span> <span class="fl">1</span>, nuone <span class="op">=</span> <span class="fl">0.5</span>, sigmazero <span class="op">=</span> <span class="fl">1</span>, sigmaone <span class="op">=</span> <span class="fl">0.5</span>, ndt <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Create histograms for each choice</span></span>
-<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">lnr_data</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">rt</span>, fill <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">response</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>alpha <span class="op">=</span> <span class="fl">0.8</span>, position <span class="op">=</span> <span class="st">"identity"</span>, bins <span class="op">=</span> <span class="fl">50</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"LogNormal Race Model"</span>, x <span class="op">=</span> <span class="st">"Reaction Time"</span>, y <span class="op">=</span> <span class="st">"Frequency"</span>, fill <span class="op">=</span> <span class="st">"Choice"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"#4CAF50"</span>, <span class="st">"#FF5722"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-</details><p><img src="reference/figures/unnamed-chunk-5-1.png"></p>
-</div>
-</div>
-<div class="section level2">
-<h2 id="usage-with-brms">Usage with <code>brms</code>
-<a class="anchor" aria-label="anchor" href="#usage-with-brms"></a>
-</h2>
-<div class="section level3">
-<h3 id="subjective-ratings">Subjective Ratings<a class="anchor" aria-label="anchor" href="#subjective-ratings"></a>
-</h3>
-<div class="section level4">
-<h4 id="bounded-continuous-distributions-analog-scales">Bounded Continuous Distributions (Analog Scales)<a class="anchor" aria-label="anchor" href="#bounded-continuous-distributions-analog-scales"></a>
-</h4>
-<ul>
-<li>
-<a href="https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html" class="external-link"><strong>See this tutorial</strong></a>
-<ul class="task-list">
-<li><label><input type="checkbox" checked>Choice-Confidence (CHOCO) models (Bi-modal Beta)</label></li>
-<li><label><input type="checkbox" checked>Beta-gate (Ordered Beta, <a href="https://doi.org/10.1017/pan.2022.20" class="external-link">Kubinec, 2023</a>)</label></li>
-</ul>
-</li>
-</ul>
-<p><img src="reference/figures/subjective_ratings2.png"></p>
-</div>
-<div class="section level4">
-<h4 id="bounded-discrete-distributions-likert-scales">Bounded Discrete Distributions (Likert Scales)<a class="anchor" aria-label="anchor" href="#bounded-discrete-distributions-likert-scales"></a>
-</h4>
-<ul>
-<li>
-<a href="https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html#likert-scales" class="external-link"><strong>See this tutorial</strong></a>
-<ul class="task-list">
-<li><label><input type="checkbox" checked>Discrete-Beta (<a href="https://link.springer.com/article/10.1007/s10651-023-00592-5" class="external-link">Sciandra, 2024</a>)</label></li>
-</ul>
-</li>
-</ul>
-<p><img src="reference/figures/subjective_ratings3.png"></p>
-</div>
-</div>
-<div class="section level3">
-<h3 id="cognitive-tasks">Cognitive Tasks<a class="anchor" aria-label="anchor" href="#cognitive-tasks"></a>
-</h3>
-<div class="section level4">
-<h4 id="rt-only-models">RT-only Models<a class="anchor" aria-label="anchor" href="#rt-only-models"></a>
-</h4>
-<ul>
-<li><a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html" class="external-link"><strong>See this tutorial</strong></a></li>
-</ul>
-<p><img src="reference/figures/rt_models1.png"></p>
-</div>
-<div class="section level4">
-<h4 id="decision-making-choice--rt">Decision Making (Choice + RT)<a class="anchor" aria-label="anchor" href="#decision-making-choice--rt"></a>
-</h4>
-<div class="section level5">
-<h5 id="simulate-data">Simulate Data<a class="anchor" aria-label="anchor" href="#simulate-data"></a>
-</h5>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rlnr.html">rlnr</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">3000</span>, nuzero <span class="op">=</span> <span class="fl">0.2</span>, nuone <span class="op">=</span> <span class="fl">0</span>, sigmazero <span class="op">=</span> <span class="fl">0.8</span>, sigmaone <span class="op">=</span> <span class="fl">0.5</span>, ndt <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
-<span>  <span class="fu">datawizard</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/datawizard/reference/data_match.html" class="external-link">data_filter</a></span><span class="op">(</span><span class="va">rt</span> <span class="op">&lt;</span> <span class="fl">5</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">df</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">rt</span>, fill <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">response</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>alpha <span class="op">=</span> <span class="fl">0.8</span>, position <span class="op">=</span> <span class="st">"identity"</span>, bins <span class="op">=</span> <span class="fl">100</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"RT Distribution"</span>, x <span class="op">=</span> <span class="st">"Reaction Time"</span>, y <span class="op">=</span> <span class="st">"Frequency"</span>, fill <span class="op">=</span> <span class="st">"Choice"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"#009688"</span>, <span class="st">"#E91E63"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/unnamed-chunk-6-1.png"></p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">dfcorrect</span> <span class="op">&lt;-</span> <span class="va">df</span><span class="op">[</span><span class="va">df</span><span class="op">$</span><span class="va">response</span> <span class="op">==</span> <span class="fl">0</span>,<span class="op">]</span></span></code></pre></div>
-</div>
-<div class="section level5">
-<h5 id="drift-diffusion-model-ddm">Drift Diffusion Model (DDM)<a class="anchor" aria-label="anchor" href="#drift-diffusion-model-ddm"></a>
-</h5>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu">bf</span><span class="op">(</span></span>
-<span>  <span class="va">rt</span> <span class="op">|</span> <span class="fu">dec</span><span class="op">(</span><span class="va">response</span><span class="op">)</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">bs</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">bias</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">rt</span><span class="op">)</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="reference/rddm.html">ddm</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">m_ddm</span> <span class="op">&lt;-</span> <span class="fu">brm</span><span class="op">(</span><span class="va">f</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
-<span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="reference/rddm.html">ddm</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  stanvars <span class="op">=</span> <span class="fu"><a href="reference/rddm.html">ddm_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">m_ddm</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_ddm</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_ddm</span>, file <span class="op">=</span> <span class="st">"man/figures/m_ddm.rds"</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level5">
-<h5 id="linear-ballistic-accumulator-lba">Linear Ballistic Accumulator (LBA)<a class="anchor" aria-label="anchor" href="#linear-ballistic-accumulator-lba"></a>
-</h5>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu">bf</span><span class="op">(</span></span>
-<span>  <span class="va">rt</span> <span class="op">|</span> <span class="fu">dec</span><span class="op">(</span><span class="va">response</span><span class="op">)</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">vdelta</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">sigmazero</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">sigmadelta</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">A</span> <span class="op">~</span> <span class="fl">1</span>, </span>
-<span>  <span class="va">k</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">rt</span><span class="op">)</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="reference/rlba.html">lba</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"tau"</span><span class="op">)</span>,</span>
-<span>    <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"A"</span><span class="op">)</span>,</span>
-<span>    <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"k"</span><span class="op">)</span>,</span>
-<span>    <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">""</span><span class="op">)</span>,</span>
-<span>    <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"vdelta"</span><span class="op">)</span>,</span>
-<span>    <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"sigmazero"</span><span class="op">)</span></span>
-<span>  <span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>    <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">validate_prior</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span></span>
-<span></span>
-<span></span>
-<span><span class="va">m_lba</span> <span class="op">&lt;-</span> <span class="fu">brm</span><span class="op">(</span><span class="va">f</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
-<span>  init <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="reference/rlba.html">lba</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  stanvars <span class="op">=</span> <span class="fu"><a href="reference/rlba.html">lba_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">m_lba</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lba</span>, <span class="st">"loo"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_lba</span>, file <span class="op">=</span> <span class="st">"man/figures/m_lba.rds"</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level5">
-<h5 id="lognormal-race-lnr">LogNormal Race (LNR)<a class="anchor" aria-label="anchor" href="#lognormal-race-lnr"></a>
-</h5>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu">bf</span><span class="op">(</span></span>
-<span>  <span class="va">rt</span> <span class="op">|</span> <span class="fu">dec</span><span class="op">(</span><span class="va">response</span><span class="op">)</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">nuone</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">sigmazero</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">sigmaone</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
-<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">rt</span><span class="op">)</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="reference/rlnr.html">lnr</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">m_lnr</span> <span class="op">&lt;-</span> <span class="fu">brm</span><span class="op">(</span><span class="va">f</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
-<span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="reference/rlnr.html">lnr</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  stanvars <span class="op">=</span> <span class="fu"><a href="reference/rlnr.html">lnr_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">m_lnr</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lnr</span>, <span class="st">"loo"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_lnr</span>, file <span class="op">=</span> <span class="st">"man/figures/m_lnr.rds"</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level5">
-<h5 id="model-comparison">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison"></a>
-</h5>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">m_ddm</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span><span class="st">"man/figures/m_ddm.rds"</span><span class="op">)</span></span>
-<span><span class="va">m_lnr</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span><span class="st">"man/figures/m_lnr.rds"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu">loo</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare</a></span><span class="op">(</span><span class="va">m_ddm</span>, <span class="va">m_lnr</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
-<span>  <span class="fu">parameters</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/parameters/reference/model_parameters.html" class="external-link">parameters</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<details class="code-fold"><summary>
-Code
-</summary><div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_lnr</span>, data <span class="op">=</span> <span class="va">df</span>, iterations <span class="op">=</span> <span class="fl">100</span>, keep_iterations <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
-<span>  <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
-<span>  <span class="fu">datawizard</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/datawizard/reference/extract_column_names.html" class="external-link">data_select</a></span><span class="op">(</span>select <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Row"</span>, <span class="st">"Component"</span>, <span class="st">"iter_value"</span>, <span class="st">"iter_group"</span>, <span class="st">"iter_index"</span><span class="op">)</span><span class="op">)</span>  <span class="op">|&gt;</span></span>
-<span>  <span class="fu">datawizard</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/datawizard/reference/data_to_wide.html" class="external-link">data_to_wide</a></span><span class="op">(</span>id_cols<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Row"</span>, <span class="st">"iter_group"</span><span class="op">)</span>, values_from<span class="op">=</span><span class="st">"iter_value"</span>, names_from<span class="op">=</span><span class="st">"Component"</span><span class="op">)</span></span>
-<span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu">datawizard</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/datawizard/reference/data_match.html" class="external-link">data_filter</a></span><span class="op">(</span><span class="va">pred</span>, <span class="st">"rt &lt; 4"</span><span class="op">)</span></span>
-<span></span>
-<span></span>
-<span><span class="va">.density_rt_response</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">rt</span>, <span class="va">response</span>, <span class="va">length.out</span> <span class="op">=</span> <span class="fl">100</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">rt_choice0</span> <span class="op">&lt;-</span> <span class="va">rt</span><span class="op">[</span><span class="va">response</span> <span class="op">==</span> <span class="fl">0</span><span class="op">]</span></span>
-<span>  <span class="va">rt_choice1</span> <span class="op">&lt;-</span> <span class="va">rt</span><span class="op">[</span><span class="va">response</span> <span class="op">==</span> <span class="fl">1</span><span class="op">]</span></span>
-<span>  <span class="va">xaxis</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="va">rt_choice0</span>, <span class="va">rt_choice1</span><span class="op">)</span><span class="op">*</span> <span class="fl">1.1</span>, length.out <span class="op">=</span> <span class="va">length.out</span><span class="op">)</span></span>
-<span>  </span>
-<span>  <span class="fu">insight</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/insight/reference/check_if_installed.html" class="external-link">check_if_installed</a></span><span class="op">(</span><span class="st">"logspline"</span><span class="op">)</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">xaxis</span>, </span>
-<span>               y <span class="op">=</span> <span class="fu">logspline</span><span class="fu">::</span><span class="fu">dlogspline</span><span class="op">(</span><span class="va">xaxis</span>, <span class="fu">logspline</span><span class="fu">::</span><span class="fu">logspline</span><span class="op">(</span><span class="va">rt_choice0</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>               response <span class="op">=</span> <span class="fl">0</span><span class="op">)</span>,</span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">xaxis</span>,</span>
-<span>               y <span class="op">=</span> <span class="op">-</span><span class="fu">logspline</span><span class="fu">::</span><span class="fu">dlogspline</span><span class="op">(</span><span class="va">xaxis</span>, <span class="fu">logspline</span><span class="fu">::</span><span class="fu">logspline</span><span class="op">(</span><span class="va">rt_choice1</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>               response <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span>  <span class="op">)</span></span>
-<span><span class="op">}</span></span>
-<span></span>
-<span><span class="va">density_rt_response</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">data</span>, <span class="va">rt</span><span class="op">=</span><span class="st">"rt"</span>, <span class="va">response</span><span class="op">=</span><span class="st">"response"</span>, <span class="va">by</span><span class="op">=</span><span class="cn">NULL</span>, <span class="va">length.out</span> <span class="op">=</span> <span class="fl">100</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">by</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
-<span>    <span class="va">out</span> <span class="op">&lt;-</span> <span class="fu">.density_rt_response</span><span class="op">(</span><span class="va">data</span><span class="op">[[</span><span class="va">rt</span><span class="op">]</span><span class="op">]</span>, <span class="va">data</span><span class="op">[[</span><span class="va">response</span><span class="op">]</span><span class="op">]</span>, length.out <span class="op">=</span> <span class="va">length.out</span><span class="op">)</span></span>
-<span>  <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
-<span>    <span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/split.html" class="external-link">split</a></span><span class="op">(</span><span class="va">data</span>, <span class="va">data</span><span class="op">[[</span><span class="va">by</span><span class="op">]</span><span class="op">]</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="op">{</span></span>
-<span>      <span class="va">d</span> <span class="op">&lt;-</span> <span class="fu">.density_rt_response</span><span class="op">(</span><span class="va">x</span><span class="op">[[</span><span class="va">rt</span><span class="op">]</span><span class="op">]</span>, <span class="va">x</span><span class="op">[[</span><span class="va">response</span><span class="op">]</span><span class="op">]</span>, length.out <span class="op">=</span> <span class="va">length.out</span><span class="op">)</span></span>
-<span>      <span class="va">d</span><span class="op">[[</span><span class="va">by</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="va">x</span><span class="op">[[</span><span class="va">by</span><span class="op">]</span><span class="op">]</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span></span>
-<span>      <span class="va">d</span></span>
-<span>      <span class="op">}</span>, simplify <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
-<span>    <span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="va">out</span><span class="op">)</span></span>
-<span>    <span class="va">out</span><span class="op">[[</span><span class="va">by</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">out</span><span class="op">[[</span><span class="va">by</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span>  <span class="op">}</span></span>
-<span>  <span class="va">out</span><span class="op">[[</span><span class="va">response</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">out</span><span class="op">[[</span><span class="va">response</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/row.names.html" class="external-link">row.names</a></span><span class="op">(</span><span class="va">out</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="cn">NULL</span></span>
-<span>  <span class="va">out</span></span>
-<span><span class="op">}</span></span>
-<span></span>
-<span></span>
-<span>  </span>
-<span><span class="va">dat</span> <span class="op">&lt;-</span> <span class="fu">density_rt_response</span><span class="op">(</span><span class="va">pred</span>, rt<span class="op">=</span><span class="st">"rt"</span>, response<span class="op">=</span><span class="st">"response"</span>, by<span class="op">=</span><span class="st">"iter_group"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">df</span> <span class="op">|&gt;</span> </span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x<span class="op">=</span><span class="va">rt</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>data<span class="op">=</span><span class="va">df</span><span class="op">[</span><span class="va">df</span><span class="op">$</span><span class="va">response</span> <span class="op">==</span> <span class="fl">0</span>,<span class="op">]</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>y<span class="op">=</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">density</span><span class="op">)</span><span class="op">)</span>, fill<span class="op">=</span><span class="st">"darkgreen"</span>, bins<span class="op">=</span><span class="fl">100</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>data<span class="op">=</span><span class="va">df</span><span class="op">[</span><span class="va">df</span><span class="op">$</span><span class="va">response</span> <span class="op">==</span> <span class="fl">1</span>,<span class="op">]</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>y<span class="op">=</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="op">-</span><span class="va">density</span><span class="op">)</span><span class="op">)</span>, fill<span class="op">=</span><span class="st">"darkred"</span>, bins<span class="op">=</span><span class="fl">100</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span>data<span class="op">=</span><span class="va">dat</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x<span class="op">=</span><span class="va">x</span>, y<span class="op">=</span><span class="va">y</span>, color <span class="op">=</span> <span class="va">response</span>, group <span class="op">=</span>  <span class="fu"><a href="https://rdrr.io/r/base/interaction.html" class="external-link">interaction</a></span><span class="op">(</span><span class="va">response</span>, <span class="va">iter_group</span><span class="op">)</span><span class="op">)</span>, alpha<span class="op">=</span><span class="fl">0.1</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_color_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"green"</span>, <span class="st">"red"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span><span class="fu">insight</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/insight/reference/get_data.html" class="external-link">get_data</a></span><span class="op">(</span><span class="va">m_choco</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">score</span>, y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">density</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>bins <span class="op">=</span> <span class="fl">100</span>, fill <span class="op">=</span> <span class="st">"#2196F3"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span></span>
+<span>    data <span class="op">=</span> <span class="va">pred</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">iter_value</span>, group <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">iter_group</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>    bins <span class="op">=</span> <span class="fl">100</span>, alpha <span class="op">=</span> <span class="fl">0.03</span>, position <span class="op">=</span> <span class="st">"identity"</span>, fill <span class="op">=</span> <span class="st">"#FF5722"</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Posterior Predictive Check"</span>, x <span class="op">=</span> <span class="st">"Score"</span>, y <span class="op">=</span> <span class="st">"Density"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-</details>
-</div>
-</div>
-</div>
+<p><img src="reference/figures/ppcheck-1.png"></p>
+<p>The model nicely recovers the bimodal shape of the observed data - something that traditional (unimodal) Beta-related models fail to capture (see the vignette for a comparison).</p>
+<p>See the <a href="https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html" class="external-link">Subjective Ratings</a>, <a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html" class="external-link">RT-only Models</a>, and <a href="https://dominiquemakowski.github.io/cogmod/articles/decision_making.html" class="external-link">Decision Making Models</a> vignettes for more detailed examples.</p>
+<p><img src="reference/figures/decision_making1.png"></p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">
@@ -434,7 +244,7 @@ Code
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

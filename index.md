@@ -6,16 +6,16 @@
 *Models of Cognition for Subjective Scales and Decision Making Tasks in
 R*
 
+This R package is dedicated to facilitate the application of
+computational cognitive models in R under a Bayesian framework. These
+are useful in the field of cognitive science and computational
+neuropsycholology.
+
 ## Status
 
 ![Status](https://img.shields.io/badge/status-WIP-orange.svg)
 
 Status
-
-This R package is dedicated to facilitate the application of
-computational cognitive models in R under a Bayesian framework. These
-are useful in the field of cognitive science and computational
-neuropsycholology.
 
 **This package is under development.** It’s not meant to be stable and
 robust at this stage. Use at your own risks. If you have suggestions for
@@ -30,31 +30,78 @@ improvement, please get in touch!
 - See also this attempt at [**creating
   tutorials**](https://dominiquemakowski.github.io/CognitiveModels/)
 
+## Features
+
+[**Models for Subjective Ratings Data (Likert/Slider
+Scales)**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
+
+Choice-Confidence (CHOCO) models (Bi-modal Beta)
+
+Beta-gate (Ordered Beta, [Kubinec,
+2023](https://doi.org/10.1017/pan.2022.20))
+
+Discrete-Beta ([Sciandra,
+2024](https://link.springer.com/article/10.1007/s10651-023-00592-5))
+
+[**Models for Reaction
+Times**](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html)
+
+Ex-Gaussian model (with the classical parameterization in which `mu` and
+`sigma` index the Gaussian component alone and `tau` the exponential
+tail - unlike `brms`’s native
+[`exgaussian()`](https://paulbuerkner.com/brms/reference/brmsfamily.html),
+whose `mu` indexes the mean of the entire distribution)
+
+Shifted LogNormal
+
+Shifted Wald (Inverse Gaussian)
+
+Weibull
+
+LogWeibull (Gumbel)
+
+Inverse Weibull (Fréchet)
+
+Gamma
+
+Inverse Gamma
+
+[**Models for Decision Making (Choice +
+RT)**](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
+
+Drift Diffusion Model (DDM)
+
+Linear Ballistic Accumulator (LBA)
+
+LogNormal Race (LNR)
+
+![](reference/figures/rt_models1.png)
+
 ## What are Computational Cognitive Models?
 
 Measures from cognitive tasks, such as decision-making paradigms
-involving fast responses or ratings, often produce noisy and complex
-patterns of results. Broadly speaking, there are three ways of analysing
-such data.
+involving fast responses or ratings, often produce noisy, specific, and
+complex patterns of results. Broadly speaking, there are three ways of
+analysing such data.
 
 - **The Summary Statistics Approach**: The traditional approach often
   involves not bothering with any of the distinctive characteristics of
   cognitive data, assume that observations are Normally distributed, and
   summarise them using simple statistics such as means (which is what
-  linear models do). This is the approach underlying most t-tests,
+  linear models do). This is the approach underlying most *t*-tests,
   ANOVAs, and linear regression models. Although often convenient, these
   methods may provide a poor description of the data and offer only
   limited insight into the cognitive processes that generated the
   observations.
 - **The Distributional Approach**: A more principled approach is to
   choose statistical models that better account for these particular
-  empirical distributions. This can involve transforming the data (for
-  example, log-transforming reaction times so that linear models are
-  more justified), using robust statistical methods (resilient to
+  distributions. This can involve transforming the data (for example,
+  log-transforming reaction times so that linear models are more
+  justified), using robust statistical methods (resilient to
   non-normality), or adopting more appropriate probability distributions
   (e.g., using Ex-Gaussian models for RTs). While these approaches often
   improve model fit and statistical inference, there can be a gap
-  between the descripitive distributional parameters estimated and the
+  between the descriptive distributional parameters estimated and the
   cognitive mechanisms underlying the data generation process.
 - **The Computational Approach**: The most recent approach is to use
   models that are specifically designed to approximate or account for
@@ -80,309 +127,107 @@ if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
 remotes::install_github("DominiqueMakowski/cogmod")
 ```
 
-## Main Distributions
+## Usage
 
-### CHOCO Model
+For each model implemented, `cogmod` provides a **`brms`-compatible
+custom family** (e.g.,
+[`choco()`](https://github.com/DominiqueMakowski/cogmod/reference/rchoco.md))
+together with a **`stanvars` object** (e.g.,
+[`choco_stanvars()`](https://github.com/DominiqueMakowski/cogmod/reference/rchoco.md))
+that injects the Stan code required to evaluate it. Both simply need to
+be passed to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html) via
+the `family` and `stanvars` arguments - everything else (formula syntax,
+post-processing, predictions…) works like any other `brms` model.
 
-The [**Choice-Confidence
-(CHOCO)**](https://dominiquemakowski.github.io/cogmod/reference/rchoco.html)
-model is useful to model data from subjective ratings, such as
-Likert-type or analog scales, in which the left and the right side
-correspond to different processes or higher order categorical responses
-(e.g., “disagree” vs. “agree”, “true” vs. “false”). They can be used to
-jointly model choice (left or right) and confidence (the degree of left
-or right).
-
-Code
+Below, we simulate some data from the [**Choice-Confidence (CHOCO)
+model**](https://dominiquemakowski.github.io/cogmod/reference/rchoco.html),
+a distribution useful to describe bimodal ratings (e.g., confidence or
+slider scales) as a mixture of a discrete choice (left vs. right side of
+the scale) and a continuous Beta-distributed evaluation.
 
 ``` r
 
-library(ggplot2)
-library(patchwork)
 library(cogmod)
-library(rstan)
+library(brms)
+library(easystats)
+library(ggplot2)
 
-# Simulate data using rchoco() with two parameter sets
-df1 <- rchoco(n = 5000, confright = 0.8, confleft = 0.7, pex = 0.05)
-df2 <- rchoco(n = 5000, confright = 0.3, confleft = 0.3, pex = 0.1)
-df3 <- rchoco(n = 5000, confright = 0.3, confleft = 0.3, pex = 0.1, 
-               precright = 1.5, precleft = 1.5, pmid = 0.01)
+set.seed(33)
 
-# Combine data into a single data frame
-df <- data.frame(
-  value = c(df1, df2, df3),
-  group = rep(c(
-    "confright = 0.5, confleft = 0.4, pex = 0.2",
-    "confright = 0.7, confleft = 0.6, pex = 0.1",
-    "confright = 0.3, confleft = 0.3, pex = 0.1"
-  ), each = 5000)
-)
-
-# Create the histogram
-ggplot(df, aes(x = value, fill = group)) +
-  geom_histogram(alpha = 0.8, position = "identity", bins = 70) +
-  labs(title = "CHOCO Distribution", x = "Value", y = "", fill = "Parameters") +
-  theme_minimal() +
-  scale_fill_manual(values = c("#E91E63", "#9C27B0", "#FF9800"))
+df <- data.frame()
+for (x in seq(0.1, 0.9, by = 0.1)) {
+  score <- rchoco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3,
+                   confleft = 1 - x, pex = 0.03, bex = 0.6, pmid = 0)
+  df <- rbind(df, data.frame(x = x, score = score))
+}
 ```
 
-![](reference/figures/unnamed-chunk-2-1.png)
+A `brms` model can then be specified by adding `family = choco()` to the
+formula, and passing `stanvars = choco_stanvars()` to
+[`brm()`](https://paulbuerkner.com/brms/reference/brm.html):
 
-### Beta-Gate
+``` r
 
-The Beta-Gate model corresponds to a reparametrized ordered beta model
-([Kubinec, 2023](https://doi.org/10.1017/pan.2022.20)). In the ordered
-Beta model, the extreme values (0 and 1) arise from censoring an
-underlying latent process based on cutpoints (“gates”). Values falling
-past the gates are considered extremes (zeros and ones). The difference
-from the Ordered Beta is the way the cutpoints are defined, as well as
-the scale of the precision parameter phi.
+f <- bf(
+  score ~ x,
+  confright ~ x,
+  confleft ~ x,
+  precright ~ x,
+  precleft ~ x,
+  pex ~ x,
+  bex ~ x,
+  pmid = 0,
+  family = choco()
+)
 
-![](reference/figures/betagate.png)
+m_choco <- brm(f,
+  data = df, family = choco(), stanvars = choco_stanvars(),
+  chains = 4, backend = "cmdstanr"
+)
+```
 
-### LNR Model
-
-The Log-Normal Race (LNR) model is useful for modeling reaction times
-and errors in decision-making tasks. The model assumes that each
-accumulator draws a value from a LogNormal distribution (shifted by a
-non-decision time τ). The winning accumulator (minimum draw) determines
-the observed reaction time and choice.
+We can then analyze its results, and check its predictions like with any
+other models.
 
 Code
 
 ``` r
 
-# Simulate data using rlnr()
-lnr_data <- rlnr(n = 5000, nuzero = 1, nuone = 0.5, sigmazero = 1, sigmaone = 0.5, ndt = 0.2)
-
-# Create histograms for each choice
-ggplot(lnr_data, aes(x = rt, fill = factor(response))) +
-  geom_histogram(alpha = 0.8, position = "identity", bins = 50) +
-  labs(title = "LogNormal Race Model", x = "Reaction Time", y = "Frequency", fill = "Choice") +
-  theme_minimal() +
-  scale_fill_manual(values = c("#4CAF50", "#FF5722"))
+# Load a pre-fitted model for demonstration purposes
+path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"
+m_choco <- readRDS(url(paste0(path, "m_choco.rds")))
 ```
-
-![](reference/figures/unnamed-chunk-5-1.png)
-
-## Usage with `brms`
-
-### Subjective Ratings
-
-#### Bounded Continuous Distributions (Analog Scales)
-
-[**See this
-tutorial**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
-
-Choice-Confidence (CHOCO) models (Bi-modal Beta)
-
-Beta-gate (Ordered Beta, [Kubinec,
-2023](https://doi.org/10.1017/pan.2022.20))
-
-![](reference/figures/subjective_ratings2.png)
-
-#### Bounded Discrete Distributions (Likert Scales)
-
-[**See this
-tutorial**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html#likert-scales)
-
-Discrete-Beta ([Sciandra,
-2024](https://link.springer.com/article/10.1007/s10651-023-00592-5))
-
-![](reference/figures/subjective_ratings3.png)
-
-### Cognitive Tasks
-
-#### RT-only Models
-
-- [**See this
-  tutorial**](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html)
-
-![](reference/figures/rt_models1.png)
-
-#### Decision Making (Choice + RT)
-
-##### Simulate Data
 
 ``` r
 
-df <- rlnr(n = 3000, nuzero = 0.2, nuone = 0, sigmazero = 0.8, sigmaone = 0.5, ndt = 0.2) |> 
-  datawizard::data_filter(rt < 5)
+# Generate predictions with easystats
+pred <- estimate_prediction(m_choco, keep_iterations = 50, iterations = 50) |>
+  reshape_iterations()
 
-df |>
-  ggplot(aes(x = rt, fill = factor(response))) +
-  geom_histogram(alpha = 0.8, position = "identity", bins = 100) +
-  labs(title = "RT Distribution", x = "Reaction Time", y = "Frequency", fill = "Choice") +
-  theme_minimal() +
-  scale_fill_manual(values = c("#009688", "#E91E63"))
-```
-
-![](reference/figures/unnamed-chunk-6-1.png)
-
-``` r
-
-dfcorrect <- df[df$response == 0,]
-```
-
-##### Drift Diffusion Model (DDM)
-
-``` r
-
-f <- bf(
-  rt | dec(response) ~ 1,
-  bs ~ 1,
-  bias ~ 1,
-  tau ~ 1,
-  minrt = min(df$rt),
-  family = ddm()
-)
-
-m_ddm <- brm(f,
-  data = df,
-  init = 0,
-  family = ddm(),
-  stanvars = ddm_stanvars(),
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_ddm <- brms::add_criterion(m_ddm, "loo") 
-
-saveRDS(m_ddm, file = "man/figures/m_ddm.rds")
-```
-
-##### Linear Ballistic Accumulator (LBA)
-
-``` r
-
-f <- bf(
-  rt | dec(response) ~ 1,
-  vdelta ~ 1,
-  sigmazero ~ 1,
-  sigmadelta ~ 1,
-  A ~ 1, 
-  k ~ 1,
-  tau ~ 1,
-  minrt = min(df$rt),
-  family = lba()
-)
-
-priors <- c(
-    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau"),
-    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "A"),
-    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "k"),
-    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = ""),
-    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "vdelta"),
-    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmazero")
-  ) |>
-    brms::validate_prior(f, data = df)
-
-
-m_lba <- brm(f,
-  data = df,
-  init = 1,
-  prior = priors,
-  family = lba(),
-  stanvars = lba_stanvars(),
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_lba <- brms::add_criterion(m_lba, "loo")
-
-saveRDS(m_lba, file = "man/figures/m_lba.rds")
-```
-
-##### LogNormal Race (LNR)
-
-``` r
-
-f <- bf(
-  rt | dec(response) ~ 1,
-  nuone ~ 1,
-  sigmazero ~ 1,
-  sigmaone ~ 1,
-  tau ~ 1,
-  minrt = min(df$rt),
-  family = lnr()
-)
-
-m_lnr <- brm(f,
-  data = df,
-  init = 0,
-  family = lnr(),
-  stanvars = lnr_stanvars(),
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_lnr <- brms::add_criterion(m_lnr, "loo")
-
-saveRDS(m_lnr, file = "man/figures/m_lnr.rds")
-```
-
-##### Model Comparison
-
-``` r
-
-m_ddm <- readRDS("man/figures/m_ddm.rds")
-m_lnr <- readRDS("man/figures/m_lnr.rds")
-
-loo::loo_compare(m_ddm, m_lnr) |> 
-  parameters::parameters()
-```
-
-Code
-
-``` r
-
-pred <- estimate_prediction(m_lnr, data = df, iterations = 100, keep_iterations = TRUE) |>
-  as.data.frame() |> 
-  reshape_iterations() |> 
-  datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index"))  |>
-  datawizard::data_to_wide(id_cols=c("Row", "iter_group"), values_from="iter_value", names_from="Component")
-pred <- datawizard::data_filter(pred, "rt < 4")
-
-
-.density_rt_response <- function(rt, response, length.out = 100) {
-  rt_choice0 <- rt[response == 0]
-  rt_choice1 <- rt[response == 1]
-  xaxis <- seq(0, max(rt_choice0, rt_choice1)* 1.1, length.out = length.out)
-  
-  insight::check_if_installed("logspline")
-  rbind(
-    data.frame(x = xaxis, 
-               y = logspline::dlogspline(xaxis, logspline::logspline(rt_choice0)),
-               response = 0),
-    data.frame(x = xaxis,
-               y = -logspline::dlogspline(xaxis, logspline::logspline(rt_choice1)),
-               response = 1)
-  )
-}
-
-density_rt_response <- function(data, rt="rt", response="response", by=NULL, length.out = 100) {
-  if (is.null(by)) {
-    out <- .density_rt_response(data[[rt]], data[[response]], length.out = length.out)
-  } else {
-    out <- sapply(split(data, data[[by]]), function(x) {
-      d <- .density_rt_response(x[[rt]], x[[response]], length.out = length.out)
-      d[[by]] <- x[[by]][1]
-      d
-      }, simplify = FALSE)
-    out <- do.call(rbind, out)
-    out[[by]] <- as.factor(out[[by]])
-  }
-  out[[response]] <- as.factor(out[[response]])
-  row.names(out) <- NULL
-  out
-}
-
-
-  
-dat <- density_rt_response(pred, rt="rt", response="response", by="iter_group")
-
-df |> 
-  ggplot(aes(x=rt)) +
-  geom_histogram(data=df[df$response == 0,], aes(y=after_stat(density)), fill="darkgreen", bins=100) +
-  geom_histogram(data=df[df$response == 1,], aes(y=after_stat(-density)), fill="darkred", bins=100) +
-  geom_line(data=dat, aes(x=x, y=y, color = response, group =  interaction(response, iter_group)), alpha=0.1) +
-  scale_color_manual(values = c("green", "red")) +
+insight::get_data(m_choco) |>
+  ggplot(aes(x = score, y = after_stat(density))) +
+  geom_histogram(bins = 100, fill = "#2196F3") +
+  geom_histogram(
+    data = pred, aes(x = iter_value, group = as.factor(iter_group)),
+    bins = 100, alpha = 0.03, position = "identity", fill = "#FF5722"
+  ) +
+  labs(title = "Posterior Predictive Check", x = "Score", y = "Density") +
   theme_minimal()
 ```
+
+![](reference/figures/ppcheck-1.png)
+
+The model nicely recovers the bimodal shape of the observed data -
+something that traditional (unimodal) Beta-related models fail to
+capture (see the vignette for a comparison).
+
+See the [Subjective
+Ratings](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html),
+[RT-only
+Models](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
+and [Decision Making
+Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
+vignettes for more detailed examples.
+
+![](reference/figures/decision_making1.png)

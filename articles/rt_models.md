@@ -18,7 +18,8 @@ For this chapter, we will be using the data from [Wagenmakers et al.,
 reanalyzed by [Heathcote & Love
 (2012)](https://doi.org/10.3389/fpsyg.2012.00292), that contains
 responses and response times for several participants in two conditions
-(where instructions emphasized either **speed** or **accuracy**). Using
+(where instructions emphasized either **speed** or **accuracy**). This
+dataset is bundled directly with `cogmod` as `wagenmakers2008`. Using
 the same procedure as the authors, we excluded all trials with
 uninterpretable response time, i.e., responses that are too fast (\<200
 ms instead of \<180 ms) or too slow (\>2 sec instead of \>3 sec).
@@ -27,7 +28,7 @@ ms instead of \<180 ms) or too slow (\>2 sec instead of \>3 sec).
 
 set.seed(123)  # For reproducibility
 
-df <- read.csv("https://raw.githubusercontent.com/DominiqueMakowski/CognitiveModels/main/data/wagenmakers2008.csv")
+df <- cogmod::wagenmakers2008
 df <- df[df$RT > 0.2 & df$Participant %in% c(1, 2, 3), ]
 
 # Show 10 first rows
@@ -91,6 +92,28 @@ saveRDS(m_normal, file = "models/m_normal.rds")
 
 ### ExGaussian
 
+The Ex-Gaussian distribution is a popular choice for RT data, as it
+separates the central portion of the distribution - captured by the
+Gaussian parameters `mu` and `sigma` - from the positively skewed tail,
+captured by the exponential parameter `tau`. However, `brms`’s native
+[`exgaussian()`](https://paulbuerkner.com/brms/reference/brmsfamily.html)
+family does **not** use this “classical” parameterization familiar to
+experimental psychologists: its `mu` indexes the mean of the *entire*
+distribution (i.e., Gaussian + exponential combined) rather than the
+location of the Gaussian component alone. This matters because a change
+in the Gaussian location and an opposite change in the exponential tail
+can cancel out at the level of the overall mean, so effects estimated on
+`brms`’s default `mu` can lead to different (and potentially incorrect)
+inferences about the underlying process than effects estimated on the
+classical `mu`.
+
+For this reason, `cogmod` provides its own
+[`rt_exgaussian()`](https://github.com/DominiqueMakowski/cogmod/reference/rt_exgaussian.md)
+custom family (internally relying on Stan’s `exp_mod_normal`
+distribution), in which `mu` and `sigma` are the mean and SD of the
+Gaussian component and `tau` is the mean of the exponential tail -
+directly matching the classical parameterization.
+
 Code
 
 ``` r
@@ -98,13 +121,13 @@ Code
 f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
-  beta ~ Condition,
-  family = exgaussian()
+  tau ~ Condition,
+  family = rt_exgaussian()
 )
 
 m_exgauss <- brm(f,
   data = df, 
-  family = exgaussian(), 
+  stanvars = rt_exgaussian_stanvars(),
   init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
@@ -392,7 +415,7 @@ loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
 #> 2    | -4840.8 |  4.72 | 2420.41 |      -2.15 |          5.95 | 0.717 
 #> 3    | -4840.4 |  5.03 | 2420.18 |      -2.38 |          6.00 | 0.691 
 #> 4    | -4831.7 |  8.31 | 2415.85 |      -6.71 |          6.22 | 0.281 
-#> 5    | -4792.9 |  6.62 | 2396.45 |     -26.12 |          9.53 | 0.006 
+#> 5    | -4793.3 |  6.41 | 2396.64 |     -25.93 |          9.55 | 0.007 
 #> 6    | -4763.0 |  8.80 | 2381.50 |     -41.06 |         11.08 | < .001
 #> 7    | -4728.7 | 10.84 | 2364.36 |     -58.20 |         15.07 | < .001
 #> 8    | -4393.2 |  7.53 | 2196.61 |    -225.95 |         24.80 | < .001
@@ -402,9 +425,24 @@ loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
 
 ### Sampling Duration
 
+Because each model was fit with only 4 chains, a boxplot of the
+per-chain sampling times is not very informative. Instead, we summarize
+each model’s sampling duration by the *median* time per chain, annotated
+with its value.
+
+As expected, the **Gaussian** model is by far the fastest to sample,
+since it relies on `brms`’s built-in (and heavily optimized) Normal
+likelihood with no custom Stan code or non-decision time shift involved.
+At the other end, the **LBA** is by far the slowest, reflecting the
+added cost of its multi-accumulator likelihood. The remaining RT-only
+models (ExGaussian, LogNormal, Wald, Weibull, LogWeibull, InvWeibull,
+Gamma, and InvGamma) are all relatively comparable to one another, as
+they share a similar structure (a simple closed-form density combined
+with a non-decision time shift).
+
 ``` r
 
-rbind(
+duration <- rbind(
   data_modify(attributes(m_normal$fit)$metadata$time$chain, Model="Gaussian"),
   data_modify(attributes(m_exgauss$fit)$metadata$time$chain, Model="ExGaussian"),
   data_modify(attributes(m_lognormal$fit)$metadata$time$chain, Model="LogNormal"),
@@ -416,11 +454,17 @@ rbind(
   data_modify(attributes(m_invgamma$fit)$metadata$time$chain, Model="InvGamma"),
   data_modify(attributes(m_lba$fit)$metadata$time$chain, Model="LBA")
 ) |> 
-  ggplot(aes(x = Model, y = total, fill = Model)) +
-  geom_boxplot() +
-  labs(y = "Sampling Duration (s)") +
-  scale_fill_material_d(guide = "none") +
-  # scale_y_log10() +
+  data_modify(Model = factor(Model, levels = c("Gaussian", "ExGaussian", "LogNormal", "Wald", "Weibull", "LogWeibull", "InvWeibull", "Gamma", "InvGamma", "LBA")))
+
+duration_median <- aggregate(total ~ Model, data = duration, FUN = median)
+
+duration_median |> 
+  ggplot(aes(x = Model, y = total, fill = total)) +
+  geom_col() +
+  geom_text(aes(label = round(total, 1)), vjust = -0.5, size = 3.5) +
+  labs(y = "Median Sampling Duration per Chain (s)", fill = "Duration") +
+  scale_fill_gradientn(colors = c("turquoise", "green", "yellow", "gold", "orange", "red", "darkred")) +
+  scale_y_sqrt() +
   theme_minimal() 
 ```
 
@@ -476,11 +520,12 @@ p <- pred |>
                  position = "identity", bins=120, alpha = 0.8) +
   geom_line(aes(color=Model, group=interaction(Condition, iter_group)), stat="density", alpha=0.2) +
   theme_minimal() +
+  theme(axis.text.y = element_blank()) +
   facet_wrap(~Model) +
   coord_cartesian(xlim = c(0, 2)) +
   scale_fill_manual(values = c("darkgreen", "darkred")) +
   scale_color_material_d(guide = "none") +
-  labs(x = "RT (s)")
+  labs(x = "RT (s)", y = "Distribution")
 p
 ```
 

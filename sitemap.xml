@@ -1,6 +1,7 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/404.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/LICENSE-text.html</loc></url>
+<url><loc>https://github.com/DominiqueMakowski/cogmod/articles/decision_making.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/articles/index.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/articles/rt_models.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/articles/subjective_ratings.html</loc></url>
@@ -20,11 +21,13 @@
 <url><loc>https://github.com/DominiqueMakowski/cogmod/reference/rrdm.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/reference/rrt_invgaussian.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/reference/rrt_lba.html</loc></url>
+<url><loc>https://github.com/DominiqueMakowski/cogmod/reference/rt_exgaussian.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/reference/rt_gamma.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/reference/rt_invgamma.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/reference/rt_invweibull.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/reference/rt_lognormal.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/reference/rt_logweibull.html</loc></url>
 <url><loc>https://github.com/DominiqueMakowski/cogmod/reference/rt_weibull.html</loc></url>
+<url><loc>https://github.com/DominiqueMakowski/cogmod/reference/wagenmakers2008.html</loc></url>
 </urlset>
 

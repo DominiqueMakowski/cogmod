@@ -2,6 +2,8 @@
 
 ### All vignettes
 
+- [Decision Making
+  Models](https://github.com/DominiqueMakowski/cogmod/articles/decision_making.md):
 - [RT-only
   Models](https://github.com/DominiqueMakowski/cogmod/articles/rt_models.md):
 - [Subjective

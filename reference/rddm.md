@@ -61,7 +61,10 @@ posterior_predict_ddm(i, prep, ...)
 
   The backend to use for the simulation. Based on local benchmarks,
   `"rtdists"` is much faster for simulation but `"Rwiener"` is faster
-  for density computation.
+  for density computation. Note that the `"Rwiener"` backend (used by
+  default for the density, e.g., in
+  [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html)/[`loo()`](https://mc-stan.org/loo/reference/loo.html))
+  requires the `RWiener` package to be installed.
 
 - ...:
 

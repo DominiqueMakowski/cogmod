@@ -17,7 +17,8 @@ Functions:
 - `lnr()`: Creates a custom family to be used with `brms`.
 
 - `lnr_stanvars()`: For `brms`, generates a `stanvars` object to pass to
-  `brm()` when fitting the model.
+  [`brm()`](https://paulbuerkner.com/brms/reference/brm.html) when
+  fitting the model.
 
 - `posterior_predict_lnr()`: For `brms`, simulates predicted outcomes
   using sampled parameters.
