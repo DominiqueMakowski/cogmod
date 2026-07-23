@@ -29,7 +29,14 @@ test_that("rddm and dddm produces correct output shape", {
   resp <- c(0, 1, 0)
 
   # Run dddm
-  densities <- dddm(x = x, drift = drift, bs = bs, bias = bias, ndt = ndt, response = resp)
+  densities <- dddm(
+    x = x,
+    drift = drift,
+    bs = bs,
+    bias = bias,
+    ndt = ndt,
+    response = resp
+  )
 
   # Check that the output is a numeric vector
   expect_type(densities, "double")
@@ -57,7 +64,15 @@ test_that("dddm matches densities of rddm simulated data", {
   response <- sim_data$response
 
   # Compute densities using dddm
-  densities <- dddm(x = rt, drift = drift, bs = bs, bias = bias, ndt = ndt, response = response, log = FALSE)
+  densities <- dddm(
+    x = rt,
+    drift = drift,
+    bs = bs,
+    bias = bias,
+    ndt = ndt,
+    response = response,
+    log = FALSE
+  )
 
   # Check that densities are finite and non-negative
   expect_true(all(is.finite(densities)), "All densities should be finite")
@@ -71,8 +86,11 @@ test_that("dddm matches densities of rddm simulated data", {
   plausible_densities <- densities[plausible_rt_indices]
 
   # Check that plausible RTs have higher average density than the overall average density
-  expect_gt(mean(plausible_densities), mean(densities),
-            "Mean density of plausible RTs should be higher than overall mean density")
+  expect_gt(
+    mean(plausible_densities),
+    mean(densities),
+    "Mean density of plausible RTs should be higher than overall mean density"
+  )
 })
 
 context("DDM - brms")
@@ -94,7 +112,13 @@ test_that("DDM model can recover parameters with brms", {
   true_minrt <- true_minrt
 
   # Simulate data
-  df <- rddm(n_obs, drift = true_nu, bs = true_bs, bias = true_bias, ndt = true_ndt)
+  df <- rddm(
+    n_obs,
+    drift = true_nu,
+    bs = true_bs,
+    bias = true_bias,
+    ndt = true_ndt
+  )
 
   # Define brms formula
   f <- brms::bf(
@@ -102,7 +126,10 @@ test_that("DDM model can recover parameters with brms", {
     bs ~ 1,
     bias ~ 1,
     tau ~ 1,
-    minrt = true_minrt
+    minrt = true_minrt,
+    sigmadrift = 0,
+    sigmabias = 0,
+    sigmatau = 0
   )
 
   # Fit model using brms
@@ -111,7 +138,7 @@ test_that("DDM model can recover parameters with brms", {
     data = df,
     family = ddm(),
     stanvars = ddm_stanvars(),
-    algorithm = "pathfinder",  # Use VI
+    algorithm = "pathfinder", # Use VI
     backend = "cmdstanr",
     refresh = 0,
     init = 0
@@ -122,15 +149,40 @@ test_that("DDM model can recover parameters with brms", {
   means <- post[, "Estimate"]
 
   # Check parameter recovery
-  expect_equal(means[["b_Intercept"]], true_nu, tolerance = 0.1, label = "drift recovery")
-  expect_equal(log1p(exp(means[["b_bs_Intercept"]])), true_bs, tolerance = 0.1, label = "bs recovery")
-  expect_equal(brms::inv_logit_scaled(means[["b_bias_Intercept"]]), true_bias, tolerance = 0.1, label = "bias recovery")
-  expect_equal(brms::inv_logit_scaled(means[["b_tau_Intercept"]]), true_tau, tolerance = 0.1, label = "tau recovery")
+  expect_equal(
+    means[["b_Intercept"]],
+    true_nu,
+    tolerance = 0.1,
+    label = "drift recovery"
+  )
+  expect_equal(
+    log1p(exp(means[["b_bs_Intercept"]])),
+    true_bs,
+    tolerance = 0.1,
+    label = "bs recovery"
+  )
+  expect_equal(
+    brms::inv_logit_scaled(means[["b_bias_Intercept"]]),
+    true_bias,
+    tolerance = 0.1,
+    label = "bias recovery"
+  )
+  expect_equal(
+    brms::inv_logit_scaled(means[["b_tau_Intercept"]]),
+    true_tau,
+    tolerance = 0.1,
+    label = "tau recovery"
+  )
 
   # Check derived ndt recovery
   est_tau_mean <- brms::inv_logit_scaled(means[["b_tau_Intercept"]])
   est_ndt_mean <- est_tau_mean * min(df$rt)
-  expect_equal(est_ndt_mean, true_ndt, tolerance = 0.2, label = "Derived NDT recovery")
+  expect_equal(
+    est_ndt_mean,
+    true_ndt,
+    tolerance = 0.2,
+    label = "Derived NDT recovery"
+  )
 
   # --- Test Post-processing Functions ---
   # Test posterior prediction dimensions
@@ -141,30 +193,54 @@ test_that("DDM model can recover parameters with brms", {
   newdata_pred <- df[1:n_pred_obs, , drop = FALSE]
 
   # Generate predictions
-  pred <- brms::posterior_predict(fit, ndraws = n_pred_draws, newdata = newdata_pred)
+  pred <- brms::posterior_predict(
+    fit,
+    ndraws = n_pred_draws,
+    newdata = newdata_pred
+  )
 
   # Check dimensions: posterior_predict for wiener returns draws x (obs*2) matrix
   # Columns alternate between RT (q) and response (resp)
-  expect_true(is.matrix(pred), label = "posterior_predict output should be a matrix")
-  expect_equal(nrow(pred), n_pred_draws, label = "posterior_predict rows should match ndraws")
-  expect_equal(ncol(pred), n_pred_obs * 2, label = "posterior_predict columns should be 2 * nrow(newdata)")
+  expect_true(
+    is.matrix(pred),
+    label = "posterior_predict output should be a matrix"
+  )
+  expect_equal(
+    nrow(pred),
+    n_pred_draws,
+    label = "posterior_predict rows should match ndraws"
+  )
+  expect_equal(
+    ncol(pred),
+    n_pred_obs * 2,
+    label = "posterior_predict columns should be 2 * nrow(newdata)"
+  )
 
   # Optional: Check predicted RTs are plausible (e.g., > estimated NDT)
   pred_rt_indices <- seq(1, ncol(pred), by = 2) # Indices for RT columns
   pred_rt <- pred[, pred_rt_indices]
-  expect_true(all(pred_rt > est_ndt_mean * 0.9, na.rm = TRUE), # Allow some buffer
-              label = "Predicted RTs should generally be > estimated NDT")
+  expect_true(
+    all(pred_rt > est_ndt_mean * 0.9, na.rm = TRUE), # Allow some buffer
+    label = "Predicted RTs should generally be > estimated NDT"
+  )
 
   # Optional: Check predicted responses are plausible (0 or 1)
   pred_resp_indices <- seq(2, ncol(pred), by = 2) # Indices for response columns
   pred_resp <- pred[, pred_resp_indices]
-  expect_true(all(pred_resp %in% c(0, 1)), label = "Predicted responses should be 0 or 1")
+  expect_true(
+    all(pred_resp %in% c(0, 1)),
+    label = "Predicted responses should be 0 or 1"
+  )
 
   # Test log-likelihood dimensions
   ll <- brms::log_lik(fit, ndraws = 5) # Use a small number of draws for testing
   expect_true(is.matrix(ll), label = "log_lik output should be a matrix")
   expect_equal(nrow(ll), 5, label = "log_lik rows should match ndraws")
-  expect_equal(ncol(ll), n_obs, label = "log_lik columns should match number of original observations")
+  expect_equal(
+    ncol(ll),
+    n_obs,
+    label = "log_lik columns should match number of original observations"
+  )
   expect_true(all(is.finite(ll)), "Log-likelihood values should be finite")
 })
 
@@ -193,17 +269,47 @@ test_that("Stan DDM lpdf matches R dddm function", {
 
             for (dec in dec_values) {
               for (Y in Y_values) {
-                if (Y <= ndt) next # Skip invalid cases where Y <= ndt
+                if (Y <= ndt) {
+                  next
+                } # Skip invalid cases where Y <= ndt
 
-                # Calculate lpdf using Stan function
-                stan_lpdf <- ddm_lpdf_stan(Y, drift, bs, bias, tau, minrt, dec)
+                # Calculate lpdf using Stan function (extra variability
+                # params fixed to 0, should match the classic 4-param DDM)
+                stan_lpdf <- ddm_lpdf_stan(
+                  Y,
+                  drift,
+                  bs,
+                  bias,
+                  tau,
+                  minrt,
+                  0,
+                  0,
+                  0,
+                  dec
+                )
 
                 # Calculate lpdf using R function
-                r_lpdf <- dddm(x = Y, drift = drift, bs = bs, bias = bias, ndt = ndt, response = dec, log = TRUE)
+                r_lpdf <- dddm(
+                  x = Y,
+                  drift = drift,
+                  bs = bs,
+                  bias = bias,
+                  ndt = ndt,
+                  response = dec,
+                  log = TRUE
+                )
 
                 # Compare results
-                label <- sprintf("Y=%.2f, drift=%.2f, bs=%.2f, bias=%.2f, tau=%.2f, minrt=%.2f, dec=%d",
-                                 Y, drift, bs, bias, tau, minrt, dec)
+                label <- sprintf(
+                  "Y=%.2f, drift=%.2f, bs=%.2f, bias=%.2f, tau=%.2f, minrt=%.2f, dec=%d",
+                  Y,
+                  drift,
+                  bs,
+                  bias,
+                  tau,
+                  minrt,
+                  dec
+                )
                 expect_equal(stan_lpdf, r_lpdf, tolerance = 1e-6, label = label)
               }
             }
@@ -212,4 +318,202 @@ test_that("Stan DDM lpdf matches R dddm function", {
       }
     }
   }
+})
+
+
+context("DDM - full (rtdists-backed) 7-parameter model")
+
+test_that("dddm() with variability matches rtdists::ddiffusion()", {
+  skip_if_not_installed("rtdists")
+
+  grid <- expand.grid(
+    drift = c(0.2, -0.3),
+    bs = c(1.0, 1.5),
+    bias = c(0.4, 0.6),
+    ndt = c(0.15, 0.25),
+    sigmadrift = c(0, 0.3),
+    sigmabias = c(0, 0.4),
+    sigmatau = c(0, 0.3),
+    minrt = c(0.2, 0.3),
+    dec = c(0, 1),
+    Y = c(0.6, 0.9, 1.3)
+  )
+
+  for (i in seq_len(nrow(grid))) {
+    row <- grid[i, ]
+    if (row$Y <= row$ndt) {
+      next
+    }
+
+    r_lpdf <- dddm(
+      x = row$Y,
+      drift = row$drift,
+      bs = row$bs,
+      bias = row$bias,
+      ndt = row$ndt,
+      response = row$dec,
+      log = TRUE,
+      sigmadrift = row$sigmadrift,
+      sigmabias = row$sigmabias,
+      sigmatau = row$sigmatau,
+      minrt = row$minrt
+    )
+
+    sw <- row$sigmabias * min(2 * row$bias, 2 * (1 - row$bias))
+    ref_density <- rtdists::ddiffusion(
+      rt = row$Y,
+      response = row$dec + 1,
+      a = row$bs,
+      v = row$drift,
+      t0 = row$ndt,
+      z = row$bias * row$bs,
+      sv = row$sigmadrift,
+      sz = sw * row$bs,
+      st0 = row$sigmatau * row$minrt
+    )
+
+    label <- sprintf(
+      "drift=%.2f, bs=%.2f, bias=%.2f, ndt=%.2f, sigmadrift=%.2f, sigmabias=%.2f, sigmatau=%.2f, dec=%d, Y=%.2f",
+      row$drift,
+      row$bs,
+      row$bias,
+      row$ndt,
+      row$sigmadrift,
+      row$sigmabias,
+      row$sigmatau,
+      row$dec,
+      row$Y
+    )
+    # Tolerance accounts for rtdists' default numerical-integration precision
+    # (precision = 3), which introduces an error on the order of ~3e-4.
+    expect_equal(r_lpdf, log(ref_density), tolerance = 5e-4, label = label)
+  }
+})
+
+
+test_that("Stan ddm_lpdf matches dddm() when variability parameters are non-zero", {
+  skip_if_not_installed("cmdstanr")
+  skip_if_not_installed("rtdists")
+
+  ddm_lpdf_stan <- ddm_lpdf_expose()
+
+  grid <- expand.grid(
+    drift = c(0.2, -0.3),
+    bs = c(1.0, 1.5),
+    bias = c(0.4, 0.6),
+    tau = c(0.5, 0.8),
+    minrt = c(0.2, 0.3),
+    sigmadrift = c(0, 0.3),
+    sigmabias = c(0, 0.4),
+    sigmatau = c(0, 0.3),
+    dec = c(0, 1),
+    Y = c(0.6, 0.9, 1.3)
+  )
+
+  for (i in seq_len(nrow(grid))) {
+    row <- grid[i, ]
+    ndt <- row$tau * row$minrt
+    if (row$Y <= ndt) {
+      next
+    }
+
+    stan_lpdf <- ddm_lpdf_stan(
+      row$Y,
+      row$drift,
+      row$bs,
+      row$bias,
+      row$tau,
+      row$minrt,
+      row$sigmadrift,
+      row$sigmabias,
+      row$sigmatau,
+      row$dec
+    )
+    r_lpdf <- dddm(
+      x = row$Y,
+      drift = row$drift,
+      bs = row$bs,
+      bias = row$bias,
+      ndt = ndt,
+      response = row$dec,
+      log = TRUE,
+      sigmadrift = row$sigmadrift,
+      sigmabias = row$sigmabias,
+      sigmatau = row$sigmatau,
+      minrt = row$minrt
+    )
+
+    label <- sprintf(
+      "drift=%.2f, bs=%.2f, bias=%.2f, tau=%.2f, minrt=%.2f, sigmadrift=%.2f, sigmabias=%.2f, sigmatau=%.2f, dec=%d, Y=%.2f",
+      row$drift,
+      row$bs,
+      row$bias,
+      row$tau,
+      row$minrt,
+      row$sigmadrift,
+      row$sigmabias,
+      row$sigmatau,
+      row$dec,
+      row$Y
+    )
+    # Tolerance accounts for rtdists' default numerical-integration precision
+    # (precision = 3), which introduces an error on the order of ~3e-4.
+    expect_equal(stan_lpdf, r_lpdf, tolerance = 5e-4, label = label)
+  }
+})
+
+
+test_that("rddm() with variability produces valid simulated data", {
+  skip_if_not_installed("rtdists")
+
+  sim <- rddm(
+    n = 500,
+    drift = 0.4,
+    bs = 1.2,
+    bias = 0.5,
+    ndt = 0.2,
+    sigmadrift = 0.3,
+    sigmabias = 0.3,
+    sigmatau = 0.2,
+    minrt = 0.25
+  )
+
+  expect_s3_class(sim, "data.frame")
+  expect_equal(nrow(sim), 500)
+  expect_named(sim, c("rt", "response"))
+  expect_true(all(sim$response %in% c(0, 1)))
+  expect_true(all(is.finite(sim$rt)))
+  expect_true(all(sim$rt > 0))
+})
+
+
+test_that("posterior_epred_ddm() warns only when variability parameters are non-zero", {
+  mock_prep <- function(sigmadrift, sigmabias, sigmatau) {
+    list(
+      dpars = list(
+        mu = c(0.5, 0.5),
+        bs = c(1.2, 1.2),
+        bias = c(0.5, 0.5),
+        tau = c(0.7, 0.7),
+        minrt = c(0.25, 0.25),
+        sigmadrift = sigmadrift,
+        sigmabias = sigmabias,
+        sigmatau = sigmatau
+      )
+    )
+  }
+
+  expect_no_warning(posterior_epred_ddm(mock_prep(c(0, 0), c(0, 0), c(0, 0))))
+  expect_warning(
+    posterior_epred_ddm(mock_prep(c(0.3, 0.3), c(0, 0), c(0, 0))),
+    "closed-form approximation"
+  )
+  expect_warning(
+    posterior_epred_ddm(mock_prep(c(0, 0), c(0.2, 0.2), c(0, 0))),
+    "closed-form approximation"
+  )
+  expect_warning(
+    posterior_epred_ddm(mock_prep(c(0, 0), c(0, 0), c(0.1, 0.1))),
+    "closed-form approximation"
+  )
 })

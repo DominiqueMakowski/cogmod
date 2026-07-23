@@ -1,7 +1,7 @@
 Package: cogmod
 Type: Package
 Title: Cognitive Models for Subjective Scales and Decision Making Tasks in R
-Version: 0.0.20
+Version: 0.0.21
 Authors@R: c(
     person(
       "Dominique", "Makowski",
@@ -36,6 +36,7 @@ Suggests:
     parameters,
     performance,
     modelbased,
+    report,
     reformulas,
     RWiener,
     rtdists

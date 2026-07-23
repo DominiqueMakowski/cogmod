@@ -105,7 +105,7 @@ set.seed(33)
 df <- data.frame()
 for (x in seq(0.1, 0.9, by = 0.1)) {
   score <- rchoco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3,
-                   confleft = 1 - x, pex = 0.03, bex = 0.6, pmid = 0)
+                  confleft = 1 - x, pex = 0.03, bex = 0.6, pmid = 0)
   df <- rbind(df, data.frame(x = x, score = score))
 }
 ```

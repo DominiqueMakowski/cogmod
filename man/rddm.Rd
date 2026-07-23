@@ -11,9 +11,35 @@
 \alias{posterior_predict_ddm}
 \title{Drift Diffusion Model (DDM)}
 \usage{
-rddm(n, drift, bs, bias, ndt, backend = "rtdists", ...)
+rddm(
+  n,
+  drift,
+  bs,
+  bias,
+  ndt,
+  sigmadrift = 0,
+  sigmabias = 0,
+  sigmatau = 0,
+  minrt = NULL,
+  backend = "rtdists",
+  ...
+)
 
-dddm(x, drift, bs, bias, ndt, response, log = FALSE, backend = "Rwiener", ...)
+dddm(
+  x,
+  drift,
+  bs,
+  bias,
+  ndt,
+  response,
+  log = FALSE,
+  sigmadrift = 0,
+  sigmabias = 0,
+  sigmatau = 0,
+  minrt = NULL,
+  backend = "Rwiener",
+  ...
+)
 
 ddm_lpdf_expose()
 
@@ -24,7 +50,10 @@ ddm(
   link_bs = "softplus",
   link_bias = "logit",
   link_tau = "logit",
-  link_minrt = "identity"
+  link_minrt = "identity",
+  link_sigmadrift = "softplus",
+  link_sigmabias = "logit",
+  link_sigmatau = "logit"
 )
 
 log_lik_ddm(i, prep, ...)
@@ -44,10 +73,25 @@ posterior_predict_ddm(i, prep, ...)
 
 \item{ndt}{Non-decision time. Must be non-negative.}
 
+\item{sigmadrift}{Inter-trial variability in drift rate (\code{sv} in \code{rtdists} terms). Must be
+non-negative. Default \code{0} (no variability, i.e. the classic 4-parameter DDM).}
+
+\item{sigmabias}{Inter-trial variability in the starting point, expressed as a fraction (in
+\verb{[0, 1)}) of the maximum allowed range, i.e. \code{sw = sigmabias * min(2*bias, 2*(1-bias))}
+(\code{sw}/\code{sz} in \code{rtdists} terms). Default \code{0}.}
+
+\item{sigmatau}{Inter-trial variability in non-decision time, expressed as a fraction of
+\code{minrt}, i.e. \code{st0 = sigmatau * minrt} (\code{st0} in \code{rtdists} terms). Default \code{0}.}
+
+\item{minrt}{Minimum reaction time. Only required when \code{sigmatau > 0} (used to scale
+\code{sigmatau} into \code{st0}).}
+
 \item{backend}{The backend to use for the simulation. Based on local benchmarks, \code{"rtdists"}
 is much faster for simulation but \code{"Rwiener"} is faster for density computation. Note that
 the \code{"Rwiener"} backend (used by default for the density, e.g., in \code{log_lik()}/\code{loo()})
-requires the \code{RWiener} package to be installed.}
+requires the \code{RWiener} package to be installed. Ignored (forced to \code{rtdists}, via
+\code{\link[rtdists:Diffusion]{rtdists::rdiffusion()}}/\code{\link[rtdists:Diffusion]{rtdists::ddiffusion()}}) whenever \code{sigmadrift}, \code{sigmabias}, or
+\code{sigmatau} is non-zero, since only \code{rtdists} implements the full 7-parameter model.}
 
 \item{...}{Other arguments to be passed to \code{\link[brms:Wiener]{brms::rwiener()}} or \code{\link[brms:Wiener]{brms::dwiener()}},}
 
@@ -58,6 +102,10 @@ requires the \code{RWiener} package to be installed.}
 \item{log}{Logical; if TRUE, returns the log-density. Default: FALSE.}
 
 \item{link_mu, link_bs, link_bias, link_tau, link_minrt}{Link functions for the parameters.}
+
+\item{link_sigmadrift, link_sigmabias, link_sigmatau}{Link functions for the extra
+inter-trial variability parameters (fix them to 0, e.g. \code{sigmadrift = 0}, in the
+\code{brms::bf()} formula to recover the classic 4-parameter DDM).}
 
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 }

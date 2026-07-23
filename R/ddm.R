@@ -16,7 +16,18 @@
 #' @param backend The backend to use for the simulation. Based on local benchmarks, `"rtdists"`
 #'   is much faster for simulation but `"Rwiener"` is faster for density computation. Note that
 #'   the `"Rwiener"` backend (used by default for the density, e.g., in `log_lik()`/`loo()`)
-#'   requires the `RWiener` package to be installed.
+#'   requires the `RWiener` package to be installed. Ignored (forced to `rtdists`, via
+#'   [rtdists::rdiffusion()]/[rtdists::ddiffusion()]) whenever `sigmadrift`, `sigmabias`, or
+#'   `sigmatau` is non-zero, since only `rtdists` implements the full 7-parameter model.
+#' @param sigmadrift Inter-trial variability in drift rate (`sv` in `rtdists` terms). Must be
+#'   non-negative. Default `0` (no variability, i.e. the classic 4-parameter DDM).
+#' @param sigmabias Inter-trial variability in the starting point, expressed as a fraction (in
+#'   `[0, 1)`) of the maximum allowed range, i.e. `sw = sigmabias * min(2*bias, 2*(1-bias))`
+#'   (`sw`/`sz` in `rtdists` terms). Default `0`.
+#' @param sigmatau Inter-trial variability in non-decision time, expressed as a fraction of
+#'   `minrt`, i.e. `st0 = sigmatau * minrt` (`st0` in `rtdists` terms). Default `0`.
+#' @param minrt Minimum reaction time. Only required when `sigmatau > 0` (used to scale
+#'   `sigmatau` into `st0`).
 #'
 #' @examples
 #' # Simulate data
@@ -29,9 +40,52 @@
 #'
 #' @inheritParams rlnr
 #' @export
-rddm <- function(n, drift, bs, bias, ndt, backend = "rtdists", ...) {
+rddm <- function(
+  n,
+  drift,
+  bs,
+  bias,
+  ndt,
+  sigmadrift = 0,
+  sigmabias = 0,
+  sigmatau = 0,
+  minrt = NULL,
+  backend = "rtdists",
+  ...
+) {
   # Prepare and validate parameters
-  params <- .prepare_ddm(n = n, drift = drift, bs = bs, bias = bias, ndt = ndt)
+  params <- .prepare_ddm(
+    n = n,
+    drift = drift,
+    bs = bs,
+    bias = bias,
+    ndt = ndt,
+    sigmadrift = sigmadrift,
+    sigmabias = sigmabias,
+    sigmatau = sigmatau,
+    minrt = minrt
+  )
+
+  if (.ddm_has_variability(params)) {
+    insight::check_if_installed("rtdists")
+    rt_params <- .ddm_to_rtdists(params)
+
+    sim_data <- rtdists::rdiffusion(
+      params$n,
+      a = rt_params$a,
+      v = rt_params$v,
+      t0 = rt_params$t0,
+      z = rt_params$z,
+      sv = rt_params$sv,
+      sz = rt_params$sz,
+      st0 = rt_params$st0
+    )
+
+    return(data.frame(
+      rt = sim_data$rt,
+      response = ifelse(sim_data$response == "upper", 1, 0)
+    ))
+  }
 
   # Simulate data using rwiener
   sim_data <- brms::rwiener(
@@ -59,6 +113,10 @@ dddm <- function(
   ndt,
   response,
   log = FALSE,
+  sigmadrift = 0,
+  sigmabias = 0,
+  sigmatau = 0,
+  minrt = NULL,
   backend = "Rwiener",
   ...
 ) {
@@ -69,8 +127,31 @@ dddm <- function(
     bs = bs,
     bias = bias,
     ndt = ndt,
-    response = response
+    response = response,
+    sigmadrift = sigmadrift,
+    sigmabias = sigmabias,
+    sigmatau = sigmatau,
+    minrt = minrt
   )
+
+  if (.ddm_has_variability(params)) {
+    insight::check_if_installed("rtdists")
+    rt_params <- .ddm_to_rtdists(params)
+
+    dens <- rtdists::ddiffusion(
+      rt = params$x,
+      response = params$response + 1L, # 0/1 -> 1/2 (lower/upper)
+      a = rt_params$a,
+      v = rt_params$v,
+      t0 = rt_params$t0,
+      z = rt_params$z,
+      sv = rt_params$sv,
+      sz = rt_params$sz,
+      st0 = rt_params$st0
+    )
+
+    return(if (log) log(dens) else dens)
+  }
 
   # Compute density using dwiener
   brms::dwiener(
@@ -97,7 +178,11 @@ dddm <- function(
   bs,
   bias,
   ndt,
-  response = NULL
+  response = NULL,
+  sigmadrift = 0,
+  sigmabias = 0,
+  sigmatau = 0,
+  minrt = NULL
 ) {
   # --- Basic Validation ---
   if (any(bs <= 0, na.rm = TRUE)) {
@@ -108,6 +193,21 @@ dddm <- function(
   }
   if (any(ndt < 0, na.rm = TRUE)) {
     stop("ndt must be non-negative.")
+  }
+  if (any(sigmadrift < 0, na.rm = TRUE)) {
+    stop("sigmadrift must be non-negative.")
+  }
+  if (any(sigmabias < 0 | sigmabias >= 1, na.rm = TRUE)) {
+    stop("sigmabias must be in [0, 1).")
+  }
+  if (any(sigmatau < 0, na.rm = TRUE)) {
+    stop("sigmatau must be non-negative.")
+  }
+  if (any(sigmatau > 0, na.rm = TRUE) && is.null(minrt)) {
+    stop("minrt must be provided when sigmatau > 0.")
+  }
+  if (!is.null(minrt) && any(minrt <= 0, na.rm = TRUE)) {
+    stop("minrt must be positive.")
   }
 
   # --- Determine Target Length ---
@@ -131,7 +231,10 @@ dddm <- function(
       length(bs),
       length(bias),
       length(ndt),
-      length(response)
+      length(response),
+      length(sigmadrift),
+      length(sigmabias),
+      length(sigmatau)
     )
     m <- max(param_lengths)
   } else {
@@ -143,7 +246,10 @@ dddm <- function(
     drift = rep_len(drift, m),
     bs = rep_len(bs, m),
     bias = rep_len(bias, m),
-    ndt = rep_len(ndt, m)
+    ndt = rep_len(ndt, m),
+    sigmadrift = rep_len(sigmadrift, m),
+    sigmabias = rep_len(sigmabias, m),
+    sigmatau = rep_len(sigmatau, m)
   )
 
   # Add x and response if provided
@@ -153,6 +259,9 @@ dddm <- function(
   if (!is.null(response)) {
     params$response <- rep_len(response, m)
   }
+  if (!is.null(minrt)) {
+    params$minrt <- rep_len(minrt, m)
+  }
 
   # Add n for rddm
   if (!is.null(n)) {
@@ -161,6 +270,37 @@ dddm <- function(
 
   params$ndraws <- m
   params
+}
+
+# Internal helpers for the extended (7-parameter) DDM via `rtdists` ---------
+
+#' @keywords internal
+.ddm_has_variability <- function(params) {
+  any(params$sigmadrift != 0, na.rm = TRUE) ||
+    any(params$sigmabias != 0, na.rm = TRUE) ||
+    any(params$sigmatau != 0, na.rm = TRUE)
+}
+
+#' @keywords internal
+.ddm_to_rtdists <- function(params) {
+  # sw: our Stan/rtdists-relative starting-point variability (fraction of the
+  # maximum allowed range), converted to rtdists' absolute (a-scaled) `sz`.
+  sw <- params$sigmabias * pmin(2 * params$bias, 2 * (1 - params$bias))
+  st0 <- if (!is.null(params$minrt)) {
+    params$sigmatau * params$minrt
+  } else {
+    rep(0, length(params$sigmatau))
+  }
+
+  list(
+    a = params$bs,
+    v = params$drift,
+    t0 = params$ndt,
+    z = params$bias * params$bs,
+    sv = params$sigmadrift,
+    sz = sw * params$bs,
+    st0 = st0
+  )
 }
 
 # CODE to BENCHMARK the backends
