@@ -52,7 +52,7 @@ improvement, please get in touch!
     2024](https://link.springer.com/article/10.1007/s10651-023-00592-5))
 - [**Models for Reaction
   Times**](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html)
-  - [x] Ex-Gaussian model (with the classicala parameterization in which
+  - [x] Ex-Gaussian model (with the classical parameterization in which
     `mu` and `sigma` index the Gaussian component alone and `tau` the
     exponential tail - unlike `brms`’s native `exgaussian()`, whose `mu`
     indexes the mean of the entire distribution)
@@ -63,10 +63,13 @@ improvement, please get in touch!
   - [x] Inverse Weibull (Fréchet)
   - [x] Gamma
   - [x] Inverse Gamma
-- **Models for Decision Making (Choice + RT)**
+- [**Models for Decision Making (Choice +
+  RT)**](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
   - [x] Drift Diffusion Model (DDM)
   - [x] Linear Ballistic Accumulator (LBA)
   - [x] LogNormal Race (LNR)
+
+![](man/figures/rt_models1.png)
 
 ## What are Computational Cognitive Models?
 
@@ -115,14 +118,94 @@ if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
 remotes::install_github("DominiqueMakowski/cogmod")
 ```
 
-## Usage with `brms`
+## Usage
+
+For each model implemented, `cogmod` provides a **`brms`-compatible
+custom family** (e.g., `choco()`) together with a **`stanvars` object**
+(e.g., `choco_stanvars()`) that injects the Stan code required to
+evaluate it. Both simply need to be passed to `brms::brm()` via the
+`family` and `stanvars` arguments - everything else (formula syntax,
+post-processing, predictions…) works like any other `brms` model.
+
+Below, we simulate some data from the [**Choice-Confidence (CHOCO)
+model**](https://dominiquemakowski.github.io/cogmod/reference/rchoco.html),
+a distribution useful to describe bimodal ratings (e.g., confidence or
+slider scales) as a mixture of a discrete choice (left vs. right side of
+the scale) and a continuous Beta-distributed evaluation.
 
 ``` r
 library(cogmod)
+library(brms)
+library(easystats)
 library(ggplot2)
 
-# TODO.
+set.seed(33)
+
+df <- data.frame()
+for (x in seq(0.1, 0.9, by = 0.1)) {
+  score <- rchoco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3,
+                   confleft = 1 - x, pex = 0.03, bex = 0.6, pmid = 0)
+  df <- rbind(df, data.frame(x = x, score = score))
+}
 ```
+
+A `brms` model can then be specified by adding `family = choco()` to the
+formula, and passing `stanvars = choco_stanvars()` to `brm()`:
+
+``` r
+f <- bf(
+  score ~ x,
+  confright ~ x,
+  confleft ~ x,
+  precright ~ x,
+  precleft ~ x,
+  pex ~ x,
+  bex ~ x,
+  pmid = 0,
+  family = choco()
+)
+
+m_choco <- brm(f,
+  data = df, family = choco(), stanvars = choco_stanvars(),
+  chains = 4, backend = "cmdstanr"
+)
+```
+
+We can then analyze its results, and check its predictions like with any
+other models.
+
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
+# Load a pre-fitted model for demonstration purposes
+path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"
+m_choco <- readRDS(url(paste0(path, "m_choco.rds")))
+```
+
+</details>
+
+``` r
+# Generate predictions with easystats
+pred <- estimate_prediction(m_choco, keep_iterations = 50, iterations = 50) |>
+  reshape_iterations()
+
+insight::get_data(m_choco) |>
+  ggplot(aes(x = score, y = after_stat(density))) +
+  geom_histogram(bins = 100, fill = "#2196F3") +
+  geom_histogram(
+    data = pred, aes(x = iter_value, group = as.factor(iter_group)),
+    bins = 100, alpha = 0.03, position = "identity", fill = "#FF5722"
+  ) +
+  labs(title = "Posterior Predictive Check", x = "Score", y = "Density") +
+  theme_minimal()
+```
+
+![](man/figures/ppcheck-1.png)
+
+The model nicely recovers the bimodal shape of the observed data -
+something that traditional (unimodal) Beta-related models fail to
+capture (see the vignette for a comparison).
 
 See the [Subjective
 Ratings](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html),
@@ -130,6 +213,6 @@ Ratings](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.
 Models](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
 and [Decision Making
 Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
-vignettes for detailed examples.
+vignettes for more detailed examples.
 
-![](man/figures/rt_models1.png) ![](man/figures/decision_making1.png)
+![](man/figures/decision_making1.png)

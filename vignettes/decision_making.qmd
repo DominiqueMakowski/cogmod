@@ -78,45 +78,6 @@ All three models below use `dec(Error)` to indicate the two-choice
 outcome (`0` = Correct, `1` = Error), and a fixed `minrt` (the minimum
 observed RT) to scale the non-decision time parameter `tau`.
 
-### LogNormal Race (LNR)
-
-The LNR is one of the simplest model. It is similar to the LBA, but each accumulator's finishing time is
-drawn directly from a LogNormal distribution instead of a ballistic
-accumulation process. `mu` (`nuzero`) and `nuone` are the (inverse
-log-space mean) processing speeds for the "Error" and "Correct"
-accumulators, and `sigmazero`/`sigmaone` their log-space SDs.
-
-```{r}
-#| eval: false
-#| code-fold: true
-
-f <- bf(
-  RT | dec(Error) ~ Condition,
-  nuone ~ Condition,
-  sigmazero ~ 1,
-  sigmaone ~ 1,
-  tau ~ 1,
-  minrt = min(df$RT),
-  family = lnr()
-)
-
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = df)
-
-m_lnr <- brm(f,
-  data = df,
-  # prior = priors,
-  init = 0,
-  stanvars = lnr_stanvars(),
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_lnr <- brms::add_criterion(m_lnr, "loo")  # Add model performance criterion
-
-saveRDS(m_lnr, file = "models/m_lnr.rds")
-```
-
-
 ### Drift Diffusion Model (DDM)
 
 The DDM assumes that evidence accumulates towards one of two boundaries at
@@ -153,6 +114,47 @@ m_ddm <- brms::add_criterion(m_ddm, "loo")  # Add model performance criterion
 
 saveRDS(m_ddm, file = "models/m_ddm.rds")
 ```
+
+
+### LogNormal Race (LNR)
+
+The LNR is a somewhat simpler model. It is similar to the LBA, but each accumulator's finishing time is
+drawn directly from a LogNormal distribution instead of a ballistic
+accumulation process. `mu` (`nuzero`) and `nuone` are the (inverse
+log-space mean) processing speeds for the "Error" and "Correct"
+accumulators, and `sigmazero`/`sigmaone` their log-space SDs.
+
+```{r}
+#| eval: false
+#| code-fold: true
+
+f <- bf(
+  RT | dec(Error) ~ Condition,
+  nuone ~ Condition,
+  sigmazero ~ 1,
+  sigmaone ~ 1,
+  tau ~ 1,
+  minrt = min(df$RT),
+  family = lnr()
+)
+
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
+  brms::validate_prior(f, data = df)
+
+m_lnr <- brm(f,
+  data = df,
+  # prior = priors,
+  init = 0,
+  stanvars = lnr_stanvars(),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_lnr <- brms::add_criterion(m_lnr, "loo")  # Add model performance criterion
+
+saveRDS(m_lnr, file = "models/m_lnr.rds")
+```
+
+
 
 ### Linear Ballistic Accumulator (LBA)
 
