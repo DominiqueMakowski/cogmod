@@ -108,7 +108,7 @@ inferences about the underlying process than effects estimated on the
 classical `mu`.
 
 For this reason, `cogmod` provides its own
-[`rt_exgaussian()`](https://github.com/DominiqueMakowski/cogmod/reference/rt_exgaussian.md)
+[`rt_exgaussian()`](https://github.com/DominiqueMakowski/cogmod/reference/rrt_exgaussian.md)
 custom family (internally relying on Stan’s `exp_mod_normal`
 distribution), in which `mu` and `sigma` are the mean and SD of the
 Gaussian component and `tau` is the mean of the exponential tail -

@@ -12,7 +12,7 @@ options(mc.cores = parallel::detectCores() - 2)
 set.seed(33)
 ```
 
-## Analog Scales
+## Analog (Slider) Scales
 
 ### Simulate Data
 
