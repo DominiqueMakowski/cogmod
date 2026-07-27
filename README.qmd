@@ -18,6 +18,7 @@ editor_options:
 <!-- brainy: The R package for Computational Cognitive Models -->
 <!-- BrainieR -->
 <!-- ComputationalCognition -->
+<!-- cocomor -->
 
 
 
@@ -26,7 +27,7 @@ editor_options:
 
 *Models of Cognition for Subjective Scales and Decision Making Tasks in R*
 
-This R package is dedicated to facilitate the application of computational cognitive models in R under a Bayesian framework.
+This R package is dedicated to facilitate the application of computational models of cognition in R under a Bayesian framework.
 These are useful in the field of cognitive science and computational neuropsycholology. 
 
 ## Status

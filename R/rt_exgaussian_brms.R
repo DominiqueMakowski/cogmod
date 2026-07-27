@@ -1,38 +1,7 @@
-#' Ex-Gaussian Model (Classical Parameterization) for brms
-#'
-#' Provides the necessary functions to use the "classical" parameterization
-#' of the Ex-Gaussian distribution as a custom family in `brms`. Unlike
-#' `brms`'s built-in `exgaussian()` family - in which `mu` indexes the mean of
-#' the *entire* distribution (Gaussian + exponential components combined) -
-#' this parameterization follows the convention familiar to experimental
-#' psychologists, in which `mu` and `sigma` are the mean and SD of the
-#' Gaussian component alone, and `tau` is the mean of the exponential
-#' component (the tail). The mean of the full distribution is `mu + tau`.
-#'
-#' This distinction matters because changes in the Gaussian location (`mu`)
-#' and changes in the exponential tail (`tau`) can offset one another at the
-#' level of the overall mean, so effects estimated on `brms`'s default `mu`
-#' can lead to different (and potentially incorrect) inferences than effects
-#' estimated on this classical `mu`.
-#'
-#' By default, all three parameters use a `"softplus"` link
-#' (`log(1 + exp(x))`), rather than `"identity"` or `"log"`. `mu` must remain
-#' strictly positive since it represents the (unobserved) center of the
-#' Gaussian component. An `"identity"` link would allow the linear predictor
-#' to cross zero or go negative, which is invalid for all three parameters.
-#' A `"log"` link would enforce positivity too, but its curvature explodes
-#' as the linear predictor departs from zero, producing extreme gradients
-#' and making priors/sampling harder to calibrate, especially for `mu` and
-#' `tau`, which are already both on the RT scale (seconds) and can take
-#' comparatively large values. `"softplus"` is positive-constrained like
-#' `"log"` but behaves almost linearly (`softplus(x) ~ x`) away from zero,
-#' making it easier to specify weakly-informative priors directly on the
-#' RT scale while still guaranteeing valid, strictly positive parameters.
-#'
+#' @rdname rrt_exgaussian
 #' @param link_mu,link_sigma,link_tau Character of the type of link used to
 #'   model the ex-Gaussian parameters. Defaults to `"softplus"` for all three
 #'   (see Details).
-#'
 #' @return A `brms::custom_family` object.
 #' @export
 rt_exgaussian <- function(
@@ -69,7 +38,7 @@ real rt_exgaussian_lpdf(real Y, real mu, real sigma, real tau) {
 "
 }
 
-#' @rdname rt_exgaussian
+#' @rdname rrt_exgaussian
 #' @export
 rt_exgaussian_lpdf_expose <- function() {
     insight::check_if_installed("cmdstanr")
@@ -88,7 +57,7 @@ rt_exgaussian_lpdf_expose <- function() {
     mod$functions$rt_exgaussian_lpdf
 }
 
-#' @rdname rt_exgaussian
+#' @rdname rrt_exgaussian
 #' @export
 rt_exgaussian_stanvars <- function() {
     brms::stanvar(scode = .rt_exgaussian_lpdf(), block = "functions")
@@ -97,7 +66,7 @@ rt_exgaussian_stanvars <- function() {
 
 # brms methods ------------------------------------------------------------
 
-#' @rdname rt_exgaussian
+#' @rdname rrt_exgaussian
 #' @inheritParams lnr
 #' @export
 log_lik_rt_exgaussian <- function(i, prep) {
@@ -147,7 +116,7 @@ log_lik_rt_exgaussian <- function(i, prep) {
     ll
 }
 
-#' @rdname rt_exgaussian
+#' @rdname rrt_exgaussian
 #' @inheritParams lnr
 #' @export
 posterior_predict_rt_exgaussian <- function(i, prep, ...) {
@@ -164,7 +133,7 @@ posterior_predict_rt_exgaussian <- function(i, prep, ...) {
         stats::rexp(n = n_draws, rate = 1 / tau)
 }
 
-#' @rdname rt_exgaussian
+#' @rdname rrt_exgaussian
 #' @export
 posterior_epred_rt_exgaussian <- function(prep) {
     # Extract draws for the necessary parameters (matrices: draws x observations)
