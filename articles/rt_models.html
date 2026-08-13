@@ -80,9 +80,9 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">options</a></span><span class="op">(</span>mc.cores <span class="op">=</span> <span class="fu">parallel</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/parallel/detectCores.html" class="external-link">detectCores</a></span><span class="op">(</span><span class="op">)</span> <span class="op">-</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
 </div>
-<section class="level2"><h2 id="why-linear-models-are-bad-for-rts">Why Linear Models are Bad for RTs<a class="anchor" aria-label="anchor" href="#why-linear-models-are-bad-for-rts"></a>
+<section class="level2"><h2 id="why-linear-models-are-bad-for-rts">Why Linear Models are bad for RTs<a class="anchor" aria-label="anchor" href="#why-linear-models-are-bad-for-rts"></a>
 </h2>
-<p>After months of effort designing the study, recruiting participants and collecting data, you finally get your hands on that dataset and decide to check whether your super duper Nobel-prize-worthy experimental condition has an effect on reaction times. You do what is everybody does and what has always been done, and fit a linear model.</p>
+<p>After months of effort designing the study, recruiting participants and collecting data, you finally get your hands on that dataset and decide to check whether your super duper Nobel-prize-worthy experimental condition has an effect on reaction times. You do what everybody does, and what has always been done: fit a linear model.</p>
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">5</span><span class="op">)</span></span>
@@ -114,7 +114,7 @@
 <span><span class="co">#&gt;   using a Wald t-distribution approximation.</span></span></code></pre></div>
 </div>
 <p><strong><em>Nothing.</em></strong> <strong>NOTHING</strong> 😭</p>
-<p>The effect of <code>Condition</code> is minuscule and and non-significant. Months of work, and the only conclusion you can write down is <strong><em>“the condition had no effect on response times”</em></strong>. As you contemplate the ruins of your Nobel-prize aspirations, you start seriously considering abandoning your dreams of a career in academia and retraining as a goat farmer.</p>
+<p>The effect of <code>Condition B vs. Condition A</code> is minuscule and and non-significant. Months of work, and the only conclusion you can write down is <strong><em>“the condition had no effect on response times”</em></strong>. As you contemplate the ruins of your Nobel-prize aspirations, you start seriously considering abandoning your dreams of a career in academia and retraining as a goat farmer.</p>
 <p>But then, as a last sanity check, you decide to actually <strong>look</strong> at the data.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="downlit sourceCode r">
