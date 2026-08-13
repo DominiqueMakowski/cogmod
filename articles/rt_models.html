@@ -5,14 +5,14 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>RT-only Models • cogmod</title>
+<title>How to Properly Analyze Reaction Times Data • cogmod</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><script src="rt_models_files/libs/quarto-html/popper.min.js"></script><script src="rt_models_files/libs/quarto-html/tippy.umd.min.js"></script><link href="rt_models_files/libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="rt_models_files/libs/quarto-html/light-border.css" rel="stylesheet">
-<!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="RT-only Models">
+<!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="How to Properly Analyze Reaction Times Data">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -36,7 +36,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/decision_making.html">Decision Making Models</a></li>
-    <li><a class="dropdown-item" href="../articles/rt_models.html">RT-only Models</a></li>
+    <li><a class="dropdown-item" href="../articles/rt_models.html">How to Properly Analyze Reaction Times Data</a></li>
     <li><a class="dropdown-item" href="../articles/subjective_ratings.html">Subjective Ratings</a></li>
   </ul>
 </li>
@@ -55,7 +55,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
 
-      <h1>RT-only Models</h1>
+      <h1>How to Properly Analyze Reaction Times Data</h1>
 
 
 
@@ -79,11 +79,80 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">options</a></span><span class="op">(</span>mc.cores <span class="op">=</span> <span class="fu">parallel</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/parallel/detectCores.html" class="external-link">detectCores</a></span><span class="op">(</span><span class="op">)</span> <span class="op">-</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
 </div>
-<section class="level2"><h2 id="the-data">The Data<a class="anchor" aria-label="anchor" href="#the-data"></a>
+<section class="level2"><h2 id="why-linear-models-are-bad-for-rts">Why Linear Models are Bad for RTs<a class="anchor" aria-label="anchor" href="#why-linear-models-are-bad-for-rts"></a>
+</h2>
+<p>After months of effort designing the study, recruiting participants and collecting data, you finally get your hands on that dataset and decide to check whether your super duper Nobel-prize-worthy experimental condition has an effect on reaction times. You do what is everybody does and what has always been done, and fit a linear model.</p>
+<div class="cell">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">5</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">500</span></span>
+<span></span>
+<span><span class="va">sim</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  Condition <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span>, each <span class="op">=</span> <span class="va">n</span><span class="op">)</span>,</span>
+<span>  RT <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="co"># Wide distribution, very short time-to-first-response (tau = 0.05)</span></span>
+<span>    <span class="fl">0.05</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Lognormal.html" class="external-link">rlnorm</a></span><span class="op">(</span><span class="va">n</span>, meanlog <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="fl">0.65</span><span class="op">)</span> <span class="op">-</span> <span class="fl">0.5</span><span class="op">^</span><span class="fl">2</span> <span class="op">/</span> <span class="fl">2</span>, sdlog <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span>
+<span>    <span class="co"># Narrow distribution, long non-decision time (tau = 0.45)</span></span>
+<span>    <span class="fl">0.45</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Lognormal.html" class="external-link">rlnorm</a></span><span class="op">(</span><span class="va">n</span>, meanlog <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="fl">0.25</span><span class="op">)</span> <span class="op">-</span> <span class="fl">0.15</span><span class="op">^</span><span class="fl">2</span> <span class="op">/</span> <span class="fl">2</span>, sdlog <span class="op">=</span> <span class="fl">0.15</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</details>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>, data <span class="op">=</span> <span class="va">sim</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">parameters</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/parameters/reference/model_parameters.html" class="external-link">parameters</a></span><span class="op">(</span><span class="va">model</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Parameter     | Coefficient |   SE |        95% CI | t(998) |      p</span></span>
+<span><span class="co">#&gt; --------------------------------------------------------------------</span></span>
+<span><span class="co">#&gt; (Intercept)   |        0.70 | 0.01 | [ 0.68, 0.72] |  65.85 | &lt; .001</span></span>
+<span><span class="co">#&gt; Condition [B] |    4.25e-03 | 0.01 | [-0.03, 0.03] |   0.28 | 0.777</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Uncertainty intervals (equal-tailed) and p-values (two-tailed) computed</span></span>
+<span><span class="co">#&gt;   using a Wald t-distribution approximation.</span></span></code></pre></div>
+</div>
+<p><strong><em>Nothing.</em></strong> <strong>NOTHING</strong> 😭</p>
+<p>The effect of <code>Condition</code> is minuscule and about as far from significance as it gets. Both groups respond in about 700 ms on average. Months of work, and the only conclusion you can write down is <strong><em>“the condition had no effect on response times”</em></strong>. As you contemplate the ruins of your Nobel-prize aspirations, you start seriously considering abandoning your dreams of a career in academia and retraining as a goat farmer.</p>
+<p>But then, as a last sanity check, you decide to actually <strong>look</strong> at the data.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">sim</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">RT</span>, fill <span class="op">=</span> <span class="va">Condition</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>bins <span class="op">=</span> <span class="fl">100</span>, alpha <span class="op">=</span> <span class="fl">0.8</span>, position <span class="op">=</span> <span class="st">"identity"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"darkgreen"</span>, <span class="st">"darkred"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<div class="cell-output-display">
+<div>
+<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-3-1.png" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p><strong><em>Shock and horror!</em></strong></p>
+<p>The two distributions could hardly look more different! Condition <strong>A</strong> has responses starting almost immediately (some as fast as 150 ms) and a long tail stretching past 2 seconds. Condition <strong>B</strong> has no responses at all before ~600 ms, and then a tight, narrow bump. One condition looks like fast, variable, possibly impulsive responding; the other looks like a slow but highly consistent process with a long “dead time” before any response can be emitted. These are, by any reasonable standard, two <em>dramatically</em> different behaviours.</p>
+<p>How come the test did not capture any of it? Because we simulated these two distributions to have exactly the <strong>same mean</strong> - and the mean is the only thing the linear model was ever looking at. Everything that distinguishes these conditions - where the distribution <em>starts</em>, how <em>wide</em> it is, how heavy its <em>tail</em> is - was invisible to it by construction.</p>
+<p>The lesson is not that the linear model lied: it faithfully answered the question it was asked. The problem is that “is the mean RT different?” is almost never the question we actually care about. Fortunately, better models exist - models that describe the <em>shape</em> of the RT distribution with parameters that can be mapped onto meaningful cognitive quantities. The rest of this vignette is about them.</p>
+<blockquote>
+<p><strong>“But I read that I can transform my data to make it more normal, should I do it?”</strong></p>
+</blockquote>
+<p>Log-transforming (or inverse-transforming, or Box-Cox-ing) RTs is a very common attempt at rescuing the linear model: make the data look Gaussian, then proceed as usual. It is, however, <strong>not a good idea</strong> (<a href="https://doi.org/10.31234/osf.io/9ksa6" class="external-link">Schramm &amp; Rouder, 2019</a>). Transformations do not merely “fix” the distribution, they silently change the quantity being tested: the model no longer compares mean RTs but means of transformed RTs, which do not back-transform to anything you meant to ask about, and which can reverse, create or hide effects relative to the untransformed scale. Worse, they do nothing about the underlying problem illustrated above - a difference in shift, in spread or in tail weight is still squeezed into a single location parameter.</p>
+<p>What one should do instead is use a model that is appropriate for the <strong>shape</strong> of the data and - ideally - for its <strong>data generating process</strong>. That distinction matters if you want to push the boundaries of what we can learn from your data. Some of the families below (ExGaussian, Weibull, Gamma…) are essentially <em>descriptive</em>: they are flexible enough to fit the shape of RT distributions well, but their parameters have no guaranteed correspondence to cognitive mechanisms. Others (Wald / Wiener, LBA, DDM) are <em>generative</em>: they are derived from an explicit account of how a decision unfolds over time - evidence accumulating towards a threshold - so their parameters (drift rate, boundary separation, non-decision time) are meant to refer to actual components of the process. Both are large improvements over the Gaussian, but the latter allows for potentially stronger and more interpretable claims.</p>
+<div>
+<blockquote>
+<p><strong>Useful references to start</strong></p>
+<ul>
+<li>
+<a href="https://lindeloev.github.io/shiny-rt/" class="external-link"><strong>Lindelov’s overview of RT models</strong></a>: An absolute must-read.</li>
+<li>
+<a href="https://www.frontiersin.org/articles/10.3389/fpsyg.2019.00102/full" class="external-link"><strong>De Boeck &amp; Jeon (2019)</strong></a>: A paper providing an overview of RT models.</li>
+</ul>
+</blockquote>
+</div>
+</section><section class="level2"><h2 id="the-data">The Data<a class="anchor" aria-label="anchor" href="#the-data"></a>
 </h2>
 <p>For this chapter, we will be using the data from <a href="https://doi.org/10.1016/j.jml.2007.04.006" class="external-link">Wagenmakers et al., (2008)</a> - Experiment 1 also reanalyzed by <a href="https://doi.org/10.3389/fpsyg.2012.00292" class="external-link">Heathcote &amp; Love (2012)</a>, that contains responses and response times for several participants in two conditions (where instructions emphasized either <strong>speed</strong> or <strong>accuracy</strong>). This dataset is bundled directly with <code>cogmod</code> as <code>wagenmakers2008</code>. Using the same procedure as the authors, we excluded all trials with uninterpretable response time, i.e., responses that are too fast (&lt;200 ms instead of &lt;180 ms) or too slow (&gt;2 sec instead of &gt;3 sec).</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span>  <span class="co"># For reproducibility</span></span>
 <span></span>
 <span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu">cogmod</span><span class="fu">::</span><span class="va"><a href="../reference/wagenmakers2008.html">wagenmakers2008</a></span></span>
@@ -107,50 +176,82 @@
 <!-- But how about speed?  -->
 <p>We are going to first take interest in the response times (RT) of <strong>Correct</strong> answers only (as we can assume that errors are underpinned by a different <em>generative process</em>).</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">df</span> <span class="op">&lt;-</span> <span class="va">df</span><span class="op">[</span><span class="va">df</span><span class="op">$</span><span class="va">Error</span> <span class="op">==</span> <span class="fl">0</span>, <span class="op">]</span></span></code></pre></div>
 </div>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">df</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">RT</span>, fill <span class="op">=</span> <span class="va">Condition</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>bins <span class="op">=</span> <span class="fl">120</span>, alpha <span class="op">=</span> <span class="fl">0.8</span>, position <span class="op">=</span> <span class="st">"identity"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"darkgreen"</span>, <span class="st">"darkred"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <div class="cell-output-display">
 <div>
-<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-3-1.png" width="672"></p>
+<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-6-1.png" width="672"></p>
 </figure>
 </div>
 </div>
 </div>
 </section><section class="level2"><h2 id="models">Models<a class="anchor" aria-label="anchor" href="#models"></a>
 </h2>
-<section class="level3"><h3 id="normal">Normal<a class="anchor" aria-label="anchor" href="#normal"></a>
+<section class="level3"><h3 id="normal-gaussian">Normal (Gaussian)<a class="anchor" aria-label="anchor" href="#normal-gaussian"></a>
 </h3>
-<p>A basic linear model.</p>
+<p>It is worth stressing that basic linear models, often adopted as “default” models (as they are the one obtained by simply running <code><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm()</a></code>, <code><a href="https://rdrr.io/r/stats/t.test.html" class="external-link">t.test()</a></code> or <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code> without specifying a family), <strong>are not a neutral or assumption-free description</strong> of the data. It is a model that assumes RTs are drawn from a Normal distribution whose <strong>mean</strong> <code>mu</code> depends on the predictors. The parameter that we then interpret and report as “the effect” of a condition is a difference between the <strong>means</strong> of two Normal distributions.</p>
+<p>This comes with a set of assumptions that are rarely plausible for RT data. First, the variance between various conditions is assumed to be <strong>fixed</strong> (<code>sigma</code> is fixed as a constant across conditions and participants), so any experimental effect can only manifest as a shift in the mean - even though speed instructions, task difficulty or fatigue typically change the <em>spread</em> and the <em>shape</em> of the RT distribution as much as its center. Second, the Normal distribution is <strong>symmetric</strong> and has support over the whole real line, whereas RTs are strictly positive, bounded below by a non-decision time, and markedly right-skewed. The model therefore assigns non-zero probability to negative response times, and systematically misrepresents and underestimates the long right tail.</p>
+<p>Beyond these statistical concerns, the deeper issue is <em>conceptual</em>: the mean of a Normal distribution is not a quantity that maps onto anything the cognitive system does. Slow trials, fast guesses and typical responses are all absorbed into a single average, so a change in the mean is ambiguous as to its origin - it could reflect a genuine slowing of processing, a handful of attentional lapses in the tail, or a change in response caution. The distributional models presented below are attempts to carve the RT distribution into parameters that are, at least in principle, more closely tied to distinct underlying processes.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">m_normal</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
 <span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_normal</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_normal</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span><span class="va">m_normal</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_normal</span>, <span class="st">"loo"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_normal</span>, file <span class="op">=</span> <span class="st">"models/m_normal.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
 </div>
 </section><section class="level3"><h3 id="exgaussian">ExGaussian<a class="anchor" aria-label="anchor" href="#exgaussian"></a>
 </h3>
-<p>The Ex-Gaussian distribution is a popular choice for RT data, as it separates the central portion of the distribution - captured by the Gaussian parameters <code>mu</code> and <code>sigma</code> - from the positively skewed tail, captured by the exponential parameter <code>tau</code>. However, <code>brms</code>’s native <code><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">exgaussian()</a></code> family does <strong>not</strong> use this “classical” parameterization familiar to experimental psychologists: its <code>mu</code> indexes the mean of the <em>entire</em> distribution (i.e., Gaussian + exponential combined) rather than the location of the Gaussian component alone. This matters because a change in the Gaussian location and an opposite change in the exponential tail can cancel out at the level of the overall mean, so effects estimated on <code>brms</code>’s default <code>mu</code> can lead to different (and potentially incorrect) inferences about the underlying process than effects estimated on the classical <code>mu</code>.</p>
+<p>Rather than relying on default model families, such as Gaussian models, one can select <a href="https://lindeloev.github.io/shiny-rt/" class="external-link">models that accurately represent the distribution of their outcome variable</a>. For instance, models based on <strong>Exponentially modified Gaussian</strong> (ex-Gaussian) distributions, which are suited to their typical skewed shape (<a href="https://doi.org/10.1177/0963721411408885" class="external-link">Balota &amp; Yap, 2011</a>; <a href="https://doi.org/10.3758/PBR.16.5.798" class="external-link">Matzke &amp; Wagenmakers, 2009</a>).</p>
+<p>This distribution is a convolution of normal and exponential distributions and has three parameters, namely <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>μ</mi><annotation encoding="application/x-tex">\mu</annotation></semantics></math> (mu) and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>σ</mi><annotation encoding="application/x-tex">\sigma</annotation></semantics></math> (sigma) - the mean and standard deviation of the Gaussian distribution - and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math> (tau) - the exponential component of the distribution. Intuitively, these arguments reflect the centrality, the width and the tail dominance, respectively.</p>
+<p>Beyond the descriptive value of these types of models, some have tried to interpret their parameters in terms of cognitive mechanisms, arguing for instance that changes in the Gaussian components reflect changes in attentional processes (e.g., “the time required for organization and execution of the motor response”; Hohle, 1965), whereas changes in the exponential component reflect changes in intentional (i.e., decision-related) processes (Kieffaber et al., 2006). However, <a href="https://doi.org/10.3758/PBR.16.5.798" class="external-link">Matzke &amp; Wagenmakers (2009)</a> demonstrate that there is no direct correspondence between ex-Gaussian parameters and cognitive mechanisms, and underline their value primarily as descriptive tools, rather than models of cognition <em>per se</em>.</p>
+<div class="columns">
+<div class="column" style="width:47%;">
+<p>Descriptively, the three parameters can be interpreted as:</p>
+<ul>
+<li>
+<strong>Mu</strong> <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>μ</mi><annotation encoding="application/x-tex">\mu</annotation></semantics></math>: The location / centrality of the RTs. Would correspond to the mean in a symmetrical distribution.</li>
+<li>
+<strong>Sigma</strong> <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>σ</mi><annotation encoding="application/x-tex">\sigma</annotation></semantics></math>: The variability and dispersion of the RTs. Akin to the standard deviation in normal distributions.</li>
+<li>
+<strong>Tau</strong> <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math>: Tail weight / skewness of the distribution.</li>
+</ul>
+<p>Note that these parameters are not independent with respect to distribution characteristics: on the right is an example of distributions with the <strong>same location and dispersion</strong> parameters. Although only the tail weight parameter is changed, the whole distribution appears to shift its centre of mass (its peak moves from 0.70 to 0.93, and its mean from 0.70 to 1.20 s). <strong>Hence, one should be careful not to interpret the value of mu directly as the “mean” or the distribution “peak”, nor sigma as the SD or the “width”</strong>.</p>
+</div>
+<div class="column" style="width:6%;">
+
+</div>
+<div class="column" style="width:47%;">
+<div class="cell">
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure><p><img src="rt_models_files/figure-html/exgaussian-parameters-1.png" width="672"></p>
+<figcaption><em>Ex-Gaussian distributions with the same location (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>μ</mi><annotation encoding="application/x-tex">\mu</annotation></semantics></math> = 0.7) and dispersion (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>σ</mi><annotation encoding="application/x-tex">\sigma</annotation></semantics></math> = 0.2) parameters, varying only in tail weight.</em></figcaption></figure>
+</div>
+</div>
+</div>
+</div>
+</div>
+<p>One important caveat: <code>brms</code>’s native <code><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">exgaussian()</a></code> family does <strong>not</strong> use this “classical” parameterization familiar to experimental psychologists: its <code>mu</code> indexes the mean of the <em>entire</em> distribution (i.e., Gaussian + exponential combined) rather than the location of the Gaussian component alone. This matters because a change in the Gaussian location and an opposite change in the exponential tail can cancel out at the level of the overall mean, so effects estimated on <code>brms</code>’s default <code>mu</code> can lead to different (and potentially incorrect) inferences about the underlying process than effects estimated on the classical <code>mu</code>.</p>
 <p>For this reason, <code>cogmod</code> provides its own <code><a href="../reference/rrt_exgaussian.html">rt_exgaussian()</a></code> custom family (internally relying on Stan’s <code>exp_mod_normal</code> distribution), in which <code>mu</code> and <code>sigma</code> are the mean and SD of the Gaussian component and <code>tau</code> is the mean of the exponential tail - directly matching the classical parameterization.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -159,21 +260,30 @@
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">m_exgauss</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rrt_exgaussian.html">rt_exgaussian_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_exgauss</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_exgauss</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span><span class="va">m_exgauss</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_exgauss</span>, <span class="st">"loo"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_exgauss</span>, file <span class="op">=</span> <span class="st">"models/m_exgauss.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
 </div>
 </section><section class="level3"><h3 id="shifted-lognormal">Shifted LogNormal<a class="anchor" aria-label="anchor" href="#shifted-lognormal"></a>
 </h3>
+<p>The LogNormal distribution assumes that it is the <em>logarithm</em> of the RTs, rather than the RTs themselves, that is Normally distributed. This is an attractive assumption for response times: it constrains the variable to be strictly positive, and it produces the right-skewed shape typical of RT data for free. It also has an intuitive rationale - a Normal distribution arises when many small influences <em>add up</em>, whereas a LogNormal arises when they <em>multiply</em>, which is arguably a better description of the way processing speed is affected by factors such as arousal, difficulty or practice.</p>
+<p>The <strong>shifted</strong> version adds a third ingredient: a non-decision time (<code>ndt</code>) before which no response can physically occur, corresponding to the time taken by stimulus encoding and motor execution. Without it, the distribution is forced to start at zero, and the model has to distort the shape of the whole distribution to accommodate the empty space between 0 and the fastest observed response. In <code>cogmod</code>’s <code><a href="../reference/rt_lognormal.html">rt_lognormal()</a></code> family, <code>mu</code> and <code>sigma</code> are the mean and SD <em>on the log scale</em> (so that the median of the distribution is <code>ndt + exp(mu)</code>), and the shift is expressed as <code>tau</code>, the <em>proportion</em> of the minimum RT that is taken up by non-decision time (<code>ndt = tau * minrt</code>). This reparameterization keeps <code>tau</code> bounded between 0 and 1, which is both easier to sample and guarantees that the shift never exceeds the fastest observed response.</p>
+<p>Like the ExGaussian, this model is primarily <strong>descriptive</strong>: it captures the shape of RT distributions very well, but <code>mu</code> and <code>sigma</code> are not, in themselves, cognitive quantities. It does, however, sit at the base of a proper process model - the Lognormal Race (see <code><a href="../reference/rlnr.html">lnr()</a></code>), in which several LogNormal accumulators compete and the fastest one determines both the response and the RT.</p>
+<div>
+<blockquote>
+<p><strong>Isn’t this the same as log-transforming my RTs?</strong></p>
+<p>It is not, and the difference is precisely the one discussed above. Log-transforming the data and running a linear model on <code>log(RT)</code> estimates the mean of the <em>transformed</em> values, which then has to be interpreted on the log scale (or back-transformed into something that is no longer the mean RT). The LogNormal model leaves the data untouched and instead changes the <em>likelihood</em>: the RTs stay in seconds, and it is the model that is told they arise from a LogNormal process. In addition, the shift (<code>tau</code>) and the dispersion (<code>sigma</code>) are estimated as their own parameters, and can be given their own predictors - something a transformation can never give you, since it still funnels every effect through a single location parameter.</p>
+</blockquote>
+</div>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -188,22 +298,25 @@
 <span><span class="va">m_lognormal</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
 <span>  <span class="va">f</span>,</span>
 <span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_lognormal.html">rt_lognormal_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_lognormal</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lognormal</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span><span class="va">m_lognormal</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lognormal</span>, <span class="st">"loo"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_lognormal</span>, file <span class="op">=</span> <span class="st">"models/m_lognormal.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
 </div>
 </section><section class="level3"><h3 id="inverse-gaussian-shifted-wald">Inverse Gaussian (Shifted Wald)<a class="anchor" aria-label="anchor" href="#inverse-gaussian-shifted-wald"></a>
 </h3>
+<p>This is where we cross an important line. All the families discussed so far were selected because their <em>shape</em> resembles that of RT distributions; the Wald distribution, in contrast, is <strong>derived</strong> from a model <em>of the process</em> that generates the data. Consider evidence accumulating noisily over time until it reaches a decision threshold: the distribution of the times at which that threshold is first crossed <em>is</em> the Wald distribution. Its skewed shape is not a modelling choice, it is a consequence of the assumed mechanism.</p>
 <p>The Shifted Wald model (also known as the Inverse Gaussian distribution) is actually equivalent to a one-response version of the Drift Diffusion Model (DDM) with no between-trial variability in drift rate, starting point, or non-decision time.</p>
+<p>This changes what the parameters mean. Instead of a location and a width, we now estimate quantities that refer to distinct components of the decision: <code>mu</code> is the <strong>drift rate</strong> (the speed at which evidence accumulates, often read as task difficulty or processing efficiency), <code>bs</code> is the <strong>boundary separation</strong> (how much evidence is required before responding, i.e., response caution), and <code>tau</code> is again the <strong>non-decision time</strong> (encoding and motor execution). This is why the formula below regresses <code>Condition</code> on <code>bs</code> rather than on <code>sigma</code>: the natural hypothesis for a speed-vs-accuracy manipulation is that instructions move the <em>threshold</em>, not the quality of the evidence.</p>
+<p>Two caveats are worth keeping in mind. First, because this version has a single boundary, it only describes the timing of <em>one</em> type of response - it knows nothing about errors, and so cannot exploit the joint distribution of choices and RTs (that is what the DDM and LBA of the <em>Decision Making</em> vignette are for). Second, this interpretive gain is not free: with RT data alone, drift rate and boundary separation trade off against each other to a considerable degree, so their separate estimates should be treated with more caution than their cognitive labels suggest.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">bs</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -218,21 +331,22 @@
 <span><span class="va">m_wald</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
 <span>  <span class="va">f</span>,</span>
 <span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rrt_invgaussian.html">rt_invgaussian_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_wald</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_wald</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span><span class="va">m_wald</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_wald</span>, <span class="st">"loo"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_wald</span>, file <span class="op">=</span> <span class="st">"models/m_wald.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
 </div>
 </section><section class="level3"><h3 id="weibull">Weibull<a class="anchor" aria-label="anchor" href="#weibull"></a>
 </h3>
+<p>Note that the families presented from here on have not been used nearly as often in the RT literature as the ones above, and their properties in this context are correspondingly less well documented. They are nonetheless capable of generating close fits to RT data, and more research is needed to establish whether they offer any real advantage - in terms of fit, of interpretability, or of computational behaviour - over the more established options.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -247,13 +361,13 @@
 <span><span class="va">m_weibull</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
 <span>  <span class="va">f</span>,</span>
 <span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_weibull.html">rt_weibull_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_weibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_weibull</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span><span class="va">m_weibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_weibull</span>, <span class="st">"loo"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_weibull</span>, file <span class="op">=</span> <span class="st">"models/m_weibull.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
@@ -261,7 +375,7 @@
 </section><section class="level3"><h3 id="logweibull-shifted-gumbel">LogWeibull (Shifted Gumbel)<a class="anchor" aria-label="anchor" href="#logweibull-shifted-gumbel"></a>
 </h3>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -276,13 +390,13 @@
 <span><span class="va">m_logweibull</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
 <span>  <span class="va">f</span>,</span>
 <span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_logweibull.html">rt_logweibull_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_logweibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_logweibull</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span><span class="va">m_logweibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_logweibull</span>, <span class="st">"loo"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_logweibull</span>, file <span class="op">=</span> <span class="st">"models/m_logweibull.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
@@ -290,7 +404,7 @@
 </section><section class="level3"><h3 id="inverse-weibull-shifted-fréchet">Inverse Weibull (Shifted Fréchet)<a class="anchor" aria-label="anchor" href="#inverse-weibull-shifted-fr%C3%A9chet"></a>
 </h3>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb11"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -305,13 +419,13 @@
 <span><span class="va">m_invweibull</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
 <span>  <span class="va">f</span>,</span>
 <span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_invweibull.html">rt_invweibull_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_invweibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_invweibull</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span><span class="va">m_invweibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_invweibull</span>, <span class="st">"loo"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_invweibull</span>, file <span class="op">=</span> <span class="st">"models/m_invweibull.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
@@ -319,7 +433,7 @@
 </section><section class="level3"><h3 id="gamma">Gamma<a class="anchor" aria-label="anchor" href="#gamma"></a>
 </h3>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb12"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -334,13 +448,13 @@
 <span><span class="va">m_gamma</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
 <span>  <span class="va">f</span>,</span>
 <span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_gamma.html">rt_gamma_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_gamma</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_gamma</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span><span class="va">m_gamma</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_gamma</span>, <span class="st">"loo"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_gamma</span>, file <span class="op">=</span> <span class="st">"models/m_gamma.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
@@ -348,7 +462,7 @@
 </section><section class="level3"><h3 id="inverse-gamma">Inverse Gamma<a class="anchor" aria-label="anchor" href="#inverse-gamma"></a>
 </h3>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb13"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -363,13 +477,13 @@
 <span><span class="va">m_invgamma</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
 <span>  <span class="va">f</span>,</span>
 <span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_invgamma.html">rt_invgamma_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_invgamma</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_invgamma</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span><span class="va">m_invgamma</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_invgamma</span>, <span class="st">"loo"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_invgamma</span>, file <span class="op">=</span> <span class="st">"models/m_invgamma.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
@@ -377,7 +491,7 @@
 </section><section class="level3"><h3 id="linear-ballistic-accumulator">Linear Ballistic Accumulator<a class="anchor" aria-label="anchor" href="#linear-ballistic-accumulator"></a>
 </h3>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb14"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  sigma <span class="op">=</span> <span class="fl">1</span>,</span>
@@ -399,13 +513,13 @@
 <span><span class="va">m_lba</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
 <span>  <span class="va">f</span>,</span>
 <span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, </span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rrt_lba.html">rt_lba_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  init <span class="op">=</span> <span class="fl">0.5</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_lba</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lba</span>, <span class="st">"loo"</span><span class="op">)</span> </span>
+<span><span class="va">m_lba</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lba</span>, <span class="st">"loo"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_lba</span>, file <span class="op">=</span> <span class="st">"models/m_lba.rds"</span><span class="op">)</span></span></code></pre></div>
 </details>
@@ -416,7 +530,7 @@
 </h3>
 <p>We can compare these models together using the <code>loo</code> package, which shows that CHOCO provides a significantly better fit than the other models.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">loo</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare</a></span><span class="op">(</span><span class="va">m_normal</span>, <span class="va">m_exgauss</span>, <span class="va">m_lognormal</span>, <span class="va">m_wald</span>,</span>
 <span>                 <span class="va">m_weibull</span>, <span class="va">m_logweibull</span>, <span class="va">m_invweibull</span>,</span>
 <span>                 <span class="va">m_gamma</span>, <span class="va">m_invgamma</span>, <span class="va">m_lba</span><span class="op">)</span> <span class="op">|&gt;</span></span>
@@ -442,7 +556,7 @@
 <p>Because each model was fit with only 4 chains, a boxplot of the per-chain sampling times is not very informative. Instead, we summarize each model’s sampling duration by the <em>median</em> time per chain, annotated with its value.</p>
 <p>As expected, the <strong>Gaussian</strong> model is by far the fastest to sample, since it relies on <code>brms</code>’s built-in (and heavily optimized) Normal likelihood with no custom Stan code or non-decision time shift involved. At the other end, the <strong>LBA</strong> is by far the slowest, reflecting the added cost of its multi-accumulator likelihood. The remaining RT-only models (ExGaussian, LogNormal, Wald, Weibull, LogWeibull, InvWeibull, Gamma, and InvGamma) are all relatively comparable to one another, as they share a similar structure (a simple closed-form density combined with a non-decision time shift).</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">duration</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_normal</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model<span class="op">=</span><span class="st">"Gaussian"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_exgauss</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model<span class="op">=</span><span class="st">"ExGaussian"</span><span class="op">)</span>,</span>
@@ -454,22 +568,22 @@
 <span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_gamma</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model<span class="op">=</span><span class="st">"Gamma"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_invgamma</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model<span class="op">=</span><span class="st">"InvGamma"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_lba</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model<span class="op">=</span><span class="st">"LBA"</span><span class="op">)</span></span>
-<span><span class="op">)</span> <span class="op">|&gt;</span> </span>
+<span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">Model</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Gaussian"</span>, <span class="st">"ExGaussian"</span>, <span class="st">"LogNormal"</span>, <span class="st">"Wald"</span>, <span class="st">"Weibull"</span>, <span class="st">"LogWeibull"</span>, <span class="st">"InvWeibull"</span>, <span class="st">"Gamma"</span>, <span class="st">"InvGamma"</span>, <span class="st">"LBA"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">duration_median</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/aggregate.html" class="external-link">aggregate</a></span><span class="op">(</span><span class="va">total</span> <span class="op">~</span> <span class="va">Model</span>, data <span class="op">=</span> <span class="va">duration</span>, FUN <span class="op">=</span> <span class="va">median</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">duration_median</span> <span class="op">|&gt;</span> </span>
+<span><span class="va">duration_median</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">Model</span>, y <span class="op">=</span> <span class="va">total</span>, fill <span class="op">=</span> <span class="va">total</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_bar.html" class="external-link">geom_col</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_text.html" class="external-link">geom_text</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>label <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">total</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span>, vjust <span class="op">=</span> <span class="op">-</span><span class="fl">0.5</span>, size <span class="op">=</span> <span class="fl">3.5</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>y <span class="op">=</span> <span class="st">"Median Sampling Duration per Chain (s)"</span>, fill <span class="op">=</span> <span class="st">"Duration"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_gradient.html" class="external-link">scale_fill_gradientn</a></span><span class="op">(</span>colors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"turquoise"</span>, <span class="st">"green"</span>, <span class="st">"yellow"</span>, <span class="st">"gold"</span>, <span class="st">"orange"</span>, <span class="st">"red"</span>, <span class="st">"darkred"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_y_sqrt</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> </span></code></pre></div>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <div class="cell-output-display">
 <div>
-<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-16-1.png" width="672"></p>
+<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-19-1.png" width="672"></p>
 </figure>
 </div>
 </div>
@@ -478,7 +592,7 @@
 </h3>
 <p><code>iterations</code> controls the actual number of iterations used (e.g., for the point-estimate) and <code>keep_iterations</code> the number included.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb17"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="co"># estimate_prediction(m_normal, keep_iterations = 50, iterations = 50) |&gt;</span></span>
@@ -510,13 +624,13 @@
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"InvGamma"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_lba</span>, keep_iterations <span class="op">=</span> <span class="fl">50</span>, iterations <span class="op">=</span> <span class="fl">50</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"LBA"</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
+<span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"LBA"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_filter</span><span class="op">(</span><span class="va">iter_value</span> <span class="op">&lt;</span> <span class="fl">2</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="va">pred</span> <span class="op">|&gt;</span> </span>
+<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="va">pred</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x<span class="op">=</span><span class="va">iter_value</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">df</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x<span class="op">=</span><span class="va">RT</span>, y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">density</span><span class="op">)</span>, fill <span class="op">=</span> <span class="va">Condition</span><span class="op">)</span>, </span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">df</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x<span class="op">=</span><span class="va">RT</span>, y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">density</span><span class="op">)</span>, fill <span class="op">=</span> <span class="va">Condition</span><span class="op">)</span>,</span>
 <span>                 position <span class="op">=</span> <span class="st">"identity"</span>, bins<span class="op">=</span><span class="fl">120</span>, alpha <span class="op">=</span> <span class="fl">0.8</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>color<span class="op">=</span><span class="va">Model</span>, group<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/interaction.html" class="external-link">interaction</a></span><span class="op">(</span><span class="va">Condition</span>, <span class="va">iter_group</span><span class="op">)</span><span class="op">)</span>, stat<span class="op">=</span><span class="st">"density"</span>, alpha<span class="op">=</span><span class="fl">0.2</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
@@ -529,7 +643,7 @@
 <span><span class="va">p</span></span></code></pre></div>
 </details><div class="cell-output-display">
 <div>
-<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-17-1.png" width="672"></p>
+<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-20-1.png" width="672"></p>
 </figure>
 </div>
 </div>
