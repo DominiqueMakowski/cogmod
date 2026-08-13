@@ -230,8 +230,6 @@ in response caution. The distributional models presented below are
 attempts to carve the RT distribution into parameters that are, at least
 in principle, more closely tied to distinct underlying processes.
 
-Code
-
 ``` r
 
 f <- bf(
@@ -248,6 +246,16 @@ m_normal <- brms::add_criterion(m_normal, "loo")
 
 saveRDS(m_normal, file = "models/m_normal.rds")
 ```
+
+The animation below unpacks what such a model actually contains: the two
+parameters travelling through the space of possible Normal
+distributions, and the prior placed on each of them. Both use an
+**identity link**, i.e. they are sampled directly on their natural
+scale - which for `sigma` is only possible because it is declared with a
+lower bound of 0 and given a *truncated* prior (the half Student-t that
+`brms` uses by default for scale parameters).
+
+![](../reference/figures/animations/anim_normal.gif)
 
 ### ExGaussian
 

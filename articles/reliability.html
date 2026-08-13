@@ -74,28 +74,32 @@
 <div class="sourceCode cell-code" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/DominiqueMakowski/cogmod">cogmod</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://easystats.github.io/easystats/" class="external-link">easystats</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://mc-stan.org/cmdstanr/" class="external-link">cmdstanr</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">options</a></span><span class="op">(</span>mc.cores <span class="op">=</span> <span class="fu">parallel</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/parallel/detectCores.html" class="external-link">detectCores</a></span><span class="op">(</span><span class="op">)</span> <span class="op">-</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
 </div>
-<p>Experimental psychology has traditionally been interested in <strong>average effects</strong>: does this manipulation change reaction times <em>in general</em>? But an average effect is only one property of an experimental task, and arguably not always the most interesting one. A manipulation can produce a rock-solid average effect that is identical in everybody - in which case there is nothing to correlate with anything, and the task is useless as an individual differences measure. Conversely, a manipulation can have <em>no</em> average effect whatsoever while producing large and systematic differences <em>between</em> individuals - which makes it a potentially excellent marker of something, even though the classic group-level test would declare it a failure.</p>
-<p>This vignette illustrates that distinction on simulated data, and shows how to recover participant-level effects from a mixed model.</p>
+<p>Imagine we have designed a brand new cognitive task. It has three conditions - <strong>A</strong>, <strong>B</strong> and <strong>C</strong> - and our ambition is to use it in a <strong>clinical context</strong>: to quantify something about <em>individuals</em>, so that a patient’s score can be related to their symptoms, compared to a norm, or tracked over time.</p>
+<p>The first thing we do is run a validation study and test whether the conditions affect reaction times. As we will see, only one of them turns out to have a significant effect - and the tempting conclusion is that this effect is the one the task actually captures, and therefore the one we should be computing for each patient.</p>
+<p>That conclusion would be premature, and most likely wrong. An average effect tells us what the manipulation does <em>to the group</em>. It says nothing about whether it does the same thing to everybody, and nothing about whether we can measure it in a single person with any precision. Yet those two properties - <strong>interindividual variability</strong> and <strong>reliability</strong> - are exactly what determines whether a task can serve as an individual-level instrument, and they have to be assessed on their own terms.</p>
 <section class="level2"><h2 id="data-description">Data Description<a class="anchor" aria-label="anchor" href="#data-description"></a>
 </h2>
-<p>We simulate a typical repeated-measures experiment: 30 participants each perform 80 trials in <strong>three conditions</strong> (A, B and C), and we record their reaction times.</p>
-<p>The data are generated from a <strong>LogNormal</strong> distribution, which - as discussed in the <a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html" class="external-link">RT models vignette</a> - is a much more sensible generative model for RTs than a Gaussian. Everything happens on the log scale: each participant has their own baseline speed (<code>Intercept</code>), and their own effect of condition B and C relative to A.</p>
-<p>The two effects are built to be <em>deliberately</em> different:</p>
-<ul>
-<li>
-<strong>A vs. B</strong>: a small but extremely <strong>consistent</strong> effect. Every participant is slowed down by about the same amount (the between-participant SD of the effect is tiny, 0.01). There is essentially no interindividual variability.</li>
-<li>
-<strong>A vs. C</strong>: an effect with a population mean of <strong>exactly zero</strong>, but a very large between-participant SD (0.30). Some participants are dramatically slowed down by condition C, others are dramatically speeded up.</li>
-</ul>
+<p>Our validation study is a typical repeated-measures design: 30 participants each perform 80 trials in each of the three conditions, and we record their reaction times.</p>
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">14</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="co"># Because we are simulating the data, we get to decide what is true, and we make</span></span>
+<span><span class="co"># the two effects *deliberately* different:</span></span>
+<span><span class="co"># </span></span>
+<span><span class="co"># - **A vs. B**: a small but extremely **consistent** effect. Every participant</span></span>
+<span><span class="co">#   is slowed down by about the same amount (the between-participant SD of the</span></span>
+<span><span class="co">#   effect is tiny, 0.01). There is essentially no interindividual variability.</span></span>
+<span><span class="co"># - **A vs. C**: an effect with a population mean of **exactly zero**, but a very</span></span>
+<span><span class="co">#   large between-participant SD (0.30). Some participants are dramatically</span></span>
+<span><span class="co">#   slowed down by condition C, others are dramatically speeded up.</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">14</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">n_participants</span> <span class="op">&lt;-</span> <span class="fl">30</span></span>
 <span><span class="va">n_trials</span> <span class="op">&lt;-</span> <span class="fl">80</span>  <span class="co"># Per condition</span></span>
@@ -115,30 +119,20 @@
 <span>  Condition <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>,</span>
 <span>  Participant <span class="op">=</span> <span class="va">participants</span><span class="op">$</span><span class="va">Participant</span>,</span>
 <span>  stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">sim</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/merge.html" class="external-link">merge</a></span><span class="op">(</span><span class="va">sim</span>, <span class="va">participants</span>, by <span class="op">=</span> <span class="st">"Participant"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Trial-level mean on the log scale</span></span>
-<span><span class="va">sim</span><span class="op">$</span><span class="va">meanlog</span> <span class="op">&lt;-</span> <span class="va">sim</span><span class="op">$</span><span class="va">Intercept</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">Condition</span> <span class="op">==</span> <span class="st">"B"</span>, <span class="va">sim</span><span class="op">$</span><span class="va">Effect_B</span>, <span class="fl">0</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">Condition</span> <span class="op">==</span> <span class="st">"C"</span>, <span class="va">sim</span><span class="op">$</span><span class="va">Effect_C</span>, <span class="fl">0</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Generate RTs, adding within-participant (trial-to-trial) noise</span></span>
-<span><span class="va">sim</span><span class="op">$</span><span class="va">RT</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Lognormal.html" class="external-link">rlnorm</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">sim</span><span class="op">)</span>, meanlog <span class="op">=</span> <span class="va">sim</span><span class="op">$</span><span class="va">meanlog</span>, sdlog <span class="op">=</span> <span class="fl">0.22</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">sim</span> <span class="op">&lt;-</span> <span class="va">sim</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/order.html" class="external-link">order</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">Participant</span>, <span class="va">sim</span><span class="op">$</span><span class="va">Condition</span>, <span class="va">sim</span><span class="op">$</span><span class="va">Trial</span><span class="op">)</span>, <span class="op">]</span></span>
-<span><span class="va">sim</span> <span class="op">&lt;-</span> <span class="fu">data_select</span><span class="op">(</span><span class="va">sim</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Participant"</span>, <span class="st">"Trial"</span>, <span class="st">"Condition"</span>, <span class="st">"RT"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">sim</span><span class="op">$</span><span class="va">Participant</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">Participant</span><span class="op">)</span></span>
-<span><span class="va">sim</span><span class="op">$</span><span class="va">Condition</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">Condition</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">sim</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   Participant Trial Condition        RT</span></span>
-<span><span class="co">#&gt; 1         S01     1         A 0.6253792</span></span>
-<span><span class="co">#&gt; 2         S01     2         A 0.4165435</span></span>
-<span><span class="co">#&gt; 3         S01     3         A 0.4191363</span></span>
-<span><span class="co">#&gt; 4         S01     4         A 0.6696561</span></span>
-<span><span class="co">#&gt; 5         S01     5         A 0.4592063</span></span>
-<span><span class="co">#&gt; 6         S01     6         A 0.4870981</span></span></code></pre></div>
+<span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate-joins.html" class="external-link">left_join</a></span><span class="op">(</span><span class="va">participants</span>, by <span class="op">=</span> <span class="st">"Participant"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span></span>
+<span>    <span class="co"># Trial-level mean on the log scale</span></span>
+<span>    meanlog <span class="op">=</span> <span class="va">Intercept</span> <span class="op">+</span></span>
+<span>      <span class="fu"><a href="https://dplyr.tidyverse.org/reference/if_else.html" class="external-link">if_else</a></span><span class="op">(</span><span class="va">Condition</span> <span class="op">==</span> <span class="st">"B"</span>, <span class="va">Effect_B</span>, <span class="fl">0</span><span class="op">)</span> <span class="op">+</span></span>
+<span>      <span class="fu"><a href="https://dplyr.tidyverse.org/reference/if_else.html" class="external-link">if_else</a></span><span class="op">(</span><span class="va">Condition</span> <span class="op">==</span> <span class="st">"C"</span>, <span class="va">Effect_C</span>, <span class="fl">0</span><span class="op">)</span>,</span>
+<span>    <span class="co"># Generate RTs, adding within-participant (trial-to-trial) noise</span></span>
+<span>    RT <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Lognormal.html" class="external-link">rlnorm</a></span><span class="op">(</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/context.html" class="external-link">n</a></span><span class="op">(</span><span class="op">)</span>, meanlog <span class="op">=</span> <span class="va">meanlog</span>, sdlog <span class="op">=</span> <span class="fl">0.22</span><span class="op">)</span>,</span>
+<span>    Participant <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">Participant</span><span class="op">)</span>,</span>
+<span>    Condition <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">Condition</span><span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/arrange.html" class="external-link">arrange</a></span><span class="op">(</span><span class="va">Participant</span>, <span class="va">Condition</span>, <span class="va">Trial</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">Participant</span>, <span class="va">Trial</span>, <span class="va">Condition</span>, <span class="va">RT</span><span class="op">)</span></span></code></pre></div>
 </details>
 </div>
 <p>Looking at the raw distributions, the three conditions are nearly indistinguishable, and nothing suggests that B and C differ in any interesting way.</p>
@@ -146,7 +140,7 @@
 <div class="sourceCode cell-code" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">sim</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">RT</span>, fill <span class="op">=</span> <span class="va">Condition</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_density.html" class="external-link">geom_density</a></span><span class="op">(</span>alpha <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span> <span class="op">=</span> <span class="st">"grey40"</span>, <span class="st">"B"</span> <span class="op">=</span> <span class="st">"darkgreen"</span>, <span class="st">"C"</span> <span class="op">=</span> <span class="st">"darkred"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span> <span class="op">=</span> <span class="st">"grey40"</span>, <span class="st">"B"</span> <span class="op">=</span> <span class="st">"purple"</span>, <span class="st">"C"</span> <span class="op">=</span> <span class="st">"orange"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"Reaction Time (s)"</span>, y <span class="op">=</span> <span class="st">"Density"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <div class="cell-output-display">
@@ -156,62 +150,66 @@
 </div>
 </div>
 </div>
-<!-- ## Empirical Estimates -->
-<!-- Before modelling anything, we can compute the most straightforward possible -->
-<!-- index of each participant's effect: average the RTs within each condition, and -->
-<!-- subtract. This gives us, for every participant, an "empirical" effect of -->
-<!-- B - A and of C - A (expressed here in milliseconds). -->
-<!-- ```{r} -->
-<!-- #| code-fold: false -->
-<!-- # Average RT per participant and condition -->
-<!-- persub <- aggregate(RT ~ Participant + Condition, data = sim, FUN = mean) -->
-<!-- persub <- data_to_wide(persub, id_cols = "Participant", -->
-<!--                        names_from = "Condition", values_from = "RT") -->
-<!-- empirical <- data.frame( -->
-<!--   Participant = rep(persub$Participant, 2), -->
-<!--   Effect = rep(c("B - A", "C - A"), each = nrow(persub)), -->
-<!--   Difference = c(persub$B - persub$A, persub$C - persub$A) * 1000 -->
-<!-- ) -->
-<!-- # Summary of the two effects across participants -->
-<!-- aggregate(Difference ~ Effect, data = empirical, FUN = function(x) { -->
-<!--   c(Mean = mean(x), SD = sd(x), Min = min(x), Max = max(x)) -->
-<!-- }) -->
-<!-- ``` -->
-<!-- The two effects could not be more different, and yet **only one of the two -->
-<!-- numbers usually reported - the mean - captures it**. The B - A effect is about -->
-<!-- +74 ms on average, with a between-participant SD of ~31 ms. The C - A effect -->
-<!-- has a mean of essentially zero (+0.4 ms) - but a between-participant SD of -->
-<!-- ~171 ms, and it ranges from -240 ms to +408 ms depending on who you look at. -->
-<!-- ```{r} -->
-<!-- ggplot(empirical, aes(x = reorder(Participant, Difference), y = Difference, color = Effect)) + -->
-<!--   geom_hline(yintercept = 0, linetype = "dashed") + -->
-<!--   geom_point(size = 2.5) + -->
-<!--   facet_wrap(~Effect, scales = "free_x") + -->
-<!--   scale_color_manual(values = c("B - A" = "darkgreen", "C - A" = "darkred")) + -->
-<!--   labs(x = "Participant (sorted by effect)", y = "RT difference (ms)") + -->
-<!--   theme_minimal() + -->
-<!--   theme(axis.text.x = element_blank(), legend.position = "none") -->
-<!-- ``` -->
-<!-- The picture is unambiguous. On the left, every single participant shows the -->
-<!-- same small slowing in condition B: the effect is *reliable* in the sense of -->
-<!-- being reproducible across people, but there is almost nothing to distinguish -->
-<!-- one participant from another. On the right, participants are spread all over -->
-<!-- the place, with some being massively slower and others massively faster in -->
-<!-- condition C - and these differences cancel out to nothing at the group level. -->
-<!-- A traditional analysis would report a significant effect of B and a null -->
-<!-- effect of C, and would stop there. Yet if you were looking for a task that can -->
-<!-- be used to measure something *about individuals* (a trait, a clinical marker, -->
-<!-- a correlate of some other variable), the "null" effect C is the interesting -->
-<!-- one, and the "significant" effect B is the useless one. -->
-<!-- ::: {.callout-note title="Careful: empirical estimates are noisy"} -->
-<!-- These per-participant differences are *not* clean measurements of each -->
-<!-- participant's true effect. Each one is computed from a finite number of trials -->
-<!-- and therefore carries measurement error. Note for instance that the B - A -->
-<!-- effects show an apparent spread of ~31 ms even though we generated them with a -->
-<!-- between-participant SD of only ~6 ms (0.01 on the log scale): almost all of -->
-<!-- that visible spread is noise, not real interindividual variability. -->
-<!-- Disentangling the two is precisely what the model below does. -->
-<!-- ::: -->
+</section><section class="level2"><h2 id="empirical-estimates">Empirical Estimates<a class="anchor" aria-label="anchor" href="#empirical-estimates"></a>
+</h2>
+<p>Let us now compute the score we would hand to a clinician: for each participant, average the RTs within each condition and subtract, giving an “empirical” effect of B - A and of C - A (expressed here in milliseconds).</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">empirical</span> <span class="op">&lt;-</span> <span class="va">sim</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/summarise.html" class="external-link">summarise</a></span><span class="op">(</span>RT <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">RT</span><span class="op">)</span>, .by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">Participant</span>, <span class="va">Condition</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/reframe.html" class="external-link">reframe</a></span><span class="op">(</span></span>
+<span>    Effect <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"B - A"</span>, <span class="st">"C - A"</span><span class="op">)</span>,</span>
+<span>    Difference <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>      <span class="va">RT</span><span class="op">[</span><span class="va">Condition</span> <span class="op">==</span> <span class="st">"B"</span><span class="op">]</span> <span class="op">-</span> <span class="va">RT</span><span class="op">[</span><span class="va">Condition</span> <span class="op">==</span> <span class="st">"A"</span><span class="op">]</span>,</span>
+<span>      <span class="va">RT</span><span class="op">[</span><span class="va">Condition</span> <span class="op">==</span> <span class="st">"C"</span><span class="op">]</span> <span class="op">-</span> <span class="va">RT</span><span class="op">[</span><span class="va">Condition</span> <span class="op">==</span> <span class="st">"A"</span><span class="op">]</span></span>
+<span>    <span class="op">)</span> <span class="op">*</span> <span class="fl">1000</span>,</span>
+<span>    .by <span class="op">=</span> <span class="va">Participant</span></span>
+<span>  <span class="op">)</span></span>
+<span></span>
+<span><span class="va">empirical</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/summarise.html" class="external-link">summarise</a></span><span class="op">(</span></span>
+<span>    Mean <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">Difference</span><span class="op">)</span>,</span>
+<span>    SD <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/sd.html" class="external-link">sd</a></span><span class="op">(</span><span class="va">Difference</span><span class="op">)</span>,</span>
+<span>    Min <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">Difference</span><span class="op">)</span>,</span>
+<span>    Max <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="va">Difference</span><span class="op">)</span>,</span>
+<span>    .by <span class="op">=</span> <span class="va">Effect</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="co">#&gt;   Effect      Mean        SD       Min      Max</span></span>
+<span><span class="co">#&gt; 1  B - A 73.956648  30.80423   22.2618 159.6227</span></span>
+<span><span class="co">#&gt; 2  C - A  0.444845 170.68889 -240.4986 408.4365</span></span></code></pre></div>
+</div>
+<p>The two effects could not be more different, and yet <strong>the number we usually report - the mean - is blind to it</strong>. The B - A effect is about +74 ms on average, with a between-participant SD of ~31 ms. The C - A effect has a mean of essentially zero (+0.4 ms) - but a between-participant SD of ~171 ms, and it ranges from -240 ms to +408 ms depending on which participant we look at.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Sort participants by the size of their C - A effect</span></span>
+<span><span class="va">order_C</span> <span class="op">&lt;-</span> <span class="va">empirical</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">Effect</span> <span class="op">==</span> <span class="st">"C - A"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/arrange.html" class="external-link">arrange</a></span><span class="op">(</span><span class="va">Difference</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/pull.html" class="external-link">pull</a></span><span class="op">(</span><span class="va">Participant</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">empirical</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>Participant <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">Participant</span>, levels <span class="op">=</span> <span class="va">order_C</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">Difference</span>, y <span class="op">=</span> <span class="va">Participant</span>, color <span class="op">=</span> <span class="va">Effect</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_vline</a></span><span class="op">(</span>xintercept <span class="op">=</span> <span class="fl">0</span>, linetype <span class="op">=</span> <span class="st">"dashed"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">2.5</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">Effect</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_color_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"B - A"</span> <span class="op">=</span> <span class="st">"purple"</span>, <span class="st">"C - A"</span> <span class="op">=</span> <span class="st">"orange"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"RT difference (ms)"</span>, y <span class="op">=</span> <span class="st">"Participant"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>legend.position <span class="op">=</span> <span class="st">"none"</span><span class="op">)</span></span></code></pre></div>
+<div class="cell-output-display">
+<div>
+<figure><p><img src="reliability_files/figure-html/unnamed-chunk-4-1.png" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>The picture is unambiguous (note that participants are ordered by the size of their C - A effect, so that a given row refers to the same person in both panels). On the left, every single participant shows the same small slowing in condition B: the effect is <em>reliable</em> in the sense of being reproducible across people, but there is almost nothing to distinguish one participant from another. On the right, participants are spread all over the place, with some being massively slower and others massively faster in condition C - and these differences cancel out to nothing at the group level.</p>
+<p>This is bad news for our original plan. Condition B - the one that reached significance, and on which we were about to build our clinical index - gives essentially the same score to everybody, and a measure that does not vary between people cannot possibly correlate with symptoms, separate patients from controls, or track change. Condition C - the “null” effect that we would have discarded - is the one carrying the individual differences we are after.</p>
+<blockquote>
+<p><strong>Careful: empirical estimates are noisy!</strong></p>
+</blockquote>
+<p>These per-participant differences are <em>not</em> clean measurements of each participant’s true effect. Each one is computed from a finite number of trials and therefore carries measurement error. Note for instance that the B - A effects show an apparent spread of ~31 ms even though we generated them with a between-participant SD of only ~6 ms (0.01 on the log scale): almost all of that visible spread is noise, not real interindividual variability. Disentangling the two is precisely what the model below does.</p>
 <!-- ## Modeling -->
 <!-- We now fit a **mixed LogNormal model**, which mirrors the way the data were -->
 <!-- generated: the effect of `Condition` is estimated at the population level -->
@@ -417,7 +415,8 @@
       }
     }
   });
-  </script></main>
+  </script></main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside>
 </div>
 
 
