@@ -285,12 +285,13 @@ Descriptively, the three parameters can be interpreted as:
   to the standard deviation in normal distributions.
 - **Tau** $`\tau`$: Tail weight / skewness of the distribution.
 
-Note that these parameters are not independent with respect to
-distribution characteristics. Below is an example of ex-Gaussian
-distributions (generated with `cogmod`’s own density function
-[`drt_exgaussian()`](https://github.com/DominiqueMakowski/cogmod/reference/rrt_exgaussian.md))
-that all share the **same location and dispersion** parameters, and
-differ only in their tail weight.
+Despite the generally good fit and relative simplicity of Ex-Gaussian
+models, they have one major drawback. Their underlying parameters do not
+represent **independent** characteristics of the overall shape. The
+shape of the distribution is detemrined by the interaction of all three
+parameters. Below is an example of ex-Gaussian distributions that all
+share the **same location and dispersion** parameters, and differ only
+in their tail weight.
 
 ![](rt_models_files/figure-html/exgaussian-parameters-1.png)
 

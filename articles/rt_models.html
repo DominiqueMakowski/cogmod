@@ -226,7 +226,7 @@
 <li>
 <strong>Tau</strong> <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math>: Tail weight / skewness of the distribution.</li>
 </ul>
-<p>Note that these parameters are not independent with respect to distribution characteristics. Below is an example of ex-Gaussian distributions (generated with <code>cogmod</code>’s own density function <code><a href="../reference/rrt_exgaussian.html">drt_exgaussian()</a></code>) that all share the <strong>same location and dispersion</strong> parameters, and differ only in their tail weight.</p>
+<p>Despite the generally good fit and relative simplicity of Ex-Gaussian models, they have one major drawback. Their underlying parameters do not represent <strong>independent</strong> characteristics of the overall shape. The shape of the distribution is detemrined by the interaction of all three parameters. Below is an example of ex-Gaussian distributions that all share the <strong>same location and dispersion</strong> parameters, and differ only in their tail weight.</p>
 <div class="cell">
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
