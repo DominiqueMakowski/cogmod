@@ -29,13 +29,13 @@ library(cmdstanr)
 options(mc.cores = parallel::detectCores() - 2)
 ```
 
-## Why Linear Models are Bad for RTs
+## Why Linear Models are bad for RTs
 
 After months of effort designing the study, recruiting participants and
 collecting data, you finally get your hands on that dataset and decide to
 check whether your super duper Nobel-prize-worthy experimental condition has
-an effect on reaction times. You do what is everybody does and what has always
-been done, and fit a linear model.
+an effect on reaction times. You do what everybody does, and what has always
+been done: fit a linear model.
 
 ```{r}
 #| code-fold: true
@@ -63,7 +63,7 @@ parameters(model)
 
 ***Nothing.*** **NOTHING** 😭
 
-The effect of `Condition` is minuscule and and non-significant.
+The effect of `Condition B vs. Condition A` is minuscule and and non-significant.
 Months of work, and the only conclusion you can write down is ***"the condition had no effect on response times"***. As you contemplate the ruins of your
 Nobel-prize aspirations, you start seriously considering abandoning your
 dreams of a career in academia and retraining as a goat farmer.
