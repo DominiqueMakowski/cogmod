@@ -4,6 +4,8 @@
 
 - [Decision Making
   Models](https://github.com/DominiqueMakowski/cogmod/articles/decision_making.md):
+- [Assessing Reliability and Interindividual
+  Variability](https://github.com/DominiqueMakowski/cogmod/articles/reliability.md):
 - [How to Properly Analyze Reaction Times
   Data](https://github.com/DominiqueMakowski/cogmod/articles/rt_models.md):
 - [Subjective

@@ -42,7 +42,7 @@ sim <- data.frame(
 
 model <- lm(RT ~ Condition, data = sim)
 
-parameters::parameters(model)
+parameters(model)
 #> Parameter     | Coefficient |   SE |        95% CI | t(998) |      p
 #> --------------------------------------------------------------------
 #> (Intercept)   |        0.70 | 0.01 | [ 0.68, 0.72] |  65.85 | < .001
@@ -54,13 +54,11 @@ parameters::parameters(model)
 
 ***Nothing.*** **NOTHING** 😭
 
-The effect of `Condition` is minuscule and about as far from
-significance as it gets. Both groups respond in about 700 ms on average.
-Months of work, and the only conclusion you can write down is ***“the
-condition had no effect on response times”***. As you contemplate the
-ruins of your Nobel-prize aspirations, you start seriously considering
-abandoning your dreams of a career in academia and retraining as a goat
-farmer.
+The effect of `Condition` is minuscule and and non-significant. Months
+of work, and the only conclusion you can write down is ***“the condition
+had no effect on response times”***. As you contemplate the ruins of
+your Nobel-prize aspirations, you start seriously considering abandoning
+your dreams of a career in academia and retraining as a goat farmer.
 
 But then, as a last sanity check, you decide to actually **look** at the
 data.
@@ -68,8 +66,8 @@ data.
 ``` r
 
 ggplot(sim, aes(x = RT, fill = Condition)) +
-  geom_histogram(bins = 100, alpha = 0.8, position = "identity") +
-  scale_fill_manual(values = c("darkgreen", "darkred")) +
+  geom_histogram(bins = 120, alpha = 0.8, position = "identity") +
+  scale_fill_manual(values = c("orange", "blue")) +
   theme_minimal()
 ```
 
@@ -77,14 +75,14 @@ ggplot(sim, aes(x = RT, fill = Condition)) +
 
 ***Shock and horror!***
 
-The two distributions could hardly look more different! Condition **A**
-has responses starting almost immediately (some as fast as 150 ms) and a
-long tail stretching past 2 seconds. Condition **B** has no responses at
-all before ~600 ms, and then a tight, narrow bump. One condition looks
-like fast, variable, possibly impulsive responding; the other looks like
-a slow but highly consistent process with a long “dead time” before any
-response can be emitted. These are, by any reasonable standard, two
-*dramatically* different behaviours.
+*The two distributions could hardly look more different!* Condition
+**A** has responses starting almost immediately (some as fast as 150 ms)
+and a long tail stretching past 2 seconds. Condition **B** has no
+responses at all before ~600 ms, and then a tight, narrow bump. One
+condition looks like fast, variable, possibly impulsive responding; the
+other looks like a slow but highly consistent process with a long “dead
+time” before any response can be emitted. These are, by any reasonable
+standard, two *dramatically* different behaviours.
 
 How come the test did not capture any of it? Because we simulated these
 two distributions to have exactly the **same mean** - and the mean is
@@ -100,8 +98,8 @@ models exist - models that describe the *shape* of the RT distribution
 with parameters that can be mapped onto meaningful cognitive quantities.
 The rest of this vignette is about them.
 
-> **“But I read that I can transform my data to make it more normal,
-> should I do it?”**
+> ***“But I read that I can transform my data to make it more normal,
+> should I do it?”***
 
 Log-transforming (or inverse-transforming, or Box-Cox-ing) RTs is a very
 common attempt at rescuing the linear model: make the data look
@@ -130,14 +128,14 @@ components of the process. Both are large improvements over the
 Gaussian, but the latter allows for potentially stronger and more
 interpretable claims.
 
-> **Useful references to start**
->
-> - [**Lindelov’s overview of RT
->   models**](https://lindeloev.github.io/shiny-rt/): An absolute
->   must-read.
-> - [**De Boeck & Jeon
->   (2019)**](https://www.frontiersin.org/articles/10.3389/fpsyg.2019.00102/full):
->   A paper providing an overview of RT models.
+**Useful references to start:**
+
+- [**Lindelov’s overview of RT
+  models**](https://lindeloev.github.io/shiny-rt/): An absolute
+  must-read.
+- [**De Boeck & Jeon
+  (2019)**](https://www.frontiersin.org/articles/10.3389/fpsyg.2019.00102/full):
+  A paper providing an overview of RT models.
 
 ## The Data
 
@@ -288,18 +286,25 @@ Descriptively, the three parameters can be interpreted as:
 - **Tau** $`\tau`$: Tail weight / skewness of the distribution.
 
 Note that these parameters are not independent with respect to
-distribution characteristics: on the right is an example of
-distributions with the **same location and dispersion** parameters.
-Although only the tail weight parameter is changed, the whole
-distribution appears to shift its centre of mass (its peak moves from
-0.70 to 0.93, and its mean from 0.70 to 1.20 s). **Hence, one should be
-careful not to interpret the value of mu directly as the “mean” or the
-distribution “peak”, nor sigma as the SD or the “width”**.
+distribution characteristics. Below is an example of ex-Gaussian
+distributions (generated with `cogmod`’s own density function
+[`drt_exgaussian()`](https://github.com/DominiqueMakowski/cogmod/reference/rrt_exgaussian.md))
+that all share the **same location and dispersion** parameters, and
+differ only in their tail weight.
 
 ![](rt_models_files/figure-html/exgaussian-parameters-1.png)
 
-*Ex-Gaussian distributions with the same location ($`\mu`$ = 0.7) and
-dispersion ($`\sigma`$ = 0.2) parameters, varying only in tail weight.*
+*Ex-Gaussian distributions with the same location ($`\mu`$ = 0.7, dashed
+line) and dispersion ($`\sigma`$ = 0.2) parameters, varying only in tail
+weight.*
+
+Although only the tail weight parameter is changed, the whole
+distribution appears to shift its centre of mass: as $`\tau`$ goes from
+0 to 0.5, the peak moves from 0.70 to 0.93 and the mean from 0.70 to
+1.20 s, while the SD of the whole distribution grows from 0.20 to 0.54.
+**Hence, one should be careful not to interpret the value of mu directly
+as the “mean” or the distribution “peak”, nor sigma as the SD or the
+“width”**.
 
 One important caveat: `brms`’s native
 [`exgaussian()`](https://paulbuerkner.com/brms/reference/brmsfamily.html)
@@ -349,11 +354,37 @@ The LogNormal distribution assumes that it is the *logarithm* of the
 RTs, rather than the RTs themselves, that is Normally distributed. This
 is an attractive assumption for response times: it constrains the
 variable to be strictly positive, and it produces the right-skewed shape
-typical of RT data for free. It also has an intuitive rationale - a
-Normal distribution arises when many small influences *add up*, whereas
-a LogNormal arises when they *multiply*, which is arguably a better
-description of the way processing speed is affected by factors such as
-arousal, difficulty or practice.
+typical of RT data for free.
+
+> **What is the rationale for LogNormal models?**
+
+The reason why the Normal distribution is so ubiquitous in nature - and
+hence used as a relatively good default model - is the **Central Limit
+Theorem**, which states that the sum of a large number of independent
+random variables tends (under fairly general conditions) towards a
+Normal distribution. Because many things in nature are the result of the
+*addition* of many random processes, the Normal distribution is very
+common in real life.
+
+However, it turns out that the *multiplication* of random variables
+results in a **LogNormal** distribution. The reason is in fact the same
+theorem: since the logarithm of a product is the sum of the logarithms,
+a multiplicative cascade becomes an additive one on the log scale, and
+the Central Limit Theorem applies there instead. And multiplicative
+(rather than additive) cascades of processes are also very common in
+nature, from the lengths of latent periods of infectious diseases to the
+distribution of mineral resources in the Earth’s crust, and the
+elementary mechanisms at stake in physics and cell biology ([Limpert et
+al.,
+2001](https://academic.oup.com/bioscience/article/51/5/341/243981)).
+
+Thus, using LogNormal distributions for RTs can be justified with the
+assumption that response times are the result of multiplicative
+stochastic processes happening in the brain - each stage of processing
+scaling, rather than adding to, the duration of the previous ones. Note
+that this is a *plausibility* argument rather than a demonstrated
+mechanism: it makes the LogNormal a well-motivated default, but it does
+not turn `mu` and `sigma` into cognitive parameters.
 
 The **shifted** version adds a third ingredient: a non-decision time
 (`ndt`) before which no response can physically occur, corresponding to
@@ -377,19 +408,19 @@ the base of a proper process model - the Lognormal Race (see
 in which several LogNormal accumulators compete and the fastest one
 determines both the response and the RT.
 
-> **Isn’t this the same as log-transforming my RTs?**
->
-> It is not, and the difference is precisely the one discussed above.
-> Log-transforming the data and running a linear model on `log(RT)`
-> estimates the mean of the *transformed* values, which then has to be
-> interpreted on the log scale (or back-transformed into something that
-> is no longer the mean RT). The LogNormal model leaves the data
-> untouched and instead changes the *likelihood*: the RTs stay in
-> seconds, and it is the model that is told they arise from a LogNormal
-> process. In addition, the shift (`tau`) and the dispersion (`sigma`)
-> are estimated as their own parameters, and can be given their own
-> predictors - something a transformation can never give you, since it
-> still funnels every effect through a single location parameter.
+> **“Isn’t this the same as log-transforming my RTs?”**
+
+It is not, and the difference is precisely the one discussed above.
+Log-transforming the data and running a linear model on `log(RT)`
+estimates the mean of the *transformed* values, which then has to be
+interpreted on the log scale (or back-transformed into something that is
+no longer the mean RT). The LogNormal model leaves the data untouched
+and instead changes the *likelihood*: the RTs stay in seconds, and it is
+the model that is told they arise from a LogNormal process. In addition,
+the shift (`tau`) and the dispersion (`sigma`) are estimated as their
+own parameters, and can be given their own predictors - something a
+transformation can never give you, since it still funnels every effect
+through a single location parameter.
 
 Code
 
