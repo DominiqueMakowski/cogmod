@@ -31,9 +31,7 @@ options(mc.cores = parallel::detectCores() - 2)
 ```
 
 Imagine we have designed a brand new cognitive task. It has three conditions -
-**A**, **B** and **C** - and our ambition is to use it in a **clinical
-context**: to quantify something about *individuals*, so that a patient's score
-can be related to their symptoms, compared to a norm, or tracked over time.
+**A**, **B** and **C** - and our ambition is to use it in a **clinical context**: to quantify something about *individuals*, so that a patient's score can be related to their symptoms, compared to a norm, or tracked over time.
 
 The first thing we do is run a validation study and test whether the conditions
 affect reaction times. As we will see, only one of them turns out to have a
@@ -56,14 +54,17 @@ each perform 80 trials in each of the three conditions, and we record their
 reaction times.
 
 
-
-
 ```{r}
 #| code-fold: true
 
+# The data are generated from a **shifted LogNormal** process (see cogmod's
+# rt_lognormal() family): a non-decision time `ndt` - the incompressible
+# encoding + motor delay - to which a LogNormal-distributed decision time is
+# added.
+#
 # Because we are simulating the data, we get to decide what is true, and we make
 # the two effects *deliberately* different:
-# 
+#
 # - **A vs. B**: a small but extremely **consistent** effect. Every participant
 #   is slowed down by about the same amount (the between-participant SD of the
 #   effect is tiny, 0.01). There is essentially no interindividual variability.
@@ -75,6 +76,7 @@ set.seed(14)
 
 n_participants <- 30
 n_trials <- 80  # Per condition
+ndt <- 0.15  # Non-decision time (s): no response can occur before that
 
 participants <- data.frame(
   Participant = sprintf("S%02d", 1:n_participants),
@@ -94,12 +96,13 @@ sim <- expand.grid(
 ) |>
   left_join(participants, by = "Participant") |>
   mutate(
-    # Trial-level mean on the log scale
+    # Trial-level mean of the *decision* time, on the log scale
     meanlog = Intercept +
       if_else(Condition == "B", Effect_B, 0) +
       if_else(Condition == "C", Effect_C, 0),
-    # Generate RTs, adding within-participant (trial-to-trial) noise
-    RT = rlnorm(n(), meanlog = meanlog, sdlog = 0.22),
+    # Generate RTs, adding within-participant (trial-to-trial) noise, and shift
+    # the whole distribution by the non-decision time
+    RT = ndt + rlnorm(n(), meanlog = meanlog, sdlog = 0.22),
     Participant = factor(Participant),
     Condition = factor(Condition)
   ) |>
@@ -115,7 +118,11 @@ way.
 ggplot(sim, aes(x = RT, fill = Condition)) +
   geom_density(alpha = 0.5) +
   scale_fill_manual(values = c("A" = "grey40", "B" = "purple", "C" = "orange")) +
-  labs(x = "Reaction Time (s)", y = "Density") +
+  labs(
+    title = "Raw RT distributions by condition",
+    subtitle = "All trials pooled across participants: the three conditions look alike",
+    x = "Reaction Time (s)", y = "Density"
+  ) +
   theme_minimal()
 ```
 
@@ -125,16 +132,37 @@ Let us now compute the score we would hand to a clinician: for each
 participant, average the RTs within each condition and subtract, giving an
 "empirical" effect of B - A and of C - A (expressed here in milliseconds).
 
+Because each of these differences is computed from a finite number of trials,
+it also comes with its own uncertainty. We quantify it by **bootstrapping**:
+for a given participant, we resample their trials with replacement within each
+condition, recompute the difference, and repeat. The SD of the resulting
+bootstrap distribution is the **standard error (SE)** of that participant's
+score - i.e., how much it would wobble if we ran the task again.
+
 ```{r}
 #| code-fold: false
 
+# Bootstrapped SE of the difference between two sets of trials
+boot_se <- function(rt1, rt2, n_boot = 1000) {
+  boot <- replicate(
+    n_boot,
+    mean(sample(rt2, replace = TRUE)) - mean(sample(rt1, replace = TRUE))
+  )
+  sd(boot)
+}
+
+set.seed(3)
+
 empirical <- sim |>
-  summarise(RT = mean(RT), .by = c(Participant, Condition)) |>
   reframe(
     Effect = c("B - A", "C - A"),
     Difference = c(
-      RT[Condition == "B"] - RT[Condition == "A"],
-      RT[Condition == "C"] - RT[Condition == "A"]
+      mean(RT[Condition == "B"]) - mean(RT[Condition == "A"]),
+      mean(RT[Condition == "C"]) - mean(RT[Condition == "A"])
+    ) * 1000,
+    SE = c(
+      boot_se(RT[Condition == "A"], RT[Condition == "B"]),
+      boot_se(RT[Condition == "A"], RT[Condition == "C"])
     ) * 1000,
     .by = Participant
   )
@@ -145,15 +173,21 @@ empirical |>
     SD = sd(Difference),
     Min = min(Difference),
     Max = max(Difference),
+    SE = mean(SE),
     .by = Effect
   )
 ```
 
-The two effects could not be more different, and yet **the number we usually
-report - the mean - is blind to it**. The B - A effect is about +74 ms on
-average, with a between-participant SD of ~31 ms. The C - A effect has a mean
+The two effects could not be more different, and yet **the number we usually report - the mean - is blind to it**. The B - A effect is about +74 ms on average, with a between-participant SD of ~31 ms. The C - A effect has a mean
 of essentially zero (+0.4 ms) - but a between-participant SD of ~171 ms, and it
 ranges from -240 ms to +408 ms depending on which participant we look at.
+
+The last column is where things get interesting. The typical participant's
+score carries an SE of about **25 ms** in both cases - the two effects are
+measured with the same precision. But that precision means very different
+things relative to how much participants actually differ: 25 ms of noise is
+almost as large as the 31 ms of observed spread in B - A, while it is a small
+fraction of the 171 ms observed in C - A.
 
 ```{r}
 # Sort participants by the size of their C - A effect
@@ -166,22 +200,31 @@ empirical |>
   mutate(Participant = factor(Participant, levels = order_C)) |>
   ggplot(aes(x = Difference, y = Participant, color = Effect)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_linerange(aes(xmin = Difference - 1.96 * SE, xmax = Difference + 1.96 * SE)) +
   geom_point(size = 2.5) +
   facet_wrap(~Effect) +
   scale_color_manual(values = c("B - A" = "purple", "C - A" = "orange")) +
-  labs(x = "RT difference (ms)", y = "Participant") +
+  labs(
+    title = "Each participant's empirical effect",
+    subtitle = paste(
+      "One dot = one participant's average RT difference (bars: +/- 1.96 bootstrapped SE).",
+      "\nB - A is the same for everybody; C - A differs wildly between people",
+      "(participants sorted by their C - A effect)."
+    ),
+    x = "RT difference (ms)", y = "Participant"
+  ) +
   theme_minimal() +
   theme(legend.position = "none")
 ```
 
-The picture is unambiguous (note that participants are ordered by the size of
-their C - A effect, so that a given row refers to the same person in both
-panels). On the left, every single participant shows the same small slowing in
+The picture is unambiguous. On the left, every single participant shows the same small slowing in
 condition B: the effect is *reliable* in the sense of being reproducible across
 people, but there is almost nothing to distinguish one participant from
-another. On the right, participants are spread all over the place, with some
-being massively slower and others massively faster in condition C - and these
-differences cancel out to nothing at the group level.
+another - the error bars are nearly as wide as the entire range of scores. On
+the right, participants are spread all over the place, with some being
+massively slower and others massively faster in condition C, by amounts that
+dwarf their individual error bars - and these differences cancel out to nothing
+at the group level.
 
 This is bad news for our original plan. Condition B - the one that reached
 significance, and on which we were about to build our clinical index - gives
@@ -194,166 +237,313 @@ discarded - is the one carrying the individual differences we are after.
 
 These per-participant differences are *not* clean measurements of each
 participant's true effect. Each one is computed from a finite number of trials
-and therefore carries measurement error. Note for instance that the B - A
-effects show an apparent spread of ~31 ms even though we generated them with a
-between-participant SD of only ~6 ms (0.01 on the log scale): almost all of
-that visible spread is noise, not real interindividual variability.
-Disentangling the two is precisely what the model below does.
+and therefore carries measurement error - which is exactly what the bootstrapped
+SE quantifies. For B - A, there still seems to be a spread of ~31 ms, even
+though we generated the data with a near-zero between-participant SD. The
+bootstrap tells us why: with an SE of ~25 ms per participant, the observed
+variance is almost entirely measurement noise. Subtracting the noise variance
+from the observed variance leaves less than 20 ms of "true" spread - and even
+that residual is an overestimate, since both quantities are themselves
+estimated. For C - A the same subtraction barely changes anything (171 ms →
+~169 ms): there, the differences between people are real.
+
+This back-of-the-envelope correction is the whole idea behind reliability, but
+doing it by hand has obvious limits: it treats each participant's score as a
+fixed number to be de-noised afterwards, it does not propagate the uncertainty
+into anything we do next (e.g., correlating the scores with a symptom
+questionnaire), and it says nothing about the shape of the RT distribution the
+scores came from. **A model can do all of this in one go**, by estimating the
+between-participant variability and the trial-level noise jointly instead of
+separating them after the fact.
 
 
-<!-- ## Modeling -->
+## Modeling
 
-<!-- We now fit a **mixed LogNormal model**, which mirrors the way the data were -->
-<!-- generated: the effect of `Condition` is estimated at the population level -->
-<!-- (fixed effects) *and* allowed to vary across participants (random slopes). -->
+We now fit a **mixed [shifted LogNormal model](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html#shifted-lognormal)**,
+which mirrors the way the data were
+generated: the effect of `Condition` is estimated at the population level
+(fixed effects) *and* allowed to vary across participants (random slopes).
 
-<!-- ```{r} -->
-<!-- #| eval: false -->
-<!-- #| code-fold: false -->
+Because the family has more than one parameter, we can do the same for the
+other two: `sigma` (how variable a participant's decision times are) and `tau`
+(their non-decision time, as a proportion of the minimum RT). Giving each of
+them its own `(1 | Participant)` term means that every participant gets their
+own dispersion and their own shift, rather than being forced to share the
+group's. This costs a few parameters, but it is the only way to find out
+whether these quantities carry individual differences of their own - and, as we
+will see below, to check whether they are reliable enough to be used as scores.
 
-<!-- f <- bf(RT ~ Condition + (Condition | Participant)) -->
+```{r}
+#| eval: false
+#| code-fold: false
 
-<!-- m <- brm(f, -->
-<!--   data = sim, -->
-<!--   family = lognormal(), -->
-<!--   init = 0, -->
-<!--   chains = 4, iter = 1000, backend = "cmdstanr" -->
-<!-- ) -->
+f <- bf(
+  RT ~ Condition + (Condition | Participant),
+  sigma ~ 1 + (1 | Participant),
+  tau ~ 1 + (1 | Participant),
+  minrt = min(sim$RT),
+  family = rt_lognormal()
+)
 
-<!-- saveRDS(m, file = "models/m_reliability.rds") -->
-<!-- ``` -->
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
+  brms::validate_prior(f, data = sim)
 
-<!-- ```{r} -->
-<!-- #| echo: false -->
+m <- brm(f,
+  data = sim,
+  prior = priors,
+  stanvars = rt_lognormal_stanvars(),
+  init = 0,
+  chains = 4, iter = 1000, backend = "cmdstanr"
+)
+```
+```{r}
+#| eval: false
+#| echo: false
 
-<!-- path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/" -->
+saveRDS(m, file = "models/m_reliability.rds")
+```
 
-<!-- m <- readRDS(url(paste0(path, "m_reliability.rds"))) -->
-<!-- ``` -->
 
-<!-- The random-effects part `(Condition | Participant)` is the key ingredient: it -->
-<!-- tells the model that each participant has their own intercept *and* their own -->
-<!-- condition effects, and it estimates how much these vary. Note also that we do -->
-<!-- not need to transform the RTs: `family = lognormal()` handles the skew -->
-<!-- directly, and the coefficients are simply expressed on the log scale. -->
+```{r}
+#| echo: false
 
-<!-- Let us first look at the **fixed effects**, i.e., the population-level answer -->
-<!-- to "is there an effect of condition?". -->
+path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"
 
-<!-- ```{r} -->
-<!-- #| code-fold: false -->
+m <- readRDS(url(paste0(path, "m_reliability.rds")))
+```
 
-<!-- parameters(m, effects = "fixed") -->
-<!-- ``` -->
+The random-effects parts are the key ingredient: they tell the model that each
+participant has their own intercept *and* their own condition effects, their
+own `sigma` and their own `tau`, and they estimate how much each of these
+varies. Note also that we do not need to transform the RTs:
+`family = rt_lognormal()` handles the skew directly - and, through `tau`, the
+non-decision time - so the coefficients are simply expressed on the log scale
+of the decision time.
 
-<!-- This reproduces the classic conclusion: a clear effect of condition B -->
-<!-- (0.10 on the log scale, 95% CI [0.09, 0.12], *pd* = 100%), and nothing at all -->
-<!-- for condition C (-0.02, 95% CI [-0.12, 0.08], *pd* = 65%), whose credible -->
-<!-- interval is comfortably centered on zero. -->
+Let us first look at the **fixed effects**, i.e., the population-level answer
+to "is there an effect of condition?".
 
-<!-- The crucial addition is the **random effects**, which quantify how much -->
-<!-- participants differ from each other on each of these parameters: -->
+```{r}
+#| echo: false
 
-<!-- ```{r} -->
-<!-- #| code-fold: false -->
+parameters(m, effects = "fixed")
+```
 
-<!-- parameters(m, effects = "random_variance") -->
-<!-- ``` -->
+This reproduces the classic conclusion: a clear effect of condition B
+(0.10 on the log scale, 95% CI [0.09, 0.12], *pd* = 100%), and nothing at all
+for condition C (-0.02, 95% CI [-0.12, 0.08], *pd* = 65%), whose credible
+interval is comfortably centered on zero.
 
-<!-- Here the two effects finally become distinguishable. The SD of the `ConditionB` -->
-<!-- slope is 0.01, i.e., essentially nothing: participants barely differ in how -->
-<!-- much B affects them. The SD of the `ConditionC` slope, in contrast, is 0.26 - -->
-<!-- more than twenty times larger, and very close to the value of 0.30 we -->
-<!-- simulated. This is the model formally telling us that *there is a lot going on -->
-<!-- in condition C, it just does not go in the same direction for everybody*. -->
-<!-- Note also that the model recovers the true between-participant SD of the B -->
-<!-- effect (~0.01) rather than the inflated ~31 ms spread of the raw empirical -->
-<!-- differences: the measurement noise has been correctly assigned to the residual -->
-<!-- term instead of being mistaken for interindividual variability. -->
+The crucial addition is the **random effects**, which quantify how much
+participants differ from each other on each of these parameters:
 
-<!-- ## Group-Level Indices Extraction -->
+```{r}
+#| code-fold: false
 
-<!-- Beyond knowing that participants differ, we often want to know *how* each -->
-<!-- individual differs - for instance to correlate these individual effects with -->
-<!-- another variable (a questionnaire score, a diagnosis, another task). These -->
-<!-- participant-level deviations can be extracted with -->
-<!-- `modelbased::estimate_grouplevel()`. -->
+parameters(m, effects = "random_variance")
+```
 
-<!-- ```{r} -->
-<!-- #| code-fold: false -->
+Here the two effects finally become distinguishable. The SD of the `ConditionB`
+slope is 0.01, i.e., essentially nothing: participants barely differ in how
+much B affects them. The SD of the `ConditionC` slope, in contrast, is 0.26 -
+more than twenty times larger. This is the model formally telling us that 
+*there is a lot going on in condition C, it just does not go in the same direction for everybody*.
+Note also that the model recovers the true between-participant SD of the B
+effect (~0.01) rather than the inflated ~31 ms spread of the raw empirical
+differences: the measurement noise has been correctly assigned to the residual
+term instead of being mistaken for interindividual variability.
 
-<!-- random <- estimate_grouplevel(m) -->
+## Group-Level Indices Extraction
 
-<!-- head(random) -->
-<!-- ``` -->
+Beyond knowing that participants differ, we often want to know *how* each
+individual differs - for instance to correlate these individual effects with
+another variable (a questionnaire score, a diagnosis, another task). These
+participant-level deviations can be extracted with
+`modelbased::estimate_grouplevel()`.
 
-<!-- Each row is one participant's deviation from the population-level (fixed) -->
-<!-- effect, together with its uncertainty. We can visualize all of them at once: -->
+```{r}
+#| code-fold: false
 
-<!-- ```{r} -->
-<!-- #| fig-height: 8 -->
+random <- estimate_grouplevel(m)
 
-<!-- plot(random) + -->
-<!--   theme_minimal() -->
-<!-- ``` -->
+head(random)
+```
 
-<!-- The contrast between the two effects is now expressed as model parameters -->
-<!-- rather than as raw averages (note that each panel has its own x-axis scale). -->
-<!-- For `ConditionB`, all the individual deviations are packed within ±0.03 of -->
-<!-- zero and every single credible interval includes zero: the model concludes -->
-<!-- that, once measurement noise is accounted for, participants essentially share -->
-<!-- the same effect. For `ConditionC`, the deviations span -0.45 to +0.56 and most -->
-<!-- of them clearly exclude zero - these are genuine, statistically supported -->
-<!-- individual differences. -->
+Each row is one participant's deviation from the population-level (fixed)
+effect, together with its uncertainty. We can visualize all of them at once -
+`plot(random)` gives a quick default version, but building the forest plot by
+hand lets us give each parameter its own color:
 
-<!-- Because these estimates come from a model, they are also **shrunk** towards -->
-<!-- the population mean in proportion to how noisy each participant's data is: -->
-<!-- participants with fewer or more variable trials are pulled more strongly -->
-<!-- towards the average. This is a feature, not a bug - it prevents us from -->
-<!-- over-interpreting extreme values that the raw empirical differences produce by -->
-<!-- chance, and it is why model-based individual scores are generally more -->
-<!-- reliable than difference scores computed by hand. -->
+```{r}
+#| fig-height: 8
 
-<!-- How much this matters depends on how much data each participant provides. Here, -->
-<!-- with 80 trials per condition, each individual effect is already well estimated, -->
-<!-- so the model-based indices and the raw empirical differences agree almost -->
-<!-- perfectly (*r* = .98) and the plot below is essentially a straight line. The -->
-<!-- two would come apart - with the model-based version being the more trustworthy -->
-<!-- of the two - in the more realistic situation of fewer trials, noisier -->
-<!-- participants, or unbalanced designs. -->
+as.data.frame(random) |>
+  # `Component` distinguishes mu (conditional) from sigma and tau
+  mutate(Parameter = paste0(Parameter, " (", Component, ")")) |>
+  ggplot(aes(x = Median, y = Level, color = Parameter)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_linerange(aes(xmin = CI_low, xmax = CI_high)) +
+  geom_point(size = 2) +
+  facet_wrap(~Parameter, scales = "free_x") +
+  labs(
+    title = "Participant-level deviations from the population effect",
+    subtitle = "One row = one participant (bars: 95% CI). Note that each panel has its own x-axis scale",
+    x = "Deviation (log scale)", y = "Participant"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
 
-<!-- ```{r} -->
-<!-- #| code-fold: true -->
+The contrast between the two effects is now expressed as model parameters
+rather than as raw averages.
+For `ConditionB`, all the individual deviations are packed within ±0.03 of
+zero and every single credible interval includes zero: the model concludes
+that, once measurement noise is accounted for, participants essentially share
+the same effect. For `ConditionC`, the deviations span -0.45 to +0.56 and most
+of them clearly exclude zero - these are genuine, statistically supported
+individual differences. The `sigma` and `tau` components appear here as well,
+each with one deviation per participant.
 
-<!-- # Compare the model-based individual effects to the raw empirical ones -->
-<!-- comparison <- merge( -->
-<!--   data_filter(as.data.frame(random), Parameter == "ConditionC") |> -->
-<!--     data_select(c("Level", "Median")) |> -->
-<!--     data_rename("Level", "Participant"), -->
-<!--   data_filter(empirical, Effect == "C - A") |> -->
-<!--     data_select(c("Participant", "Difference")) -->
-<!-- ) -->
+Because these estimates come from a model, they are also **shrunk** towards
+the population mean in proportion to how noisy each participant's data is:
+participants with fewer or more variable trials are pulled more strongly
+towards the average. This is a feature, not a bug - it is the model-based
+counterpart of the noise correction we attempted by hand above, applied
+participant by participant rather than to the group as a whole. It prevents us
+from over-interpreting extreme values that the raw empirical differences
+produce by chance, and it is why model-based individual scores are generally
+more reliable than difference scores computed by hand - all the more so when
+participants provide few trials, are noisy, or contribute unbalanced numbers of
+observations.
 
-<!-- ggplot(comparison, aes(x = Difference, y = Median)) + -->
-<!--   geom_hline(yintercept = 0, linetype = "dashed") + -->
-<!--   geom_vline(xintercept = 0, linetype = "dashed") + -->
-<!--   geom_point(size = 2.5, color = "darkred") + -->
-<!--   labs( -->
-<!--     x = "Empirical effect: mean(C) - mean(A), in ms", -->
-<!--     y = "Model-based individual effect (log scale)" -->
-<!--   ) + -->
-<!--   theme_minimal() -->
-<!-- ``` -->
+## Quantifying Variability: the D-vour Index
 
-<!-- ## Conclusion -->
+So far we have been *looking* at plots and comparing SDs to SEs by hand. It
+would be better to have a single number that answers the question "are these
+individual estimates informative enough to be used as individual scores?".
+This is what the **Variance-Over-Uncertainty Ratio** (*D-vour*), implemented in
+`performance::performance_dvour()`, provides. It is, in essence, a Signal-to-Noise 
+ratio iindex corresponding to the normalized ratio of the
+observed variability between group levels to the uncertainty of their estimates:
 
-<!-- The take-home message is that **an average effect and an interindividual -->
-<!-- difference are two different things**, and that a study designed to detect the -->
-<!-- first can be blind to the second. A significant fixed effect does not imply -->
-<!-- that the task is useful to characterize individuals, and a null fixed effect -->
-<!-- does not imply that nothing is happening. -->
+$$
+D_{\text{vour}} = \frac{\sigma_{\text{between}}^2}{\sigma_{\text{between}}^2 + \mu_{\text{within}}^2}
+$$
 
-<!-- Mixed models give access to both at once: the fixed effects answer the -->
-<!-- traditional group-level question, the random-effect SDs tell you whether there -->
-<!-- is any interindividual variability to speak of, and the group-level indices -->
-<!-- give you per-participant estimates that are usable as individual scores. -->
+where $\sigma_{\text{between}}^2$ is the between-participant variability (the SD
+of the random effect point-estimates) and $\mu_{\text{within}}^2$ is the mean
+squared uncertainty (the average SE, or MAD, of those estimates). It is bounded
+between 0 and 1: values close to 1 mean that participants differ from one
+another far more than we are unsure about where each of them stands, while
+values close to 0 mean that the apparent spread is mostly measurement noise.
+
+This is exactly the comparison we made informally above, and nothing stops us
+from applying the same formula to the bootstrapped empirical estimates:
+
+```{r}
+#| code-fold: false
+
+empirical |>
+  summarise(D_vour = sd(Difference)^2 / (sd(Difference)^2 + mean(SE)^2), .by = Effect)
+```
+
+The empirical B - A score lands at ~0.59 and the C - A score at ~0.98. On the
+model-based indices, the same index is obtained by passing the output of
+`estimate_grouplevel()` (or the model itself) to `performance_dvour()`:
+
+```{r}
+#| code-fold: false
+
+performance_dvour(random)
+```
+
+The interpretation follows the same logic in both cases: the `ConditionC`
+effect is highly reliable - the between-participant differences overwhelm the
+uncertainty of each estimate - whereas `ConditionB`, despite being the
+statistically significant effect, does not carry usable interindividual
+information. The two versions need not agree exactly - D-vour is scale-free,
+but the empirical scores still contain the trial noise that the model has
+partialled out - yet they lead to the same decision.
+
+Because we gave `sigma` and `tau` their own random intercepts, the output also
+contains one row per distributional parameter, and each of them gets its own
+reliability verdict. This is worth doing systematically: nothing guarantees
+that the parameters carrying the individual differences are the ones we
+manipulated. Here, we know they are not, because we generated every
+participant's decision times with the same `sdlog = 0.22` and the same
+non-decision time of 150 ms - so `sigma` and `tau` should come out with a low
+D-vour, the model correctly reporting that whatever spread we see in their
+group-level estimates is uncertainty rather than genuine differences. Treat
+this as a **negative control**: it is the behaviour we want the index to have,
+and it is the pattern to expect for a parameter that is truly homogeneous
+across people.
+
+Real data usually behave differently. Response-time variability in particular
+is often *more* discriminating between individuals than the mean - it is one of
+the central points of [Williams et al. (2021)](https://pubmed.ncbi.nlm.nih.gov/32437184/) -
+and non-decision time is a natural candidate for a stable, person-specific
+quantity. Had these been the reliable components in our data, the sensible
+clinical index would have been `sigma` or `tau`, not a condition contrast at
+all.
+
+As for any such index, the thresholds are conventions rather than laws. 
+Values above **0.75** indicate strong group-level differences, values around **0.5** call for
+caution (within- and between-group variability are comparable), and values
+below **0.5** indicate that measurement noise dominates. A useful intermediate
+landmark is **2/3** (0.666), which corresponds to a 2:1 ratio of between-group
+variance to uncertainty, and can be taken as the threshold for *moderately reliable* random effect estimates.
+
+> **Related indices and constructs**
+
+D-vour is one member of a family of ideas that all revolve around separating
+**true score variance** from **error variance**:
+
+- It is formally close to an **intraclass correlation coefficient (ICC)**, with
+  the important difference that the denominator uses the *uncertainty of the estimates* rather than the raw within-participant variance. Concretely, an ICC
+  asks "how large are the differences between participants compared to the
+  trial-to-trial noise?", so it stays low whenever single trials are noisy -
+  even if each participant's score is, in the end, precisely estimated. D-vour
+  asks the question that actually matters for an individual-level instrument:
+  "how large are the differences between participants compared to how well we
+  know where each of them stands?". Collecting more trials per participant
+  shrinks that uncertainty and increases D-vour, while leaving the raw
+  within-participant variance - and hence the ICC - essentially untouched.
+- It is a normalized version of the **signal-to-noise ratio** proposed by
+  [Rouder & Mehrvarz (2024)](https://journals.sagepub.com/doi/full/10.1177/09637214231220923),
+  who show that this quantity - unlike classical reliability coefficients -
+  characterizes the *task* itself rather than the particular sample size it was
+  administered with. The related `performance::performance_reliability()`
+  implements that trial-count-adjusted variant, and the two are worth reporting
+  together.
+- It is one quantitative expression of the **reliability paradox** described by
+  [Hedge, Powell & Sumner (2018)](https://link.springer.com/article/10.3758/s13428-017-0935-1):
+  the tasks with the most robust experimental effects are often the *worst* at
+  measuring individual differences, precisely because a manipulation that
+  affects everybody in the same way (our condition B) minimizes
+  between-participant variance. This is not a statistical curiosity: it is a
+  structural reason why many well-established paradigms transfer poorly to
+  clinical or differential settings.
+- The hierarchical-modelling perspective it rests on is developed in
+  [Williams et al. (2021)](https://pubmed.ncbi.nlm.nih.gov/32437184/), whose
+  mixed-effects location-scale framework is the reason we gave `sigma` and
+  `tau` their own random effects above: in `cogmod`'s families, the dispersion,
+  the shift or the drift rate can each carry their own reliability, and each
+  deserves to be checked separately.
+
+The practical recommendation that follows is simple: **compute D-vour for every parameter you intend to use as an individual-level score**, and report it alongside the effect itself. A parameter with a large fixed effect and a low
+D-vour is a good group-level manipulation check and a bad individual-level
+instrument.
+
+## Conclusion
+
+The take-home message is that **an average effect and an interindividual difference are two different things**, 
+and that a study designed to detect the
+first can be blind to the second. A significant fixed effect does not imply
+that the task is useful to characterize individuals, and a null fixed effect
+does not imply that nothing is happening.
+
+Mixed models give access to both at once: the fixed effects answer the
+traditional group-level question, the random-effect SDs tell you whether there
+is any interindividual variability to speak of, and the group-level indices
+give you per-participant estimates that are usable as individual scores - with
+D-vour telling you whether they are precise enough to deserve that use.

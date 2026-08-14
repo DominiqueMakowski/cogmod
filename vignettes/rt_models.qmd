@@ -220,6 +220,10 @@ m_normal <- brm(f,
 )
 
 m_normal <- brms::add_criterion(m_normal, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_normal, file = "models/m_normal.rds")
 ```
@@ -327,7 +331,7 @@ parameterization.
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT ~ Condition,
@@ -344,10 +348,13 @@ m_exgauss <- brm(f,
 )
 
 m_exgauss <- brms::add_criterion(m_exgauss, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_exgauss, file = "models/m_exgauss.rds")
 ```
-
 
 ### Shifted LogNormal
 
@@ -418,7 +425,7 @@ effect through a single location parameter.
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT ~ Condition,
@@ -441,6 +448,10 @@ m_lognormal <- brm(
 )
 
 m_lognormal <- brms::add_criterion(m_lognormal, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_lognormal, file = "models/m_lognormal.rds")
 ```
@@ -479,7 +490,7 @@ cognitive labels suggest.
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT ~ Condition,
@@ -502,6 +513,10 @@ m_wald <- brm(
 )
 
 m_wald <- brms::add_criterion(m_wald, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_wald, file = "models/m_wald.rds")
 ```
@@ -518,7 +533,7 @@ or of computational behaviour - over the more established options.
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT ~ Condition,
@@ -541,6 +556,10 @@ m_weibull <- brm(
 )
 
 m_weibull <- brms::add_criterion(m_weibull, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_weibull, file = "models/m_weibull.rds")
 ```
@@ -550,7 +569,7 @@ saveRDS(m_weibull, file = "models/m_weibull.rds")
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT ~ Condition,
@@ -573,6 +592,10 @@ m_logweibull <- brm(
 )
 
 m_logweibull <- brms::add_criterion(m_logweibull, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_logweibull, file = "models/m_logweibull.rds")
 ```
@@ -582,7 +605,7 @@ saveRDS(m_logweibull, file = "models/m_logweibull.rds")
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT ~ Condition,
@@ -605,6 +628,10 @@ m_invweibull <- brm(
 )
 
 m_invweibull <- brms::add_criterion(m_invweibull, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_invweibull, file = "models/m_invweibull.rds")
 ```
@@ -616,7 +643,7 @@ saveRDS(m_invweibull, file = "models/m_invweibull.rds")
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT ~ Condition,
@@ -639,6 +666,10 @@ m_gamma <- brm(
 )
 
 m_gamma <- brms::add_criterion(m_gamma, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_gamma, file = "models/m_gamma.rds")
 ```
@@ -647,7 +678,7 @@ saveRDS(m_gamma, file = "models/m_gamma.rds")
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT ~ Condition,
@@ -670,6 +701,10 @@ m_invgamma <- brm(
 )
 
 m_invgamma <- brms::add_criterion(m_invgamma, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_invgamma, file = "models/m_invgamma.rds")
 ```
@@ -678,7 +713,7 @@ saveRDS(m_invgamma, file = "models/m_invgamma.rds")
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT ~ Condition,
@@ -708,6 +743,10 @@ m_lba <- brm(
 )
 
 m_lba <- brms::add_criterion(m_lba, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_lba, file = "models/m_lba.rds")
 ```
