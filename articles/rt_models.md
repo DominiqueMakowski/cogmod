@@ -19,35 +19,23 @@ to check whether your super duper Nobel-prize-worthy experimental
 condition has an effect on reaction times. You do what everybody does,
 and what has always been done: fit a (mixed) linear model.
 
-Code
+The data are bundled with `cogmod` as `badlm` - 20 participants, 25
+trials in each of two conditions. See
+[`?badlm`](https://github.com/DominiqueMakowski/cogmod/reference/badlm.md)
+(or `data-raw/badlm.R`) for how they were generated.
 
 ``` r
 
-set.seed(5)
+sim <- cogmod::badlm
 
-n_participants <- 20
-n_trials <- 25  # Per condition
-
-# Participants differ in their overall speed
-participants <- data.frame(
-  Participant = sprintf("S%02d", 1:n_participants),
-  Offset = rnorm(n_participants, mean = 0, sd = 0.03)
-)
-
-sim <- data.frame(
-  Participant = rep(participants$Participant, each = 2 * n_trials),
-  Condition = rep(rep(c("A", "B"), each = n_trials), n_participants)
-)
-sim$Offset <- participants$Offset[match(sim$Participant, participants$Participant)]
-
-n <- sum(sim$Condition == "A")
-sim$RT <- NA
-# Wide distribution, very short time-to-first-response (tau = 0.05)
-sim$RT[sim$Condition == "A"] <- 0.05 + sim$Offset[sim$Condition == "A"] +
-  rlnorm(n, meanlog = log(0.65) - 0.5^2 / 2, sdlog = 0.5)
-# Narrow distribution, long non-decision time (tau = 0.45)
-sim$RT[sim$Condition == "B"] <- 0.45 + sim$Offset[sim$Condition == "B"] +
-  rlnorm(n, meanlog = log(0.25) - 0.15^2 / 2, sdlog = 0.15)
+head(sim)
+#>   Participant Condition        RT
+#> 1         S01         A 0.9246246
+#> 2         S01         A 0.9434260
+#> 3         S01         A 1.2198363
+#> 4         S01         A 0.8415406
+#> 5         S01         A 0.8886914
+#> 6         S01         A 0.5201079
 ```
 
 ``` r

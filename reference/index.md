@@ -155,3 +155,5 @@
   : Confidence Signal Detection Theory Model (EXPERIMENTAL)
 - [`wagenmakers2008`](https://github.com/DominiqueMakowski/cogmod/reference/wagenmakers2008.md)
   : Lexical Decision Data from Wagenmakers et al. (2008)
+- [`badlm`](https://github.com/DominiqueMakowski/cogmod/reference/badlm.md)
+  : Simulated Data Where Linear Models Fail
