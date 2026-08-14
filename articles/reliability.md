@@ -273,12 +273,13 @@ vary across participants (random slopes).
 Because the family has more than one parameter, we can do the same for
 the other two: `sigma` (how variable a participant’s decision times are)
 and `tau` (their non-decision time, as a proportion of the minimum RT).
-Giving each of them its own `(1 | Participant)` term means that every
-participant gets their own dispersion and their own shift, rather than
-being forced to share the group’s. This costs a few parameters, but it
-is the only way to find out whether these quantities carry individual
-differences of their own - and, as we will see below, to check whether
-they are reliable enough to be used as scores.
+Giving each of them the same `Condition + (Condition | Participant)`
+structure means that every participant gets their own dispersion and
+their own shift - and their own condition effects on both - rather than
+being forced to share the group’s. This costs a fair number of
+parameters, but it is the only way to find out whether these quantities
+carry individual differences of their own, and, as we will see below,
+whether they are reliable enough to be used as scores.
 
 ``` r
 
@@ -313,38 +314,46 @@ expressed on the log scale of the decision time.
 Let us first look at the **fixed effects**, i.e., the population-level
 answer to “is there an effect of condition?”.
 
-    #> Loading required namespace: rstan
-    #> # Fixed Effects
-    #>
-    #> Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)
-    #> -------------------------------------------------------------------
-    #> (Intercept) |  -0.44 | [-0.56, -0.31] |   100% | 1.011 |        816
-    #> ConditionB  |   0.10 | [ 0.00,  0.21] | 97.15% | 1.001 |       1070
-    #> ConditionC  |  -0.04 | [-0.23,  0.14] | 64.85% | 1.005 |        941
-    #>
-    #> # sigma Parameters
-    #>
-    #> Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)
-    #> -------------------------------------------------------------------
-    #> (Intercept) |  -1.39 | [-1.51, -1.28] |   100% | 1.004 |        850
-    #> ConditionB  |   0.04 | [-0.09,  0.16] | 74.90% | 1.004 |       1032
-    #> ConditionC  |   0.04 | [-0.13,  0.23] | 68.45% | 1.003 |       1205
-    #>
-    #> # tau Parameters
-    #>
-    #> Parameter   | Median |        95% CI |     pd |  Rhat | ESS (tail)
-    #> ------------------------------------------------------------------
-    #> (Intercept) |   0.07 | [-0.92, 0.87] | 55.80% | 1.003 |        913
-    #> ConditionB  |   0.02 | [-0.98, 0.97] | 51.30% | 1.002 |        949
-    #> ConditionC  |   0.24 | [-1.07, 1.73] | 62.85% | 1.004 |        896
-    #>
-    #> Uncertainty intervals (equal-tailed) computed using a MCMC distribution
-    #>   approximation.
+``` r
 
-This reproduces the classic conclusion: a clear effect of condition B
-(0.10 on the log scale, 95% CI \[0.09, 0.12\], *pd* = 100%), and nothing
-at all for condition C (-0.02, 95% CI \[-0.12, 0.08\], *pd* = 65%),
-whose credible interval is comfortably centered on zero.
+parameters(m, effects = "fixed")
+#> Loading required namespace: rstan
+#> # Fixed Effects
+#> 
+#> Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)
+#> -------------------------------------------------------------------
+#> (Intercept) |  -0.44 | [-0.56, -0.31] |   100% | 1.011 |        816
+#> ConditionB  |   0.10 | [ 0.00,  0.21] | 97.15% | 1.001 |       1070
+#> ConditionC  |  -0.04 | [-0.23,  0.14] | 64.85% | 1.005 |        941
+#> 
+#> # sigma Parameters
+#> 
+#> Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)
+#> -------------------------------------------------------------------
+#> (Intercept) |  -1.39 | [-1.51, -1.28] |   100% | 1.004 |        850
+#> ConditionB  |   0.04 | [-0.09,  0.16] | 74.90% | 1.004 |       1032
+#> ConditionC  |   0.04 | [-0.13,  0.23] | 68.45% | 1.003 |       1205
+#> 
+#> # tau Parameters
+#> 
+#> Parameter   | Median |        95% CI |     pd |  Rhat | ESS (tail)
+#> ------------------------------------------------------------------
+#> (Intercept) |   0.07 | [-0.92, 0.87] | 55.80% | 1.003 |        913
+#> ConditionB  |   0.02 | [-0.98, 0.97] | 51.30% | 1.002 |        949
+#> ConditionC  |   0.24 | [-1.07, 1.73] | 62.85% | 1.004 |        896
+#> 
+#> Uncertainty intervals (equal-tailed) computed using a MCMC distribution
+#>   approximation.
+```
+
+This reproduces the classic conclusion: an effect of condition B (0.10
+on the log scale, 95% CI \[0.00, 0.21\], *pd* = 97%), and nothing at all
+for condition C (-0.04, 95% CI \[-0.23, 0.14\], *pd* = 65%), whose
+credible interval is comfortably centered on zero. The `sigma` and `tau`
+blocks tell a similar story for the other two parameters: no condition
+effect on the dispersion or on the non-decision time comes close to
+being convincing (all *pd* \< 75%), which is as it should be, since we
+simulated both as constant.
 
 The crucial addition is the **random effects**, which quantify how much
 participants differ from each other on each of these parameters:
@@ -392,13 +401,23 @@ parameters(m, effects = "random_variance")
 Here the two effects finally become distinguishable. The SD of the
 `ConditionB` slope is 0.01, i.e., essentially nothing: participants
 barely differ in how much B affects them. The SD of the `ConditionC`
-slope, in contrast, is 0.26 - more than twenty times larger. This is the
+slope, in contrast, is 0.27 - more than twenty times larger. This is the
 model formally telling us that *there is a lot going on in condition C,
 it just does not go in the same direction for everybody*. Note also that
 the model recovers the true between-participant SD of the B effect
 (~0.01) rather than the inflated ~31 ms spread of the raw empirical
 differences: the measurement noise has been correctly assigned to the
 residual term instead of being mistaken for interindividual variability.
+
+The `sigma` and `tau` blocks also report non-zero SDs (around 0.03-0.04
+for `sigma`, and 0.10-0.34 for `tau`). Resist the temptation to read
+these as evidence of individual differences. A random-effect SD is a
+variance, not a ratio: it is expressed on the scale of its own
+parameter, it is bounded below by zero (so its posterior can never be
+centered on zero, and its *pd* is uninformative), and it says nothing
+about how precisely each participant’s value is known. Turning it into a
+verdict requires comparing it to that precision - which is exactly what
+the next section does.
 
 ## Group-Level Indices Extraction
 
@@ -452,13 +471,20 @@ as.data.frame(random) |>
 
 The contrast between the two effects is now expressed as model
 parameters rather than as raw averages. For `ConditionB`, all the
-individual deviations are packed within ±0.03 of zero and every single
+individual deviations are packed within ±0.01 of zero and every single
 credible interval includes zero: the model concludes that, once
 measurement noise is accounted for, participants essentially share the
-same effect. For `ConditionC`, the deviations span -0.45 to +0.56 and
-most of them clearly exclude zero - these are genuine, statistically
-supported individual differences. The `sigma` and `tau` components
-appear here as well, each with one deviation per participant.
+same effect. For `ConditionC`, the deviations span -0.40 to +0.57 and 18
+of the 30 clearly exclude zero - these are genuine, statistically
+supported individual differences. The same is true of the `Intercept`,
+which captures how fast each participant is overall.
+
+The `sigma` and `tau` panels look different again: their point estimates
+are all bunched up around zero while their intervals are wide. That
+combination - no spread, much uncertainty - is the visual signature of a
+parameter about which the data carry no individual-level information,
+and it is worth learning to recognize, because it is easy to mistake a
+wide-but-centered set of intervals for “an effect we failed to detect”.
 
 Because these estimates come from a model, they are also **shrunk**
 towards the population mean in proportion to how noisy each
@@ -530,28 +556,35 @@ performance_dvour(random)
 #> 9         tau Participant  Intercept 0.05515361
 ```
 
-The interpretation follows the same logic in both cases: the
-`ConditionC` effect is highly reliable - the between-participant
-differences overwhelm the uncertainty of each estimate - whereas
-`ConditionB`, despite being the statistically significant effect, does
-not carry usable interindividual information. The two versions need not
-agree exactly - D-vour is scale-free, but the empirical scores still
-contain the trial noise that the model has partialled out - yet they
-lead to the same decision.
+The ordering is the one we expected - `ConditionC` at 0.92 is highly
+reliable, `ConditionB` is not - but the model is far more severe than
+our by-hand version: B falls from 0.59 to **0.07**. The disagreement is
+instructive. The empirical scores still contain the trial noise that the
+model has reassigned to the residual term, and that noise inflates their
+apparent between-participant spread. Taken at face value, the empirical
+0.59 would have suggested that B was borderline usable; the model says
+it carries essentially no individual-level information at all.
 
-Because we gave `sigma` and `tau` their own random intercepts, the
-output also contains one row per distributional parameter, and each of
-them gets its own reliability verdict. This is worth doing
+Notice also the `Intercept`, at 0.94. The most reliable individual
+measure this task produces is simply **how fast each participant is
+overall** - the very quantity the experimental design treats as a
+nuisance to be subtracted away. This is the usual situation rather than
+an accident of our simulation, and it is worth keeping in mind before
+building a clinical index out of a difference score.
+
+Because we gave `sigma` and `tau` their own predictors and random
+effects, the output also contains one row per parameter *per component*,
+and each gets its own reliability verdict. This is worth doing
 systematically: nothing guarantees that the parameters carrying the
 individual differences are the ones we manipulated. Here, we know they
 are not, because we generated every participant’s decision times with
-the same `sdlog = 0.22` and the same non-decision time of 150 ms - so
-`sigma` and `tau` should come out with a low D-vour, the model correctly
-reporting that whatever spread we see in their group-level estimates is
-uncertainty rather than genuine differences. Treat this as a **negative
-control**: it is the behaviour we want the index to have, and it is the
-pattern to expect for a parameter that is truly homogeneous across
-people.
+the same `sdlog = 0.22` and the same non-decision time of 150 ms - and
+indeed all six `sigma` and `tau` rows land below 0.12, the index
+correctly reporting that whatever spread we saw in their group-level
+estimates is uncertainty rather than genuine differences. Treat this as
+a **negative control**: it is the behaviour we want the index to have,
+and it is the pattern to expect for a parameter that is truly
+homogeneous across people.
 
 Real data usually behave differently. Response-time variability in
 particular is often *more* discriminating between individuals than the
