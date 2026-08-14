@@ -52,6 +52,10 @@
     </filter>
   </defs>
 
+  <!-- everything is scaled by 0.9729 about the centre so the stroked border
+       lands inside the canvas instead of being clipped at the vertices -->
+  <g transform="translate(260.0,300.0) scale(0.9729) translate(-260.0,-300.0)">
+
   <!-- ============================== body ============================== -->
   <use xlink:href="#hex" fill="url(#bg)"/>
 
@@ -130,8 +134,9 @@
   </g>
 
   <!-- =============================== rim =============================== -->
-  <use xlink:href="#hex" fill="none" stroke="#080C16" stroke-width="16"/>
+  <use xlink:href="#hex" fill="none" stroke="#080C16" stroke-width="16.0"/>
   <use xlink:href="#hex" fill="none" stroke="url(#rim)" stroke-width="9"/>
   <use xlink:href="#hex" fill="none" stroke="#FFFFFF" stroke-width="1.6" opacity=".28"
        transform="translate(260,300) scale(0.955) translate(-260,-300)"/>
+  </g>
 </svg>

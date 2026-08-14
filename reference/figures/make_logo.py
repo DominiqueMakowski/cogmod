@@ -27,8 +27,16 @@ PINK, BLUE, AMBER = "#F0286B", "#31A8FF", "#FFB020"
 
 W, H = 520.0, 600.0
 CX, CY = 260.0, 300.0
-HW = 257.2          # half width (center -> side vertex)
-HH = 297.0          # half height (center -> top/bottom vertex)
+HW = 257.2                          # half width  (centre -> flat side)
+HH = HW * 2.0 / math.sqrt(3.0)      # half height (centre -> point): regular hexagon
+
+# The border is stroked ON the hexagon path, so it sticks out beyond it: half the
+# stroke sideways, and half x 2/sqrt(3) at the 120 degree points where the miter
+# runs on. Without allowing for that the vertices get sliced off by the canvas
+# edge, so shrink the whole drawing by FIT to bring the outer edge back inside.
+RIM_W, EDGE = 16.0, 2.0             # widest border stroke, and margin to spare
+FIT = min((W / 2 - EDGE) / (HW + RIM_W / 2),
+          (H / 2 - EDGE) / (HH + RIM_W / 2 * 2.0 / math.sqrt(3.0)))
 
 # ---------------------------------------------------------------- plot frame
 X0, X1 = 66.0, 454.0        # time axis span (x0 = non-decision time offset)
@@ -342,6 +350,10 @@ svg = f'''<?xml version="1.0" encoding="UTF-8"?>
     </filter>
   </defs>
 
+  <!-- everything is scaled by {FIT:.4f} about the centre so the stroked border
+       lands inside the canvas instead of being clipped at the vertices -->
+  <g transform="translate({CX},{CY}) scale({FIT:.4f}) translate(-{CX},-{CY})">
+
   <!-- ============================== body ============================== -->
   <use xlink:href="#hex" fill="url(#bg)"/>
 
@@ -393,10 +405,11 @@ svg = f'''<?xml version="1.0" encoding="UTF-8"?>
   </g>
 
   <!-- =============================== rim =============================== -->
-  <use xlink:href="#hex" fill="none" stroke="#080C16" stroke-width="16"/>
+  <use xlink:href="#hex" fill="none" stroke="#080C16" stroke-width="{RIM_W}"/>
   <use xlink:href="#hex" fill="none" stroke="url(#rim)" stroke-width="9"/>
   <use xlink:href="#hex" fill="none" stroke="#FFFFFF" stroke-width="1.6" opacity=".28"
-       transform="translate(260,300) scale(0.955) translate(-260,-300)"/>
+       transform="translate(260,300) scale({RING}) translate(-260,-300)"/>
+  </g>
 </svg>
 '''
 
