@@ -17,7 +17,7 @@ After months of effort designing the study, recruiting participants and
 collecting data, you finally get your hands on that dataset and decide
 to check whether your super duper Nobel-prize-worthy experimental
 condition has an effect on reaction times. You do what everybody does,
-and what has always been done: fit a linear model.
+and what has always been done: fit a (mixed) linear model.
 
 Code
 
@@ -25,31 +25,51 @@ Code
 
 set.seed(5)
 
-n <- 500
+n_participants <- 20
+n_trials <- 25  # Per condition
+
+# Participants differ in their overall speed
+participants <- data.frame(
+  Participant = sprintf("S%02d", 1:n_participants),
+  Offset = rnorm(n_participants, mean = 0, sd = 0.03)
+)
 
 sim <- data.frame(
-  Condition = rep(c("A", "B"), each = n),
-  RT = c(
-    # Wide distribution, very short time-to-first-response (tau = 0.05)
-    0.05 + rlnorm(n, meanlog = log(0.65) - 0.5^2 / 2, sdlog = 0.5),
-    # Narrow distribution, long non-decision time (tau = 0.45)
-    0.45 + rlnorm(n, meanlog = log(0.25) - 0.15^2 / 2, sdlog = 0.15)
-  )
+  Participant = rep(participants$Participant, each = 2 * n_trials),
+  Condition = rep(rep(c("A", "B"), each = n_trials), n_participants)
 )
+sim$Offset <- participants$Offset[match(sim$Participant, participants$Participant)]
+
+n <- sum(sim$Condition == "A")
+sim$RT <- NA
+# Wide distribution, very short time-to-first-response (tau = 0.05)
+sim$RT[sim$Condition == "A"] <- 0.05 + sim$Offset[sim$Condition == "A"] +
+  rlnorm(n, meanlog = log(0.65) - 0.5^2 / 2, sdlog = 0.5)
+# Narrow distribution, long non-decision time (tau = 0.45)
+sim$RT[sim$Condition == "B"] <- 0.45 + sim$Offset[sim$Condition == "B"] +
+  rlnorm(n, meanlog = log(0.25) - 0.15^2 / 2, sdlog = 0.15)
 ```
 
 ``` r
 
-model <- lm(RT ~ Condition, data = sim)
+library(lme4)
+
+model <- lmer(RT ~ Condition + (1 | Participant), data = sim)
 
 parameters(model)
-#> Parameter     | Coefficient |   SE |        95% CI | t(998) |      p
-#> --------------------------------------------------------------------
-#> (Intercept)   |        0.70 | 0.01 | [ 0.68, 0.72] |  65.85 | < .001
-#> Condition [B] |    4.25e-03 | 0.01 | [-0.03, 0.03] |   0.28 | 0.777
+#> # Fixed Effects
 #> 
-#> Uncertainty intervals (equal-tailed) and p-values (two-tailed) computed
-#>   using a Wald t-distribution approximation.
+#> Parameter     | Coefficient |   SE |        95% CI | t(996) |      p
+#> --------------------------------------------------------------------
+#> (Intercept)   |        0.69 | 0.01 | [ 0.67, 0.72] |  59.34 | < .001
+#> Condition [B] |   -1.20e-03 | 0.01 | [-0.03, 0.03] |  -0.08 | 0.936 
+#> 
+#> # Random Effects
+#> 
+#> Parameter                   | Coefficient
+#> -----------------------------------------
+#> SD (Intercept: Participant) |        0.02
+#> SD (Residual)               |        0.24
 ```
 
 ***Nothing.*** **NOTHING** 😭

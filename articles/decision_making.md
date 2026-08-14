@@ -215,9 +215,9 @@ saveRDS(m_lba, file = "models/m_lba2.rds")
 loo::loo_compare(m_ddm, m_lba, m_lnr) |>
   report::report()
 #> The difference in predictive accuracy, as indexed by Expected Log Predictive
-#> Density (ELPD-LOO), suggests that '1' is the best model (ELPD = 904.58),
-#> followed by '2' (diff-ELPD = -124.44 +- 14.86, p < .001) and '3' (diff-ELPD =
-#> -69998.35 +- 60.98, p < .001)
+#> Density (ELPD-LOO), suggests that '1' is the best model (ELPD = 961.23),
+#> followed by '2' (diff-ELPD = -56.65 +- 11.72, p < .001) and '3' (diff-ELPD =
+#> -181.08 +- 21.27, p < .001)
 ```
 
 ### Sampling Duration
