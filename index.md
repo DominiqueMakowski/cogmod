@@ -1,7 +1,5 @@
 # cogmod
 
-![cogmod logo](reference/figures/logo.png)
-
 [![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
 [![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
 
@@ -9,7 +7,7 @@
 R*
 
 This R package is dedicated to facilitate the application of
-computational cognitive models in R under a Bayesian framework. These
+computational models of cognition in R under a Bayesian framework. These
 are useful in the field of cognitive science and computational
 neuropsycholology.
 
@@ -160,7 +158,7 @@ set.seed(33)
 df <- data.frame()
 for (x in seq(0.1, 0.9, by = 0.1)) {
   score <- rchoco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3,
-                   confleft = 1 - x, pex = 0.03, bex = 0.6, pmid = 0)
+                  confleft = 1 - x, pex = 0.03, bex = 0.6, pmid = 0)
   df <- rbind(df, data.frame(x = x, score = score))
 }
 ```
