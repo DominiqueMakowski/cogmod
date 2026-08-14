@@ -186,6 +186,8 @@ differ: 25 ms of noise is almost as large as the 31 ms of observed
 spread in B - A, while it is a small fraction of the 171 ms observed in
 C - A.
 
+Code
+
 ``` r
 
 # Sort participants by the size of their C - A effect
@@ -282,8 +284,8 @@ they are reliable enough to be used as scores.
 
 f <- bf(
   RT ~ Condition + (Condition | Participant),
-  sigma ~ 1 + (1 | Participant),
-  tau ~ 1 + (1 | Participant),
+  sigma ~ Condition + (Condition | Participant),
+  tau ~ Condition + (Condition | Participant),
   minrt = min(sim$RT),
   family = rt_lognormal()
 )
@@ -551,7 +553,7 @@ which corresponds to a 2:1 ratio of between-group variance to
 uncertainty, and can be taken as the threshold for *moderately reliable*
 random effect estimates.
 
-> **Related indices and constructs**
+## Related indices and constructs
 
 D-vour is one member of a family of ideas that all revolve around
 separating **true score variance** from **error variance**:

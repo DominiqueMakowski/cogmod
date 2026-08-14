@@ -6,6 +6,11 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Assessing Reliability and Interindividual Variability • cogmod</title>
+<!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
+<link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+<link rel="icon" sizes="any" href="../favicon.ico">
+<link rel="manifest" href="../site.webmanifest">
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
@@ -13,6 +18,7 @@
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><script src="reliability_files/libs/quarto-html/popper.min.js"></script><script src="reliability_files/libs/quarto-html/tippy.umd.min.js"></script><link href="reliability_files/libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="reliability_files/libs/quarto-html/light-border.css" rel="stylesheet">
 <!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Assessing Reliability and Interindividual Variability">
+<meta property="og:image" content="https://github.com/DominiqueMakowski/cogmod/logo.svg">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -55,8 +61,7 @@
 </nav><div class="container template-quarto">
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-
-      <h1>Assessing Reliability and Interindividual Variability</h1>
+      <img src="../logo.svg" class="logo" alt=""><h1>Assessing Reliability and Interindividual Variability</h1>
 
 
 
@@ -208,7 +213,7 @@
 <p>The two effects could not be more different, and yet <strong>the number we usually report - the mean - is blind to it</strong>. The B - A effect is about +74 ms on average, with a between-participant SD of ~31 ms. The C - A effect has a mean of essentially zero (+0.4 ms) - but a between-participant SD of ~171 ms, and it ranges from -240 ms to +408 ms depending on which participant we look at.</p>
 <p>The last column is where things get interesting. The typical participant’s score carries an SE of about <strong>25 ms</strong> in both cases - the two effects are measured with the same precision. But that precision means very different things relative to how much participants actually differ: 25 ms of noise is almost as large as the 31 ms of observed spread in B - A, while it is a small fraction of the 171 ms observed in C - A.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Sort participants by the size of their C - A effect</span></span>
 <span><span class="va">order_C</span> <span class="op">&lt;-</span> <span class="va">empirical</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">Effect</span> <span class="op">==</span> <span class="st">"C - A"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
@@ -234,7 +239,7 @@
 <span>  <span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>legend.position <span class="op">=</span> <span class="st">"none"</span><span class="op">)</span></span></code></pre></div>
-<div class="cell-output-display">
+</details><div class="cell-output-display">
 <div>
 <figure><p><img src="reliability_files/figure-html/unnamed-chunk-4-1.png" width="672"></p>
 </figure>
@@ -256,8 +261,8 @@
 <div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span> <span class="op">+</span> <span class="op">(</span><span class="va">Condition</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
-<span>  <span class="va">sigma</span> <span class="op">~</span> <span class="fl">1</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
-<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
+<span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span> <span class="op">+</span> <span class="op">(</span><span class="va">Condition</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
+<span>  <span class="va">tau</span> <span class="op">~</span> <span class="va">Condition</span> <span class="op">+</span> <span class="op">(</span><span class="va">Condition</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
 <span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">RT</span><span class="op">)</span>,</span>
 <span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rt_lognormal.html">rt_lognormal</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
@@ -407,9 +412,8 @@ D_{\text{vour}} = \frac{\sigma_{\text{between}}^2}{\sigma_{\text{between}}^2 + \
 <p>Because we gave <code>sigma</code> and <code>tau</code> their own random intercepts, the output also contains one row per distributional parameter, and each of them gets its own reliability verdict. This is worth doing systematically: nothing guarantees that the parameters carrying the individual differences are the ones we manipulated. Here, we know they are not, because we generated every participant’s decision times with the same <code>sdlog = 0.22</code> and the same non-decision time of 150 ms - so <code>sigma</code> and <code>tau</code> should come out with a low D-vour, the model correctly reporting that whatever spread we see in their group-level estimates is uncertainty rather than genuine differences. Treat this as a <strong>negative control</strong>: it is the behaviour we want the index to have, and it is the pattern to expect for a parameter that is truly homogeneous across people.</p>
 <p>Real data usually behave differently. Response-time variability in particular is often <em>more</em> discriminating between individuals than the mean - it is one of the central points of <a href="https://pubmed.ncbi.nlm.nih.gov/32437184/" class="external-link">Williams et al. (2021)</a> - and non-decision time is a natural candidate for a stable, person-specific quantity. Had these been the reliable components in our data, the sensible clinical index would have been <code>sigma</code> or <code>tau</code>, not a condition contrast at all.</p>
 <p>As for any such index, the thresholds are conventions rather than laws. Values above <strong>0.75</strong> indicate strong group-level differences, values around <strong>0.5</strong> call for caution (within- and between-group variability are comparable), and values below <strong>0.5</strong> indicate that measurement noise dominates. A useful intermediate landmark is <strong>2/3</strong> (0.666), which corresponds to a 2:1 ratio of between-group variance to uncertainty, and can be taken as the threshold for <em>moderately reliable</em> random effect estimates.</p>
-<blockquote>
-<p><strong>Related indices and constructs</strong></p>
-</blockquote>
+</section><section class="level2"><h2 id="related-indices-and-constructs">Related indices and constructs<a class="anchor" aria-label="anchor" href="#related-indices-and-constructs"></a>
+</h2>
 <p>D-vour is one member of a family of ideas that all revolve around separating <strong>true score variance</strong> from <strong>error variance</strong>:</p>
 <ul>
 <li>It is formally close to an <strong>intraclass correlation coefficient (ICC)</strong>, with the important difference that the denominator uses the <em>uncertainty of the estimates</em> rather than the raw within-participant variance. Concretely, an ICC asks “how large are the differences between participants compared to the trial-to-trial noise?”, so it stays low whenever single trials are noisy - even if each participant’s score is, in the end, precisely estimated. D-vour asks the question that actually matters for an individual-level instrument: “how large are the differences between participants compared to how well we know where each of them stands?”. Collecting more trials per participant shrinks that uncertainty and increases D-vour, while leaving the raw within-participant variance - and hence the ICC - essentially untouched.</li>
