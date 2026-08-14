@@ -5,12 +5,18 @@ curves are Wiener first-passage-time densities (large-time expansion).
 
     python man/figures/make_logo.py man/figures/logo.svg
 
-logo.png (480 x 554, transparent outside the hex) is that SVG rasterised with
-headless Chrome/Edge -- 240 CSS px wide at 2x, the usethis::use_logo() size:
+logo.png (520 x 600, transparent outside the hex) is that SVG rasterised with
+headless Chrome/Edge:
 
-    msedge --headless=new --disable-gpu --default-background-color=00000000 \
-           --force-device-scale-factor=2 --window-size=240,277 \
+    msedge --headless=new --disable-gpu --hide-scrollbars \
+           --default-background-color=00000000 --window-size=520,600 \
            --screenshot=man/figures/logo.png man/figures/logo.svg
+
+--window-size MUST match the width/height on the <svg> element. A smaller
+window CROPS the image rather than scaling it, and the result still has
+plausible dimensions and transparent corners -- so look at the png, don't
+just check its size. To rasterise larger, add --force-device-scale-factor=N
+(integer) and keep the window at 520,600.
 """
 import math
 import os
