@@ -38,6 +38,7 @@ Suggests:
     modelbased,
     report,
     reformulas,
+    lme4,
     RWiener,
     rtdists
 Remotes:

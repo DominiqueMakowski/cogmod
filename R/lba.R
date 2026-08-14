@@ -159,44 +159,74 @@ dlba <- function(
   response,
   log = FALSE
 ) {
-  # Return -Inf (or a very small positive number) for RT below ndt.
-  below_ndt <- x < ndt
-  out <- if (log) rep(-Inf, length(x)) else rep(.Machine$double.eps, length(x))
+  # Recycle every argument to a common length. This is essential because `dlba()`
+  # is called under two different conventions: directly, with a vector of
+  # observations and scalar parameters; and from `log_lik_lba()`, with a *single*
+  # observation and one parameter value per posterior draw. Indexing `x` with a
+  # logical vector longer than itself (as an earlier version did) silently
+  # produces NAs, which then get floored to `.Machine$double.eps` - yielding a
+  # constant log-density of about -36 for every draw.
+  n_out <- max(
+    length(x),
+    length(response),
+    length(driftzero),
+    length(driftone),
+    length(sigmazero),
+    length(sigmaone),
+    length(sigmabias),
+    length(bs),
+    length(ndt)
+  )
+  x <- rep(x, length.out = n_out)
+  response <- rep(response, length.out = n_out)
+  driftzero <- rep(driftzero, length.out = n_out)
+  driftone <- rep(driftone, length.out = n_out)
+  sigmazero <- rep(sigmazero, length.out = n_out)
+  sigmaone <- rep(sigmaone, length.out = n_out)
+  sigmabias <- rep(sigmabias, length.out = n_out)
+  bs <- rep(bs, length.out = n_out)
+  ndt <- rep(ndt, length.out = n_out)
 
-  keep <- !below_ndt
-  if (any(keep)) {
-    A <- sigmabias
-    b <- sigmabias + bs
-    dt <- x[keep] - ndt
-    dens <- rep(.Machine$double.eps, length(dt))
+  A <- sigmabias
+  b <- sigmabias + bs
+  dt <- x - ndt
 
-    valid <- dt > 0 & !is.na(dt)
-    if (any(valid)) {
-      idx0 <- valid & (response[keep] == 0)
-      if (any(idx0)) {
-        f0 <- .lba_defectivedensity(dt[idx0], driftzero, sigmazero, A, b)
-        F1 <- .lba_cumulative(dt[idx0], driftone, sigmaone, A, b)
-        dens[idx0] <- f0 * (1 - F1)
-      }
-      idx1 <- valid & (response[keep] == 1)
-      if (any(idx1)) {
-        f1 <- .lba_defectivedensity(dt[idx1], driftone, sigmaone, A, b)
-        F0 <- .lba_cumulative(dt[idx1], driftzero, sigmazero, A, b)
-        dens[idx1] <- f1 * (1 - F0)
-      }
-    }
+  dens <- rep(.Machine$double.eps, n_out)
 
-    # Guard against NA/NaN/Inf arising from extreme parameter draws (e.g. during
-    # warmup or in poorly-mixing chains) so downstream code (e.g. loo) doesn't crash.
-    dens[!is.finite(dens)] <- .Machine$double.eps
-    dens[dens < .Machine$double.eps] <- .Machine$double.eps
-
-    if (log) {
-      out[keep] <- log(dens)
-    } else {
-      out[keep] <- dens
-    }
+  valid <- !is.na(dt) & dt > 0
+  idx0 <- which(valid & response == 0)
+  if (length(idx0) > 0) {
+    f0 <- .lba_defectivedensity(
+      dt[idx0], driftzero[idx0], sigmazero[idx0], A[idx0], b[idx0]
+    )
+    F1 <- .lba_cumulative(
+      dt[idx0], driftone[idx0], sigmaone[idx0], A[idx0], b[idx0]
+    )
+    dens[idx0] <- f0 * (1 - F1)
   }
+  idx1 <- which(valid & response == 1)
+  if (length(idx1) > 0) {
+    f1 <- .lba_defectivedensity(
+      dt[idx1], driftone[idx1], sigmaone[idx1], A[idx1], b[idx1]
+    )
+    F0 <- .lba_cumulative(
+      dt[idx1], driftzero[idx1], sigmazero[idx1], A[idx1], b[idx1]
+    )
+    dens[idx1] <- f1 * (1 - F0)
+  }
+
+  # Guard against NA/NaN/Inf arising from extreme parameter draws (e.g. during
+  # warmup or in poorly-mixing chains) so downstream code (e.g. loo) doesn't crash.
+  dens[!is.finite(dens)] <- .Machine$double.eps
+  dens[dens < .Machine$double.eps] <- .Machine$double.eps
+
+  out <- if (log) log(dens) else dens
+
+  # Return -Inf (or a very small positive number) for RT at or below ndt,
+  # matching the `if (Y <= ndt) return negative_infinity();` guard in the Stan
+  # implementation (see `.lba_lpdf()`).
+  below_ndt <- !is.na(x) & !is.na(ndt) & x <= ndt
+  out[below_ndt] <- if (log) -Inf else .Machine$double.eps
 
   out
 }

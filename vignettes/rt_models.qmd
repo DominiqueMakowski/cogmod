@@ -35,28 +35,44 @@ After months of effort designing the study, recruiting participants and
 collecting data, you finally get your hands on that dataset and decide to
 check whether your super duper Nobel-prize-worthy experimental condition has
 an effect on reaction times. You do what everybody does, and what has always
-been done: fit a linear model.
+been done: fit a (mixed) linear model.
 
 ```{r}
 #| code-fold: true
 
 set.seed(5)
 
-n <- 500
+n_participants <- 20
+n_trials <- 25  # Per condition
+
+# Participants differ in their overall speed
+participants <- data.frame(
+  Participant = sprintf("S%02d", 1:n_participants),
+  Offset = rnorm(n_participants, mean = 0, sd = 0.03)
+)
 
 sim <- data.frame(
-  Condition = rep(c("A", "B"), each = n),
-  RT = c(
-    # Wide distribution, very short time-to-first-response (tau = 0.05)
-    0.05 + rlnorm(n, meanlog = log(0.65) - 0.5^2 / 2, sdlog = 0.5),
-    # Narrow distribution, long non-decision time (tau = 0.45)
-    0.45 + rlnorm(n, meanlog = log(0.25) - 0.15^2 / 2, sdlog = 0.15)
-  )
+  Participant = rep(participants$Participant, each = 2 * n_trials),
+  Condition = rep(rep(c("A", "B"), each = n_trials), n_participants)
 )
+sim$Offset <- participants$Offset[match(sim$Participant, participants$Participant)]
+
+n <- sum(sim$Condition == "A")
+sim$RT <- NA
+# Wide distribution, very short time-to-first-response (tau = 0.05)
+sim$RT[sim$Condition == "A"] <- 0.05 + sim$Offset[sim$Condition == "A"] +
+  rlnorm(n, meanlog = log(0.65) - 0.5^2 / 2, sdlog = 0.5)
+# Narrow distribution, long non-decision time (tau = 0.45)
+sim$RT[sim$Condition == "B"] <- 0.45 + sim$Offset[sim$Condition == "B"] +
+  rlnorm(n, meanlog = log(0.25) - 0.15^2 / 2, sdlog = 0.15)
 ```
 
 ```{r}
-model <- lm(RT ~ Condition, data = sim)
+#| message: false
+
+library(lme4)
+
+model <- lmer(RT ~ Condition + (1 | Participant), data = sim)
 
 parameters(model)
 ```
