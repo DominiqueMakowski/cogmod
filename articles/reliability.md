@@ -318,21 +318,25 @@ answer to “is there an effect of condition?”.
     #>
     #> Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)
     #> -------------------------------------------------------------------
-    #> (Intercept) |  -0.45 | [-0.55, -0.36] |   100% | 1.010 |        671
-    #> ConditionB  |   0.10 | [ 0.09,  0.12] |   100% | 1.005 |       1562
-    #> ConditionC  |  -0.02 | [-0.13,  0.08] | 66.35% | 1.005 |        750
+    #> (Intercept) |  -0.44 | [-0.56, -0.31] |   100% | 1.011 |        816
+    #> ConditionB  |   0.10 | [ 0.00,  0.21] | 97.15% | 1.001 |       1070
+    #> ConditionC  |  -0.04 | [-0.23,  0.14] | 64.85% | 1.005 |        941
     #>
     #> # sigma Parameters
     #>
-    #> Parameter   | Median |         95% CI |   pd |  Rhat | ESS (tail)
-    #> -----------------------------------------------------------------
-    #> (Intercept) |  -1.36 | [-1.43, -1.29] | 100% | 1.000 |        954
+    #> Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)
+    #> -------------------------------------------------------------------
+    #> (Intercept) |  -1.39 | [-1.51, -1.28] |   100% | 1.004 |        850
+    #> ConditionB  |   0.04 | [-0.09,  0.16] | 74.90% | 1.004 |       1032
+    #> ConditionC  |   0.04 | [-0.13,  0.23] | 68.45% | 1.003 |       1205
     #>
     #> # tau Parameters
     #>
     #> Parameter   | Median |        95% CI |     pd |  Rhat | ESS (tail)
     #> ------------------------------------------------------------------
-    #> (Intercept) |   0.14 | [-0.35, 0.63] | 72.05% | 1.001 |        947
+    #> (Intercept) |   0.07 | [-0.92, 0.87] | 55.80% | 1.003 |        913
+    #> ConditionB  |   0.02 | [-0.98, 0.97] | 51.30% | 1.002 |        949
+    #> ConditionC  |   0.24 | [-1.07, 1.73] | 62.85% | 1.004 |        896
     #>
     #> Uncertainty intervals (equal-tailed) computed using a MCMC distribution
     #>   approximation.
@@ -352,24 +356,34 @@ parameters(m, effects = "random_variance")
 #> 
 #> Parameter               | Median |        95% CI |     pd |  Rhat | ESS (tail)
 #> ------------------------------------------------------------------------------
-#> (Intercept)             |   0.20 | [ 0.15, 0.27] |   100% | 1.009 |        693
-#> ConditionB              |   0.01 | [ 0.00, 0.03] |   100% | 1.003 |        781
-#> ConditionC              |   0.27 | [ 0.20, 0.36] |   100% | 1.004 |       1109
-#> Intercept ~ ConditionB  |  -0.07 | [-0.82, 0.79] | 56.15% | 1.001 |       1303
-#> Intercept ~ ConditionC  |  -0.18 | [-0.51, 0.18] | 83.30% | 1.003 |       1379
-#> ConditionB ~ ConditionC |   0.42 | [-0.52, 0.93] | 79.55% | 1.049 |        247
+#> (Intercept)             |   0.20 | [ 0.16, 0.28] |   100% | 1.015 |        793
+#> ConditionB              |   0.01 | [ 0.00, 0.04] |   100% | 1.006 |        739
+#> ConditionC              |   0.27 | [ 0.20, 0.37] |   100% | 1.002 |       1267
+#> Intercept ~ ConditionB  |  -0.08 | [-0.90, 0.83] | 54.45% | 1.001 |       1137
+#> Intercept ~ ConditionC  |  -0.22 | [-0.55, 0.16] | 87.80% | 1.000 |       1447
+#> ConditionB ~ ConditionC |   0.32 | [-0.69, 0.90] | 75.90% | 1.016 |        324
 #> 
 #> # sigma Parameters (Participant)
 #> 
-#> Parameter   | Median |       95% CI |   pd |  Rhat | ESS (tail)
-#> ---------------------------------------------------------------
-#> (Intercept) |   0.03 | [0.00, 0.06] | 100% | 1.006 |       1042
+#> Parameter               |    Median |        95% CI |     pd |  Rhat | ESS (tail)
+#> ---------------------------------------------------------------------------------
+#> (Intercept)             |      0.03 | [ 0.00, 0.07] |   100% | 1.002 |       1061
+#> ConditionB              |      0.03 | [ 0.00, 0.09] |   100% | 1.002 |        980
+#> ConditionC              |      0.04 | [ 0.00, 0.11] |   100% | 1.005 |       1323
+#> Intercept ~ ConditionB  |     -0.04 | [-0.87, 0.88] | 53.35% | 1.001 |       1679
+#> Intercept ~ ConditionC  |     -0.06 | [-0.87, 0.82] | 54.65% | 1.003 |       1497
+#> ConditionB ~ ConditionC | -2.50e-03 | [-0.88, 0.87] | 50.30% | 1.001 |       1614
 #> 
 #> # tau Parameters (Participant)
 #> 
-#> Parameter   | Median |       95% CI |   pd |  Rhat | ESS (tail)
-#> ---------------------------------------------------------------
-#> (Intercept) |   0.18 | [0.01, 0.44] | 100% | 1.004 |        781
+#> Parameter                       | Median |        95% CI |     pd |  Rhat | ESS (tail)
+#> --------------------------------------------------------------------------------------
+#> (Intercept)                     |   0.15 | [ 0.01, 0.45] |   100% | 1.001 |        814
+#> tau_ConditionB                  |   0.10 | [ 0.00, 0.30] |   100% | 1.000 |        839
+#> tau_ConditionC                  |   0.34 | [ 0.01, 0.96] |   100% | 0.999 |       1160
+#> tau_Intercept ~ tau_ConditionB  |  -0.06 | [-0.88, 0.88] | 53.15% | 1.004 |       1064
+#> tau_Intercept ~ tau_ConditionC  |  -0.03 | [-0.85, 0.84] | 52.30% | 1.001 |       1660
+#> tau_ConditionB ~ tau_ConditionC |   0.14 | [-0.84, 0.90] | 58.95% | 1.000 |       1575
 #> 
 #> Uncertainty intervals (equal-tailed) computed using a MCMC distribution
 #>   approximation.
@@ -399,14 +413,14 @@ another task). These participant-level deviations can be extracted with
 random <- estimate_grouplevel(m)
 
 head(random)
-#> Component   | Group       | Level | Parameter  |    Median |      MAD |         95% CI
-#> --------------------------------------------------------------------------------------
-#> conditional | Participant | S01   | ConditionB | -9.18e-04 | 7.99e-03 | [-0.03,  0.02]
-#> conditional | Participant | S01   | ConditionC |     -0.08 |     0.06 | [-0.19,  0.05]
-#> conditional | Participant | S01   | Intercept  |     -0.23 |     0.05 | [-0.34, -0.13]
-#> conditional | Participant | S02   | ConditionB | -3.51e-03 | 9.38e-03 | [-0.04,  0.02]
-#> conditional | Participant | S02   | ConditionC |     -0.24 |     0.06 | [-0.35, -0.12]
-#> conditional | Participant | S02   | Intercept  |      0.27 |     0.05 | [ 0.18,  0.36]
+#> Component   | Group       | Level | Parameter  |    Median |  MAD |         95% CI
+#> ----------------------------------------------------------------------------------
+#> conditional | Participant | S01   | ConditionB | -6.44e-04 | 0.01 | [-0.04,  0.03]
+#> conditional | Participant | S01   | ConditionC |     -0.08 | 0.07 | [-0.25,  0.07]
+#> conditional | Participant | S01   | Intercept  |     -0.23 | 0.05 | [-0.33, -0.13]
+#> conditional | Participant | S02   | ConditionB | -2.68e-03 | 0.01 | [-0.05,  0.02]
+#> conditional | Participant | S02   | ConditionC |     -0.25 | 0.07 | [-0.39, -0.11]
+#> conditional | Participant | S02   | Intercept  |      0.27 | 0.05 | [ 0.18,  0.36]
 ```
 
 Each row is one participant’s deviation from the population-level
@@ -504,12 +518,16 @@ output of `estimate_grouplevel()` (or the model itself) to
 ``` r
 
 performance_dvour(random)
-#>     Component       Group  Parameter    D_vour
-#> 1 conditional Participant ConditionB 0.1530186
-#> 2 conditional Participant ConditionC 0.9471905
-#> 3 conditional Participant  Intercept 0.9436673
-#> 4       sigma Participant  Intercept 0.1220825
-#> 5         tau Participant  Intercept 0.1276238
+#>     Component       Group  Parameter     D_vour
+#> 1 conditional Participant ConditionB 0.07432459
+#> 2 conditional Participant ConditionC 0.92436057
+#> 3 conditional Participant  Intercept 0.94331901
+#> 4       sigma Participant ConditionB 0.03787823
+#> 5       sigma Participant ConditionC 0.05744583
+#> 6       sigma Participant  Intercept 0.08422147
+#> 7         tau Participant ConditionB 0.04194411
+#> 8         tau Participant ConditionC 0.11866675
+#> 9         tau Participant  Intercept 0.05515361
 ```
 
 The interpretation follows the same logic in both cases: the
