@@ -46,3 +46,4 @@ reference:
       contents:
           - conf_sdt
           - wagenmakers2008
+          - badlm
