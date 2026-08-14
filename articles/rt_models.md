@@ -243,8 +243,6 @@ m_normal <- brm(f,
 )
 
 m_normal <- brms::add_criterion(m_normal, "loo")
-
-saveRDS(m_normal, file = "models/m_normal.rds")
 ```
 
 The animation below unpacks what such a model actually contains: the two
@@ -335,8 +333,6 @@ distribution), in which `mu` and `sigma` are the mean and SD of the
 Gaussian component and `tau` is the mean of the exponential tail -
 directly matching the classical parameterization.
 
-Code
-
 ``` r
 
 f <- bf(
@@ -354,8 +350,6 @@ m_exgauss <- brm(f,
 )
 
 m_exgauss <- brms::add_criterion(m_exgauss, "loo")
-
-saveRDS(m_exgauss, file = "models/m_exgauss.rds")
 ```
 
 ### Shifted LogNormal
@@ -432,8 +426,6 @@ own parameters, and can be given their own predictors - something a
 transformation can never give you, since it still funnels every effect
 through a single location parameter.
 
-Code
-
 ``` r
 
 f <- bf(
@@ -457,8 +449,6 @@ m_lognormal <- brm(
 )
 
 m_lognormal <- brms::add_criterion(m_lognormal, "loo")
-
-saveRDS(m_lognormal, file = "models/m_lognormal.rds")
 ```
 
 ### Inverse Gaussian (Shifted Wald)
@@ -498,8 +488,6 @@ trade off against each other to a considerable degree, so their separate
 estimates should be treated with more caution than their cognitive
 labels suggest.
 
-Code
-
 ``` r
 
 f <- bf(
@@ -523,8 +511,6 @@ m_wald <- brm(
 )
 
 m_wald <- brms::add_criterion(m_wald, "loo")
-
-saveRDS(m_wald, file = "models/m_wald.rds")
 ```
 
 ### Weibull
@@ -536,8 +522,6 @@ nonetheless capable of generating close fits to RT data, and more
 research is needed to establish whether they offer any real advantage -
 in terms of fit, of interpretability, or of computational behaviour -
 over the more established options.
-
-Code
 
 ``` r
 
@@ -562,13 +546,9 @@ m_weibull <- brm(
 )
 
 m_weibull <- brms::add_criterion(m_weibull, "loo")
-
-saveRDS(m_weibull, file = "models/m_weibull.rds")
 ```
 
 ### LogWeibull (Shifted Gumbel)
-
-Code
 
 ``` r
 
@@ -593,13 +573,9 @@ m_logweibull <- brm(
 )
 
 m_logweibull <- brms::add_criterion(m_logweibull, "loo")
-
-saveRDS(m_logweibull, file = "models/m_logweibull.rds")
 ```
 
 ### Inverse Weibull (Shifted Fréchet)
-
-Code
 
 ``` r
 
@@ -624,13 +600,9 @@ m_invweibull <- brm(
 )
 
 m_invweibull <- brms::add_criterion(m_invweibull, "loo")
-
-saveRDS(m_invweibull, file = "models/m_invweibull.rds")
 ```
 
 ### Gamma
-
-Code
 
 ``` r
 
@@ -655,13 +627,9 @@ m_gamma <- brm(
 )
 
 m_gamma <- brms::add_criterion(m_gamma, "loo")
-
-saveRDS(m_gamma, file = "models/m_gamma.rds")
 ```
 
 ### Inverse Gamma
-
-Code
 
 ``` r
 
@@ -686,13 +654,9 @@ m_invgamma <- brm(
 )
 
 m_invgamma <- brms::add_criterion(m_invgamma, "loo")
-
-saveRDS(m_invgamma, file = "models/m_invgamma.rds")
 ```
 
 ### Linear Ballistic Accumulator
-
-Code
 
 ``` r
 
@@ -724,8 +688,6 @@ m_lba <- brm(
 )
 
 m_lba <- brms::add_criterion(m_lba, "loo")
-
-saveRDS(m_lba, file = "models/m_lba.rds")
 ```
 
 ## Model Comparison
@@ -804,7 +766,7 @@ duration_median |>
   theme_minimal()
 ```
 
-![](rt_models_files/figure-html/unnamed-chunk-19-1.png)
+![](rt_models_files/figure-html/unnamed-chunk-29-1.png)
 
 ### Posterior Predictive Check
 
@@ -865,4 +827,4 @@ p <- pred |>
 p
 ```
 
-![](rt_models_files/figure-html/unnamed-chunk-20-1.png)
+![](rt_models_files/figure-html/unnamed-chunk-30-1.png)
