@@ -13,6 +13,8 @@
 
 <!-- ComputationalCognition -->
 
+<img src="man/figures/logo.png" align="right" height="139" alt="cogmod logo" />
+
 [![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
 [![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
 
