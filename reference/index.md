@@ -68,6 +68,13 @@
   : Drift Diffusion Model (DDM)
 - [`rrdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
   [`drdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`prdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`rdm_lpdf_expose()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`rdm_stanvars()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`rdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`log_lik_rdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`posterior_predict_rdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`posterior_epred_rdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
   : Simulate from the Two-Accumulator Racing Diffusion Model (RDM)
 
 ## RT-only Models

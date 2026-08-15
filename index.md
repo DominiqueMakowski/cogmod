@@ -75,6 +75,9 @@ Linear Ballistic Accumulator (LBA)
 
 LogNormal Race (LNR)
 
+Racing Diffusion Model (RDM, [Tillman et al.,
+2020](https://doi.org/10.3758/s13423-020-01738-8))
+
 ![](reference/figures/rt_models1.png)
 
 ## What are Computational Cognitive Models?

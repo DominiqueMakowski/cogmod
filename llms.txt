@@ -75,6 +75,9 @@ Linear Ballistic Accumulator (LBA)
 
 LogNormal Race (LNR)
 
+Racing Diffusion Model (RDM, [Tillman et al.,
+2020](https://doi.org/10.3758/s13423-020-01738-8))
+
 ![](reference/figures/rt_models1.png)
 
 ## What are Computational Cognitive Models?
@@ -302,6 +305,13 @@ vignettes for more detailed examples.
   : Drift Diffusion Model (DDM)
 - [`rrdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
   [`drdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`prdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`rdm_lpdf_expose()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`rdm_stanvars()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`rdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`log_lik_rdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`posterior_predict_rdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
+  [`posterior_epred_rdm()`](https://github.com/DominiqueMakowski/cogmod/reference/rrdm.md)
   : Simulate from the Two-Accumulator Racing Diffusion Model (RDM)
 
 ## RT-only Models

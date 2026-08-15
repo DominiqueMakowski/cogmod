@@ -72,7 +72,7 @@ estimations.
 
 ## Models
 
-All three models below use `dec(Error)` to indicate the two-choice
+All four models below use `dec(Error)` to indicate the two-choice
 outcome (`0` = Correct, `1` = Error), and a fixed `minrt` (the minimum
 observed RT) to scale the non-decision time parameter `tau`.
 
@@ -206,19 +206,133 @@ m_lba <- brms::add_criterion(m_lba, "loo")  # Add model performance criterion
 saveRDS(m_lba, file = "models/m_lba2.rds")
 ```
 
+### Racing Diffusion Model (RDM)
+
+The RDM is the LBA’s stochastic counterpart - each accumulator
+integrates evidence through the DDM’s random walk process instead of
+accumulating linearly. It otherwise keeps the racing architecture: two
+independent accumulators, a common threshold `b`, and a start point
+drawn from `Uniform(0, sigmabias)`. The consequence of swapping the
+ballistic path for a diffusing one is that the noise now lives *within*
+a trial rather than between trials. That is the point of the model:
+Tillman et al. ([2020](https://doi.org/10.3758/s13423-020-01738-8)) show
+that within-trial variability alone accounts for the benchmark choice-RT
+phenomena, without the between-trial drift variability that the LBA
+(`sigmazero`/`sigmaone`) and the full DDM (`sigmadrift`) need. It is
+therefore the more parsimonious race: `mu` and `driftone` are the drift
+rates for the “Correct” and “Error” accumulators, and there is no drift
+variability parameter to estimate.
+
+Because each accumulator is a Wald (shifted inverse Gaussian) process,
+the drift rates use a softplus link and are constrained to be
+non-negative.
+
+Code
+
+``` r
+
+f <- bf(
+  RT | dec(Error) ~ Condition,
+  driftone ~ Condition,
+  sigmabias ~ 1,
+  bs ~ 1,
+  tau ~ 1,
+  minrt = min(df$RT),
+  family = rdm()
+)
+
+priors <- c(
+  brms::set_prior("normal(0, 2)", class = "Intercept"),
+  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "driftone"),
+  # See the note below: sigmabias needs a prior to stay identified.
+  brms::set_prior("normal(-1, 1)", class = "Intercept", dpar = "sigmabias"),
+  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "bs"),
+  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau")
+) |>
+  brms::validate_prior(f, data = df)
+
+m_rdm <- brm(f,
+  data = df,
+  prior = priors,
+  init = 0.5,
+  stanvars = rdm_stanvars(),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_rdm <- brms::add_criterion(m_rdm, "loo")  # Add model performance criterion
+
+saveRDS(m_rdm, file = "models/m_rdm.rds")
+```
+
+### Identifiability of `sigmabias` and `bs`
+
+This concerns the LBA as much as the RDM, since both are parameterized
+the same way. The two parameters enter the model only through the
+threshold `b = bs + sigmabias`, so they trade off almost freely: on
+simulated data with 4,000 trials, the profile log-likelihood moves by
+about 3 units as `sigmabias` sweeps from 0 to half the threshold, while
+`bs` slides to compensate. Under flat priors the sampler drifts down the
+`sigmabias -> 0` ridge (which is just a race of two plain Wald
+accumulators) and produces divergent transitions - several hundred of
+them, in a 4,000-trial simulation.
+
+A weakly informative prior on `sigmabias` is enough to prevent that:
+under the softplus link, `normal(-1, 1)` is centred near `0.31`, and it
+removes the divergences entirely. It does not make `sigmabias` itself
+trustworthy, though. In a recovery check where the true value was `0.3`
+and the prior was centred at `0.31`, the posterior still came back at
+`0.21` - the likelihood pulls it down the ridge and the prior only
+partly resists. The *sum* recovered accurately over the same fit (1.08
+against a true 1.10).
+
+So prefer `bs + sigmabias` whenever you interpret a threshold or compare
+one across conditions, and treat the split between the two as
+weakly-determined.
+
 ## Model Comparison
 
 ### Model Fit
 
 ``` r
 
-loo::loo_compare(m_ddm, m_lba, m_lnr) |>
+loo::loo_compare(m_ddm, m_lba, m_lnr, m_rdm) |>
   report::report()
 #> The difference in predictive accuracy, as indexed by Expected Log Predictive
 #> Density (ELPD-LOO), suggests that '1' is the best model (ELPD = 961.23),
-#> followed by '2' (diff-ELPD = -56.65 +- 11.72, p < .001) and '3' (diff-ELPD =
-#> -181.08 +- 21.27, p < .001)
+#> followed by '2' (diff-ELPD = -56.65 +- 11.72, p < .001), '3' (diff-ELPD =
+#> -99.46 +- 20.50, p < .001) and '4' (diff-ELPD = -181.08 +- 21.27, p < .001)
 ```
+
+Two features of that ranking are worth dwelling on, because neither is
+what one might expect.
+
+The first is that the RDM finishes behind the LBA, despite being the
+more parsimonious race - it buys its economy by dropping the
+between-trial drift variability that the LBA carries in
+`sigmazero`/`sigmaone`. On this participant, that variability earns its
+keep. This is exactly the kind of question a common interface is for:
+the claim that within-trial noise alone suffices is an empirical one,
+and here it is tested rather than assumed.
+
+The second is that the DDM comes last, even though it is the only model
+here allowed to move its threshold across conditions (`bs ~ Condition`),
+which is the mechanism the speed instructions are believed to act on.
+The explanation is that its deficit lies on a different axis entirely.
+We fitted the *simple* 4-parameter DDM, with `sigmadrift`, `sigmabias`
+and `sigmatau` all fixed to `0`, and a DDM stripped of between-trial
+variability can only produce errors that are *faster* than correct
+responses. In this dataset they are slightly slower (median 0.533 s
+against 0.519 s). Sampling from each fitted model makes the mismatch
+plain: the DDM predicts errors 0.11 s faster than correct responses (95%
+CI `[-0.13, -0.08]`), while the observed difference is `+0.014` s - far
+outside that interval. The races each carry a separate drift for the
+error accumulator and so are not forced into that prediction: the RDM
+puts the gap at `+0.006` `[-0.015, +0.031]`, the LBA at `+0.004`
+`[-0.021, +0.036]` and the LNR at `-0.008` `[-0.036, +0.021]`, all three
+comfortably covering the observed value. Getting the condition mechanism
+right does not compensate for being unable to represent the error
+distribution at all, and the remedy is to free the variability
+parameters rather than to abandon the DDM.
 
 ### Sampling Duration
 
@@ -227,18 +341,22 @@ by the median time per chain. Choice+RT models are considerably more
 expensive to sample than RT-only models (see the [RT-only
 Models](https://github.com/DominiqueMakowski/cogmod/articles/rt_models.md)
 vignette): the DDM relies on Stan’s `wiener_lpdf`, which is
-comparatively slow, while the LBA and LNR likelihoods involve evaluating
-both a “winner” density and a “loser” survival function for every
-observation.
+comparatively slow, while the LBA, LNR and RDM likelihoods involve
+evaluating both a “winner” density and a “loser” survival function for
+every observation. Among the three races, the LNR is by far the
+cheapest, since its density and survival are just LogNormal ones, while
+the RDM and the LBA each need several normal CDF evaluations per
+observation and land in the same, much slower, range.
 
 ``` r
 
 duration <- rbind(
   data_modify(attributes(m_ddm$fit)$metadata$time$chain, Model = "DDM"),
   data_modify(attributes(m_lba$fit)$metadata$time$chain, Model = "LBA"),
-  data_modify(attributes(m_lnr$fit)$metadata$time$chain, Model = "LNR")
+  data_modify(attributes(m_lnr$fit)$metadata$time$chain, Model = "LNR"),
+  data_modify(attributes(m_rdm$fit)$metadata$time$chain, Model = "RDM")
 ) |>
-  data_modify(Model = factor(Model, levels = c("LNR", "DDM", "LBA")))
+  data_modify(Model = factor(Model, levels = c("LNR", "DDM", "RDM", "LBA")))
 
 duration_median <- aggregate(total ~ Model, data = duration, FUN = median)
 
@@ -251,7 +369,7 @@ duration_median |>
   theme_minimal()
 ```
 
-![](decision_making_files/figure-html/unnamed-chunk-8-1.png)
+![](decision_making_files/figure-html/unnamed-chunk-9-1.png)
 
 ### Posterior Predictive Check
 
