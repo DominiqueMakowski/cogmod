@@ -169,16 +169,16 @@ df <- df[df$RT > 0.2 & df$Participant %in% c(1, 2, 3), ]
 # Show 10 first rows
 head(df, 10)
 #>    Participant Condition    RT Error Frequency
-#> 1            1     Speed 0.700 FALSE       Low
-#> 2            1     Speed 0.392  TRUE  Very Low
-#> 3            1     Speed 0.460 FALSE  Very Low
-#> 4            1     Speed 0.455 FALSE  Very Low
-#> 5            1     Speed 0.505  TRUE       Low
-#> 6            1     Speed 0.773 FALSE      High
-#> 7            1     Speed 0.390 FALSE      High
-#> 8            1     Speed 0.587  TRUE       Low
-#> 9            1     Speed 0.603 FALSE       Low
-#> 10           1     Speed 0.435 FALSE      High
+#> 1            1     Speed 0.700     0       Low
+#> 2            1     Speed 0.392     1  Very Low
+#> 3            1     Speed 0.460     0  Very Low
+#> 4            1     Speed 0.455     0  Very Low
+#> 5            1     Speed 0.505     1       Low
+#> 6            1     Speed 0.773     0      High
+#> 7            1     Speed 0.390     0      High
+#> 8            1     Speed 0.587     1       Low
+#> 9            1     Speed 0.603     0       Low
+#> 10           1     Speed 0.435     0      High
 ```
 
 We are going to first take interest in the response times (RT) of

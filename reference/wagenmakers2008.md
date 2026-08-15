@@ -31,7 +31,7 @@ A data frame with 10,369 rows and 5 variables:
 
 - Error:
 
-  Logical, whether the response was an error.
+  Integer, `1` if the response was an error, `0` otherwise.
 
 - Frequency:
 
@@ -47,10 +47,10 @@ A data frame with 10,369 rows and 5 variables:
 data(wagenmakers2008)
 head(wagenmakers2008)
 #>   Participant Condition    RT Error Frequency
-#> 1           1     Speed 0.700 FALSE       Low
-#> 2           1     Speed 0.392  TRUE  Very Low
-#> 3           1     Speed 0.460 FALSE  Very Low
-#> 4           1     Speed 0.455 FALSE  Very Low
-#> 5           1     Speed 0.505  TRUE       Low
-#> 6           1     Speed 0.773 FALSE      High
+#> 1           1     Speed 0.700     0       Low
+#> 2           1     Speed 0.392     1  Very Low
+#> 3           1     Speed 0.460     0  Very Low
+#> 4           1     Speed 0.455     0  Very Low
+#> 5           1     Speed 0.505     1       Low
+#> 6           1     Speed 0.773     0      High
 ```

@@ -96,22 +96,19 @@
 <span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu">cogmod</span><span class="fu">::</span><span class="va"><a href="../reference/wagenmakers2008.html">wagenmakers2008</a></span></span>
 <span><span class="va">df</span> <span class="op">&lt;-</span> <span class="va">df</span><span class="op">[</span><span class="va">df</span><span class="op">$</span><span class="va">Participant</span> <span class="op">==</span> <span class="fl">1</span>, <span class="op">]</span></span>
 <span></span>
-<span><span class="co"># Rename/recode columns to match the models' expected format</span></span>
-<span><span class="co"># df$response &lt;- as.integer(!df$Error)  # 1 = Correct, 0 = Error</span></span>
-<span></span>
 <span><span class="co"># Show 10 first rows</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">df</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Participant"</span>, <span class="st">"Condition"</span>, <span class="st">"RT"</span>, <span class="st">"Error"</span><span class="op">)</span><span class="op">]</span>, <span class="fl">10</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    Participant Condition    RT Error</span></span>
-<span><span class="co">#&gt; 1            1     Speed 0.700 FALSE</span></span>
-<span><span class="co">#&gt; 2            1     Speed 0.392  TRUE</span></span>
-<span><span class="co">#&gt; 3            1     Speed 0.460 FALSE</span></span>
-<span><span class="co">#&gt; 4            1     Speed 0.455 FALSE</span></span>
-<span><span class="co">#&gt; 5            1     Speed 0.505  TRUE</span></span>
-<span><span class="co">#&gt; 6            1     Speed 0.773 FALSE</span></span>
-<span><span class="co">#&gt; 7            1     Speed 0.390 FALSE</span></span>
-<span><span class="co">#&gt; 8            1     Speed 0.587  TRUE</span></span>
-<span><span class="co">#&gt; 9            1     Speed 0.603 FALSE</span></span>
-<span><span class="co">#&gt; 10           1     Speed 0.435 FALSE</span></span></code></pre></div>
+<span><span class="co">#&gt; 1            1     Speed 0.700     0</span></span>
+<span><span class="co">#&gt; 2            1     Speed 0.392     1</span></span>
+<span><span class="co">#&gt; 3            1     Speed 0.460     0</span></span>
+<span><span class="co">#&gt; 4            1     Speed 0.455     0</span></span>
+<span><span class="co">#&gt; 5            1     Speed 0.505     1</span></span>
+<span><span class="co">#&gt; 6            1     Speed 0.773     0</span></span>
+<span><span class="co">#&gt; 7            1     Speed 0.390     0</span></span>
+<span><span class="co">#&gt; 8            1     Speed 0.587     1</span></span>
+<span><span class="co">#&gt; 9            1     Speed 0.603     0</span></span>
+<span><span class="co">#&gt; 10           1     Speed 0.435     0</span></span></code></pre></div>
 </div>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb3"><pre class="downlit sourceCode r">
@@ -137,7 +134,7 @@
 <p>The DDM assumes that evidence accumulates towards one of two boundaries at a rate <code>mu</code> (drift rate). <code>bs</code> is the boundary separation (higher = more cautious), <code>bias</code> is the starting point between the two boundaries (<code>0.5</code> = unbiased), and <code>tau</code> is the non-decision time (as a proportion of <code>minrt</code>).</p>
 <p>Note that we use the “simple” 4-parameter DDM here, which does not include between-trial variability in drift rate, starting point, or non-decision time, hence the <code>sigmadrift</code>, <code>sigmabias</code>, and <code>sigmatau</code> parameters are fixed to <code>0</code>. Estimating these parameters is possible, but considerably more expensive and often unnecessary for many applications.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">|</span> <span class="fu">dec</span><span class="op">(</span><span class="va">Error</span><span class="op">)</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">bs</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -157,16 +154,13 @@
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_ddm</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_ddm</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># Add model performance criterion</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_ddm</span>, file <span class="op">=</span> <span class="st">"models/m_ddm.rds"</span><span class="op">)</span></span></code></pre></div>
-</details>
+<span><span class="va">m_ddm</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_ddm</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># Add model performance criterion</span></span></code></pre></div>
 </div>
 </section><section class="level3"><h3 id="lognormal-race-lnr">LogNormal Race (LNR)<a class="anchor" aria-label="anchor" href="#lognormal-race-lnr"></a>
 </h3>
 <p>The LNR is a somewhat simpler model. It is similar to the LBA, but each accumulator’s finishing time is drawn directly from a LogNormal distribution instead of a ballistic accumulation process. <code>mu</code> (<code>nuzero</code>) and <code>nuone</code> are the (inverse log-space mean) processing speeds for the “Error” and “Correct” accumulators, and <code>sigmazero</code>/<code>sigmaone</code> their log-space SDs.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">|</span> <span class="fu">dec</span><span class="op">(</span><span class="va">Error</span><span class="op">)</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">nuone</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -188,16 +182,13 @@
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_lnr</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lnr</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># Add model performance criterion</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_lnr</span>, file <span class="op">=</span> <span class="st">"models/m_lnr.rds"</span><span class="op">)</span></span></code></pre></div>
-</details>
+<span><span class="va">m_lnr</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lnr</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># Add model performance criterion</span></span></code></pre></div>
 </div>
 </section><section class="level3"><h3 id="linear-ballistic-accumulator-lba">Linear Ballistic Accumulator (LBA)<a class="anchor" aria-label="anchor" href="#linear-ballistic-accumulator-lba"></a>
 </h3>
 <p>The LBA assumes two independent accumulators (one per choice) that race towards a common threshold <code>b</code> (<code>sigmabias</code> = start-point range <code>A</code>, <code>bs</code> = extra distance so that <code>b = A + bs</code>). <code>mu</code> and <code>driftone</code> are the mean drift rates for the “Correct” and “Error” accumulators, and <code>sigmazero</code>/ <code>sigmaone</code> their between-trial drift variability.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">|</span> <span class="fu">dec</span><span class="op">(</span><span class="va">Error</span><span class="op">)</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">driftone</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -229,17 +220,14 @@
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_lba</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lba</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># Add model performance criterion</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_lba</span>, file <span class="op">=</span> <span class="st">"models/m_lba2.rds"</span><span class="op">)</span></span></code></pre></div>
-</details>
+<span><span class="va">m_lba</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lba</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># Add model performance criterion</span></span></code></pre></div>
 </div>
 </section><section class="level3"><h3 id="racing-diffusion-model-rdm">Racing Diffusion Model (RDM)<a class="anchor" aria-label="anchor" href="#racing-diffusion-model-rdm"></a>
 </h3>
 <p>The RDM is the LBA’s stochastic counterpart - each accumulator integrates evidence through the DDM’s random walk process instead of accumulating linearly. It otherwise keeps the racing architecture: two independent accumulators, a common threshold <code>b</code>, and a start point drawn from <code>Uniform(0, sigmabias)</code>. The consequence of swapping the ballistic path for a diffusing one is that the noise now lives <em>within</em> a trial rather than between trials. That is the point of the model: Tillman et al. (<a href="https://doi.org/10.3758/s13423-020-01738-8" class="external-link">2020</a>) show that within-trial variability alone accounts for the benchmark choice-RT phenomena, without the between-trial drift variability that the LBA (<code>sigmazero</code>/<code>sigmaone</code>) and the full DDM (<code>sigmadrift</code>) need. It is therefore the more parsimonious race: <code>mu</code> and <code>driftone</code> are the drift rates for the “Correct” and “Error” accumulators, and there is no drift variability parameter to estimate.</p>
 <p>Because each accumulator is a Wald (shifted inverse Gaussian) process, the drift rates use a softplus link and are constrained to be non-negative.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">|</span> <span class="fu">dec</span><span class="op">(</span><span class="va">Error</span><span class="op">)</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">driftone</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -268,10 +256,7 @@
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">m_rdm</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_rdm</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># Add model performance criterion</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">m_rdm</span>, file <span class="op">=</span> <span class="st">"models/m_rdm.rds"</span><span class="op">)</span></span></code></pre></div>
-</details>
+<span><span class="va">m_rdm</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_rdm</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># Add model performance criterion</span></span></code></pre></div>
 </div>
 </section><section class="level3"><h3 id="identifiability-of-sigmabias-and-bs">Identifiability of <code>sigmabias</code> and <code>bs</code>
 <a class="anchor" aria-label="anchor" href="#identifiability-of-sigmabias-and-bs"></a>
@@ -288,9 +273,9 @@
 <code class="sourceCode R"><span><span class="fu">loo</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare</a></span><span class="op">(</span><span class="va">m_ddm</span>, <span class="va">m_lba</span>, <span class="va">m_lnr</span>, <span class="va">m_rdm</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">report</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/report/reference/report.html" class="external-link">report</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt; The difference in predictive accuracy, as indexed by Expected Log Predictive</span></span>
-<span><span class="co">#&gt; Density (ELPD-LOO), suggests that '1' is the best model (ELPD = 961.23),</span></span>
-<span><span class="co">#&gt; followed by '2' (diff-ELPD = -56.65 +- 11.72, p &lt; .001), '3' (diff-ELPD =</span></span>
-<span><span class="co">#&gt; -99.46 +- 20.50, p &lt; .001) and '4' (diff-ELPD = -181.08 +- 21.27, p &lt; .001)</span></span></code></pre></div>
+<span><span class="co">#&gt; Density (ELPD-LOO), suggests that '1' is the best model (ELPD = 960.72),</span></span>
+<span><span class="co">#&gt; followed by '2' (diff-ELPD = -56.02 +- 11.54, p &lt; .001), '3' (diff-ELPD =</span></span>
+<span><span class="co">#&gt; -99.40 +- 20.69, p &lt; .001) and '4' (diff-ELPD = -180.57 +- 21.15, p &lt; .001)</span></span></code></pre></div>
 </div>
 <p>Two features of that ranking are worth dwelling on, because neither is what one might expect.</p>
 <p>The first is that the RDM finishes behind the LBA, despite being the more parsimonious race - it buys its economy by dropping the between-trial drift variability that the LBA carries in <code>sigmazero</code>/<code>sigmaone</code>. On this participant, that variability earns its keep. This is exactly the kind of question a common interface is for: the claim that within-trial noise alone suffices is an empirical one, and here it is tested rather than assumed.</p>
@@ -319,79 +304,82 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <div class="cell-output-display">
 <div>
-<figure><p><img src="decision_making_files/figure-html/unnamed-chunk-9-1.png" width="672"></p>
+<figure><p><img src="decision_making_files/figure-html/unnamed-chunk-13-1.png" width="672"></p>
 </figure>
 </div>
 </div>
 </div>
 </section><section class="level3"><h3 id="posterior-predictive-check">Posterior Predictive Check<a class="anchor" aria-label="anchor" href="#posterior-predictive-check"></a>
 </h3>
+<p>Each model predicts a <strong>pair</strong> of outcomes per trial, so <code>estimate_prediction()</code> returns them in a <code>Component</code> column (<code>"rt"</code> and <code>"response"</code>), which we pivot back into two columns.</p>
+<p>Correct responses are drawn upwards and errors downwards, with the observed data as histograms and the four models as overlaid density lines (faint: one per posterior draw; bold: pooled over draws). Rather than normalizing each half separately, both are scaled by the <strong>proportion</strong> of that response, so that the area under each curve equals its predicted frequency - which is why the error half is roughly a twelfth of the size of the correct one. This makes the plot a check on the <em>joint</em> distribution of choices and RTs: a model can only match it by getting the error rate <em>and</em> the shape of both RT distributions right.</p>
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># .density_rt_response &lt;- function(rt, response, length.out = 100) {</span></span>
-<span><span class="co">#   rt_error &lt;- rt[response == 0]</span></span>
-<span><span class="co">#   rt_correct &lt;- rt[response == 1]</span></span>
-<span><span class="co">#   xaxis &lt;- seq(0, max(rt_error, rt_correct) * 1.1, length.out = length.out)</span></span>
-<span><span class="co"># </span></span>
-<span><span class="co">#   insight::check_if_installed("logspline")</span></span>
-<span><span class="co">#   rbind(</span></span>
-<span><span class="co">#     data.frame(x = xaxis,</span></span>
-<span><span class="co">#                y = logspline::dlogspline(xaxis, logspline::logspline(rt_error)),</span></span>
-<span><span class="co">#                response = 0),</span></span>
-<span><span class="co">#     data.frame(x = xaxis,</span></span>
-<span><span class="co">#                y = -logspline::dlogspline(xaxis, logspline::logspline(rt_correct)),</span></span>
-<span><span class="co">#                response = 1)</span></span>
-<span><span class="co">#   )</span></span>
-<span><span class="co"># }</span></span>
-<span><span class="co"># </span></span>
-<span><span class="co"># density_rt_response &lt;- function(data, rt = "RT", response = "Error", by = NULL, length.out = 100) {</span></span>
-<span><span class="co">#   if (is.null(by)) {</span></span>
-<span><span class="co">#     out &lt;- .density_rt_response(data[[rt]], data[[response]], length.out = length.out)</span></span>
-<span><span class="co">#   } else {</span></span>
-<span><span class="co">#     out &lt;- sapply(split(data, data[[by]]), function(x) {</span></span>
-<span><span class="co">#       d &lt;- .density_rt_response(x[[rt]], x[[response]], length.out = length.out)</span></span>
-<span><span class="co">#       d[[by]] &lt;- x[[by]][1]</span></span>
-<span><span class="co">#       d</span></span>
-<span><span class="co">#     }, simplify = FALSE)</span></span>
-<span><span class="co">#     out &lt;- do.call(rbind, out)</span></span>
-<span><span class="co">#     out[[by]] &lt;- as.factor(out[[by]])</span></span>
-<span><span class="co">#   }</span></span>
-<span><span class="co">#   out[[response]] &lt;- as.factor(out[[response]])</span></span>
-<span><span class="co">#   row.names(out) &lt;- NULL</span></span>
-<span><span class="co">#   out</span></span>
-<span><span class="co"># }</span></span>
-<span><span class="co"># </span></span>
-<span><span class="co"># pred &lt;- rbind(</span></span>
-<span><span class="co">#   estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |&gt;</span></span>
-<span><span class="co">#     reshape_iterations() |&gt;</span></span>
-<span><span class="co">#     data_modify(Model = "DDM"),</span></span>
-<span><span class="co">#   estimate_prediction(m_lba, data = df, iterations = 50, keep_iterations = TRUE) |&gt;</span></span>
-<span><span class="co">#     reshape_iterations() |&gt;</span></span>
-<span><span class="co">#     data_modify(Model = "LBA"),</span></span>
-<span><span class="co">#   estimate_prediction(m_lnr, data = df, iterations = 50, keep_iterations = TRUE) |&gt;</span></span>
-<span><span class="co">#     reshape_iterations() |&gt;</span></span>
-<span><span class="co">#     data_modify(Model = "LNR")</span></span>
-<span><span class="co"># ) |&gt;</span></span>
-<span><span class="co">#   datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index", "Model")) |&gt;</span></span>
-<span><span class="co">#   datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model"), values_from = "iter_value", names_from = "Component")</span></span>
-<span><span class="co"># </span></span>
-<span><span class="co"># dat &lt;- rbind(</span></span>
-<span><span class="co">#   data_modify(density_rt_response(pred[pred$Model == "DDM", ], by = "iter_group"), Model = "DDM"),</span></span>
-<span><span class="co">#   data_modify(density_rt_response(pred[pred$Model == "LBA", ], by = "iter_group"), Model = "LBA"),</span></span>
-<span><span class="co">#   data_modify(density_rt_response(pred[pred$Model == "LNR", ], by = "iter_group"), Model = "LNR")</span></span>
-<span><span class="co"># )</span></span>
-<span><span class="co"># </span></span>
-<span><span class="co"># p &lt;- ggplot(df, aes(x = rt)) +</span></span>
-<span><span class="co">#   geom_histogram(data = df[df$response == 1, ], aes(y = after_stat(density)), fill = "darkgreen", bins = 100) +</span></span>
-<span><span class="co">#   geom_histogram(data = df[df$response == 0, ], aes(y = after_stat(-density)), fill = "darkred", bins = 100) +</span></span>
-<span><span class="co">#   geom_line(data = dat, aes(x = x, y = y, group = interaction(response, iter_group)), color = "grey30", alpha = 0.1) +</span></span>
-<span><span class="co">#   facet_wrap(~Model) +</span></span>
-<span><span class="co">#   coord_cartesian(xlim = c(0, 2)) +</span></span>
-<span><span class="co">#   labs(x = "RT (s)", y = "Density (top = Correct, bottom = Error)") +</span></span>
-<span><span class="co">#   theme_minimal()</span></span>
-<span><span class="co"># p</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_ddm</span>, data <span class="op">=</span> <span class="va">df</span>, iterations <span class="op">=</span> <span class="fl">50</span>, keep_iterations <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"DDM"</span><span class="op">)</span>,</span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_lba</span>, data <span class="op">=</span> <span class="va">df</span>, iterations <span class="op">=</span> <span class="fl">50</span>, keep_iterations <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"LBA"</span><span class="op">)</span>,</span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_lnr</span>, data <span class="op">=</span> <span class="va">df</span>, iterations <span class="op">=</span> <span class="fl">50</span>, keep_iterations <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"LNR"</span><span class="op">)</span>,</span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_rdm</span>, data <span class="op">=</span> <span class="va">df</span>, iterations <span class="op">=</span> <span class="fl">50</span>, keep_iterations <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"RDM"</span><span class="op">)</span></span>
+<span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">datawizard</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/datawizard/reference/extract_column_names.html" class="external-link">data_select</a></span><span class="op">(</span>select <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Row"</span>, <span class="st">"Component"</span>, <span class="st">"iter_value"</span>, <span class="st">"iter_group"</span>, <span class="st">"iter_index"</span>, <span class="st">"Model"</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">datawizard</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/datawizard/reference/data_to_wide.html" class="external-link">data_to_wide</a></span><span class="op">(</span>id_cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Row"</span>, <span class="st">"iter_group"</span>, <span class="st">"Model"</span><span class="op">)</span>, values_from <span class="op">=</span> <span class="st">"iter_value"</span>, names_from <span class="op">=</span> <span class="st">"Component"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># The LBA occasionally predicts enormous RTs (a near-zero drift rate takes a</span></span>
+<span><span class="co"># very long time to reach the threshold). `stat_density()` spreads its</span></span>
+<span><span class="co"># evaluation grid over the whole x-axis range, so a single extreme draw would</span></span>
+<span><span class="co"># flatten every curve.</span></span>
+<span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu">data_filter</span><span class="op">(</span><span class="va">pred</span>, <span class="va">rt</span> <span class="op">&lt;</span> <span class="fl">3</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">correct</span> <span class="op">&lt;-</span> <span class="va">pred</span><span class="op">[</span><span class="va">pred</span><span class="op">$</span><span class="va">response</span> <span class="op">==</span> <span class="fl">0</span>, <span class="op">]</span></span>
+<span><span class="va">error</span> <span class="op">&lt;-</span> <span class="va">pred</span><span class="op">[</span><span class="va">pred</span><span class="op">$</span><span class="va">response</span> <span class="op">==</span> <span class="fl">1</span>, <span class="op">]</span></span>
+<span></span>
+<span><span class="va">n_obs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">df</span><span class="op">)</span>  <span class="co"># Trials per posterior draw</span></span>
+<span><span class="va">n_iter</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">pred</span><span class="op">$</span><span class="va">iter_group</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">bw</span> <span class="op">&lt;-</span> <span class="fl">0.02</span>  <span class="co"># Histogram bin width</span></span>
+<span></span>
+<span><span class="co"># Dividing the counts by the *total* number of trials (rather than by the</span></span>
+<span><span class="co"># number of trials of that response) scales each half by its own frequency.</span></span>
+<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">df</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">RT</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="co"># Observed data</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">df</span><span class="op">[</span><span class="va">df</span><span class="op">$</span><span class="va">Error</span> <span class="op">==</span> <span class="fl">0</span>, <span class="op">]</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">count</span><span class="op">)</span> <span class="op">/</span> <span class="op">(</span><span class="va">n_obs</span> <span class="op">*</span> <span class="va">bw</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>                 binwidth <span class="op">=</span> <span class="va">bw</span>, fill <span class="op">=</span> <span class="st">"darkgreen"</span>, alpha <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">df</span><span class="op">[</span><span class="va">df</span><span class="op">$</span><span class="va">Error</span> <span class="op">==</span> <span class="fl">1</span>, <span class="op">]</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="op">-</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">count</span><span class="op">)</span> <span class="op">/</span> <span class="op">(</span><span class="va">n_obs</span> <span class="op">*</span> <span class="va">bw</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>                 binwidth <span class="op">=</span> <span class="va">bw</span>, fill <span class="op">=</span> <span class="st">"darkred"</span>, alpha <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="co"># One faint line per posterior draw</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">correct</span>,</span>
+<span>            <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">rt</span>, y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">count</span><span class="op">)</span> <span class="op">/</span> <span class="va">n_obs</span>, color <span class="op">=</span> <span class="va">Model</span>,</span>
+<span>                group <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/interaction.html" class="external-link">interaction</a></span><span class="op">(</span><span class="va">Model</span>, <span class="va">iter_group</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>            stat <span class="op">=</span> <span class="st">"density"</span>, alpha <span class="op">=</span> <span class="fl">0.05</span>, linewidth <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">error</span>,</span>
+<span>            <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">rt</span>, y <span class="op">=</span> <span class="op">-</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">count</span><span class="op">)</span> <span class="op">/</span> <span class="va">n_obs</span>, color <span class="op">=</span> <span class="va">Model</span>,</span>
+<span>                group <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/interaction.html" class="external-link">interaction</a></span><span class="op">(</span><span class="va">Model</span>, <span class="va">iter_group</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>            stat <span class="op">=</span> <span class="st">"density"</span>, alpha <span class="op">=</span> <span class="fl">0.05</span>, linewidth <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="co"># Posterior predictive density, pooled over draws</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">correct</span>,</span>
+<span>            <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">rt</span>, y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">count</span><span class="op">)</span> <span class="op">/</span> <span class="op">(</span><span class="va">n_obs</span> <span class="op">*</span> <span class="va">n_iter</span><span class="op">)</span>, color <span class="op">=</span> <span class="va">Model</span><span class="op">)</span>,</span>
+<span>            stat <span class="op">=</span> <span class="st">"density"</span>, linewidth <span class="op">=</span> <span class="fl">0.9</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">error</span>,</span>
+<span>            <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">rt</span>, y <span class="op">=</span> <span class="op">-</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">count</span><span class="op">)</span> <span class="op">/</span> <span class="op">(</span><span class="va">n_obs</span> <span class="op">*</span> <span class="va">n_iter</span><span class="op">)</span>, color <span class="op">=</span> <span class="va">Model</span><span class="op">)</span>,</span>
+<span>            stat <span class="op">=</span> <span class="st">"density"</span>, linewidth <span class="op">=</span> <span class="fl">0.9</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_hline</a></span><span class="op">(</span>yintercept <span class="op">=</span> <span class="fl">0</span>, color <span class="op">=</span> <span class="st">"grey40"</span>, linewidth <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">scale_color_material_d</span><span class="op">(</span>palette <span class="op">=</span> <span class="st">"rainbow"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/guides.html" class="external-link">guides</a></span><span class="op">(</span>color <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/guide_legend.html" class="external-link">guide_legend</a></span><span class="op">(</span>override.aes <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>alpha <span class="op">=</span> <span class="fl">1</span>, linewidth <span class="op">=</span> <span class="fl">1.2</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_cartesian.html" class="external-link">coord_cartesian</a></span><span class="op">(</span>xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.25</span>, <span class="fl">1.25</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"RT (s)"</span>, y <span class="op">=</span> <span class="st">"Density (up = Correct, down = Error)"</span>, color <span class="op">=</span> <span class="st">"Model"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">p</span></span></code></pre></div>
 </details>
 </div>
+<p><img src="../reference/figures/decision_making1.png"></p>
+<p>The mismatch discussed above is visible in the lower half: the <strong>DDM</strong> places its error density distinctly to the left of the observed errors - it peaks before the correct responses do - whereas the three races put theirs on top of the observed distribution. In the upper half all four are close, which is the point: the DDM’s problem is invisible if one only looks at the RTs of correct responses.</p>
 </section></section><script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
       var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);

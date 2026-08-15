@@ -36,22 +36,19 @@ set.seed(123)  # For reproducibility
 df <- cogmod::wagenmakers2008
 df <- df[df$Participant == 1, ]
 
-# Rename/recode columns to match the models' expected format
-# df$response <- as.integer(!df$Error)  # 1 = Correct, 0 = Error
-
 # Show 10 first rows
 head(df[c("Participant", "Condition", "RT", "Error")], 10)
 #>    Participant Condition    RT Error
-#> 1            1     Speed 0.700 FALSE
-#> 2            1     Speed 0.392  TRUE
-#> 3            1     Speed 0.460 FALSE
-#> 4            1     Speed 0.455 FALSE
-#> 5            1     Speed 0.505  TRUE
-#> 6            1     Speed 0.773 FALSE
-#> 7            1     Speed 0.390 FALSE
-#> 8            1     Speed 0.587  TRUE
-#> 9            1     Speed 0.603 FALSE
-#> 10           1     Speed 0.435 FALSE
+#> 1            1     Speed 0.700     0
+#> 2            1     Speed 0.392     1
+#> 3            1     Speed 0.460     0
+#> 4            1     Speed 0.455     0
+#> 5            1     Speed 0.505     1
+#> 6            1     Speed 0.773     0
+#> 7            1     Speed 0.390     0
+#> 8            1     Speed 0.587     1
+#> 9            1     Speed 0.603     0
+#> 10           1     Speed 0.435     0
 ```
 
 ``` r
@@ -91,8 +88,6 @@ parameters are fixed to `0`. Estimating these parameters is possible,
 but considerably more expensive and often unnecessary for many
 applications.
 
-Code
-
 ``` r
 
 f <- bf(
@@ -115,8 +110,6 @@ m_ddm <- brm(f,
 )
 
 m_ddm <- brms::add_criterion(m_ddm, "loo")  # Add model performance criterion
-
-saveRDS(m_ddm, file = "models/m_ddm.rds")
 ```
 
 ### LogNormal Race (LNR)
@@ -127,8 +120,6 @@ distribution instead of a ballistic accumulation process. `mu`
 (`nuzero`) and `nuone` are the (inverse log-space mean) processing
 speeds for the “Error” and “Correct” accumulators, and
 `sigmazero`/`sigmaone` their log-space SDs.
-
-Code
 
 ``` r
 
@@ -154,8 +145,6 @@ m_lnr <- brm(f,
 )
 
 m_lnr <- brms::add_criterion(m_lnr, "loo")  # Add model performance criterion
-
-saveRDS(m_lnr, file = "models/m_lnr.rds")
 ```
 
 ### Linear Ballistic Accumulator (LBA)
@@ -165,8 +154,6 @@ towards a common threshold `b` (`sigmabias` = start-point range `A`,
 `bs` = extra distance so that `b = A + bs`). `mu` and `driftone` are the
 mean drift rates for the “Correct” and “Error” accumulators, and
 `sigmazero`/ `sigmaone` their between-trial drift variability.
-
-Code
 
 ``` r
 
@@ -202,8 +189,6 @@ m_lba <- brm(f,
 )
 
 m_lba <- brms::add_criterion(m_lba, "loo")  # Add model performance criterion
-
-saveRDS(m_lba, file = "models/m_lba2.rds")
 ```
 
 ### Racing Diffusion Model (RDM)
@@ -226,8 +211,6 @@ variability parameter to estimate.
 Because each accumulator is a Wald (shifted inverse Gaussian) process,
 the drift rates use a softplus link and are constrained to be
 non-negative.
-
-Code
 
 ``` r
 
@@ -260,8 +243,6 @@ m_rdm <- brm(f,
 )
 
 m_rdm <- brms::add_criterion(m_rdm, "loo")  # Add model performance criterion
-
-saveRDS(m_rdm, file = "models/m_rdm.rds")
 ```
 
 ### Identifiability of `sigmabias` and `bs`
@@ -298,9 +279,9 @@ weakly-determined.
 loo::loo_compare(m_ddm, m_lba, m_lnr, m_rdm) |>
   report::report()
 #> The difference in predictive accuracy, as indexed by Expected Log Predictive
-#> Density (ELPD-LOO), suggests that '1' is the best model (ELPD = 961.23),
-#> followed by '2' (diff-ELPD = -56.65 +- 11.72, p < .001), '3' (diff-ELPD =
-#> -99.46 +- 20.50, p < .001) and '4' (diff-ELPD = -181.08 +- 21.27, p < .001)
+#> Density (ELPD-LOO), suggests that '1' is the best model (ELPD = 960.72),
+#> followed by '2' (diff-ELPD = -56.02 +- 11.54, p < .001), '3' (diff-ELPD =
+#> -99.40 +- 20.69, p < .001) and '4' (diff-ELPD = -180.57 +- 21.15, p < .001)
 ```
 
 Two features of that ranking are worth dwelling on, because neither is
@@ -369,74 +350,97 @@ duration_median |>
   theme_minimal()
 ```
 
-![](decision_making_files/figure-html/unnamed-chunk-9-1.png)
+![](decision_making_files/figure-html/unnamed-chunk-13-1.png)
 
 ### Posterior Predictive Check
+
+Each model predicts a **pair** of outcomes per trial, so
+`estimate_prediction()` returns them in a `Component` column (`"rt"` and
+`"response"`), which we pivot back into two columns.
+
+Correct responses are drawn upwards and errors downwards, with the
+observed data as histograms and the four models as overlaid density
+lines (faint: one per posterior draw; bold: pooled over draws). Rather
+than normalizing each half separately, both are scaled by the
+**proportion** of that response, so that the area under each curve
+equals its predicted frequency - which is why the error half is roughly
+a twelfth of the size of the correct one. This makes the plot a check on
+the *joint* distribution of choices and RTs: a model can only match it
+by getting the error rate *and* the shape of both RT distributions
+right.
 
 Code
 
 ``` r
 
-# .density_rt_response <- function(rt, response, length.out = 100) {
-#   rt_error <- rt[response == 0]
-#   rt_correct <- rt[response == 1]
-#   xaxis <- seq(0, max(rt_error, rt_correct) * 1.1, length.out = length.out)
-# 
-#   insight::check_if_installed("logspline")
-#   rbind(
-#     data.frame(x = xaxis,
-#                y = logspline::dlogspline(xaxis, logspline::logspline(rt_error)),
-#                response = 0),
-#     data.frame(x = xaxis,
-#                y = -logspline::dlogspline(xaxis, logspline::logspline(rt_correct)),
-#                response = 1)
-#   )
-# }
-# 
-# density_rt_response <- function(data, rt = "RT", response = "Error", by = NULL, length.out = 100) {
-#   if (is.null(by)) {
-#     out <- .density_rt_response(data[[rt]], data[[response]], length.out = length.out)
-#   } else {
-#     out <- sapply(split(data, data[[by]]), function(x) {
-#       d <- .density_rt_response(x[[rt]], x[[response]], length.out = length.out)
-#       d[[by]] <- x[[by]][1]
-#       d
-#     }, simplify = FALSE)
-#     out <- do.call(rbind, out)
-#     out[[by]] <- as.factor(out[[by]])
-#   }
-#   out[[response]] <- as.factor(out[[response]])
-#   row.names(out) <- NULL
-#   out
-# }
-# 
-# pred <- rbind(
-#   estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |>
-#     reshape_iterations() |>
-#     data_modify(Model = "DDM"),
-#   estimate_prediction(m_lba, data = df, iterations = 50, keep_iterations = TRUE) |>
-#     reshape_iterations() |>
-#     data_modify(Model = "LBA"),
-#   estimate_prediction(m_lnr, data = df, iterations = 50, keep_iterations = TRUE) |>
-#     reshape_iterations() |>
-#     data_modify(Model = "LNR")
-# ) |>
-#   datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index", "Model")) |>
-#   datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model"), values_from = "iter_value", names_from = "Component")
-# 
-# dat <- rbind(
-#   data_modify(density_rt_response(pred[pred$Model == "DDM", ], by = "iter_group"), Model = "DDM"),
-#   data_modify(density_rt_response(pred[pred$Model == "LBA", ], by = "iter_group"), Model = "LBA"),
-#   data_modify(density_rt_response(pred[pred$Model == "LNR", ], by = "iter_group"), Model = "LNR")
-# )
-# 
-# p <- ggplot(df, aes(x = rt)) +
-#   geom_histogram(data = df[df$response == 1, ], aes(y = after_stat(density)), fill = "darkgreen", bins = 100) +
-#   geom_histogram(data = df[df$response == 0, ], aes(y = after_stat(-density)), fill = "darkred", bins = 100) +
-#   geom_line(data = dat, aes(x = x, y = y, group = interaction(response, iter_group)), color = "grey30", alpha = 0.1) +
-#   facet_wrap(~Model) +
-#   coord_cartesian(xlim = c(0, 2)) +
-#   labs(x = "RT (s)", y = "Density (top = Correct, bottom = Error)") +
-#   theme_minimal()
-# p
+pred <- rbind(
+  estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |>
+    reshape_iterations() |>
+    data_modify(Model = "DDM"),
+  estimate_prediction(m_lba, data = df, iterations = 50, keep_iterations = TRUE) |>
+    reshape_iterations() |>
+    data_modify(Model = "LBA"),
+  estimate_prediction(m_lnr, data = df, iterations = 50, keep_iterations = TRUE) |>
+    reshape_iterations() |>
+    data_modify(Model = "LNR"),
+  estimate_prediction(m_rdm, data = df, iterations = 50, keep_iterations = TRUE) |>
+    reshape_iterations() |>
+    data_modify(Model = "RDM")
+) |>
+  datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index", "Model")) |>
+  datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model"), values_from = "iter_value", names_from = "Component")
+
+# The LBA occasionally predicts enormous RTs (a near-zero drift rate takes a
+# very long time to reach the threshold). `stat_density()` spreads its
+# evaluation grid over the whole x-axis range, so a single extreme draw would
+# flatten every curve.
+pred <- data_filter(pred, rt < 3)
+
+correct <- pred[pred$response == 0, ]
+error <- pred[pred$response == 1, ]
+
+n_obs <- nrow(df)  # Trials per posterior draw
+n_iter <- length(unique(pred$iter_group))
+bw <- 0.02  # Histogram bin width
+
+# Dividing the counts by the *total* number of trials (rather than by the
+# number of trials of that response) scales each half by its own frequency.
+p <- ggplot(df, aes(x = RT)) +
+  # Observed data
+  geom_histogram(data = df[df$Error == 0, ], aes(y = after_stat(count) / (n_obs * bw)),
+                 binwidth = bw, fill = "darkgreen", alpha = 0.3) +
+  geom_histogram(data = df[df$Error == 1, ], aes(y = -after_stat(count) / (n_obs * bw)),
+                 binwidth = bw, fill = "darkred", alpha = 0.3) +
+  # One faint line per posterior draw
+  geom_line(data = correct,
+            aes(x = rt, y = after_stat(count) / n_obs, color = Model,
+                group = interaction(Model, iter_group)),
+            stat = "density", alpha = 0.05, linewidth = 0.3) +
+  geom_line(data = error,
+            aes(x = rt, y = -after_stat(count) / n_obs, color = Model,
+                group = interaction(Model, iter_group)),
+            stat = "density", alpha = 0.05, linewidth = 0.3) +
+  # Posterior predictive density, pooled over draws
+  geom_line(data = correct,
+            aes(x = rt, y = after_stat(count) / (n_obs * n_iter), color = Model),
+            stat = "density", linewidth = 0.9) +
+  geom_line(data = error,
+            aes(x = rt, y = -after_stat(count) / (n_obs * n_iter), color = Model),
+            stat = "density", linewidth = 0.9) +
+  geom_hline(yintercept = 0, color = "grey40", linewidth = 0.3) +
+  scale_color_material_d(palette = "rainbow") +
+  guides(color = guide_legend(override.aes = list(alpha = 1, linewidth = 1.2))) +
+  coord_cartesian(xlim = c(0.25, 1.25)) +
+  labs(x = "RT (s)", y = "Density (up = Correct, down = Error)", color = "Model") +
+  theme_minimal()
+p
 ```
+
+![](../reference/figures/decision_making1.png)
+
+The mismatch discussed above is visible in the lower half: the **DDM**
+places its error density distinctly to the left of the observed errors -
+it peaks before the correct responses do - whereas the three races put
+theirs on top of the observed distribution. In the upper half all four
+are close, which is the point: the DDM’s problem is invisible if one
+only looks at the RTs of correct responses.
