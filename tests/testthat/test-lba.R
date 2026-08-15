@@ -183,6 +183,42 @@ test_that("rlba generates consistent data across various parameter settings", {
 })
 
 
+test_that("rlba is vectorized over its parameters", {
+  # `posterior_predict_lba()` passes one parameter value per posterior draw, so
+  # `rlba()` must honour them trial by trial. Two regressions are guarded here:
+  # scalar `||` in the validation (an error since R 4.3), and scalar `rnorm(1,
+  # mean = driftzero, ...)` inside a loop, which silently reused the *first*
+  # element for every trial and so returned plausible-looking but wrong draws.
+  set.seed(42)
+  n <- 20000
+  half <- seq_len(n / 2)
+
+  # First half favours accumulator 0, second half favours accumulator 1.
+  d <- rlba(
+    n = n,
+    driftzero = rep(c(4, 0.5), each = n / 2),
+    driftone = rep(c(0.5, 4), each = n / 2),
+    sigmazero = 0.3, sigmaone = 0.3, sigmabias = 0.5, bs = 0.5, ndt = 0.2
+  )
+  expect_gt(mean(d$response[half] == 0), 0.9)
+  # Collapsing to the first element would make this ~1 as well, not ~0.
+  expect_lt(mean(d$response[-half] == 0), 0.1)
+
+  # Non-decision time must track per element too.
+  d2 <- rlba(
+    n = n, driftzero = 3, driftone = 3, sigmazero = 1, sigmaone = 1,
+    sigmabias = 0.5, bs = 0.5, ndt = rep(c(0.1, 1.0), each = n / 2)
+  )
+  expect_lt(min(d2$rt[half]), 0.5)
+  expect_gt(min(d2$rt[-half]), 1.0)
+
+  # Validation still fires when only one element is invalid.
+  expect_error(rlba(n = 3, sigmazero = c(1, 1, -1)))
+  expect_error(rlba(n = 3, bs = c(0.5, -1, 0.5)))
+  expect_error(rlba(n = 3, ndt = c(0.1, 0.1, -0.1)))
+})
+
+
 test_that("dlba integrates correctly and matches rlba empirical probabilities", {
   set.seed(789) # For reproducibility
   n_samples <- 15000 # Large sample size for stable averages

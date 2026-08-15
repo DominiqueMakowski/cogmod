@@ -68,7 +68,27 @@ rlba <- function(
   if (length(n) != 1 || n <= 0 || n != floor(n)) {
     stop("n must be a single positive integer.")
   }
-  if (sigmabias <= 0 || bs <= 0 || sigmazero <= 0 || sigmaone <= 0 || ndt < 0) {
+
+  # Recycle every parameter to length n *before* validating or drawing.
+  # `posterior_predict_lba()` calls this with one value per posterior draw, so
+  # the parameters have to be honoured trial by trial: scalar `rnorm(1, mean =
+  # driftzero, ...)` inside a loop would silently reuse `driftzero[1]` for
+  # every trial, and scalar `||` on a vector is an error from R 4.3 onwards.
+  driftzero <- rep_len(driftzero, n)
+  driftone <- rep_len(driftone, n)
+  sigmazero <- rep_len(sigmazero, n)
+  sigmaone <- rep_len(sigmaone, n)
+  sigmabias <- rep_len(sigmabias, n)
+  bs <- rep_len(bs, n)
+  ndt <- rep_len(ndt, n)
+
+  if (
+    any(sigmabias <= 0) ||
+      any(bs <= 0) ||
+      any(sigmazero <= 0) ||
+      any(sigmaone <= 0) ||
+      any(ndt < 0)
+  ) {
     stop(
       "sigmabias, bs, sigmazero, sigmaone must be positive; ndt must be non-negative."
     )
@@ -77,62 +97,45 @@ rlba <- function(
   # --- Derived Parameter ---
   b <- sigmabias + bs # Decision threshold
 
-  # --- Prepare Output ---
-  rates0 <- numeric(n)
-  rates1 <- numeric(n)
-  choices <- integer(n)
-  rts <- numeric(n)
+  # Sample drift rates, resampling only those trials where neither accumulator
+  # has a positive drift (such a trial would never produce a response).
+  v0 <- stats::rnorm(n, mean = driftzero, sd = sigmazero)
+  v1 <- stats::rnorm(n, mean = driftone, sd = sigmaone)
 
-  for (i in seq_len(n)) {
-    # Sample both drift rates until at least one is positive.
-    iter <- 0
-    repeat {
-      iter <- iter + 1
-      v0 <- stats::rnorm(1, mean = driftzero, sd = sigmazero)
-      v1 <- stats::rnorm(1, mean = driftone, sd = sigmaone)
-      if (v0 > 0 || v1 > 0) {
-        break
-      }
-      if (iter >= max_iter) {
-        warning(sprintf(
-          "Trial %d reached max_iter; forcing accumulator 0 positive.",
-          i
-        ))
-        v0 <- abs(stats::rnorm(1, mean = driftzero, sd = sigmazero))
-        break
-      }
-    }
-    rates0[i] <- v0
-    rates1[i] <- v1
-
-    # Compute starting points from U(0, sigmabias)
-    start0 <- stats::runif(1, min = 0, max = sigmabias)
-    start1 <- stats::runif(1, min = 0, max = sigmabias)
-
-    # Compute decision times using only positive drifts, treat non-positive as Inf.
-    time0 <- if (v0 > 0) {
-      (b - start0) / v0
-    } else {
-      Inf
-    }
-    time1 <- if (v1 > 0) {
-      (b - start1) / v1
-    } else {
-      Inf
-    }
-
-    # Choose the accumulator that reached threshold first.
-    if (time0 < time1) {
-      choices[i] <- 0
-      rts[i] <- ndt + time0
-    } else {
-      choices[i] <- 1
-      rts[i] <- ndt + time1
-    }
+  bad <- v0 <= 0 & v1 <= 0
+  iter <- 0
+  while (any(bad) && iter < max_iter) {
+    iter <- iter + 1
+    nb <- sum(bad)
+    v0[bad] <- stats::rnorm(nb, mean = driftzero[bad], sd = sigmazero[bad])
+    v1[bad] <- stats::rnorm(nb, mean = driftone[bad], sd = sigmaone[bad])
+    bad <- v0 <= 0 & v1 <= 0
+  }
+  if (any(bad)) {
+    warning(sprintf(
+      "%d trial(s) reached max_iter; forcing accumulator 0 positive.",
+      sum(bad)
+    ))
+    v0[bad] <- abs(stats::rnorm(
+      sum(bad),
+      mean = driftzero[bad],
+      sd = sigmazero[bad]
+    ))
   }
 
-  # Return Results
-  data.frame(rt = rts, response = choices)
+  # Starting points from U(0, sigmabias)
+  start0 <- stats::runif(n, min = 0, max = sigmabias)
+  start1 <- stats::runif(n, min = 0, max = sigmabias)
+
+  # Decision times, treating a non-positive drift as never finishing.
+  time0 <- ifelse(v0 > 0, (b - start0) / v0, Inf)
+  time1 <- ifelse(v1 > 0, (b - start1) / v1, Inf)
+
+  # The accumulator that reaches threshold first wins (ties go to 1, as before).
+  data.frame(
+    rt = ndt + pmin(time0, time1),
+    response = ifelse(time0 < time1, 0L, 1L)
+  )
 }
 
 

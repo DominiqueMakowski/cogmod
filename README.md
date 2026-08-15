@@ -71,6 +71,8 @@ improvement, please get in touch!
   - [x] Drift Diffusion Model (DDM)
   - [x] Linear Ballistic Accumulator (LBA)
   - [x] LogNormal Race (LNR)
+  - [x] Racing Diffusion Model (RDM, [Tillman et al.,
+    2020](https://doi.org/10.3758/s13423-020-01738-8))
 
 ![](man/figures/rt_models1.png)
 
