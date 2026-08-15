@@ -12,7 +12,7 @@
 #'   \item{Participant}{Participant identifier (integer, 1-6).}
 #'   \item{Condition}{Instruction condition, `"Speed"` or `"Accuracy"`.}
 #'   \item{RT}{Response time, in seconds.}
-#'   \item{Error}{Logical, whether the response was an error.}
+#'   \item{Error}{Integer, `1` if the response was an error, `0` otherwise.}
 #'   \item{Frequency}{Word frequency category of the presented stimulus.}
 #' }
 #'

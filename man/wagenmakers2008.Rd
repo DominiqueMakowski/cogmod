@@ -10,7 +10,7 @@ A data frame with 10,369 rows and 5 variables:
 \item{Participant}{Participant identifier (integer, 1-6).}
 \item{Condition}{Instruction condition, \code{"Speed"} or \code{"Accuracy"}.}
 \item{RT}{Response time, in seconds.}
-\item{Error}{Logical, whether the response was an error.}
+\item{Error}{Integer, \code{1} if the response was an error, \code{0} otherwise.}
 \item{Frequency}{Word frequency category of the presented stimulus.}
 }
 }

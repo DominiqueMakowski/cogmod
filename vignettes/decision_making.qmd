@@ -53,9 +53,6 @@ set.seed(123)  # For reproducibility
 df <- cogmod::wagenmakers2008
 df <- df[df$Participant == 1, ]
 
-# Rename/recode columns to match the models' expected format
-# df$response <- as.integer(!df$Error)  # 1 = Correct, 0 = Error
-
 # Show 10 first rows
 head(df[c("Participant", "Condition", "RT", "Error")], 10)
 ```
@@ -90,7 +87,7 @@ Note that we use the "simple" 4-parameter DDM here, which does not include betwe
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT | dec(Error) ~ Condition,
@@ -112,6 +109,10 @@ m_ddm <- brm(f,
 )
 
 m_ddm <- brms::add_criterion(m_ddm, "loo")  # Add model performance criterion
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_ddm, file = "models/m_ddm.rds")
 ```
@@ -127,7 +128,7 @@ accumulators, and `sigmazero`/`sigmaone` their log-space SDs.
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT | dec(Error) ~ Condition,
@@ -151,6 +152,10 @@ m_lnr <- brm(f,
 )
 
 m_lnr <- brms::add_criterion(m_lnr, "loo")  # Add model performance criterion
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_lnr, file = "models/m_lnr.rds")
 ```
@@ -167,7 +172,7 @@ drift rates for the "Correct" and "Error" accumulators, and `sigmazero`/
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT | dec(Error) ~ Condition,
@@ -201,6 +206,10 @@ m_lba <- brm(f,
 )
 
 m_lba <- brms::add_criterion(m_lba, "loo")  # Add model performance criterion
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_lba, file = "models/m_lba2.rds")
 ```
@@ -228,7 +237,7 @@ drift rates use a softplus link and are constrained to be non-negative.
 
 ```{r}
 #| eval: false
-#| code-fold: true
+#| code-fold: false
 
 f <- bf(
   RT | dec(Error) ~ Condition,
@@ -259,6 +268,10 @@ m_rdm <- brm(f,
 )
 
 m_rdm <- brms::add_criterion(m_rdm, "loo")  # Add model performance criterion
+```
+```{r}
+#| eval: false
+#| echo: false
 
 saveRDS(m_rdm, file = "models/m_rdm.rds")
 ```
@@ -380,53 +393,53 @@ duration_median |>
 ```{r}
 #| code-fold: true
 
-# .density_rt_response <- function(rt, response, length.out = 100) {
-#   rt_error <- rt[response == 0]
-#   rt_correct <- rt[response == 1]
-#   xaxis <- seq(0, max(rt_error, rt_correct) * 1.1, length.out = length.out)
-# 
-#   insight::check_if_installed("logspline")
-#   rbind(
-#     data.frame(x = xaxis,
-#                y = logspline::dlogspline(xaxis, logspline::logspline(rt_error)),
-#                response = 0),
-#     data.frame(x = xaxis,
-#                y = -logspline::dlogspline(xaxis, logspline::logspline(rt_correct)),
-#                response = 1)
-#   )
-# }
-# 
-# density_rt_response <- function(data, rt = "RT", response = "Error", by = NULL, length.out = 100) {
-#   if (is.null(by)) {
-#     out <- .density_rt_response(data[[rt]], data[[response]], length.out = length.out)
-#   } else {
-#     out <- sapply(split(data, data[[by]]), function(x) {
-#       d <- .density_rt_response(x[[rt]], x[[response]], length.out = length.out)
-#       d[[by]] <- x[[by]][1]
-#       d
-#     }, simplify = FALSE)
-#     out <- do.call(rbind, out)
-#     out[[by]] <- as.factor(out[[by]])
-#   }
-#   out[[response]] <- as.factor(out[[response]])
-#   row.names(out) <- NULL
-#   out
-# }
-# 
-# pred <- rbind(
-#   estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |>
-#     reshape_iterations() |>
-#     data_modify(Model = "DDM"),
-#   estimate_prediction(m_lba, data = df, iterations = 50, keep_iterations = TRUE) |>
-#     reshape_iterations() |>
-#     data_modify(Model = "LBA"),
-#   estimate_prediction(m_lnr, data = df, iterations = 50, keep_iterations = TRUE) |>
-#     reshape_iterations() |>
-#     data_modify(Model = "LNR")
-# ) |>
-#   datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index", "Model")) |>
-#   datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model"), values_from = "iter_value", names_from = "Component")
-# 
+.density_rt_response <- function(rt, response, length.out = 100) {
+  rt_error <- rt[response == 0]
+  rt_correct <- rt[response == 1]
+  xaxis <- seq(0, max(rt_error, rt_correct) * 1.1, length.out = length.out)
+
+  insight::check_if_installed("logspline")
+  rbind(
+    data.frame(x = xaxis,
+               y = logspline::dlogspline(xaxis, logspline::logspline(rt_error)),
+               response = 0),
+    data.frame(x = xaxis,
+               y = -logspline::dlogspline(xaxis, logspline::logspline(rt_correct)),
+               response = 1)
+  )
+}
+
+density_rt_response <- function(data, rt = "RT", response = "Error", by = NULL, length.out = 100) {
+  if (is.null(by)) {
+    out <- .density_rt_response(data[[rt]], data[[response]], length.out = length.out)
+  } else {
+    out <- sapply(split(data, data[[by]]), function(x) {
+      d <- .density_rt_response(x[[rt]], x[[response]], length.out = length.out)
+      d[[by]] <- x[[by]][1]
+      d
+    }, simplify = FALSE)
+    out <- do.call(rbind, out)
+    out[[by]] <- as.factor(out[[by]])
+  }
+  out[[response]] <- as.factor(out[[response]])
+  row.names(out) <- NULL
+  out
+}
+
+pred <- rbind(
+  estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |>
+    reshape_iterations() |>
+    data_modify(Model = "DDM"),
+  estimate_prediction(m_lba, data = df, iterations = 50, keep_iterations = TRUE) |>
+    reshape_iterations() |>
+    data_modify(Model = "LBA"),
+  estimate_prediction(m_lnr, data = df, iterations = 50, keep_iterations = TRUE) |>
+    reshape_iterations() |>
+    data_modify(Model = "LNR")
+) |>
+  datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index", "Model")) |>
+  datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model"), values_from = "iter_value", names_from = "Component")
+
 # dat <- rbind(
 #   data_modify(density_rt_response(pred[pred$Model == "DDM", ], by = "iter_group"), Model = "DDM"),
 #   data_modify(density_rt_response(pred[pred$Model == "LBA", ], by = "iter_group"), Model = "LBA"),
