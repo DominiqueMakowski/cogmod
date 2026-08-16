@@ -360,6 +360,11 @@ weakly-determined.
 
 ## Model Comparison
 
+> Everything below is fitted to one participant, with no random effects, 
+> short chains, and predictors on only some parameters - with the goal
+> of demonstrating the workflow. The "findings" are thus not to be 
+> taken at face value.
+
 ### Model Fit
 
 ```{r}
@@ -381,37 +386,26 @@ loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
   report::report()
 ```
 
-Two features of that ranking are worth dwelling on, because neither is
-what one might expect.
+One feature of that ranking is worth a comment, because it shows what a
+comparison like this is actually good for. The simple DDM comes last, even
+though it is the only model here allowed to move its threshold across
+conditions (`bs ~ Condition`) - the mechanism speed instructions are
+believed to act on. Its deficit lies on a different axis: with all three
+variability parameters fixed to `0`, a DDM can only produce errors that are
+*faster* than correct responses, and in these data they are slightly
+slower. Sampling from the fitted models makes it concrete - the DDM
+predicts errors 0.110 s faster than correct responses (95% CI
+`[-0.135, -0.086]`) against an observed `+0.014` s, while the three races,
+each carrying a separate drift for the error accumulator, all cover the
+observed value.
 
-The first is that the RDM finishes behind the LBA, despite being the more
-parsimonious race - it buys its economy by dropping the between-trial
-drift variability that the LBA carries in `sigmazero`/`sigmaone`. On this
-participant, that variability earns its keep. This is exactly the kind of
-question a common interface is for: the claim that within-trial noise
-alone suffices is an empirical one, and here it is tested rather than
-assumed.
-
-The second is that the DDM comes last, even though it is the only model
-here allowed to move its threshold across conditions (`bs ~ Condition`),
-which is the mechanism the speed instructions are believed to act on. The
-explanation is that its deficit lies on a different axis entirely. We
-fitted the *simple* 4-parameter DDM, with `sigmadrift`, `sigmabias` and
-`sigmatau` all fixed to `0`, and a DDM stripped of between-trial
-variability can only produce errors that are *faster* than correct
-responses. In this dataset they are slightly slower (median 0.533 s
-against 0.519 s). Sampling from each fitted model makes the mismatch
-plain: the DDM predicts errors 0.11 s faster than correct responses (95%
-CI `[-0.13, -0.08]`), while the observed difference is `+0.014` s - far
-outside that interval. The races each carry a separate drift for the
-error accumulator and so are not forced into that prediction: the RDM
-puts the gap at `+0.006` `[-0.015, +0.031]`, the LBA at `+0.004`
-`[-0.021, +0.036]` and the LNR at `-0.008` `[-0.036, +0.021]`, all three
-comfortably covering the observed value. Getting the condition mechanism
-right does not compensate
-for being unable to represent the error distribution at all, and the
-remedy is to free the variability parameters rather than to abandon the
-DDM.
+**DDM-5** isolates exactly that axis: same model, same threshold mechanism,
+only `sigmadrift` freed. It is worth 104 ELPD points, moves the DDM from
+last to third, and halves the error-timing gap (to `-0.058`,
+`[-0.101, -0.002]`) without closing it. That is the useful lesson, and it
+is about diagnosis rather than about which family wins: a poor fit had an
+identifiable cause, the cause pointed at one parameter, and freeing it
+recovered most of the gap.
 
 ### Sampling Duration
 
@@ -425,6 +419,9 @@ survival function for every observation. Among the three races, the LNR is
 by far the cheapest, since its density and survival are just LogNormal
 ones, while the RDM and the LBA each need several normal CDF evaluations
 per observation and land in the same, much slower, range.
+
+Freeing `sigmadrift` is not free either: DDM-5 costs about 3.7 times the
+simple DDM, though it remains cheaper than either of the two slow races.
 
 ```{r}
 duration <- rbind(
@@ -454,7 +451,7 @@ returns them in a `Component` column (`"rt"` and `"response"`), which we pivot
 back into two columns.
 
 Correct responses are drawn upwards and errors downwards, with the observed
-data as histograms and the four models as overlaid density lines (faint: one
+data as histograms and the five models as overlaid density lines (faint: one
 per posterior draw; bold: pooled over draws). Rather than normalizing each
 half separately, both are scaled by the **proportion** of that response, so
 that the area under each curve equals its predicted frequency - which is why
@@ -535,12 +532,12 @@ p
 
 ![](../man/figures/decision_making1.png)
 
-The mismatch discussed above is visible in the lower half: the **DDM** places
-its error density distinctly to the left of the observed errors - it peaks
-before the correct responses do - whereas the three races put theirs on top of
-the observed distribution. In the upper half all four are close, which is the
-point: the DDM's problem is invisible if one only looks at the RTs of correct
-responses.
+The mismatch discussed above is visible in the lower half: the **DDM**
+(purple) places its error density to the left of the observed errors, the
+three races put theirs on top of it, and **DDM-5** (blue) sits between the
+two. In the upper half all five are close - which is the point worth taking
+away: a model's problem can be invisible if one only looks at the RTs of
+correct responses.
 
 ```{r}
 #| echo: false
