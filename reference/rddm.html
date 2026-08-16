@@ -123,7 +123,8 @@ race models in the package.</p>
 
 
 <dt id="arg-bias">bias<a class="anchor" aria-label="anchor" href="#arg-bias"></a></dt>
-<dd><p>Starting point bias (proportion of boundary separation). Must be in (0, 1).</p></dd>
+<dd><p>Starting point bias, as a proportion of the boundary separation
+<em>measured from the boundary coded <code>0</code></em>. Must be in (0, 1). See Details.</p></dd>
 
 
 <dt id="arg-ndt">ndt<a class="anchor" aria-label="anchor" href="#arg-ndt"></a></dt>
@@ -183,7 +184,23 @@ inter-trial variability parameters (fix them to 0, e.g. <code>sigmadrift = 0</co
 
 </dl></div>
     <div class="section level2">
-    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <h2 id="response-coding">Response coding<a class="anchor" aria-label="anchor" href="#response-coding"></a></h2>
+    <p>The response coded <code>1</code> (<code>response</code> here, <code>dec()</code> in a <code>brms</code> formula) is the
+<strong>upper</strong> boundary and the response coded <code>0</code> is the <strong>lower</strong> one, following
+<code>brms</code>'s own <code><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">wiener()</a></code> family. Two consequences are worth keeping in mind
+when reading a fitted model:</p><ul><li><p><code>bias</code> is measured <em>from the lower boundary</em>, so <code>bias &gt; 0.5</code> places the
+starting point closer to the response coded <code>1</code>, and <code>bias &lt; 0.5</code> closer to
+the response coded <code>0</code>. Since first-passage times are shorter for the nearer
+boundary, <code>bias &gt; 0.5</code> makes responses coded <code>1</code> <em>faster</em> than responses
+coded <code>0</code>, and <code>bias &lt; 0.5</code> makes them slower. At exactly <code>bias = 0.5</code> the
+two conditional RT distributions are identical, whatever the drift rate.</p></li>
+<li><p>A positive <code>drift</code> pushes the accumulator towards the response coded <code>1</code>.
+When <code>0</code> codes correct responses and <code>1</code> codes errors (a common choice when
+the task has no natural stimulus-to-boundary mapping), good performance
+therefore corresponds to a <em>negative</em> drift rate.</p></li>
+</ul></div>
+    <div class="section level2">
+    <h2 id="implementation">Implementation<a class="anchor" aria-label="anchor" href="#implementation"></a></h2>
     <p>The underlying 4-parameter process is simulated and evaluated with
 <code><a href="https://paulbuerkner.com/brms/reference/Wiener.html" class="external-link">brms::rwiener()</a></code>/<code><a href="https://paulbuerkner.com/brms/reference/Wiener.html" class="external-link">brms::dwiener()</a></code> (which require the <code>RWiener</code> package).
 The full 7-parameter model is built on top of these rather than delegated to
