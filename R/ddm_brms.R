@@ -181,9 +181,8 @@ log_lik_ddm <- function(i, prep, ...) {
   ndt <- tau * minrt
 
   # Compute log-likelihood using dddm(), which automatically dispatches to
-  # the full 7-parameter density (via `rtdists`) whenever sigmadrift,
-  # sigmabias, or sigmatau is non-zero, and to the fast 4-parameter
-  # brms::dwiener() otherwise.
+  # the full 7-parameter density whenever sigmadrift, sigmabias, or sigmatau
+  # is non-zero, and to the fast 4-parameter brms::dwiener() otherwise.
   ll <- dddm(
     x = y,
     drift = drift,
@@ -266,8 +265,8 @@ posterior_predict_ddm <- function(i, prep, ...) {
   ndt <- tau * minrt
 
   # Simulate reaction times and responses using rddm(), which automatically
-  # dispatches to the full 7-parameter simulation (via `rtdists`) whenever
-  # sigmadrift, sigmabias, or sigmatau is non-zero.
+  # dispatches to the full 7-parameter simulation whenever sigmadrift,
+  # sigmabias, or sigmatau is non-zero.
   sim_data <- rddm(
     n = prep$ndraws,
     drift = mu,

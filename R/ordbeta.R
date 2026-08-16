@@ -21,6 +21,7 @@
 #' @return A vector of length `n` of variates from the ordered beta distribution.
 #' 
 #' @keywords internal
+#' @noRd
 .rordbeta <- function(n = 100,
                      mu = 0.5,
                      phi = 1,
@@ -75,6 +76,7 @@
 
 
 #' @keywords internal
+#' @noRd
 .dordbeta <- function(x = .9,
                      mu = 0.5,
                      phi = 1,
@@ -127,6 +129,7 @@
 # --- STAN LPDF Function ---
 
 #' @keywords internal
+#' @noRd
 .ordbeta_lpdf <- function() {
   "
 real ord_beta_reg_lpdf(real y, real mu, real phi, real cutzero, real cutone) {

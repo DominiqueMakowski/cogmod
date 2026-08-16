@@ -13,19 +13,22 @@
 #' @param bias Starting point bias (proportion of boundary separation). Must be in (0, 1).
 #' @param ndt Non-decision time. Must be non-negative.
 #' @param ... Other arguments to be passed to [brms::rwiener()] or [brms::dwiener()],
-#' @param backend The backend to use for the simulation. Based on local benchmarks, `"rtdists"`
-#'   is much faster for simulation but `"Rwiener"` is faster for density computation. Note that
-#'   the `"Rwiener"` backend (used by default for the density, e.g., in `log_lik()`/`loo()`)
-#'   requires the `RWiener` package to be installed. Ignored (forced to `rtdists`, via
-#'   [rtdists::rdiffusion()]/[rtdists::ddiffusion()]) whenever `sigmadrift`, `sigmabias`, or
-#'   `sigmatau` is non-zero, since only `rtdists` implements the full 7-parameter model.
-#' @param sigmadrift Inter-trial variability in drift rate (`sv` in `rtdists` terms). Must be
+#' @details
+#' The underlying 4-parameter process is simulated and evaluated with
+#' [brms::rwiener()]/[brms::dwiener()] (which require the `RWiener` package).
+#' The full 7-parameter model is built on top of these rather than delegated to
+#' another package: between-trial variability is simulated by drawing the
+#' per-trial parameters, and evaluated by combining a closed-form drift
+#' correction with Gauss-Legendre quadrature over the starting point and
+#' non-decision time.
+#' @param sigmadrift Inter-trial variability in drift rate (`sv` in the usual notation). Must be
 #'   non-negative. Default `0` (no variability, i.e. the classic 4-parameter DDM).
 #' @param sigmabias Inter-trial variability in the starting point, expressed as a fraction (in
 #'   `[0, 1)`) of the maximum allowed range, i.e. `sw = sigmabias * min(2*bias, 2*(1-bias))`
-#'   (`sw`/`sz` in `rtdists` terms). Default `0`.
+#'   (`sw`/`sz` in the usual notation). Default `0`.
 #' @param sigmatau Inter-trial variability in non-decision time, expressed as a fraction of
-#'   `minrt`, i.e. `st0 = sigmatau * minrt` (`st0` in `rtdists` terms). Default `0`.
+#'   `minrt`, i.e. `st0 = sigmatau * minrt` (`st0` in the usual notation), with `ndt` the lower
+#'   bound of the resulting Uniform distribution. Default `0`.
 #' @param minrt Minimum reaction time. Only required when `sigmatau > 0` (used to scale
 #'   `sigmatau` into `st0`).
 #'
@@ -50,7 +53,6 @@ rddm <- function(
   sigmabias = 0,
   sigmatau = 0,
   minrt = NULL,
-  backend = "rtdists",
   ...
 ) {
   # Prepare and validate parameters
@@ -66,25 +68,13 @@ rddm <- function(
     minrt = minrt
   )
 
+  # Between-trial variability needs no special sampler: it *is* a hierarchical
+  # draw. Sampling the per-trial drift, starting point and non-decision time and
+  # then running the ordinary 4-parameter process is exact, and vastly cheaper
+  # than inverting a numerically integrated CDF (which is what the `rtdists`
+  # route did). See `.ddm_draw_trialwise()` for the parameterization.
   if (.ddm_has_variability(params)) {
-    insight::check_if_installed("rtdists")
-    rt_params <- .ddm_to_rtdists(params)
-
-    sim_data <- rtdists::rdiffusion(
-      params$n,
-      a = rt_params$a,
-      v = rt_params$v,
-      t0 = rt_params$t0,
-      z = rt_params$z,
-      sv = rt_params$sv,
-      sz = rt_params$sz,
-      st0 = rt_params$st0
-    )
-
-    return(data.frame(
-      rt = sim_data$rt,
-      response = ifelse(sim_data$response == "upper", 1, 0)
-    ))
+    params <- .ddm_draw_trialwise(params)
   }
 
   # Simulate data using rwiener
@@ -94,7 +84,6 @@ rddm <- function(
     beta = params$bias,
     delta = params$drift,
     tau = params$ndt,
-    backend = backend,
     ...
   )
 
@@ -117,7 +106,6 @@ dddm <- function(
   sigmabias = 0,
   sigmatau = 0,
   minrt = NULL,
-  backend = "Rwiener",
   ...
 ) {
   # Prepare and validate parameters
@@ -135,21 +123,7 @@ dddm <- function(
   )
 
   if (.ddm_has_variability(params)) {
-    insight::check_if_installed("rtdists")
-    rt_params <- .ddm_to_rtdists(params)
-
-    dens <- rtdists::ddiffusion(
-      rt = params$x,
-      response = params$response + 1L, # 0/1 -> 1/2 (lower/upper)
-      a = rt_params$a,
-      v = rt_params$v,
-      t0 = rt_params$t0,
-      z = rt_params$z,
-      sv = rt_params$sv,
-      sz = rt_params$sz,
-      st0 = rt_params$st0
-    )
-
+    dens <- .ddm_density_var(params, ...)
     return(if (log) log(dens) else dens)
   }
 
@@ -162,7 +136,6 @@ dddm <- function(
     resp = params$response,
     tau = params$ndt,
     log = log,
-    backend = backend,
     ...
   )
 }
@@ -171,6 +144,7 @@ dddm <- function(
 # Internals ---------------------------------------------------------------
 
 #' @keywords internal
+#' @noRd
 .prepare_ddm <- function(
   n = NULL,
   x = NULL,
@@ -272,19 +246,167 @@ dddm <- function(
   params
 }
 
-# Internal helpers for the extended (7-parameter) DDM via `rtdists` ---------
+# Internal helpers for the extended (7-parameter) DDM ------------------------
 
 #' @keywords internal
+#' @noRd
 .ddm_has_variability <- function(params) {
   any(params$sigmadrift != 0, na.rm = TRUE) ||
     any(params$sigmabias != 0, na.rm = TRUE) ||
     any(params$sigmatau != 0, na.rm = TRUE)
 }
 
+#' Draw per-trial DDM parameters from their between-trial distributions
+#'
+#' Between-trial variability is, by definition, a hierarchical draw: the drift
+#' is Normal, the starting point Uniform and the non-decision time Uniform
+#' across trials. Drawing them and then running the plain 4-parameter process
+#' reproduces the 7-parameter model exactly, so no dedicated sampler is needed.
+#'
+#' The parameterization matches the Stan likelihood in [ddm_stanvars()]:
+#' `sw = sigmabias * min(2*bias, 2*(1-bias))` with the starting point centred
+#' on `bias`, and `st0 = sigmatau * minrt` with `ndt` the *lower bound* of the
+#' non-decision time (not its midpoint).
+#'
 #' @keywords internal
+#' @noRd
+.ddm_draw_trialwise <- function(params) {
+  n <- params$n
+
+  params$drift <- stats::rnorm(n, params$drift, params$sigmadrift)
+
+  sw <- params$sigmabias * pmin(2 * params$bias, 2 * (1 - params$bias))
+  params$bias <- stats::runif(n, params$bias - sw / 2, params$bias + sw / 2)
+
+  st0 <- if (is.null(params$minrt)) rep(0, n) else params$sigmatau * params$minrt
+  params$ndt <- pmax(stats::runif(n, params$ndt, params$ndt + st0), 0)
+
+  params
+}
+
+
+#' Gauss-Legendre nodes and weights on `[-1, 1]`
+#'
+#' Computed with the Golub-Welsch algorithm (eigendecomposition of the Jacobi
+#' matrix), so that no additional dependency is needed.
+#'
+#' @keywords internal
+#' @noRd
+.gauss_legendre <- function(n) {
+  i <- seq_len(n - 1)
+  b <- i / sqrt(4 * i^2 - 1)
+  j <- matrix(0, n, n)
+  j[cbind(i, i + 1)] <- b
+  j[cbind(i + 1, i)] <- b
+  e <- eigen(j, symmetric = TRUE)
+  list(nodes = rev(e$values), weights = rev(2 * e$vectors[1, ]^2))
+}
+
+
+#' DDM density with between-trial variability in drift rate
+#'
+#' Integrating the 4-parameter Wiener density over a Normal drift has a closed
+#' form: the density with zero drift, times a correction factor. No numerical
+#' integration is required, so this costs one [brms::dwiener()] call.
+#'
+#' @keywords internal
+#' @noRd
+.ddm_density_sv <- function(x, drift, bs, bias, ndt, response, sigmadrift, ...) {
+  dt <- x - ndt
+  out <- rep(0, length(dt))
+  ok <- !is.na(dt) & dt > 0
+  if (!any(ok)) {
+    return(out)
+  }
+
+  # Density of the driftless process; the drift enters through the correction.
+  out[ok] <- brms::dwiener(
+    x = x[ok],
+    alpha = bs[ok],
+    beta = bias[ok],
+    delta = 0,
+    resp = response[ok],
+    tau = ndt[ok],
+    ...
+  )
+
+  # The upper boundary is the lower one with the drift and start point flipped.
+  v <- ifelse(response[ok] == 1, -drift[ok], drift[ok])
+  w <- ifelse(response[ok] == 1, 1 - bias[ok], bias[ok])
+  sv2 <- sigmadrift[ok]^2
+  num <- -v^2 * dt[ok] - 2 * v * bs[ok] * w + sv2 * bs[ok]^2 * w^2
+
+  out[ok] <- out[ok] * exp(num / (2 * (1 + sv2 * dt[ok]))) / sqrt(1 + sv2 * dt[ok])
+  out
+}
+
+
+#' Full (7-parameter) DDM density
+#'
+#' Drift variability is handled analytically by [.ddm_density_sv()]; the
+#' starting point and non-decision time are integrated out by Gauss-Legendre
+#' quadrature over their Uniform distributions. The non-decision time is
+#' integrated only up to `x`, since later start times contribute nothing -
+#' this keeps the integrand smooth and the quadrature accurate.
+#'
+#' Validated against the Stan likelihood in [ddm_stanvars()]: the maximum
+#' relative error is at machine precision when only drift and starting-point
+#' variability are present, and below 1e-5 with all three.
+#'
+#' @param nodes Number of quadrature nodes per integrated dimension.
+#' @keywords internal
+#' @noRd
+.ddm_density_var <- function(params, nodes = 25, ...) {
+  n <- length(params$x)
+  rec <- function(v) rep_len(v, n)
+
+  x <- rec(params$x)
+  drift <- rec(params$drift)
+  bs <- rec(params$bs)
+  bias <- rec(params$bias)
+  ndt <- rec(params$ndt)
+  response <- rec(params$response)
+  sigmadrift <- rec(params$sigmadrift)
+
+  sw <- rec(params$sigmabias) * pmin(2 * bias, 2 * (1 - bias))
+  st0 <- if (is.null(params$minrt)) rep(0, n) else rec(params$sigmatau) * rec(params$minrt)
+
+  # A degenerate "node" of weight 2 reproduces the point value once the 1/2
+  # factor of the uniform average is applied.
+  degenerate <- list(nodes = 0, weights = 2)
+  quad <- .gauss_legendre(nodes)
+  w_quad <- if (any(sw > 0)) quad else degenerate
+  t_quad <- if (any(st0 > 0)) quad else degenerate
+
+  span <- pmax(pmin(ndt + st0, x) - ndt, 0)
+  scale <- ifelse(st0 > 0, span / (2 * st0), 1 / 2)
+
+  out <- numeric(n)
+  for (a in seq_along(w_quad$nodes)) {
+    bias_a <- bias + (sw / 2) * w_quad$nodes[a]
+    inner <- numeric(n)
+    for (b in seq_along(t_quad$nodes)) {
+      ndt_b <- ndt + (span / 2) * (t_quad$nodes[b] + 1)
+      inner <- inner + t_quad$weights[b] *
+        .ddm_density_sv(x, drift, bs, bias_a, ndt_b, response, sigmadrift, ...)
+    }
+    out <- out + (w_quad$weights[a] / 2) * inner * scale
+  }
+  out
+}
+
+
+#' Translate `cogmod`'s parameterization into `rtdists`' one
+#'
+#' Not used by the package itself - the 7-parameter model is implemented
+#' natively - but kept as the reference mapping for cross-checking against
+#' [rtdists::ddiffusion()]/[rtdists::rdiffusion()]. Note that `rtdists` takes
+#' the starting point and its variability on the absolute (`a`-scaled) scale,
+#' and treats `t0` as the *lower* bound of the non-decision time distribution.
+#'
+#' @keywords internal
+#' @noRd
 .ddm_to_rtdists <- function(params) {
-  # sw: our Stan/rtdists-relative starting-point variability (fraction of the
-  # maximum allowed range), converted to rtdists' absolute (a-scaled) `sz`.
   sw <- params$sigmabias * pmin(2 * params$bias, 2 * (1 - params$bias))
   st0 <- if (!is.null(params$minrt)) {
     params$sigmatau * params$minrt

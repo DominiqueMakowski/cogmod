@@ -238,12 +238,12 @@ because it is declared with a lower bound of 0 and given a *truncated* prior
 
 ### ExGaussian
 
-Rather than relying on default model families, such as Gaussian models, one
-can select [models that accurately represent the distribution of their outcome
-variable](https://lindeloev.github.io/shiny-rt/). For instance, models based
-on **Exponentially modified Gaussian** (ex-Gaussian) distributions, which are
-suited to their typical skewed shape
-([Balota & Yap, 2011](https://doi.org/10.1177/0963721411408885);
+Rather than relying on default model families, such as Gaussian
+models, one can select
+[models that accurately represent the distribution of their outcome variable](https://lindeloev.github.io/shiny-rt/).
+For instance, models based on **Exponentially modified Gaussian**
+(ex-Gaussian) distributions, which are suited to their typical skewed
+shape ([Balota & Yap, 2011](https://doi.org/10.1177/0963721411408885);
 [Matzke & Wagenmakers, 2009](https://doi.org/10.3758/PBR.16.5.798)).
 
 This distribution is a convolution of normal and exponential distributions and
@@ -304,12 +304,12 @@ ggplot(exg, aes(x = RT, y = Density, color = Tau)) +
   scale_y_continuous(expand = c(0, 0))
 ```
 
-Although only the tail weight parameter is changed, the whole distribution
-appears to shift its centre of mass: as $\tau$ goes from 0 to 0.5, the peak
-moves from 0.70 to 0.93 and the mean from 0.70 to 1.20 s, while the SD of the
-whole distribution grows from 0.20 to 0.54. **Hence, one should be careful not
-to interpret the value of mu directly as the "mean" or the distribution
-"peak", nor sigma as the SD or the "width"**.
+Although only the tail weight parameter is changed, the whole
+distribution appears to shift its centre of mass: as $\tau$ goes from
+0 to 0.5, the peak moves from 0.70 to 0.93 and the mean from 0.70 to
+1.20 s, while the SD of the whole distribution grows from 0.20 to
+0.54.
+**Hence, one should be careful not to interpret the value of mu directly as the "mean" or the distribution "peak", nor sigma as the SD or the "width"**.
 
 One important caveat: `brms`'s native `exgaussian()` family
 does **not** use this "classical" parameterization familiar to experimental

@@ -445,7 +445,7 @@ would be better to have a single number that answers the question "are these
 individual estimates informative enough to be used as individual scores?".
 This is what the **Variance-Over-Uncertainty Ratio** (*D-vour*), implemented in
 `performance::performance_dvour()`, provides. It is, in essence, a Signal-to-Noise 
-ratio iindex corresponding to the normalized ratio of the
+ratio index corresponding to the normalized ratio of the
 observed variability between group levels to the uncertainty of their estimates:
 
 $$

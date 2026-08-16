@@ -21,7 +21,6 @@ rddm(
   sigmabias = 0,
   sigmatau = 0,
   minrt = NULL,
-  backend = "rtdists",
   ...
 )
 
@@ -37,7 +36,6 @@ dddm(
   sigmabias = 0,
   sigmatau = 0,
   minrt = NULL,
-  backend = "Rwiener",
   ...
 )
 
@@ -73,25 +71,19 @@ posterior_predict_ddm(i, prep, ...)
 
 \item{ndt}{Non-decision time. Must be non-negative.}
 
-\item{sigmadrift}{Inter-trial variability in drift rate (\code{sv} in \code{rtdists} terms). Must be
+\item{sigmadrift}{Inter-trial variability in drift rate (\code{sv} in the usual notation). Must be
 non-negative. Default \code{0} (no variability, i.e. the classic 4-parameter DDM).}
 
 \item{sigmabias}{Inter-trial variability in the starting point, expressed as a fraction (in
 \verb{[0, 1)}) of the maximum allowed range, i.e. \code{sw = sigmabias * min(2*bias, 2*(1-bias))}
-(\code{sw}/\code{sz} in \code{rtdists} terms). Default \code{0}.}
+(\code{sw}/\code{sz} in the usual notation). Default \code{0}.}
 
 \item{sigmatau}{Inter-trial variability in non-decision time, expressed as a fraction of
-\code{minrt}, i.e. \code{st0 = sigmatau * minrt} (\code{st0} in \code{rtdists} terms). Default \code{0}.}
+\code{minrt}, i.e. \code{st0 = sigmatau * minrt} (\code{st0} in the usual notation), with \code{ndt} the lower
+bound of the resulting Uniform distribution. Default \code{0}.}
 
 \item{minrt}{Minimum reaction time. Only required when \code{sigmatau > 0} (used to scale
 \code{sigmatau} into \code{st0}).}
-
-\item{backend}{The backend to use for the simulation. Based on local benchmarks, \code{"rtdists"}
-is much faster for simulation but \code{"Rwiener"} is faster for density computation. Note that
-the \code{"Rwiener"} backend (used by default for the density, e.g., in \code{log_lik()}/\code{loo()})
-requires the \code{RWiener} package to be installed. Ignored (forced to \code{rtdists}, via
-\code{\link[rtdists:Diffusion]{rtdists::rdiffusion()}}/\code{\link[rtdists:Diffusion]{rtdists::ddiffusion()}}) whenever \code{sigmadrift}, \code{sigmabias}, or
-\code{sigmatau} is non-zero, since only \code{rtdists} implements the full 7-parameter model.}
 
 \item{...}{Other arguments to be passed to \code{\link[brms:Wiener]{brms::rwiener()}} or \code{\link[brms:Wiener]{brms::dwiener()}},}
 
@@ -116,6 +108,15 @@ It assumes that evidence accumulates over time until it reaches one of two decis
 The 'ddm' family in this package is not a full re-implementation of the DDM, but uses of the
 \code{brms} wiener family. It is simply a reparametrized version for consistency with the other
 race models in the package.
+}
+\details{
+The underlying 4-parameter process is simulated and evaluated with
+\code{\link[brms:Wiener]{brms::rwiener()}}/\code{\link[brms:Wiener]{brms::dwiener()}} (which require the \code{RWiener} package).
+The full 7-parameter model is built on top of these rather than delegated to
+another package: between-trial variability is simulated by drawing the
+per-trial parameters, and evaluated by combining a closed-form drift
+correction with Gauss-Legendre quadrature over the starting point and
+non-decision time.
 }
 \examples{
 # Simulate data
