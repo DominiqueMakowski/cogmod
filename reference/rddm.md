@@ -21,7 +21,6 @@ rddm(
   sigmabias = 0,
   sigmatau = 0,
   minrt = NULL,
-  backend = "rtdists",
   ...
 )
 
@@ -37,7 +36,6 @@ dddm(
   sigmabias = 0,
   sigmatau = 0,
   minrt = NULL,
-  backend = "Rwiener",
   ...
 )
 
@@ -88,40 +86,28 @@ posterior_predict_ddm(i, prep, ...)
 
 - sigmadrift:
 
-  Inter-trial variability in drift rate (`sv` in `rtdists` terms). Must
-  be non-negative. Default `0` (no variability, i.e. the classic
+  Inter-trial variability in drift rate (`sv` in the usual notation).
+  Must be non-negative. Default `0` (no variability, i.e. the classic
   4-parameter DDM).
 
 - sigmabias:
 
   Inter-trial variability in the starting point, expressed as a fraction
   (in `[0, 1)`) of the maximum allowed range, i.e.
-  `sw = sigmabias * min(2*bias, 2*(1-bias))` (`sw`/`sz` in `rtdists`
-  terms). Default `0`.
+  `sw = sigmabias * min(2*bias, 2*(1-bias))` (`sw`/`sz` in the usual
+  notation). Default `0`.
 
 - sigmatau:
 
   Inter-trial variability in non-decision time, expressed as a fraction
-  of `minrt`, i.e. `st0 = sigmatau * minrt` (`st0` in `rtdists` terms).
-  Default `0`.
+  of `minrt`, i.e. `st0 = sigmatau * minrt` (`st0` in the usual
+  notation), with `ndt` the lower bound of the resulting Uniform
+  distribution. Default `0`.
 
 - minrt:
 
   Minimum reaction time. Only required when `sigmatau > 0` (used to
   scale `sigmatau` into `st0`).
-
-- backend:
-
-  The backend to use for the simulation. Based on local benchmarks,
-  `"rtdists"` is much faster for simulation but `"Rwiener"` is faster
-  for density computation. Note that the `"Rwiener"` backend (used by
-  default for the density, e.g., in
-  [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html)/[`loo()`](https://mc-stan.org/loo/reference/loo.html))
-  requires the `RWiener` package to be installed. Ignored (forced to
-  `rtdists`, via
-  [`rtdists::rdiffusion()`](https://rdrr.io/pkg/rtdists/man/Diffusion.html)/[`rtdists::ddiffusion()`](https://rdrr.io/pkg/rtdists/man/Diffusion.html))
-  whenever `sigmadrift`, `sigmabias`, or `sigmatau` is non-zero, since
-  only `rtdists` implements the full 7-parameter model.
 
 - ...:
 
@@ -157,6 +143,17 @@ posterior_predict_ddm(i, prep, ...)
 
   For brms' functions to run: index of the observation and a `brms`
   preparation object.
+
+## Details
+
+The underlying 4-parameter process is simulated and evaluated with
+[`brms::rwiener()`](https://paulbuerkner.com/brms/reference/Wiener.html)/[`brms::dwiener()`](https://paulbuerkner.com/brms/reference/Wiener.html)
+(which require the `RWiener` package). The full 7-parameter model is
+built on top of these rather than delegated to another package:
+between-trial variability is simulated by drawing the per-trial
+parameters, and evaluated by combining a closed-form drift correction
+with Gauss-Legendre quadrature over the starting point and non-decision
+time.
 
 ## Examples
 

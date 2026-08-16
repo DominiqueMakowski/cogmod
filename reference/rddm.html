@@ -66,7 +66,6 @@ race models in the package.</p>
 <span>  sigmabias <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  sigmatau <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  minrt <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  backend <span class="op">=</span> <span class="st">"rtdists"</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -82,7 +81,6 @@ race models in the package.</p>
 <span>  sigmabias <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  sigmatau <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  minrt <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  backend <span class="op">=</span> <span class="st">"Rwiener"</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -133,33 +131,25 @@ race models in the package.</p>
 
 
 <dt id="arg-sigmadrift">sigmadrift<a class="anchor" aria-label="anchor" href="#arg-sigmadrift"></a></dt>
-<dd><p>Inter-trial variability in drift rate (<code>sv</code> in <code>rtdists</code> terms). Must be
+<dd><p>Inter-trial variability in drift rate (<code>sv</code> in the usual notation). Must be
 non-negative. Default <code>0</code> (no variability, i.e. the classic 4-parameter DDM).</p></dd>
 
 
 <dt id="arg-sigmabias">sigmabias<a class="anchor" aria-label="anchor" href="#arg-sigmabias"></a></dt>
 <dd><p>Inter-trial variability in the starting point, expressed as a fraction (in
 <code>[0, 1)</code>) of the maximum allowed range, i.e. <code>sw = sigmabias * min(2*bias, 2*(1-bias))</code>
-(<code>sw</code>/<code>sz</code> in <code>rtdists</code> terms). Default <code>0</code>.</p></dd>
+(<code>sw</code>/<code>sz</code> in the usual notation). Default <code>0</code>.</p></dd>
 
 
 <dt id="arg-sigmatau">sigmatau<a class="anchor" aria-label="anchor" href="#arg-sigmatau"></a></dt>
 <dd><p>Inter-trial variability in non-decision time, expressed as a fraction of
-<code>minrt</code>, i.e. <code>st0 = sigmatau * minrt</code> (<code>st0</code> in <code>rtdists</code> terms). Default <code>0</code>.</p></dd>
+<code>minrt</code>, i.e. <code>st0 = sigmatau * minrt</code> (<code>st0</code> in the usual notation), with <code>ndt</code> the lower
+bound of the resulting Uniform distribution. Default <code>0</code>.</p></dd>
 
 
 <dt id="arg-minrt">minrt<a class="anchor" aria-label="anchor" href="#arg-minrt"></a></dt>
 <dd><p>Minimum reaction time. Only required when <code>sigmatau &gt; 0</code> (used to scale
 <code>sigmatau</code> into <code>st0</code>).</p></dd>
-
-
-<dt id="arg-backend">backend<a class="anchor" aria-label="anchor" href="#arg-backend"></a></dt>
-<dd><p>The backend to use for the simulation. Based on local benchmarks, <code>"rtdists"</code>
-is much faster for simulation but <code>"Rwiener"</code> is faster for density computation. Note that
-the <code>"Rwiener"</code> backend (used by default for the density, e.g., in <code><a href="https://mc-stan.org/rstantools/reference/log_lik.html" class="external-link">log_lik()</a></code>/<code><a href="https://mc-stan.org/loo/reference/loo.html" class="external-link">loo()</a></code>)
-requires the <code>RWiener</code> package to be installed. Ignored (forced to <code>rtdists</code>, via
-<code><a href="https://rdrr.io/pkg/rtdists/man/Diffusion.html" class="external-link">rtdists::rdiffusion()</a></code>/<code><a href="https://rdrr.io/pkg/rtdists/man/Diffusion.html" class="external-link">rtdists::ddiffusion()</a></code>) whenever <code>sigmadrift</code>, <code>sigmabias</code>, or
-<code>sigmatau</code> is non-zero, since only <code>rtdists</code> implements the full 7-parameter model.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -192,6 +182,16 @@ inter-trial variability parameters (fix them to 0, e.g. <code>sigmadrift = 0</co
 <dd><p>For brms' functions to run: index of the observation and a <code>brms</code> preparation object.</p></dd>
 
 </dl></div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>The underlying 4-parameter process is simulated and evaluated with
+<code><a href="https://paulbuerkner.com/brms/reference/Wiener.html" class="external-link">brms::rwiener()</a></code>/<code><a href="https://paulbuerkner.com/brms/reference/Wiener.html" class="external-link">brms::dwiener()</a></code> (which require the <code>RWiener</code> package).
+The full 7-parameter model is built on top of these rather than delegated to
+another package: between-trial variability is simulated by drawing the
+per-trial parameters, and evaluated by combining a closed-form drift
+correction with Gauss-Legendre quadrature over the starting point and
+non-decision time.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

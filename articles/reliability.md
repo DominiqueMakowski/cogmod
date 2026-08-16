@@ -507,9 +507,9 @@ It would be better to have a single number that answers the question
 individual scores?”. This is what the **Variance-Over-Uncertainty
 Ratio** (*D-vour*), implemented in
 [`performance::performance_dvour()`](https://easystats.github.io/performance/reference/performance_reliability.html),
-provides. It is, in essence, a Signal-to-Noise ratio iindex
-corresponding to the normalized ratio of the observed variability
-between group levels to the uncertainty of their estimates:
+provides. It is, in essence, a Signal-to-Noise ratio index corresponding
+to the normalized ratio of the observed variability between group levels
+to the uncertainty of their estimates:
 
 ``` math
 D_{\text{vour}} = \frac{\sigma_{\text{between}}^2}{\sigma_{\text{between}}^2 + \mu_{\text{within}}^2}

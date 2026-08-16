@@ -69,7 +69,7 @@ estimations.
 
 ## Models
 
-All four models below use `dec(Error)` to indicate the two-choice
+All five models below use `dec(Error)` to indicate the two-choice
 outcome (`0` = Correct, `1` = Error), and a fixed `minrt` (the minimum
 observed RT) to scale the non-decision time parameter `tau`.
 
@@ -110,6 +110,57 @@ m_ddm <- brm(f,
 )
 
 m_ddm <- brms::add_criterion(m_ddm, "loo")  # Add model performance criterion
+```
+
+### DDM with Drift Variability (DDM-5)
+
+The three variability parameters are not decoration: each produces a
+specific, and different, effect on the *relative* speed of correct and
+error responses. Between-trial variability in the **drift rate**
+(`sigmadrift`, Ratcliff’s $`s_v`$) makes errors *slower* than correct
+responses, because errors are then contributed disproportionately by the
+trials that happened to draw a low drift. Variability in the **starting
+point** (`sigmabias`, $`s_z`$) does the opposite, producing *faster*
+errors, and variability in the **non-decision time** (`sigmatau`,
+$`s_{t0}`$) mostly affects the leading edge of the distribution. Which
+one to free is therefore an empirical question with a visible answer,
+and here the errors are slightly *slower* than the correct responses -
+so `sigmadrift` is the parameter to free.
+
+We keep `sigmabias` and `sigmatau` fixed at `0`, for two reasons.
+Statistically they are weakly identified with only ~160 error trials,
+and computationally the exact zero matters: `cogmod`’s Stan code falls
+back to the dedicated (and much cheaper) drift-variability-only density
+when both are exactly `0`, and to adaptive numerical quadrature
+otherwise. A prior *concentrated near* zero would pay the full cost of
+the 7-parameter form without buying anything.
+
+``` r
+
+f <- bf(
+  RT | dec(Error) ~ Condition,
+  bs ~ Condition,
+  bias ~ 1,
+  tau ~ 1,
+  sigmadrift ~ 1,
+  minrt = min(df$RT),
+  sigmabias = 0,
+  sigmatau = 0,
+  family = ddm()
+)
+
+priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmadrift") |>
+  brms::validate_prior(f, data = df)
+
+m_ddm5 <- brm(f,
+  data = df,
+  prior = priors,
+  init = 0,
+  stanvars = ddm_stanvars(),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_ddm5 <- brms::add_criterion(m_ddm5, "loo")  # Add model performance criterion
 ```
 
 ### LogNormal Race (LNR)
@@ -276,12 +327,13 @@ weakly-determined.
 
 ``` r
 
-loo::loo_compare(m_ddm, m_lba, m_lnr, m_rdm) |>
+loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
   report::report()
 #> The difference in predictive accuracy, as indexed by Expected Log Predictive
 #> Density (ELPD-LOO), suggests that '1' is the best model (ELPD = 960.72),
 #> followed by '2' (diff-ELPD = -56.02 +- 11.54, p < .001), '3' (diff-ELPD =
-#> -99.40 +- 20.69, p < .001) and '4' (diff-ELPD = -180.57 +- 21.15, p < .001)
+#> -76.21 +- 15.79, p < .001), '4' (diff-ELPD = -99.40 +- 20.69, p < .001) and '5'
+#> (diff-ELPD = -180.57 +- 21.15, p < .001)
 ```
 
 Two features of that ranking are worth dwelling on, because neither is
@@ -333,11 +385,12 @@ observation and land in the same, much slower, range.
 
 duration <- rbind(
   data_modify(attributes(m_ddm$fit)$metadata$time$chain, Model = "DDM"),
+  data_modify(attributes(m_ddm5$fit)$metadata$time$chain, Model = "DDM-5"),
   data_modify(attributes(m_lba$fit)$metadata$time$chain, Model = "LBA"),
   data_modify(attributes(m_lnr$fit)$metadata$time$chain, Model = "LNR"),
   data_modify(attributes(m_rdm$fit)$metadata$time$chain, Model = "RDM")
 ) |>
-  data_modify(Model = factor(Model, levels = c("LNR", "DDM", "RDM", "LBA")))
+  data_modify(Model = factor(Model, levels = c("LNR", "DDM", "DDM-5", "RDM", "LBA")))
 
 duration_median <- aggregate(total ~ Model, data = duration, FUN = median)
 
@@ -350,7 +403,7 @@ duration_median |>
   theme_minimal()
 ```
 
-![](decision_making_files/figure-html/unnamed-chunk-13-1.png)
+![](decision_making_files/figure-html/unnamed-chunk-15-1.png)
 
 ### Posterior Predictive Check
 
@@ -377,6 +430,9 @@ pred <- rbind(
   estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |>
     reshape_iterations() |>
     data_modify(Model = "DDM"),
+  estimate_prediction(m_ddm5, data = df, iterations = 50, keep_iterations = TRUE) |>
+    reshape_iterations() |>
+    data_modify(Model = "DDM-5"),
   estimate_prediction(m_lba, data = df, iterations = 50, keep_iterations = TRUE) |>
     reshape_iterations() |>
     data_modify(Model = "LBA"),

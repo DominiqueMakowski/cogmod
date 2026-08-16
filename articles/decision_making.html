@@ -128,7 +128,7 @@
 <p>Errors are much rarer than correct responses (especially in the <code>Accuracy</code> condition), which can be problematic for accurate estimations.</p>
 </section><section class="level2"><h2 id="models">Models<a class="anchor" aria-label="anchor" href="#models"></a>
 </h2>
-<p>All four models below use <code>dec(Error)</code> to indicate the two-choice outcome (<code>0</code> = Correct, <code>1</code> = Error), and a fixed <code>minrt</code> (the minimum observed RT) to scale the non-decision time parameter <code>tau</code>.</p>
+<p>All five models below use <code>dec(Error)</code> to indicate the two-choice outcome (<code>0</code> = Correct, <code>1</code> = Error), and a fixed <code>minrt</code> (the minimum observed RT) to scale the non-decision time parameter <code>tau</code>.</p>
 <section class="level3"><h3 id="drift-diffusion-model-ddm">Drift Diffusion Model (DDM)<a class="anchor" aria-label="anchor" href="#drift-diffusion-model-ddm"></a>
 </h3>
 <p>The DDM assumes that evidence accumulates towards one of two boundaries at a rate <code>mu</code> (drift rate). <code>bs</code> is the boundary separation (higher = more cautious), <code>bias</code> is the starting point between the two boundaries (<code>0.5</code> = unbiased), and <code>tau</code> is the non-decision time (as a proportion of <code>minrt</code>).</p>
@@ -156,11 +156,42 @@
 <span></span>
 <span><span class="va">m_ddm</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_ddm</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># Add model performance criterion</span></span></code></pre></div>
 </div>
+</section><section class="level3"><h3 id="ddm-with-drift-variability-ddm-5">DDM with Drift Variability (DDM-5)<a class="anchor" aria-label="anchor" href="#ddm-with-drift-variability-ddm-5"></a>
+</h3>
+<p>The three variability parameters are not decoration: each produces a specific, and different, effect on the <em>relative</em> speed of correct and error responses. Between-trial variability in the <strong>drift rate</strong> (<code>sigmadrift</code>, Ratcliff’s <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>s</mi><mi>v</mi></msub><annotation encoding="application/x-tex">s_v</annotation></semantics></math>) makes errors <em>slower</em> than correct responses, because errors are then contributed disproportionately by the trials that happened to draw a low drift. Variability in the <strong>starting point</strong> (<code>sigmabias</code>, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>s</mi><mi>z</mi></msub><annotation encoding="application/x-tex">s_z</annotation></semantics></math>) does the opposite, producing <em>faster</em> errors, and variability in the <strong>non-decision time</strong> (<code>sigmatau</code>, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>s</mi><mrow><mi>t</mi><mn>0</mn></mrow></msub><annotation encoding="application/x-tex">s_{t0}</annotation></semantics></math>) mostly affects the leading edge of the distribution. Which one to free is therefore an empirical question with a visible answer, and here the errors are slightly <em>slower</em> than the correct responses - so <code>sigmadrift</code> is the parameter to free.</p>
+<p>We keep <code>sigmabias</code> and <code>sigmatau</code> fixed at <code>0</code>, for two reasons. Statistically they are weakly identified with only ~160 error trials, and computationally the exact zero matters: <code>cogmod</code>’s Stan code falls back to the dedicated (and much cheaper) drift-variability-only density when both are exactly <code>0</code>, and to adaptive numerical quadrature otherwise. A prior <em>concentrated near</em> zero would pay the full cost of the 7-parameter form without buying anything.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">RT</span> <span class="op">|</span> <span class="fu">dec</span><span class="op">(</span><span class="va">Error</span><span class="op">)</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
+<span>  <span class="va">bs</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
+<span>  <span class="va">bias</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">tau</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">sigmadrift</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">RT</span><span class="op">)</span>,</span>
+<span>  sigmabias <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  sigmatau <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rddm.html">ddm</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"sigmadrift"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">validate_prior</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_ddm5</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
+<span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
+<span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rddm.html">ddm_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_ddm5</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_ddm5</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># Add model performance criterion</span></span></code></pre></div>
+</div>
 </section><section class="level3"><h3 id="lognormal-race-lnr">LogNormal Race (LNR)<a class="anchor" aria-label="anchor" href="#lognormal-race-lnr"></a>
 </h3>
 <p>The LNR is a somewhat simpler model. It is similar to the LBA, but each accumulator’s finishing time is drawn directly from a LogNormal distribution instead of a ballistic accumulation process. <code>mu</code> (<code>nuzero</code>) and <code>nuone</code> are the (inverse log-space mean) processing speeds for the “Error” and “Correct” accumulators, and <code>sigmazero</code>/<code>sigmaone</code> their log-space SDs.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">|</span> <span class="fu">dec</span><span class="op">(</span><span class="va">Error</span><span class="op">)</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">nuone</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -188,7 +219,7 @@
 </h3>
 <p>The LBA assumes two independent accumulators (one per choice) that race towards a common threshold <code>b</code> (<code>sigmabias</code> = start-point range <code>A</code>, <code>bs</code> = extra distance so that <code>b = A + bs</code>). <code>mu</code> and <code>driftone</code> are the mean drift rates for the “Correct” and “Error” accumulators, and <code>sigmazero</code>/ <code>sigmaone</code> their between-trial drift variability.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">|</span> <span class="fu">dec</span><span class="op">(</span><span class="va">Error</span><span class="op">)</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">driftone</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -227,7 +258,7 @@
 <p>The RDM is the LBA’s stochastic counterpart - each accumulator integrates evidence through the DDM’s random walk process instead of accumulating linearly. It otherwise keeps the racing architecture: two independent accumulators, a common threshold <code>b</code>, and a start point drawn from <code>Uniform(0, sigmabias)</code>. The consequence of swapping the ballistic path for a diffusing one is that the noise now lives <em>within</em> a trial rather than between trials. That is the point of the model: Tillman et al. (<a href="https://doi.org/10.3758/s13423-020-01738-8" class="external-link">2020</a>) show that within-trial variability alone accounts for the benchmark choice-RT phenomena, without the between-trial drift variability that the LBA (<code>sigmazero</code>/<code>sigmaone</code>) and the full DDM (<code>sigmadrift</code>) need. It is therefore the more parsimonious race: <code>mu</code> and <code>driftone</code> are the drift rates for the “Correct” and “Error” accumulators, and there is no drift variability parameter to estimate.</p>
 <p>Because each accumulator is a Wald (shifted inverse Gaussian) process, the drift rates use a softplus link and are constrained to be non-negative.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">|</span> <span class="fu">dec</span><span class="op">(</span><span class="va">Error</span><span class="op">)</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">driftone</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -269,13 +300,14 @@
 <section class="level3"><h3 id="model-fit">Model Fit<a class="anchor" aria-label="anchor" href="#model-fit"></a>
 </h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">loo</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare</a></span><span class="op">(</span><span class="va">m_ddm</span>, <span class="va">m_lba</span>, <span class="va">m_lnr</span>, <span class="va">m_rdm</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">loo</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare</a></span><span class="op">(</span><span class="va">m_ddm</span>, <span class="va">m_ddm5</span>, <span class="va">m_lba</span>, <span class="va">m_lnr</span>, <span class="va">m_rdm</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">report</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/report/reference/report.html" class="external-link">report</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt; The difference in predictive accuracy, as indexed by Expected Log Predictive</span></span>
 <span><span class="co">#&gt; Density (ELPD-LOO), suggests that '1' is the best model (ELPD = 960.72),</span></span>
 <span><span class="co">#&gt; followed by '2' (diff-ELPD = -56.02 +- 11.54, p &lt; .001), '3' (diff-ELPD =</span></span>
-<span><span class="co">#&gt; -99.40 +- 20.69, p &lt; .001) and '4' (diff-ELPD = -180.57 +- 21.15, p &lt; .001)</span></span></code></pre></div>
+<span><span class="co">#&gt; -76.21 +- 15.79, p &lt; .001), '4' (diff-ELPD = -99.40 +- 20.69, p &lt; .001) and '5'</span></span>
+<span><span class="co">#&gt; (diff-ELPD = -180.57 +- 21.15, p &lt; .001)</span></span></code></pre></div>
 </div>
 <p>Two features of that ranking are worth dwelling on, because neither is what one might expect.</p>
 <p>The first is that the RDM finishes behind the LBA, despite being the more parsimonious race - it buys its economy by dropping the between-trial drift variability that the LBA carries in <code>sigmazero</code>/<code>sigmaone</code>. On this participant, that variability earns its keep. This is exactly the kind of question a common interface is for: the claim that within-trial noise alone suffices is an empirical one, and here it is tested rather than assumed.</p>
@@ -284,14 +316,15 @@
 </h3>
 <p>As with the RT-only models, we summarize each model’s sampling duration by the median time per chain. Choice+RT models are considerably more expensive to sample than RT-only models (see the <a href="rt_models.html">RT-only Models</a> vignette): the DDM relies on Stan’s <code>wiener_lpdf</code>, which is comparatively slow, while the LBA, LNR and RDM likelihoods involve evaluating both a “winner” density and a “loser” survival function for every observation. Among the three races, the LNR is by far the cheapest, since its density and survival are just LogNormal ones, while the RDM and the LBA each need several normal CDF evaluations per observation and land in the same, much slower, range.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">duration</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_ddm</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model <span class="op">=</span> <span class="st">"DDM"</span><span class="op">)</span>,</span>
+<span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_ddm5</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model <span class="op">=</span> <span class="st">"DDM-5"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_lba</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model <span class="op">=</span> <span class="st">"LBA"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_lnr</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model <span class="op">=</span> <span class="st">"LNR"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">data_modify</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attributes.html" class="external-link">attributes</a></span><span class="op">(</span><span class="va">m_rdm</span><span class="op">$</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">time</span><span class="op">$</span><span class="va">chain</span>, Model <span class="op">=</span> <span class="st">"RDM"</span><span class="op">)</span></span>
 <span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">Model</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"LNR"</span>, <span class="st">"DDM"</span>, <span class="st">"RDM"</span>, <span class="st">"LBA"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">Model</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"LNR"</span>, <span class="st">"DDM"</span>, <span class="st">"DDM-5"</span>, <span class="st">"RDM"</span>, <span class="st">"LBA"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">duration_median</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/aggregate.html" class="external-link">aggregate</a></span><span class="op">(</span><span class="va">total</span> <span class="op">~</span> <span class="va">Model</span>, data <span class="op">=</span> <span class="va">duration</span>, FUN <span class="op">=</span> <span class="va">median</span><span class="op">)</span></span>
 <span></span>
@@ -304,7 +337,7 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <div class="cell-output-display">
 <div>
-<figure><p><img src="decision_making_files/figure-html/unnamed-chunk-13-1.png" width="672"></p>
+<figure><p><img src="decision_making_files/figure-html/unnamed-chunk-15-1.png" width="672"></p>
 </figure>
 </div>
 </div>
@@ -314,11 +347,14 @@
 <p>Each model predicts a <strong>pair</strong> of outcomes per trial, so <code>estimate_prediction()</code> returns them in a <code>Component</code> column (<code>"rt"</code> and <code>"response"</code>), which we pivot back into two columns.</p>
 <p>Correct responses are drawn upwards and errors downwards, with the observed data as histograms and the four models as overlaid density lines (faint: one per posterior draw; bold: pooled over draws). Rather than normalizing each half separately, both are scaled by the <strong>proportion</strong> of that response, so that the area under each curve equals its predicted frequency - which is why the error half is roughly a twelfth of the size of the correct one. This makes the plot a check on the <em>joint</em> distribution of choices and RTs: a model can only match it by getting the error rate <em>and</em> the shape of both RT distributions right.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_ddm</span>, data <span class="op">=</span> <span class="va">df</span>, iterations <span class="op">=</span> <span class="fl">50</span>, keep_iterations <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"DDM"</span><span class="op">)</span>,</span>
+<span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_ddm5</span>, data <span class="op">=</span> <span class="va">df</span>, iterations <span class="op">=</span> <span class="fl">50</span>, keep_iterations <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"DDM-5"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_lba</span>, data <span class="op">=</span> <span class="va">df</span>, iterations <span class="op">=</span> <span class="fl">50</span>, keep_iterations <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">reshape_iterations</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"LBA"</span><span class="op">)</span>,</span>
