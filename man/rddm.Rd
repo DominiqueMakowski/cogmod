@@ -67,7 +67,8 @@ posterior_predict_ddm(i, prep, ...)
 
 \item{bs}{Decision threshold (boundary separation). Must be positive.}
 
-\item{bias}{Starting point bias (proportion of boundary separation). Must be in (0, 1).}
+\item{bias}{Starting point bias, as a proportion of the boundary separation
+\emph{measured from the boundary coded \code{0}}. Must be in (0, 1). See Details.}
 
 \item{ndt}{Non-decision time. Must be non-negative.}
 
@@ -109,7 +110,26 @@ The 'ddm' family in this package is not a full re-implementation of the DDM, but
 \code{brms} wiener family. It is simply a reparametrized version for consistency with the other
 race models in the package.
 }
-\details{
+\section{Response coding}{
+The response coded \code{1} (\code{response} here, \code{dec()} in a \code{brms} formula) is the
+\strong{upper} boundary and the response coded \code{0} is the \strong{lower} one, following
+\code{brms}'s own \code{wiener()} family. Two consequences are worth keeping in mind
+when reading a fitted model:
+\itemize{
+\item \code{bias} is measured \emph{from the lower boundary}, so \code{bias > 0.5} places the
+starting point closer to the response coded \code{1}, and \code{bias < 0.5} closer to
+the response coded \code{0}. Since first-passage times are shorter for the nearer
+boundary, \code{bias > 0.5} makes responses coded \code{1} \emph{faster} than responses
+coded \code{0}, and \code{bias < 0.5} makes them slower. At exactly \code{bias = 0.5} the
+two conditional RT distributions are identical, whatever the drift rate.
+\item A positive \code{drift} pushes the accumulator towards the response coded \code{1}.
+When \code{0} codes correct responses and \code{1} codes errors (a common choice when
+the task has no natural stimulus-to-boundary mapping), good performance
+therefore corresponds to a \emph{negative} drift rate.
+}
+}
+
+\section{Implementation}{
 The underlying 4-parameter process is simulated and evaluated with
 \code{\link[brms:Wiener]{brms::rwiener()}}/\code{\link[brms:Wiener]{brms::dwiener()}} (which require the \code{RWiener} package).
 The full 7-parameter model is built on top of these rather than delegated to
@@ -118,6 +138,7 @@ per-trial parameters, and evaluated by combining a closed-form drift
 correction with Gauss-Legendre quadrature over the starting point and
 non-decision time.
 }
+
 \examples{
 # Simulate data
 # data <- rddm(1000, drift = 0.2, bs = 1, bias = 0.5, ndt = 0.3)

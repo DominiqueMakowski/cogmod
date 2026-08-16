@@ -83,6 +83,14 @@ cautious), `bias` is the starting point between the two boundaries
 (`0.5` = unbiased), and `tau` is the non-decision time (as a proportion of
 `minrt`).
 
+Two conventions invert the signs one might expect. Following `brms`'s own
+`wiener()` family, the response coded `1` in `dec()` - here the **error** -
+is the *upper* boundary, and `bias` is measured from the *lower* one. Good
+performance therefore shows up as a **negative** `mu`, and `bias > 0.5`
+puts the start point closer to the error boundary, making errors *faster*
+than correct responses (`bias < 0.5` makes them slower; at exactly `0.5`
+the two conditional RT distributions are identical).
+
 Note that we use the "simple" 4-parameter DDM here, which does not include between-trial variability in drift rate, starting point, or non-decision time, hence the `sigmadrift`, `sigmabias`, and `sigmatau` parameters are fixed to `0`. Estimating these parameters is possible, but considerably more expensive and often unnecessary for many applications.
 
 ```{r}
@@ -390,22 +398,26 @@ One feature of that ranking is worth a comment, because it shows what a
 comparison like this is actually good for. The simple DDM comes last, even
 though it is the only model here allowed to move its threshold across
 conditions (`bs ~ Condition`) - the mechanism speed instructions are
-believed to act on. Its deficit lies on a different axis: with all three
-variability parameters fixed to `0`, a DDM can only produce errors that are
-*faster* than correct responses, and in these data they are slightly
-slower. Sampling from the fitted models makes it concrete - the DDM
-predicts errors 0.110 s faster than correct responses (95% CI
-`[-0.135, -0.086]`) against an observed `+0.014` s, while the three races,
-each carrying a separate drift for the error accumulator, all cover the
-observed value.
+believed to act on. Its deficit lies on a different axis: it predicts
+errors 0.110 s *faster* than correct responses (95% CI `[-0.135, -0.086]`)
+against an observed `+0.039` s, while the three races, each carrying a
+separate drift for the error accumulator, all cover the observed value.
+Not because a DDM without variability can only produce fast errors - a
+`bias` below `0.5` produces slow ones - but because these errors have a
+heavier *tail* at an unchanged leading edge (in the `Accuracy` condition,
+90th percentile 1.081 s against 0.744 s for correct responses, but 10th
+percentile 0.458 s against 0.446 s). The start point slides the whole
+distribution, and it has to account for the error rate at the same time.
 
-**DDM-5** isolates exactly that axis: same model, same threshold mechanism,
-only `sigmadrift` freed. It is worth 104 ELPD points, moves the DDM from
-last to third, and halves the error-timing gap (to `-0.058`,
-`[-0.101, -0.002]`) without closing it. That is the useful lesson, and it
-is about diagnosis rather than about which family wins: a poor fit had an
+**DDM-5** adds exactly the missing degree of freedom: with the errors
+contributed disproportionately by the trials that drew a low drift, drift
+variability lengthens the error tail without moving its leading edge. Same
+model, same threshold mechanism, only `sigmadrift` freed - and it is worth
+104 ELPD points, moves the DDM from last to third, and closes the
+error-timing gap (`+0.007`, `[-0.058, +0.087]`). The lesson is about
+diagnosis rather than about which family wins: a poor fit had an
 identifiable cause, the cause pointed at one parameter, and freeing it
-recovered most of the gap.
+recovered the gap.
 
 ### Sampling Duration
 
@@ -533,11 +545,12 @@ p
 ![](../man/figures/decision_making1.png)
 
 The mismatch discussed above is visible in the lower half: the **DDM**
-(purple) places its error density to the left of the observed errors, the
-three races put theirs on top of it, and **DDM-5** (blue) sits between the
-two. In the upper half all five are close - which is the point worth taking
-away: a model's problem can be invisible if one only looks at the RTs of
-correct responses.
+(purple) places its error density well to the left of the observed errors,
+while the three races put theirs on top of them. **DDM-5** (blue) sits
+between the two - it recovers the average error timing but spreads the
+errors too widely. In the upper half all five are close, which is the point
+worth taking away: a model's problem can be invisible if one only looks at
+the RTs of correct responses.
 
 ```{r}
 #| echo: false

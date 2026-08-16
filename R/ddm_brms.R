@@ -236,11 +236,23 @@ posterior_epred_ddm <- function(prep) {
   # Compute ndt from tau and minrt
   ndt <- tau * minrt
 
-  # Compute expected reaction time (E[RT])
-  # Formula adapted from https://doi.org/10.1016/j.jmp.2009.01.006
-  epred <- ndt -
-    bias / mu +
-    bs / mu * (exp(-2 * mu * bias) - 1) / (exp(-2 * mu * bs) - 1)
+  # Compute expected reaction time (E[RT]), i.e. the *unconditional* mean
+  # first-passage time plus the non-decision time.
+  # Formula adapted from https://doi.org/10.1016/j.jmp.2009.01.006, which takes
+  # the starting point on the absolute scale: `bias` is a proportion of `bs`,
+  # so the quantity entering the formula is z = bias * bs, not `bias` itself.
+  z <- bias * bs
+  epred <- ndt - z / mu + bs / mu * (exp(-2 * mu * z) - 1) / (exp(-2 * mu * bs) - 1)
+
+  # The expression above has a removable singularity at mu = 0 (and loses
+  # precision to cancellation near it). The limit is ndt + z * (bs - z).
+  near_zero <- abs(mu) < 1e-6
+  if (any(near_zero)) {
+    # `+ 0 * mu` recycles the limit to the shape of the draws x observations
+    # matrix, whatever mix of scalar and matrix dpars was supplied.
+    lim <- ndt + z * (bs - z) + 0 * mu
+    epred[near_zero] <- lim[near_zero]
+  }
 
   # Return expected reaction time
   epred

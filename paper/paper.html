@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.25">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Dominique Makowski">
+<meta name="keywords" content="cognitive modelling, Bayesian statistics, reaction times, evidence accumulation, subjective ratings, R">
+<meta name="description" content="THE COGMOD R PACKAGE">
+
+<title>cogmod: A Unified Framework for Bayesian Cognitive Models of Reaction Times, Choices and Subjective Ratings in R</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+  margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="paper_files/libs/clipboard/clipboard.min.js"></script>
+<script src="paper_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="paper_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="paper_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="paper_files/libs/quarto-html/popper.min.js"></script>
+<script src="paper_files/libs/quarto-html/tippy.umd.min.js"></script>
+<link href="paper_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="paper_files/libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="paper_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="paper_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="paper_files/libs/bootstrap/bootstrap-15f85eb00547d308b9628b46447080fb.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="_extensions/apaquarto/apa.css">
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article toc-left">
+<div id="quarto-sidebar-toc-left" class="sidebar toc-left">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#firstheader" id="toc-firstheader" class="nav-link active" data-scroll-target="#firstheader">cogmod: A Unified Framework for Bayesian Cognitive Models of Reaction Times, Choices and Subjective Ratings in R</a></li>
+  <li><a href="#introduction" id="toc-introduction" class="nav-link" data-scroll-target="#introduction">Introduction</a></li>
+  <li><a href="#design-and-implementation" id="toc-design-and-implementation" class="nav-link" data-scroll-target="#design-and-implementation">Design and Implementation</a>
+  <ul class="collapse">
+  <li><a href="#models-as-brms-custom-families" id="toc-models-as-brms-custom-families" class="nav-link" data-scroll-target="#models-as-brms-custom-families">Models as <code>brms</code> custom families</a></li>
+  <li><a href="#implemented-models" id="toc-implemented-models" class="nav-link" data-scroll-target="#implemented-models">Implemented models</a></li>
+  <li><a href="#relation-to-existing-software" id="toc-relation-to-existing-software" class="nav-link" data-scroll-target="#relation-to-existing-software">Relation to existing software</a></li>
+  </ul></li>
+  <li><a href="#example-1-recovering-what-the-mean-hides" id="toc-example-1-recovering-what-the-mean-hides" class="nav-link" data-scroll-target="#example-1-recovering-what-the-mean-hides">Example 1: Recovering What the Mean Hides</a>
+  <ul class="collapse">
+  <li><a href="#an-effect-that-is-not-in-the-mean" id="toc-an-effect-that-is-not-in-the-mean" class="nav-link" data-scroll-target="#an-effect-that-is-not-in-the-mean">An effect that is not in the mean</a></li>
+  <li><a href="#decomposing-a-real-effect" id="toc-decomposing-a-real-effect" class="nav-link" data-scroll-target="#decomposing-a-real-effect">Decomposing a real effect</a></li>
+  </ul></li>
+  <li><a href="#example-2-comparing-model-families" id="toc-example-2-comparing-model-families" class="nav-link" data-scroll-target="#example-2-comparing-model-families">Example 2: Comparing Model Families</a>
+  <ul class="collapse">
+  <li><a href="#ten-families-one-call" id="toc-ten-families-one-call" class="nav-link" data-scroll-target="#ten-families-one-call">Ten families, one call</a></li>
+  <li><a href="#posterior-predictive-checks" id="toc-posterior-predictive-checks" class="nav-link" data-scroll-target="#posterior-predictive-checks">Posterior predictive checks</a></li>
+  </ul></li>
+  <li><a href="#example-3-beyond-reaction-times-subjective-ratings" id="toc-example-3-beyond-reaction-times-subjective-ratings" class="nav-link" data-scroll-target="#example-3-beyond-reaction-times-subjective-ratings">Example 3: Beyond Reaction Times, Subjective Ratings</a></li>
+  <li><a href="#example-4-are-model-parameters-usable-as-individual-scores" id="toc-example-4-are-model-parameters-usable-as-individual-scores" class="nav-link" data-scroll-target="#example-4-are-model-parameters-usable-as-individual-scores">Example 4: Are Model Parameters Usable as Individual Scores?</a>
+  <ul class="collapse">
+  <li><a href="#the-question" id="toc-the-question" class="nav-link" data-scroll-target="#the-question">The question</a></li>
+  <li><a href="#fitting-and-reading-the-model" id="toc-fitting-and-reading-the-model" class="nav-link" data-scroll-target="#fitting-and-reading-the-model">Fitting and reading the model</a></li>
+  <li><a href="#quantifying-it" id="toc-quantifying-it" class="nav-link" data-scroll-target="#quantifying-it">Quantifying it</a></li>
+  </ul></li>
+  <li><a href="#discussion" id="toc-discussion" class="nav-link" data-scroll-target="#discussion">Discussion</a>
+  <ul class="collapse">
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary">Summary</a></li>
+  <li><a href="#limitations" id="toc-limitations" class="nav-link" data-scroll-target="#limitations">Limitations</a></li>
+  <li><a href="#conclusion" id="toc-conclusion" class="nav-link" data-scroll-target="#conclusion">Conclusion</a></li>
+  </ul></li>
+  <li><a href="#open-practices-statement" id="toc-open-practices-statement" class="nav-link" data-scroll-target="#open-practices-statement">Open Practices Statement</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="paper.docx"><i class="bi bi-file-word"></i>MS Word (apaquarto)</a></li><li><a href="paper.pdf"><i class="bi bi-file-pdf"></i>Typst (apaquarto)</a></li><li><a href="paper.pdf"><i class="bi bi-file-pdf"></i>PDF (apaquarto)</a></li></ul></div></nav>
+</div>
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
+</div>
+<main class="content" id="quarto-document-content">
+
+<!-- This file is intentionally empty. The APA title page for HTML output
+     is generated by frontmatter.lua. Do not add content here — it would
+     override the Lua-generated title block. -->
+
+
+<br>
+
+<br>
+
+<section id="title" class="level1 title unnumbered unlisted">
+<h1 class="title unnumbered unlisted">cogmod: A Unified Framework for Bayesian Cognitive Models of Reaction Times, Choices and Subjective Ratings in R</h1>
+<div class="Author">
+<br>
+
+<p>Dominique Makowski</p>
+<p>School of Psychology, University of Sussex</p>
+<p>Sussex Centre for Consciousness Science, University of Sussex</p>
+<p><em>D.Makowski@sussex.ac.uk</em></p>
+</div>
+<br>
+
+<br>
+
+</section>
+<section id="author-note" class="level1 unnumbered unlisted AuthorNote">
+<h1 class="unnumbered unlisted AuthorNote">Author Note</h1>
+<p>Dominique Makowski <img src="_extensions/apaquarto/ORCID-iD_icon-vector.svg" id="orcid" class="img-fluid" style="width:4.23mm" alt="Orcid ID Logo: A green circle with white letters ID"> <a href="https://orcid.org/0000-0001-5375-9967">https://orcid.org/0000-0001-5375-9967</a></p>
+<p>All the code, data and models presented in this paper are openly available at <a href="https://github.com/DominiqueMakowski/cogmod" class="uri">https://github.com/DominiqueMakowski/cogmod</a>. The authors have no conflicts of interest to disclose.</p>
+<p>Author roles were classified using the Contributor Role Taxonomy (CRediT; <a href="https://credit.niso.org">credit.niso.org</a>) as follows: <em>Dominique Makowski</em><strong>: </strong>conceptualization, software, formal analysis, visualization, writing – original draft, and writing – review &amp; editing</p>
+<p>Correspondence concerning this article should be addressed to Dominique Makowski, School of Psychology, University of Sussex, Brighton BN1 9RH, UK, Email: <a href="mailto:D.Makowski@sussex.ac.uk">D.Makowski@sussex.ac.uk</a></p>
+<br>
+</section>
+<section id="abstract" class="level1 unnumbered unlisted AuthorNote">
+<h1 class="unnumbered unlisted AuthorNote">Abstract</h1>
+<div class="AbstractFirstParagraph">
+<p>Cognitive models extract substantially more information from behavioural data than the means and mean differences that dominate published analyses. This holds both for descriptive distributional families such as the ex-Gaussian and for generative process models such as the Drift Diffusion Model. Adoption nonetheless remains limited, and one reason is practical: the software landscape is fragmented, with each model family living in its own package, with its own syntax, its own parameterization and its own post-processing tools. Models are therefore rarely compared across families, and cognitive modelling sits apart from the regression workflow that psychologists already know. We introduce <code>cogmod</code>, an R package that implements a broad set of cognitive models as <code>brms</code> custom families. Models are specified with ordinary <code>brms</code> formula syntax, any parameter (drift rate, boundary separation, non-decision time, confidence, precision) can be predicted by covariates and given random effects, and the fitted object is a standard <code>brmsfit</code> supporting the usual priors, diagnostics, posterior predictive checks, leave-one-out cross-validation and <code>easystats</code> post-processing. Four worked examples use simulated data and a published lexical decision dataset: recovering the components of an experimental effect that a linear model collapses into one number, comparing ten reaction time families in a single call, modelling bimodal slider-scale ratings with the Choice-Confidence (CHOCO) model, and quantifying the reliability of model parameters as individual-level scores. <code>cogmod</code> is openly available at <a href="https://github.com/DominiqueMakowski/cogmod" class="uri">https://github.com/DominiqueMakowski/cogmod</a>.</p>
+</div>
+<p><em>Keywords</em>: cognitive modelling, Bayesian statistics, reaction times, evidence accumulation, subjective ratings, R</p>
+<br>
+</section>
+<section id="firstheader" class="level1 title unnumbered">
+<h1 class="title unnumbered">cogmod: A Unified Framework for Bayesian Cognitive Models of Reaction Times, Choices and Subjective Ratings in R</h1>
+<!-- ==========================================================================
+     REFERENCE PAPERS - for writing style, structure and framing
+     ==========================================================================
+
+     TARGET JOURNAL
+     Behavior Research Methods (Springer). Chief editors: Erin M. Buchanan,
+     Dora Matzke.  https://link.springer.com/journal/13428
+     Note: Dora Matzke is a co-author of the EMC2 paper below. Frame cogmod as 
+     complementary, not as a replacement.
+
+     --------------------------------------------------------------------------
+     PRIMARY TEMPLATE - closest thing to this paper, in the target journal
+     --------------------------------------------------------------------------
+     Stevenson, Donzallaz, Innes, Forstmann, Matzke & Heathcote (2026).
+       Bayesian hierarchical cognitive modeling with the EMC2 package. BRM.
+       https://doi.org/10.3758/s13428-025-02869-y
+       Docs: https://ampl-psych.github.io/EMC2/
+       WHAT TO BORROW: the paper is organised around a *workflow* (design ->
+       Bayesian specification -> sampling -> diagnostics/evaluation ->
+       inference) rather than around a list of models. Their "design phase"
+       pitch - bridging standard regression and cognitive modelling via
+       linear-model specifications for cognitive parameters - is very close to
+       our own argument, so our differentiation has to be explicit and
+       generous: they own the sampler and the accumulator architectures, we own
+       the general-purpose regression interface and the descriptive-to-
+       generative continuum (RTs AND ratings in one framework).
+
+     Heathcote, Lin, Reynolds, Strickland, Gretton & Matzke (2019).
+       Dynamic models of choice. BRM, 51, 961-985.
+       https://doi.org/10.3758/s13428-018-1067-y
+       WHAT TO BORROW: how much tutorial-level detail a BRM software paper is
+       allowed to carry, and how to present a model zoo without it reading as
+       a catalogue.
+
+     --------------------------------------------------------------------------
+     OWN PAPERS - for voice and for the "package paper" format
+     --------------------------------------------------------------------------
+     Makowski, Pham, Lau, Brammer, Lespinasse, Pham, Scholzel & Chen (2021).
+       NeuroKit2: A Python toolbox for neurophysiological signal processing.
+       Behavior Research Methods, 53(4), 1689-1696.
+       https://doi.org/10.3758/s13428-020-01516-y
+       <- own paper, same journal: the closest model for tone and length.
+
+     Fisher & Makowski (2024). SequentialSamplingModels.jl.
+       Proceedings of JuliaCon. https://doi.org/10.21105/jcon.00186
+
+     Makowski, Ben-Shachar, Wiernik, Patil, Theriault & Ludecke (2025).
+       modelbased: An R package to make the most out of your statistical
+       models... JOSS, 10(109), 7969. https://doi.org/10.21105/joss.07969
+     Makowski, Ben-Shachar & Ludecke (2019). bayestestR. JOSS, 4(40), 1541.
+       https://doi.org/10.21105/joss.01541
+     Ludecke, Ben-Shachar, Patil, Waggoner & Makowski (2021). performance.
+       JOSS, 6(60), 3139. https://doi.org/10.21105/joss.03139
+     Ludecke, Waggoner & Makowski (2019). insight. JOSS, 4(38), 1412.
+       https://doi.org/10.21105/joss.01412
+       <- JOSS format is much shorter and differently structured; use these for
+          voice only, not for structure.
+
+     Makowski, Ben-Shachar, Chen & Ludecke (2019). Indices of effect existence
+       and significance in the Bayesian framework. Frontiers in Psychology, 10,
+       2767. https://doi.org/10.3389/fpsyg.2019.02767
+       <- own non-JOSS methods paper: useful model for how to argue a
+          methodological point at length with simulations.
+
+     --------------------------------------------------------------------------
+     OTHER GOOD PACKAGE PAPERS IN NON-JOSS JOURNALS
+     --------------------------------------------------------------------------
+     Burkner (2017). brms. J. Stat. Software, 80(1).
+       https://doi.org/10.18637/jss.v080.i01
+     Burkner (2018). Advanced Bayesian multilevel modeling with brms.
+       R Journal, 10(1), 395-411. https://doi.org/10.32614/RJ-2018-017
+       <- the custom-family / distributional-regression framing we build on.
+     Wiecki, Sofer & Frank (2013). HDDM. Front. Neuroinformatics, 7, 14.
+       https://doi.org/10.3389/fninf.2013.00014
+     Voss & Voss (2007). Fast-dm. BRM, 39(4), 767-775.
+       https://doi.org/10.3758/BF03192967
+     Vandekerckhove & Tuerlinckx (2008). DMAT primer. BRM, 40(1), 61-72.
+       https://doi.org/10.3758/BRM.40.1.61
+     Shinn, Lam & Murray (2020). PyDDM. eLife, 9, e56938.
+       https://doi.org/10.7554/eLife.56938
+     Ahn, Haines & Zhang (2017). hBayesDM. Computational Psychiatry, 1, 24-57.
+       https://doi.org/10.1162/CPSY_a_00002
+     Peirce et al. (2019). PsychoPy2. BRM, 51, 195-203.
+       https://doi.org/10.3758/s13428-018-01193-y
+     de Leeuw (2015). jsPsych. BRM, 47, 1-12.
+       https://doi.org/10.3758/s13428-014-0458-y
+     Mathot, Schreij & Theeuwes (2012). OpenSesame. BRM, 44, 314-324.
+       https://doi.org/10.3758/s13428-011-0168-7
+       <- the last three are BRM's house style for tool papers: short intro,
+          heavy on worked examples, explicit about limitations.
+
+     --------------------------------------------------------------------------
+     METHODOLOGICAL FRAMING
+     --------------------------------------------------------------------------
+     Hedge, Powell & Sumner (2018). The reliability paradox. BRM, 50, 1166-1186.
+       https://doi.org/10.3758/s13428-017-0935-1
+     Burkner & Vuorre (2019). Ordinal regression models in psychology: A
+       tutorial. AMPPS, 2(1), 77-101.
+       https://doi.org/10.1177/2515245918823199
+     Kubinec (2023). Ordered beta regression. Political Analysis, 31(4).
+       https://doi.org/10.1017/pan.2022.20
+
+     NOTE: DOIs above were assembled from search results and should be
+     spot-checked before submission.
+     ========================================================================== -->
+</section>
+<section id="introduction" class="level1">
+<h1>Introduction</h1>
+<p>Cognitive tasks produce rich data. A single participant in a two-choice task generates hundreds of trials, each carrying a response, a latency, and often a confidence rating. Most published analyses reduce all of this to a handful of condition means and then test whether those means differ. Summarising the data this way is itself a modelling decision, and a costly one, since much of what distinguishes cognitive data from other kinds of data is discarded along the way.</p>
+<p>Broadly, three approaches to such data can be distinguished. The <strong>summary statistics approach</strong> treats observations as Normally distributed and summarises them by their mean, which is what <em>t</em>-tests, ANOVAs and linear regressions do. The <strong>distributional approach</strong> selects a likelihood that matches the shape of the outcome, such as an ex-Gaussian or shifted LogNormal for reaction times [RTs; <span class="citation" data-cites="matzke2009psychological">Matzke and Wagenmakers (<a href="#ref-matzke2009psychological" role="doc-biblioref">2009</a>)</span>; <span class="citation" data-cites="balota2011moving">Balota and Yap (<a href="#ref-balota2011moving" role="doc-biblioref">2011</a>)</span>] or an ordered Beta for bounded ratings <span class="citation" data-cites="kubinec2023ordered">(<a href="#ref-kubinec2023ordered" role="doc-biblioref">Kubinec, 2023</a>)</span>, so that skew, boundedness and dispersion are described rather than assumed away. The <strong>computational approach</strong> goes further and specifies a likelihood <em>derived from an account of the process that generated the data</em>. In evidence accumulation models, response times are the first-passage times of a noisy accumulation towards a decision boundary, so the parameters refer to distinct components of the decision: the quality of the evidence, the amount of it required before committing, and the time spent encoding the stimulus and executing the response <span class="citation" data-cites="ratcliff2008diffusion brown2008simplest">(<a href="#ref-brown2008simplest" role="doc-biblioref">Brown &amp; Heathcote, 2008</a>; <a href="#ref-ratcliff2008diffusion" role="doc-biblioref">Ratcliff &amp; McKoon, 2008</a>)</span>.</p>
+<p>The labels are a convenience rather than a partition. All three approaches are generative in the statistical sense, since each defines a distribution from which data could be simulated, and <code>cogmod</code> ships a random generation function for every family it implements. What separates them is how far back the account starts. The first two generate observations from a <em>shape</em>, badly or well chosen, and the Gaussian model is best understood as the second approach with the shape left unexamined. The third generates them from a <em>mechanism</em>, and only there do the parameters amount to claims about psychology. <a href="#fig-approaches" class="quarto-xref" aria-expanded="false">Figure&nbsp;1</a> shows what each makes of the same reaction times.</p>
+<div id="fig-approaches" class="quarto-float quarto-figure quarto-figure-center FigureWithoutNote" prefix="" data-fignum="1" data-apa-twocolumn="true" data-custom-style="FigureWithoutNote">
+<figure class="quarto-float quarto-float-fig figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-fig" id="fig-approaches-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="FigureTitle" data-custom-style="FigureTitle">
+<p>Figure&nbsp;1</p>
+</div>
+<div class="Caption" data-custom-style="Caption">
+<p>The three approaches applied to the same trials: correct responses from three participants in the lexical decision data of <span class="citation" data-cites="wagenmakers2008diffusion">Wagenmakers et al. (<a href="#ref-wagenmakers2008diffusion" role="doc-biblioref">2008</a>)</span>, used again in Examples 1 and 2. The observed reaction times are on the left; each row then shows what one model is made of and the distribution that follows from it, drawn back over the same data. The 141 ms difference between instruction conditions is first a single number, then a shift plus a shorter tail, then a statement about how evidence was accumulated. The ex-Gaussian curves use the posterior means reported in Example 1; the shifted Wald curves are maximum-likelihood fits, since the text does not report its non-decision time.</p>
+</div>
+</figcaption>
+<div aria-describedby="fig-approaches-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="figures/fig_approaches.png" class="img-fluid figure-img" style="width:100.0%" data-apa-twocolumn="true">
+</div>
+</figure>
+</div>
+<div class="AfterWithoutNote" data-custom-style="AfterWithoutNote">
+<p>The case for moving beyond the first approach is by now well established. Distributional analyses recover effects that mean comparisons miss and disambiguate effects that mean comparisons conflate <span class="citation" data-cites="balota2011moving deboeck2019overview">(<a href="#ref-balota2011moving" role="doc-biblioref">Balota &amp; Yap, 2011</a>; <a href="#ref-deboeck2019overview" role="doc-biblioref">De Boeck &amp; Jeon, 2019</a>)</span>. Process models turn an experimental effect into a statement about <em>which component of processing changed</em>, which is what most cognitive-theoretical claims are actually about <span class="citation" data-cites="ratcliff2016diffusion evans2020evidence">(<a href="#ref-evans2020evidence" role="doc-biblioref">Evans &amp; Wagenmakers, 2020</a>; <a href="#ref-ratcliff2016diffusion" role="doc-biblioref">Ratcliff et al., 2016</a>)</span>. In individual-differences and clinical work, model-based parameters are also substantially more reliable than the difference scores traditionally computed from the same data, making them one of the more promising responses to the “reliability paradox” <span class="citation" data-cites="hedge2018reliability haines2020learning">(<a href="#ref-haines2020learning" role="doc-biblioref">Haines et al., 2020</a>; <a href="#ref-hedge2018reliability" role="doc-biblioref">Hedge et al., 2018</a>)</span>.</p>
+</div>
+<p>Yet uptake remains modest, and the reason is at least partly practical. The software available to fit these models is fragmented along model family lines. Diffusion models are fitted in HDDM or its successor HSSM in Python <span class="citation" data-cites="wiecki2013hddm fengler2026hssm">(<a href="#ref-fengler2026hssm" role="doc-biblioref">Fengler et al., 2026</a>; <a href="#ref-wiecki2013hddm" role="doc-biblioref">Wiecki et al., 2013</a>)</span>, in fast-dm <span class="citation" data-cites="voss2007fastdm">(<a href="#ref-voss2007fastdm" role="doc-biblioref">Voss &amp; Voss, 2007</a>)</span>, in DMAT <span class="citation" data-cites="vandekerckhove2008diffusion">(<a href="#ref-vandekerckhove2008diffusion" role="doc-biblioref">Vandekerckhove &amp; Tuerlinckx, 2008</a>)</span>, or in PyDDM <span class="citation" data-cites="shinn2020flexible">(<a href="#ref-shinn2020flexible" role="doc-biblioref">Shinn et al., 2020</a>)</span>; racing accumulator models in DMC and EMC2 in R <span class="citation" data-cites="heathcote2019dynamic stevenson2026bayesian">(<a href="#ref-heathcote2019dynamic" role="doc-biblioref">Heathcote et al., 2019</a>; <a href="#ref-stevenson2026bayesian" role="doc-biblioref">Stevenson et al., 2026</a>)</span>, in rtdists, or in <code>SequentialSamplingModels.jl</code> in Julia <span class="citation" data-cites="fisher2024sequential">(<a href="#ref-fisher2024sequential" role="doc-biblioref">Fisher &amp; Makowski, 2024</a>)</span>; ordinal and bounded-scale models in yet another set of packages. Each toolbox has its own syntax for specifying which parameters depend on which conditions, its own parameterizations and its own output objects. This fragmentation has three practical consequences.</p>
+<p>First, comparing families is expensive and therefore rare. Deciding between an ex-Gaussian and a shifted LogNormal, or asking whether a Weibull would do just as well as either, requires re-fitting in different packages with incommensurable interfaces and then reconciling model comparison indices that were not computed the same way. Choices of likelihood are usually inherited rather than tested.</p>
+<p>Second, cognitive models are cut off from the regression workflow that psychologists already use. Adding a covariate to a drift rate, a random intercept per participant, or a smooth term for trial number should be as easy as adding it to any other model, and in specialized toolboxes it usually is not.</p>
+<p>Third, post-processing has to be rebuilt each time. Extracting marginal effects, contrasts, posterior predictive distributions, reliability indices or automated reports means writing bespoke code against each package’s object rather than reusing a shared ecosystem.</p>
+<p><code>cogmod</code> takes a different route. Rather than building a new modelling framework, it implements cognitive models <em>inside</em> an existing and widely used one. Every model is a <code>brms</code> custom family <span class="citation" data-cites="burkner2017brms">(<a href="#ref-burkner2017brms" role="doc-biblioref">Bürkner, 2017</a>)</span>, and therefore a Stan model <span class="citation" data-cites="carpenter2017stan">(<a href="#ref-carpenter2017stan" role="doc-biblioref">Carpenter et al., 2017</a>)</span> specified with ordinary <code>brms</code> formula syntax. Everything that <code>brms</code> users already know then applies unchanged to a Drift Diffusion Model or a Choice-Confidence model: distributional regression on every parameter, multilevel structure, priors, convergence diagnostics, posterior predictive checks, leave-one-out cross-validation <span class="citation" data-cites="vehtari2017practical">(<a href="#ref-vehtari2017practical" role="doc-biblioref">Vehtari et al., 2017</a>)</span>, and the <code>easystats</code> post-processing ecosystem <span class="citation" data-cites="ludecke2019insight makowski2019bayestestr ludecke2021performance">(<a href="#ref-ludecke2019insight" role="doc-biblioref">Lüdecke et al., 2019</a>, <a href="#ref-ludecke2021performance" role="doc-biblioref">2021</a>; <a href="#ref-makowski2019bayestestr" role="doc-biblioref">Makowski et al., 2019</a>)</span>.</p>
+<p>The remainder of this paper describes the design and implementation of the package, the models it currently provides, and four worked examples chosen to illustrate what a unified interface makes possible: recovering the components of an effect that a linear model collapses into a single number, comparing ten RT families in one call, modelling bimodal slider ratings, and assessing whether model parameters are precise enough to be used as individual-level scores.</p>
+</section>
+<section id="design-and-implementation" class="level1">
+<h1>Design and Implementation</h1>
+<section id="models-as-brms-custom-families" class="level2">
+<h2 data-anchor-id="models-as-brms-custom-families">Models as <code>brms</code> custom families</h2>
+<p><code>brms</code> translates an R formula into Stan code. Its <em>custom family</em> mechanism allows users to supply their own likelihood: a <code>customfamily</code> object declaring the distributional parameters and their link functions, plus a <code>stanvars</code> object injecting the Stan functions that evaluate the log-density. <code>cogmod</code> packages both for each model, and additionally provides the post-processing methods (<code>log_lik_*</code>, <code>posterior_predict_*</code> and <code>posterior_epred_*</code>) that <code>brms</code> requires in order to compute information criteria and generate predictions.</p>
+<p>In practice, using a <code>cogmod</code> model requires two arguments beyond a standard <code>brm()</code> call: <code>family</code> and <code>stanvars</code>.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(cogmod)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(brms)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>f <span class="ot">&lt;-</span> <span class="fu">bf</span>(</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  RT <span class="sc">~</span> Condition <span class="sc">+</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    (Condition <span class="sc">|</span> Participant),</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  sigma <span class="sc">~</span> Condition <span class="sc">+</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    (Condition <span class="sc">|</span> Participant),</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  tau <span class="sc">~</span> Condition <span class="sc">+</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    (Condition <span class="sc">|</span> Participant),</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">minrt =</span> <span class="fu">min</span>(df<span class="sc">$</span>RT),</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">family =</span> <span class="fu">rt_lognormal</span>()</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>m <span class="ot">&lt;-</span> <span class="fu">brm</span>(</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>  f,</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> df,</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">stanvars =</span> <span class="fu">rt_lognormal_stanvars</span>(),</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>  <span class="at">backend =</span> <span class="st">"cmdstanr"</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Everything else is <code>brms</code>. The formula syntax is the usual one, so any parameter of the model can be predicted by covariates, given random effects, splines, autocorrelation structures or monotonic effects. The fitted object is a plain <code>brmsfit</code>, so <code>summary()</code>, <code>pp_check()</code>, <code>loo()</code>, <code>emmeans</code>, <code>bayesplot</code> and the <code>easystats</code> functions work without adaptation. <code>cogmod</code> adds likelihoods and inherits the rest.</p>
+<p>Two properties of this arrangement are worth spelling out, since they are what separates <code>cogmod</code> from a collection of independent model fitting routines.</p>
+<p><strong>Every parameter is a regression target.</strong> In most specialized software, the analyst declares which parameters are “free” and which are fixed, and condition effects enter through a design matrix specific to that toolbox. Here, each distributional parameter has its own formula. Regressing <code>Condition</code> on the boundary separation rather than on the drift rate is a one-line change, as is giving each participant their own non-decision time. This matters beyond convenience: it makes the location-scale style of modelling advocated by <span class="citation" data-cites="williams2021beneath">Williams et al. (<a href="#ref-williams2021beneath" role="doc-biblioref">2021</a>)</span>, in which the dispersion of a participant’s RTs is itself a person-specific quantity with its own predictors, the default rather than a special case.</p>
+<p><strong>Parameterizations are harmonized.</strong> Models are only comparable if their parameters mean comparable things. <code>cogmod</code> therefore adopts consistent conventions across families. Non-decision time is always called <code>tau</code> and always expressed as a <em>proportion</em> of the fastest observed response (<code>ndt = tau * minrt</code>, with a logit link), which bounds it in <span class="math inline">[0, 1]</span>, guarantees that the shift can never exceed the fastest observed RT, and makes it comparable across families and datasets. Scale parameters use a softplus link rather than a log link, which behaves better near zero. Location parameters are named <code>mu</code>, dispersion <code>sigma</code>, and boundary separation <code>bs</code> wherever the concepts apply. Where a competing convention exists in the wider literature, the psychologically standard one is used: <code>cogmod</code>’s <code>rt_exgaussian()</code> family parameterizes <code>mu</code> and <code>sigma</code> as the mean and SD of the <em>Gaussian component alone</em> and <code>tau</code> as the mean of the exponential tail, which is the classical parameterization familiar to experimental psychologists <span class="citation" data-cites="matzke2009psychological">(<a href="#ref-matzke2009psychological" role="doc-biblioref">Matzke &amp; Wagenmakers, 2009</a>)</span>, and differs from <code>brms</code>’s built-in <code>exgaussian()</code> family, whose <code>mu</code> indexes the mean of the entire distribution. The difference matters: a change in the Gaussian location and an opposite change in the tail can cancel out at the level of the overall mean, so the two parameterizations can support different conclusions about the same data.</p>
+</section>
+<section id="implemented-models" class="level2">
+<h2 data-anchor-id="implemented-models">Implemented models</h2>
+<p><a href="#fig-overview" class="quarto-xref" aria-expanded="false">Figure&nbsp;2</a> shows the families currently available, grouped by the kind of response they are written for. They span the descriptive-to-generative continuum described in the introduction rather than committing to one end of it. This is deliberate: whether a flexible descriptive likelihood or a more constrained process model is the better choice is an empirical and theoretical question, and examining it requires both options under one interface. The full set of distributional parameters for each family, together with their link functions and defaults, is documented on the package website.</p>
+<div id="fig-overview" class="quarto-float quarto-figure quarto-figure-center FigureWithoutNote" prefix="" data-fignum="2" data-apa-twocolumn="true" data-custom-style="FigureWithoutNote">
+<figure class="quarto-float quarto-float-fig figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-fig" id="fig-overview-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="FigureTitle" data-custom-style="FigureTitle">
+<p>Figure&nbsp;2</p>
+</div>
+<div class="Caption" data-custom-style="Caption">
+<p>Response formats covered by <code>cogmod</code> and the main families available for each. Five further descriptive RT families are also implemented (<code>rt_weibull()</code>, <code>rt_logweibull()</code>, <code>rt_invweibull()</code>, <code>rt_gamma()</code> and <code>rt_invgamma()</code>) and are compared against the others in Example 2. Every family comes with a <code>_stanvars()</code> function supplying the corresponding Stan code, and with <code>d*()</code> and <code>r*()</code> functions for density evaluation and simulation.</p>
+</div>
+</figcaption>
+<div aria-describedby="fig-overview-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="figures/fig_overview.png" class="img-fluid figure-img" style="width:100.0%" data-apa-twocolumn="true">
+</div>
+</figure>
+</div>
+<div class="AfterWithoutNote" data-custom-style="AfterWithoutNote">
+<p>Each family is accompanied by density (<code>d*()</code>) and random generation (<code>r*()</code>) functions, which are used for prior predictive simulation and for the parameter recovery checks distributed with the package. Two of the families are, to our knowledge, new to this literature or newly available in a regression framework. The <strong>Choice-Confidence (CHOCO)</strong> model treats a bounded rating as the combination of a discrete choice between the two halves of the scale and a continuous, Beta-distributed evaluation within the chosen half, with an explicit mechanism for extreme responding (see Example 3). The <strong>Beta-Gate</strong> family is a reparameterization of the ordered Beta model <span class="citation" data-cites="kubinec2023ordered">(<a href="#ref-kubinec2023ordered" role="doc-biblioref">Kubinec, 2023</a>)</span> in which the probability and the direction of extreme responses are separated into two interpretable parameters (<code>pex</code> and <code>bex</code>) rather than being expressed as cutpoints. <code>betadiscrete()</code> implements the discrete Beta distribution of <span class="citation" data-cites="sciandra2024discrete">Sciandra et al. (<a href="#ref-sciandra2024discrete" role="doc-biblioref">2024</a>)</span> for Likert-type data, which fixes the category thresholds and lets a two-parameter Beta govern the response proportions. It is the mirror image of the cumulative ordinal model, and considerably more parsimonious when the number of categories is large.</p>
+</div>
+</section>
+<section id="relation-to-existing-software" class="level2">
+<h2 data-anchor-id="relation-to-existing-software">Relation to existing software</h2>
+<p><code>cogmod</code> is not intended to replace the specialized evidence accumulation toolboxes, and the division of labour is worth stating. EMC2 <span class="citation" data-cites="stevenson2026bayesian">(<a href="#ref-stevenson2026bayesian" role="doc-biblioref">Stevenson et al., 2026</a>)</span> and HSSM <span class="citation" data-cites="fengler2026hssm">(<a href="#ref-fengler2026hssm" role="doc-biblioref">Fengler et al., 2026</a>)</span> provide sampling algorithms tailored to the geometry of accumulator models, hierarchical structures designed for them and, in the case of HSSM, likelihood approximation networks that make otherwise intractable model variants estimable. For a study whose scientific question <em>is</em> the architecture of the decision process, those are the appropriate tools, and they will generally be faster and more capable at the far end of model complexity.</p>
+<p><code>cogmod</code> targets a different and, we would argue, more common situation: a researcher with an experimental dataset, a regression-shaped question, and a need for a likelihood that respects the data. For that user the relevant comparison is between a linear model and something better, rather than between one accumulator toolbox and another. The value of the <code>brms</code> route is that moving from <code>brm(RT ~ Condition)</code> to a shifted LogNormal, then to a Wald, then to a full DDM involves changing two arguments rather than changing software, and that at every step the analysis remains a regression, with random effects, contrasts and marginal means available in the usual way. The trade-off is computational: general-purpose HMC on custom Stan code is slower than a purpose-built sampler, and we quantify that cost in the examples below rather than glossing over it.</p>
+</section>
+</section>
+<section id="example-1-recovering-what-the-mean-hides" class="level1">
+<h1>Example 1: Recovering What the Mean Hides</h1>
+<section id="an-effect-that-is-not-in-the-mean" class="level2">
+<h2 data-anchor-id="an-effect-that-is-not-in-the-mean">An effect that is not in the mean</h2>
+<p>The clearest way to see what a Gaussian model discards is to construct data in which everything of interest lies outside the mean. <a href="#fig-motivation" class="quarto-xref" aria-expanded="false">Figure&nbsp;3</a> shows such a case: a within-subject experiment with 20 participants performing 25 trials in each of two conditions (500 trials per condition), bundled with the package as <code>badlm</code>. Condition A has responses beginning almost immediately, with a long tail extending past two seconds; condition B has no responses at all before roughly 570 ms, followed by a tight and nearly symmetric bump. These are two very different behaviours by any reasonable standard, differing in where the distribution starts, how wide it is, and how heavy its tail is.</p>
+<p>A linear mixed model with a random intercept per participant, the specification a careful analyst would reach for and the one that correctly matches how the data were generated, finds nothing: <span class="math inline">b = -1.2</span> ms, <span class="math inline">t(996) = -0.08</span>, <span class="math inline">p = .94</span>. This is a faithful answer to the question the test was asked, since the two distributions were constructed to have identical means (694 vs.&nbsp;693 ms). Accounting for the fact that participants differ in overall speed is necessary and correct, but it buys nothing here: the problem is not <em>which</em> mean the model estimates, but that a mean is all it estimates. Panel B shows what the fitted model believes, two almost perfectly superimposed Normal curves, symmetric, with a common variance, and assigning non-negligible probability to negative response times.</p>
+<div id="fig-motivation" class="quarto-float quarto-figure quarto-figure-center FigureWithoutNote" prefix="" data-fig-align="center" data-fignum="3" data-apa-twocolumn="true" data-custom-style="FigureWithoutNote">
+<figure class="quarto-float quarto-float-fig figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-fig" id="fig-motivation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="FigureTitle" data-custom-style="FigureTitle">
+<p>Figure&nbsp;3</p>
+</div>
+<div class="Caption" data-custom-style="Caption">
+<p>Two simulated conditions with identical means (20 participants, 25 trials per condition each). <strong>(A)</strong> Observed distributions (dashed lines: condition means). <strong>(B)</strong> The two Normal distributions implied by the fitted linear mixed model for a participant at the population average, superimposed on the data. The model’s two curves are nearly indistinguishable, are symmetric where the data are skewed, share a variance the data do not, and place mass below zero.</p>
+</div>
+</figcaption>
+<div aria-describedby="fig-motivation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="figures/fig_motivation.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%" data-apa-twocolumn="true">
+</div>
+</figure>
+</div>
+<div class="AfterWithoutNote" data-custom-style="AfterWithoutNote">
+<p>Transforming the data does not solve this either. Log- or inverse-transforming RTs before fitting a linear model changes the quantity being tested: the model now compares means of transformed values, which do not back-transform to mean RTs and can reverse, create or mask effects relative to the untransformed scale <span class="citation" data-cites="schramm2019transformations liddell2018analyzing">(<a href="#ref-schramm2019transformations" role="doc-biblioref">Schramm &amp; Rouder, 2019</a>; see <a href="#ref-liddell2018analyzing" role="doc-biblioref">Liddell &amp; Kruschke, 2018</a> for the analogous argument about ordinal data)</span>. It also leaves the underlying problem untouched, since a difference in shift, in spread or in tail weight is still funnelled through a single location parameter.</p>
+</div>
+</section>
+<section id="decomposing-a-real-effect" class="level2">
+<h2 data-anchor-id="decomposing-a-real-effect">Decomposing a real effect</h2>
+<p>The same point can be made with real data, and with an effect that <em>is</em> detectable in the mean. We use the lexical decision data of <span class="citation" data-cites="wagenmakers2008diffusion">Wagenmakers et al. (<a href="#ref-wagenmakers2008diffusion" role="doc-biblioref">2008</a>)</span> (Experiment 1), which is bundled with the package as <code>wagenmakers2008</code>. Participants classified letter strings as words or non-words under instructions emphasising either <strong>speed</strong> or <strong>accuracy</strong>. Following the original authors, trials faster than 200 ms or slower than 2 s were excluded. For this illustration we use correct responses from three participants (<span class="math inline">n = 4{,}281</span> trials); to keep the example minimal we pool them without random effects, and return to the multilevel case in Example 4.</p>
+<p>The Gaussian model gives the familiar answer: responses were 141 ms faster under speed instructions (95% CI <span class="math inline">[129, 153]</span>). The ex-Gaussian model, which lets <code>Condition</code> predict the location, the dispersion and the tail separately, says considerably more:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>f <span class="ot">&lt;-</span> <span class="fu">bf</span>(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  RT <span class="sc">~</span> Condition,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  sigma <span class="sc">~</span> Condition,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  tau <span class="sc">~</span> Condition,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">family =</span> <span class="fu">rt_exgaussian</span>()</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>m_exgauss <span class="ot">&lt;-</span> <span class="fu">brm</span>(</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  f,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> df,</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">stanvars =</span> <span class="fu">rt_exgaussian_stanvars</span>(),</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">iter =</span> <span class="dv">500</span>,</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">backend =</span> <span class="st">"cmdstanr"</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>On the response scale, the Gaussian component moves from 472 ms to 423 ms, its SD from 52 ms to 40 ms, and the exponential tail from 217 ms to 126 ms; all three intervals exclude zero. The three parameters recover the Gaussian model’s estimate exactly (<span class="math inline">472 + 217 = 689</span> ms under accuracy instructions, <span class="math inline">423 + 126 = 549</span> ms under speed) but they attribute it: <strong>65% of the 141 ms speed-up is a shortening of the tail</strong>, and only 35% a shift in the bulk of the distribution. On this account a speed instruction does not simply move every response earlier; it mostly removes the slow ones.</p>
+<p>The shifted Wald model, derived from a process rather than chosen for its shape, re-expresses the same data in mechanistic terms. Its <code>mu</code> is a drift rate, <code>bs</code> a boundary separation and <code>tau</code> a non-decision time, and the natural hypothesis for a speed-accuracy manipulation is that instructions move the <em>threshold</em>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>f <span class="ot">&lt;-</span> <span class="fu">bf</span>(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  RT <span class="sc">~</span> Condition,</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  bs <span class="sc">~</span> Condition,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  tau <span class="sc">~</span> Condition,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">minrt =</span> <span class="fu">min</span>(df<span class="sc">$</span>RT),</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">family =</span> <span class="fu">rt_invgaussian</span>()</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Here the model reports a substantial increase in drift rate under speed instructions (2.93 to 4.16) and essentially no change in boundary separation (1.15 to 1.16, 95% CI on the linear predictor <span class="math inline">[-0.12,
+0.15]</span>), the opposite of the textbook speed-accuracy account. The reason is instructive, and it is a limitation of the model rather than a discovery about the data: a single-boundary Wald sees only correct responses, and with RT data alone drift rate and boundary separation are only weakly identified, trading off against each other <span class="citation" data-cites="matzke2009psychological">(<a href="#ref-matzke2009psychological" role="doc-biblioref">Matzke &amp; Wagenmakers, 2009</a>)</span>. To separate them, the model needs to see the errors as well. Fitting a full DDM to the choices <em>and</em> the RTs of one participant (<span class="math inline">n = 1{,}917</span> trials) recovers the canonical result: boundary separation drops from 1.45 to 1.21 under speed instructions (95% CI on the linear predictor <span class="math inline">[-0.40, -0.23]</span>, <span class="math inline">pd = 100\%</span>), while the drift rate is essentially unchanged (<span class="math inline">pd = 94\%</span>).</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>f <span class="ot">&lt;-</span> <span class="fu">bf</span>(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  RT <span class="sc">|</span> <span class="fu">dec</span>(Error) <span class="sc">~</span> Condition,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  bs <span class="sc">~</span> Condition,</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  bias <span class="sc">~</span> <span class="dv">1</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  tau <span class="sc">~</span> <span class="dv">1</span>,</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">minrt =</span> <span class="fu">min</span>(df<span class="sc">$</span>RT),</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">sigmadrift =</span> <span class="dv">0</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">sigmabias =</span> <span class="dv">0</span>,</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">sigmatau =</span> <span class="dv">0</span>,</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">family =</span> <span class="fu">ddm</span>()</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>m_ddm <span class="ot">&lt;-</span> <span class="fu">brm</span>(</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>  f,</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> df,</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">stanvars =</span> <span class="fu">ddm_stanvars</span>(),</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">iter =</span> <span class="dv">500</span>,</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">backend =</span> <span class="st">"cmdstanr"</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The sequence matters more than any single model in it. Each step from the Gaussian to the ex-Gaussian, the Wald and the DDM extracts more from the same trials, and each is a change of two arguments rather than a change of software. The last step also shows why having the whole sequence to hand is useful: the Wald’s answer is only recognisable as misleading because the DDM can be fitted next to it.</p>
+</section>
+</section>
+<section id="example-2-comparing-model-families" class="level1">
+<h1>Example 2: Comparing Model Families</h1>
+<section id="ten-families-one-call" class="level2">
+<h2 data-anchor-id="ten-families-one-call">Ten families, one call</h2>
+<p>Because all <code>cogmod</code> models are <code>brmsfit</code> objects fitted to the same data with the same likelihood-based criterion, comparing them is a single call to <code>loo::loo_compare()</code> <span class="citation" data-cites="vehtari2017practical">(<a href="#ref-vehtari2017practical" role="doc-biblioref">Vehtari et al., 2017</a>)</span>. We fitted ten families to the RT data described above (the Gaussian baseline, six descriptive families, the shifted Wald and a single-accumulator LBA), each with <code>Condition</code> predicting all of its parameters. <a href="#tbl-loo" class="quarto-xref" aria-expanded="false">Table&nbsp;1</a> reports the comparison, together with the median sampling time per chain.</p>
+<div id="tbl-loo" class="quarto-float quarto-figure quarto-figure-center FigureWithoutNote" prefix="" data-tblnum="1" data-apa-twocolumn="true" data-custom-style="FigureWithoutNote">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-loo-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="FigureTitle" data-custom-style="FigureTitle">
+<p>Table&nbsp;1</p>
+</div>
+<div class="Caption" data-custom-style="Caption">
+<p>Leave-one-out cross-validation for ten RT families fitted to the same data (<span class="math inline">n = 4{,}281</span>). ENP is the effective number of parameters; Difference is the difference in expected log predictive density relative to the best model, with its standard error. Time is the median sampling duration per chain (4 chains, 500 iterations, on a consumer laptop).</p>
+</div>
+</figcaption>
+<div aria-describedby="tbl-loo-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table id="tbl-loo" class="caption-top table" prefix="" data-tblnum="1">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Model</th>
+<th style="text-align: right;">LOOIC</th>
+<th style="text-align: right;">ENP</th>
+<th style="text-align: right;">ELPD</th>
+<th style="text-align: right;">Difference</th>
+<th style="text-align: right;">SE</th>
+<th style="text-align: right;">Time (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">LBA</td>
+<td style="text-align: right;">−4845.1</td>
+<td style="text-align: right;">7.29</td>
+<td style="text-align: right;">2422.6</td>
+<td style="text-align: right;">0.0</td>
+<td style="text-align: right;">0.0</td>
+<td style="text-align: right;">572.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Inverse Weibull</td>
+<td style="text-align: right;">−4840.8</td>
+<td style="text-align: right;">4.72</td>
+<td style="text-align: right;">2420.4</td>
+<td style="text-align: right;">−2.2</td>
+<td style="text-align: right;">5.9</td>
+<td style="text-align: right;">98.3</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">LogWeibull</td>
+<td style="text-align: right;">−4840.4</td>
+<td style="text-align: right;">5.03</td>
+<td style="text-align: right;">2420.2</td>
+<td style="text-align: right;">−2.4</td>
+<td style="text-align: right;">6.0</td>
+<td style="text-align: right;">79.7</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Inverse Gamma</td>
+<td style="text-align: right;">−4831.7</td>
+<td style="text-align: right;">8.31</td>
+<td style="text-align: right;">2415.9</td>
+<td style="text-align: right;">−6.7</td>
+<td style="text-align: right;">6.2</td>
+<td style="text-align: right;">66.5</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">ExGaussian</td>
+<td style="text-align: right;">−4793.3</td>
+<td style="text-align: right;">6.41</td>
+<td style="text-align: right;">2396.6</td>
+<td style="text-align: right;">−25.9</td>
+<td style="text-align: right;">9.5</td>
+<td style="text-align: right;">19.7</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Shifted LogNormal</td>
+<td style="text-align: right;">−4763.0</td>
+<td style="text-align: right;">8.80</td>
+<td style="text-align: right;">2381.5</td>
+<td style="text-align: right;">−41.1</td>
+<td style="text-align: right;">11.1</td>
+<td style="text-align: right;">22.6</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Shifted Wald</td>
+<td style="text-align: right;">−4728.7</td>
+<td style="text-align: right;">10.84</td>
+<td style="text-align: right;">2364.4</td>
+<td style="text-align: right;">−58.2</td>
+<td style="text-align: right;">15.1</td>
+<td style="text-align: right;">52.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Gamma</td>
+<td style="text-align: right;">−4393.2</td>
+<td style="text-align: right;">7.53</td>
+<td style="text-align: right;">2196.6</td>
+<td style="text-align: right;">−225.9</td>
+<td style="text-align: right;">24.8</td>
+<td style="text-align: right;">39.4</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Weibull</td>
+<td style="text-align: right;">−3680.4</td>
+<td style="text-align: right;">9.33</td>
+<td style="text-align: right;">1840.2</td>
+<td style="text-align: right;">−582.4</td>
+<td style="text-align: right;">39.0</td>
+<td style="text-align: right;">20.2</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Gaussian</td>
+<td style="text-align: right;">−1904.2</td>
+<td style="text-align: right;">7.82</td>
+<td style="text-align: right;">952.1</td>
+<td style="text-align: right;">−1470.5</td>
+<td style="text-align: right;">73.3</td>
+<td style="text-align: right;">0.1</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="AfterWithoutNote" data-custom-style="AfterWithoutNote">
+<p>Three things stand out, none of which would have been convenient to check without a common interface.</p>
+</div>
+<p><strong>The Gaussian model is not a mild approximation.</strong> It is worse than the next-worst family by 888 units of expected log predictive density, and worse than the best by 1,470 (SE 73). Whatever its merits as a description of condition means, as a model of these data it is inadequate, and the “safe default” framing under which linear models are usually adopted does not survive a likelihood-based comparison.</p>
+<p><strong>The unfamiliar families do surprisingly well.</strong> The inverse Weibull, the log-Weibull (Gumbel) and the inverse Gamma, none of which have any appreciable presence in the RT literature, are statistically indistinguishable from the best-fitting model and clearly better than the ex-Gaussian, the shifted LogNormal and the shifted Wald, which between them account for most published distributional analyses of RTs. The inverse Weibull achieves this with the <em>fewest</em> effective parameters in the set (ENP 4.72). We do not claim that these families should displace the established ones: they are purely descriptive, their parameters have no established cognitive interpretation, and this is a single dataset. What matters is that the question is now cheap to ask, and that a literature which has settled on two or three families has done so without much comparative evidence.</p>
+<p><strong>Fit and cost are not aligned.</strong> The LBA is nominally the best model and takes roughly 30 times longer to sample than the ex-Gaussian, for a gain that is within noise of families that are five times faster. Making that trade-off visible is part of what a unified framework is for; in <a href="#tbl-loo" class="quarto-xref" aria-expanded="false">Table&nbsp;1</a> it is a column rather than an inference the reader has to assemble across papers.</p>
+<p>Two caveats apply to this table. These models pool three participants without random effects, so families that happen to absorb between-participant heterogeneity more gracefully are advantaged; a hierarchical version of this comparison would be more informative and is straightforward to specify, though considerably more expensive to fit. And LOO measures predictive fit, not theoretical adequacy: the shifted Wald sits below three descriptive families here while being the only model in that group whose parameters refer to anything.</p>
+</section>
+<section id="posterior-predictive-checks" class="level2">
+<h2 data-anchor-id="posterior-predictive-checks">Posterior predictive checks</h2>
+<p>Model comparison indices summarise fit into a number; posterior predictive checks show <em>where</em> a model fails. Because <code>cogmod</code> supplies <code>posterior_predict_*</code> methods for every family, these are generated in the usual way, and <code>modelbased::estimate_prediction()</code> returns them in a form suited to plotting <span class="citation" data-cites="makowski2020modelbased">(<a href="#ref-makowski2020modelbased" role="doc-biblioref">Makowski et al., 2020</a>)</span>.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>pred <span class="ot">&lt;-</span> m_exgauss <span class="sc">|&gt;</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">estimate_prediction</span>(</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">keep_iterations =</span> <span class="dv">50</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">iterations =</span> <span class="dv">50</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">reshape_iterations</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><a href="#fig-ppcheck" class="quarto-xref" aria-expanded="false">Figure&nbsp;4</a> overlays the predictive distributions of nine families on the observed data, separately for the two conditions. The families that fared poorly in <a href="#tbl-loo" class="quarto-xref" aria-expanded="false">Table&nbsp;1</a> fail in visible and specific ways, with the Weibull and Gamma misplacing the leading edge and under-producing the tail, whereas the top group is difficult to separate by eye, consistent with their overlapping intervals in the table.</p>
+<div id="fig-ppcheck" class="quarto-float quarto-figure quarto-figure-center FigureWithoutNote" prefix="" data-fignum="4" data-apa-twocolumn="true" data-custom-style="FigureWithoutNote">
+<figure class="quarto-float quarto-float-fig figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-fig" id="fig-ppcheck-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="FigureTitle" data-custom-style="FigureTitle">
+<p>Figure&nbsp;4</p>
+</div>
+<div class="Caption" data-custom-style="Caption">
+<p>Posterior predictive checks for nine RT families. Histograms show the observed data (green: accuracy instructions; red: speed instructions); lines show 50 posterior predictive draws per condition.</p>
+</div>
+</figcaption>
+<div aria-describedby="fig-ppcheck-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="figures/fig_ppcheck.png" class="img-fluid figure-img" style="width:100.0%" data-apa-twocolumn="true">
+</div>
+</figure>
+</div>
+</section>
+</section>
+<section id="example-3-beyond-reaction-times-subjective-ratings" class="level1">
+<h1>Example 3: Beyond Reaction Times, Subjective Ratings</h1>
+<p>Cognitive modelling is usually discussed in terms of RTs, but the same argument applies to any outcome whose distribution carries information. Analog (slider) scales are a case in point: responses are bounded, frequently pile up at the endpoints, and are very often <strong>bimodal</strong>, because participants first decide which side of the scale they are on and only then decide how far along it to go. A Beta model, a zero-one-inflated Beta (ZOIB) or an ordered Beta cannot represent that shape, since all of them are unimodal by construction; fitting them to bimodal ratings produces a distribution peaked in the middle, where the data have their trough.</p>
+<p>The <strong>Choice-Confidence (CHOCO)</strong> model implements the two-stage account directly. A parameter <code>mu</code> gives the probability of responding on the right half of the scale; conditional on that choice, the response follows a rescaled (and, for the left half, mirrored) Beta-Gate distribution with its own mean (<code>confright</code>, <code>confleft</code>, interpretable as confidence) and precision (<code>precright</code>, <code>precleft</code>, interpretable as consistency). Extreme responses at 0 and 1 arise from a “gate” mechanism, with <code>pex</code> controlling the overall tendency towards extreme responding and <code>bex</code> its direction. The model can therefore separate a change in <em>which</em> option is chosen from a change in <em>how confidently</em> it is endorsed, two things that a mean rating necessarily confounds.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>f <span class="ot">&lt;-</span> <span class="fu">bf</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  score <span class="sc">~</span> x,</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  confright <span class="sc">~</span> x, confleft <span class="sc">~</span> x,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  precright <span class="sc">~</span> x, precleft <span class="sc">~</span> x,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  pex <span class="sc">~</span> x, bex <span class="sc">~</span> x,</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">pmid =</span> <span class="dv">0</span>,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">family =</span> <span class="fu">choco</span>()</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>m_choco <span class="ot">&lt;-</span> <span class="fu">brm</span>(</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  f,</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> df,</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">stanvars =</span> <span class="fu">choco_stanvars</span>(),</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">iter =</span> <span class="dv">500</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">backend =</span> <span class="st">"cmdstanr"</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>We simulated 900 ratings in which a covariate <code>x</code> shifted both the probability of responding on the right and the confidence on each side, and compared four models. CHOCO reached an ELPD of 385.3, against 79.9 for the Beta-Gate model, 79.9 for ZOIB and 72.5 for the extended-support Beta [XBX; <span class="citation" data-cites="kosmidis2024extended">Kosmidis and Zeileis (<a href="#ref-kosmidis2024extended" role="doc-biblioref">2024</a>)</span>], a difference of 305 units (SE 16.7) over the best competitor. <a href="#fig-choco" class="quarto-xref" aria-expanded="false">Figure&nbsp;5</a> shows why: the three unimodal models place their mass in the middle of the scale, precisely where the data are sparsest, while CHOCO reproduces both modes and the endpoint masses. Sampling took 17.6 s per chain for CHOCO, comparable to the Beta-Gate model (12.8 s) and an order of magnitude faster than XBX (203.1 s).</p>
+<div id="fig-choco" class="quarto-float quarto-figure quarto-figure-center FigureWithoutNote" prefix="" data-fignum="5" data-apa-twocolumn="true" data-custom-style="FigureWithoutNote">
+<figure class="quarto-float quarto-float-fig figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-fig" id="fig-choco-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="FigureTitle" data-custom-style="FigureTitle">
+<p>Figure&nbsp;5</p>
+</div>
+<div class="Caption" data-custom-style="Caption">
+<p>Posterior predictive checks for four models of bounded ratings. Blue: observed data; orange: posterior predictive draws. The three unimodal families place their mass where the data have a trough.</p>
+</div>
+</figcaption>
+<div aria-describedby="fig-choco-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="figures/fig_choco.png" class="img-fluid figure-img" style="width:100.0%" data-apa-twocolumn="true">
+</div>
+</figure>
+</div>
+<div class="AfterWithoutNote" data-custom-style="AfterWithoutNote">
+<p>For Likert-type data, <code>cogmod</code> additionally provides the discrete Beta family <span class="citation" data-cites="sciandra2024discrete">(<a href="#ref-sciandra2024discrete" role="doc-biblioref">Sciandra et al., 2024</a>)</span>, which occupies an interesting middle ground with respect to the cumulative ordinal model <span class="citation" data-cites="burkner2019ordinal">(<a href="#ref-burkner2019ordinal" role="doc-biblioref">Bürkner &amp; Vuorre, 2019</a>)</span>. Cumulative models estimate <span class="math inline">K - 1</span> thresholds on an arbitrary latent scale; this is flexible, but the thresholds are sample-dependent and not directly comparable across studies, which complicates measurement invariance and meta-analysis. The discrete Beta fixes the thresholds at evenly spaced points and lets a two-parameter Beta govern the proportions, requiring only two parameters regardless of the number of categories while still accommodating J- and U-shaped response distributions.</p>
+</div>
+</section>
+<section id="example-4-are-model-parameters-usable-as-individual-scores" class="level1">
+<h1>Example 4: Are Model Parameters Usable as Individual Scores?</h1>
+<section id="the-question" class="level2">
+<h2 data-anchor-id="the-question">The question</h2>
+<p>A significant group-level effect and a usable individual-level measure are different things, and a study designed to establish the first can be entirely blind to the second <span class="citation" data-cites="hedge2018reliability">(<a href="#ref-hedge2018reliability" role="doc-biblioref">Hedge et al., 2018</a>)</span>. This matters directly for clinical and differential applications, where the point of a task is to produce a number that characterises a <em>person</em>.</p>
+<p>To make the distinction concrete, we simulated a validation study: 30 participants, 80 trials in each of three conditions, RTs generated from a shifted LogNormal process. Two effects were built in deliberately. Condition B produces a small slowing that is nearly identical for everybody (between-participant SD of 0.01 on the log scale). Condition C has a population mean of exactly zero but enormous interindividual variability (SD of 0.30): some participants are dramatically slowed, others dramatically speeded.</p>
+</section>
+<section id="fitting-and-reading-the-model" class="level2">
+<h2 data-anchor-id="fitting-and-reading-the-model">Fitting and reading the model</h2>
+<p>The model mirrors the generative process, with random effects on every parameter of the family:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>f <span class="ot">&lt;-</span> <span class="fu">bf</span>(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  RT <span class="sc">~</span> Condition <span class="sc">+</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    (Condition <span class="sc">|</span> Participant),</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  sigma <span class="sc">~</span> Condition <span class="sc">+</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    (Condition <span class="sc">|</span> Participant),</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  tau <span class="sc">~</span> Condition <span class="sc">+</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    (Condition <span class="sc">|</span> Participant),</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">minrt =</span> <span class="fu">min</span>(sim<span class="sc">$</span>RT),</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">family =</span> <span class="fu">rt_lognormal</span>()</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The fixed effects reproduce the classic conclusion: a credible effect of condition B (<span class="math inline">b = 0.10</span>, 95% CI <span class="math inline">[-0.00, 0.21]</span>, <span class="math inline">pd = 97\%</span>) and nothing for condition C (<span class="math inline">b = -0.04</span>, 95% CI <span class="math inline">[-0.23, 0.14]</span>, <span class="math inline">pd =
+65\%</span>). The random-effect SDs invert the picture entirely: 0.01 for the condition B slope and 0.27 for the condition C slope, more than twenty times larger. The effect that “worked” is the one on which participants do not differ.</p>
+<p>Comparing this to the analysis one would normally run is instructive. Computing each participant’s mean RT difference by hand yields a between-participant SD of ~31 ms for B − A, even though the data were generated with essentially no true variability; a bootstrap shows why, with a per-participant standard error of ~25 ms. By estimating between-participant variability and trial-level noise jointly, the model assigns that spread to the residual term where it belongs and recovers the true SD. This is the model-based counterpart of the noise correction that reliability coefficients perform, applied participant by participant rather than to the group as a whole, and it is why model-based individual scores are generally more reliable than difference scores, particularly when participants contribute few, noisy or unbalanced numbers of trials <span class="citation" data-cites="haines2020learning rouder2024signal">(<a href="#ref-haines2020learning" role="doc-biblioref">Haines et al., 2020</a>; <a href="#ref-rouder2024signal" role="doc-biblioref">Rouder &amp; Mehrvarz, 2024</a>)</span>.</p>
+</section>
+<section id="quantifying-it" class="level2">
+<h2 data-anchor-id="quantifying-it">Quantifying it</h2>
+<p>Participant-level estimates are extracted with <code>modelbased::estimate_grouplevel()</code>, and their usability as individual scores can be summarised by the <strong>Variance-Over-Uncertainty Ratio</strong> (D-vour), implemented in <code>performance::performance_dvour()</code> <span class="citation" data-cites="ludecke2021performance">(<a href="#ref-ludecke2021performance" role="doc-biblioref">Lüdecke et al., 2021</a>)</span>:</p>
+<p><span class="math display">
+D_{\text{vour}} = \frac{\sigma_{\text{between}}^2}{\sigma_{\text{between}}^2 + \mu_{\text{within}}^2}
+</span></p>
+<p>where <span class="math inline">\sigma_{\text{between}}^2</span> is the observed variability of the participant-level estimates and <span class="math inline">\mu_{\text{within}}^2</span> their mean squared uncertainty. It is bounded in <span class="math inline">[0, 1]</span>; values near 1 indicate that participants differ far more than we are uncertain about where each of them stands. It is closely related to an intraclass correlation, with the important difference that the denominator uses the <em>uncertainty of the estimates</em> rather than the raw within-participant variance, so that, unlike an ICC, collecting more trials per participant increases it. It is also a normalized version of the signal-to-noise ratio advocated by <span class="citation" data-cites="rouder2024signal">Rouder and Mehrvarz (<a href="#ref-rouder2024signal" role="doc-biblioref">2024</a>)</span>.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>random <span class="ot">&lt;-</span> <span class="fu">estimate_grouplevel</span>(m)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">performance_dvour</span>(random)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><a href="#tbl-dvour" class="quarto-xref" aria-expanded="false">Table&nbsp;2</a> reports the result for every parameter of the model. The ordering is the expected one, but the magnitudes are informative: condition C reaches 0.92 while condition B collapses to 0.07, far below the 0.59 that the same index gives when computed on the raw empirical difference scores, which still contain the trial noise that the model has reassigned to the residual. Taken at face value, the empirical value would have suggested that condition B was borderline usable; the model says it carries essentially no individual-level information.</p>
+<div id="tbl-dvour" class="quarto-float quarto-figure quarto-figure-center FigureWithoutNote" prefix="" data-tblnum="2" data-custom-style="FigureWithoutNote">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-dvour-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="FigureTitle" data-custom-style="FigureTitle">
+<p>Table&nbsp;2</p>
+</div>
+<div class="Caption" data-custom-style="Caption">
+<p>D-vour (Variance-Over-Uncertainty Ratio) for every parameter of the mixed shifted LogNormal model. Values above 0.75 indicate strong group-level differences; values around 0.5 call for caution; values below 0.5 indicate that measurement noise dominates.</p>
+</div>
+</figcaption>
+<div aria-describedby="tbl-dvour-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table id="tbl-dvour" class="caption-top table" prefix="" data-tblnum="2">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Component</th>
+<th style="text-align: left;">Parameter</th>
+<th style="text-align: right;">D-vour</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>mu</code></td>
+<td style="text-align: left;">Intercept</td>
+<td style="text-align: right;">0.94</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>mu</code></td>
+<td style="text-align: left;">ConditionC</td>
+<td style="text-align: right;">0.92</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>mu</code></td>
+<td style="text-align: left;">ConditionB</td>
+<td style="text-align: right;">0.07</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>sigma</code></td>
+<td style="text-align: left;">Intercept</td>
+<td style="text-align: right;">0.08</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>sigma</code></td>
+<td style="text-align: left;">ConditionC</td>
+<td style="text-align: right;">0.06</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>sigma</code></td>
+<td style="text-align: left;">ConditionB</td>
+<td style="text-align: right;">0.04</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>tau</code></td>
+<td style="text-align: left;">ConditionC</td>
+<td style="text-align: right;">0.12</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>tau</code></td>
+<td style="text-align: left;">Intercept</td>
+<td style="text-align: right;">0.06</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>tau</code></td>
+<td style="text-align: left;">ConditionB</td>
+<td style="text-align: right;">0.04</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="AfterWithoutNote" data-custom-style="AfterWithoutNote">
+<p>Two features of this table generalise beyond the simulation. First, the most reliable individual-level quantity the task produces is the <code>mu</code> intercept (0.94), simply <em>how fast each participant is overall</em>, which the experimental design treats as a nuisance to be subtracted away. This is the usual situation rather than an artefact. Second, because <code>sigma</code> and <code>tau</code> were given their own predictors and random effects, they receive their own reliability verdicts. Here they are correctly near zero, since every participant was simulated with the same dispersion and the same non-decision time, a useful negative control. In real data the pattern is often different: RT variability in particular can discriminate between individuals better than the mean does <span class="citation" data-cites="williams2021beneath">(<a href="#ref-williams2021beneath" role="doc-biblioref">Williams et al., 2021</a>)</span>, and non-decision time is a natural candidate for a stable person-specific quantity. Had those been the reliable components, the sensible clinical index would have been <code>sigma</code> or <code>tau</code>, and not a condition contrast at all.</p>
+</div>
+<p>The practical recommendation is simple, and a multi-parameter framework makes it possible to follow: <strong>compute a reliability index for every parameter intended for use as an individual-level score</strong>, and report it alongside the effect itself.</p>
+</section>
+</section>
+<section id="discussion" class="level1">
+<h1>Discussion</h1>
+<section id="summary" class="level2">
+<h2 data-anchor-id="summary">Summary</h2>
+<p><code>cogmod</code> implements a broad set of cognitive models as <code>brms</code> custom families: descriptive RT distributions, evidence accumulation models, and process models for bounded and Likert-type ratings. The design commitment is minimal. The package supplies likelihoods and the post-processing methods that make them first-class citizens of the <code>brms</code> ecosystem, and inherits everything else. The four examples above illustrate what this buys. Decomposing an experimental effect into distributional or mechanistic components requires changing two arguments rather than changing software (Example 1). Comparing ten model families is one call, and reveals both that the Gaussian default is badly inadequate and that several unfamiliar families fit as well as the canonical ones (Example 2). The same interface extends to outcomes that the RT literature does not usually address, such as bimodal slider ratings (Example 3). And because every parameter can carry random effects, the reliability of every parameter as an individual-level score can be assessed as a matter of routine (Example 4).</p>
+<p>What the four examples have in common is that <strong>what you fit is what you get</strong>. A likelihood is not only a claim about the shape of the data; it fixes the vocabulary in which any result can be stated. A Gaussian model can report that two conditions differ by 141 ms and can report nothing else, because a mean difference is the only quantity it has. An ex-Gaussian can attribute that difference to the bulk or to the tail, a diffusion model can attribute it to evidence, threshold or encoding, and CHOCO can separate which side of a scale a participant chose from how firmly they chose it. Fit and interpretability usually improve together as one moves along this sequence, though <a href="#tbl-loo" class="quarto-xref" aria-expanded="false">Table&nbsp;1</a> is a reminder that they need not: the shifted Wald is outpredicted by three families whose parameters mean nothing in particular. The choice of likelihood is a choice about which questions become askable at all, and it deserves to be made deliberately rather than inherited.</p>
+</section>
+<section id="limitations" class="level2">
+<h2 data-anchor-id="limitations">Limitations</h2>
+<p><strong>Computational cost.</strong> General-purpose HMC on custom Stan code is slower than a sampler built for a specific model class. <a href="#tbl-loo" class="quarto-xref" aria-expanded="false">Table&nbsp;1</a> makes this concrete: the LBA took roughly 10 minutes per chain on a four-thousand-trial dataset without random effects, and hierarchical versions are substantially more expensive. Users whose primary question concerns the fine structure of the decision process, or who need to fit many participants with complex accumulator architectures, will be better served by EMC2 <span class="citation" data-cites="stevenson2026bayesian">(<a href="#ref-stevenson2026bayesian" role="doc-biblioref">Stevenson et al., 2026</a>)</span> or HSSM <span class="citation" data-cites="fengler2026hssm">(<a href="#ref-fengler2026hssm" role="doc-biblioref">Fengler et al., 2026</a>)</span>.</p>
+<p><strong>Identifiability.</strong> The flexibility of the interface makes it easy to write down models the data cannot support. Regressing every parameter of an LBA on every condition is one line of code and frequently a bad idea: evidence accumulation parameters trade off against each other, and between-trial variability parameters in particular are notoriously poorly identified <span class="citation" data-cites="boehm2018estimating evans2020evidence">(<a href="#ref-boehm2018estimating" role="doc-biblioref">Boehm et al., 2018</a>; <a href="#ref-evans2020evidence" role="doc-biblioref">Evans &amp; Wagenmakers, 2020</a>)</span>. The package does not, and cannot, prevent this. Prior predictive checks, parameter recovery on simulated data, and the standard Bayesian workflow <span class="citation" data-cites="gelman2020bayesian">(<a href="#ref-gelman2020bayesian" role="doc-biblioref">Gelman et al., 2020</a>)</span> remain the user’s responsibility, and the <code>d*()</code> and <code>r*()</code> functions provided for every family are intended to make these checks easy.</p>
+<p><strong>Maturity.</strong> The package is under active development. Some families, the confidence signal detection model in particular, are marked experimental, and parameterizations may still change. Several of the descriptive RT families have little precedent in this literature, and while Example 2 suggests they deserve attention, their behaviour is correspondingly less well documented than that of the ex-Gaussian or shifted LogNormal.</p>
+<p><strong>Scope.</strong> <code>cogmod</code> currently covers single-stage decisions and rating responses. Reinforcement learning models, sequential-sampling models with more than two accumulators, collapsing boundaries, and joint modelling of behaviour with neural measures are not implemented, and some of them are poorly suited to the custom-family mechanism.</p>
+</section>
+<section id="conclusion" class="level2">
+<h2 data-anchor-id="conclusion">Conclusion</h2>
+<p>The gap between what cognitive data contain and what is typically extracted from them is large, and it is maintained more by friction than by disagreement. Few researchers would defend the claim that a mean difference is an adequate summary of a reaction time distribution, yet many report one, because the alternative requires learning a new toolchain for each model they might want to try. By implementing cognitive models as families within a regression framework that psychologists already use, <code>cogmod</code> aims to make the better analysis the easier one, and by putting descriptive and generative models under one interface, to make the choice between them an empirical question rather than an inherited convention.</p>
+</section>
+</section>
+<section id="open-practices-statement" class="level1">
+<h1>Open Practices Statement</h1>
+<p><code>cogmod</code> is open source (MIT licence) and available at <a href="https://github.com/DominiqueMakowski/cogmod" class="uri">https://github.com/DominiqueMakowski/cogmod</a>, with documentation at <a href="https://dominiquemakowski.github.io/cogmod/" class="uri">https://dominiquemakowski.github.io/cogmod/</a>. The <code>wagenmakers2008</code> data are redistributed with the package, and the simulated data of Example 1 are bundled as <code>badlm</code> (with their generating script in <code>data-raw/</code>). All models reported here, the scripts used to fit them, and the code reproducing every figure and table are available in the same repository. None of the analyses were preregistered; Examples 1, 3 and 4 use simulated data, and Examples 1 and 2 reanalyse previously published data.</p>
+</section>
+<section id="references" class="level1">
+<h1>References</h1>
+<div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" data-line-spacing="2" role="list">
+<div id="ref-balota2011moving" class="csl-entry" role="listitem">
+Balota, D. A., &amp; Yap, M. J. (2011). Moving beyond the mean in studies of mental chronometry: The power of response time distributional analyses. <em>Current Directions in Psychological Science</em>, <em>20</em>(3), 160–166. <a href="https://doi.org/10.1177/0963721411408885">https://doi.org/10.1177/0963721411408885</a>
+</div>
+<div id="ref-boehm2018estimating" class="csl-entry" role="listitem">
+Boehm, U., Annis, J., Frank, M. J., Hawkins, G. E., Heathcote, A., Kellen, D., Krypotos, A.-M., Lerche, V., Logan, G. D., Palmeri, T. J., et al. (2018). Estimating across-trial variability parameters of the diffusion decision model: Expert advice and recommendations. <em>Journal of Mathematical Psychology</em>, <em>87</em>, 46–75. <a href="https://doi.org/10.1016/j.jmp.2018.09.004">https://doi.org/10.1016/j.jmp.2018.09.004</a>
+</div>
+<div id="ref-brown2008simplest" class="csl-entry" role="listitem">
+Brown, S. D., &amp; Heathcote, A. (2008). The simplest complete model of choice response time: Linear ballistic accumulation. <em>Cognitive Psychology</em>, <em>57</em>(3), 153–178. <a href="https://doi.org/10.1016/j.cogpsych.2007.12.002">https://doi.org/10.1016/j.cogpsych.2007.12.002</a>
+</div>
+<div id="ref-burkner2017brms" class="csl-entry" role="listitem">
+Bürkner, P.-C. (2017). <span class="nocase">brms</span>: An <span>R</span> package for <span>Bayesian</span> multilevel models using <span>Stan</span>. <em>Journal of Statistical Software</em>, <em>80</em>(1), 1–28. <a href="https://doi.org/10.18637/jss.v080.i01">https://doi.org/10.18637/jss.v080.i01</a>
+</div>
+<div id="ref-burkner2019ordinal" class="csl-entry" role="listitem">
+Bürkner, P.-C., &amp; Vuorre, M. (2019). Ordinal regression models in psychology: A tutorial. <em>Advances in Methods and Practices in Psychological Science</em>, <em>2</em>(1), 77–101. <a href="https://doi.org/10.1177/2515245918823199">https://doi.org/10.1177/2515245918823199</a>
+</div>
+<div id="ref-carpenter2017stan" class="csl-entry" role="listitem">
+Carpenter, B., Gelman, A., Hoffman, M. D., Lee, D., Goodrich, B., Betancourt, M., Brubaker, M., Guo, J., Li, P., &amp; Riddell, A. (2017). <span>Stan</span>: A probabilistic programming language. <em>Journal of Statistical Software</em>, <em>76</em>(1), 1–32. <a href="https://doi.org/10.18637/jss.v076.i01">https://doi.org/10.18637/jss.v076.i01</a>
+</div>
+<div id="ref-deboeck2019overview" class="csl-entry" role="listitem">
+De Boeck, P., &amp; Jeon, M. (2019). An overview of models for response times and processes in cognitive tests. <em>Frontiers in Psychology</em>, <em>10</em>, 102. <a href="https://doi.org/10.3389/fpsyg.2019.00102">https://doi.org/10.3389/fpsyg.2019.00102</a>
+</div>
+<div id="ref-evans2020evidence" class="csl-entry" role="listitem">
+Evans, N. J., &amp; Wagenmakers, E.-J. (2020). Evidence accumulation models: Current limitations and future directions. <em>The Quantitative Methods for Psychology</em>, <em>16</em>(2), 73–90. <a href="https://doi.org/10.20982/tqmp.16.2.p073">https://doi.org/10.20982/tqmp.16.2.p073</a>
+</div>
+<div id="ref-fengler2026hssm" class="csl-entry" role="listitem">
+Fengler, A., Xu, P., Bera, K., Paniagua, C., Omar, A., &amp; Frank, M. J. (2026). <span>HSSM</span>: A widely applicable toolbox for hierarchical <span>Bayesian</span> neurocognitive modeling. <em>bioRxiv</em>. <a href="https://doi.org/10.1101/2026.06.05.730398">https://doi.org/10.1101/2026.06.05.730398</a>
+</div>
+<div id="ref-fisher2024sequential" class="csl-entry" role="listitem">
+Fisher, C. R., &amp; Makowski, D. (2024). <span class="nocase">SequentialSamplingModels.jl</span>: A julia package for simulating and evaluating sequential sampling models. <em>Proceedings of the JuliaCon Conferences</em>. <a href="https://doi.org/10.21105/jcon.00186">https://doi.org/10.21105/jcon.00186</a>
+</div>
+<div id="ref-gelman2020bayesian" class="csl-entry" role="listitem">
+Gelman, A., Vehtari, A., Simpson, D., Margossian, C. C., Carpenter, B., Yao, Y., Kennedy, L., Gabry, J., Bürkner, P.-C., &amp; Modrák, M. (2020). Bayesian workflow. <em>arXiv Preprint</em>, <em>arXiv:2011.01808</em>. <a href="https://doi.org/10.48550/arXiv.2011.01808">https://doi.org/10.48550/arXiv.2011.01808</a>
+</div>
+<div id="ref-haines2020learning" class="csl-entry" role="listitem">
+Haines, N., Kvam, P. D., Irving, L. H., Smith, C., Beauchaine, T. P., Pitt, M. A., Ahn, W.-Y., &amp; Turner, B. M. (2020). <em>Theoretically informed generative models can advance the psychological and brain sciences: Lessons from the reliability paradox</em>. PsyArXiv. <a href="https://doi.org/10.31234/osf.io/xr7y3">https://doi.org/10.31234/osf.io/xr7y3</a>
+</div>
+<div id="ref-heathcote2019dynamic" class="csl-entry" role="listitem">
+Heathcote, A., Lin, Y.-S., Reynolds, A., Strickland, L., Gretton, M., &amp; Matzke, D. (2019). Dynamic models of choice. <em>Behavior Research Methods</em>, <em>51</em>(2), 961–985. <a href="https://doi.org/10.3758/s13428-018-1067-y">https://doi.org/10.3758/s13428-018-1067-y</a>
+</div>
+<div id="ref-hedge2018reliability" class="csl-entry" role="listitem">
+Hedge, C., Powell, G., &amp; Sumner, P. (2018). The reliability paradox: Why robust cognitive tasks do not produce reliable individual differences. <em>Behavior Research Methods</em>, <em>50</em>(3), 1166–1186. <a href="https://doi.org/10.3758/s13428-017-0935-1">https://doi.org/10.3758/s13428-017-0935-1</a>
+</div>
+<div id="ref-kosmidis2024extended" class="csl-entry" role="listitem">
+Kosmidis, I., &amp; Zeileis, A. (2024). Extended-support beta regression for <span class="math inline">[0, 1]</span> responses. <em>arXiv Preprint</em>, <em>arXiv:2409.07233</em>. <a href="https://doi.org/10.48550/arXiv.2409.07233">https://doi.org/10.48550/arXiv.2409.07233</a>
+</div>
+<div id="ref-kubinec2023ordered" class="csl-entry" role="listitem">
+Kubinec, R. (2023). Ordered beta regression: A parsimonious, well-fitting model for continuous data with lower and upper bounds. <em>Political Analysis</em>, <em>31</em>(4), 519–536. <a href="https://doi.org/10.1017/pan.2022.20">https://doi.org/10.1017/pan.2022.20</a>
+</div>
+<div id="ref-liddell2018analyzing" class="csl-entry" role="listitem">
+Liddell, T. M., &amp; Kruschke, J. K. (2018). Analyzing ordinal data with metric models: What could possibly go wrong? <em>Journal of Experimental Social Psychology</em>, <em>79</em>, 328–348. <a href="https://doi.org/10.1016/j.jesp.2018.08.009">https://doi.org/10.1016/j.jesp.2018.08.009</a>
+</div>
+<div id="ref-ludecke2021performance" class="csl-entry" role="listitem">
+Lüdecke, D., Ben-Shachar, M. S., Patil, I., Waggoner, P., &amp; Makowski, D. (2021). <span class="nocase">performance</span>: An <span>R</span> package for assessment, comparison and testing of statistical models. <em>Journal of Open Source Software</em>, <em>6</em>(60), 3139. <a href="https://doi.org/10.21105/joss.03139">https://doi.org/10.21105/joss.03139</a>
+</div>
+<div id="ref-ludecke2019insight" class="csl-entry" role="listitem">
+Lüdecke, D., Waggoner, P., &amp; Makowski, D. (2019). <span class="nocase">insight</span>: A unified interface to access information from model objects in <span>R</span>. <em>Journal of Open Source Software</em>, <em>4</em>(38), 1412. <a href="https://doi.org/10.21105/joss.01412">https://doi.org/10.21105/joss.01412</a>
+</div>
+<div id="ref-makowski2019bayestestr" class="csl-entry" role="listitem">
+Makowski, D., Ben-Shachar, M. S., &amp; Lüdecke, D. (2019). <span class="nocase">bayestestR</span>: Describing effects and their uncertainty, existence and significance within the <span>Bayesian</span> framework. <em>Journal of Open Source Software</em>, <em>4</em>(40), 1541. <a href="https://doi.org/10.21105/joss.01541">https://doi.org/10.21105/joss.01541</a>
+</div>
+<div id="ref-makowski2020modelbased" class="csl-entry" role="listitem">
+Makowski, D., Ben-Shachar, M. S., Patil, I., &amp; Lüdecke, D. (2020). <em><span class="nocase">modelbased</span>: Estimation of model-based predictions, contrasts and means</em>. <a href="https://easystats.github.io/modelbased/">https://easystats.github.io/modelbased/</a>
+</div>
+<div id="ref-matzke2009psychological" class="csl-entry" role="listitem">
+Matzke, D., &amp; Wagenmakers, E.-J. (2009). Psychological interpretation of the ex-<span>Gaussian</span> and shifted <span>Wald</span> parameters: A diffusion model analysis. <em>Psychonomic Bulletin &amp; Review</em>, <em>16</em>(5), 798–817. <a href="https://doi.org/10.3758/PBR.16.5.798">https://doi.org/10.3758/PBR.16.5.798</a>
+</div>
+<div id="ref-ratcliff2008diffusion" class="csl-entry" role="listitem">
+Ratcliff, R., &amp; McKoon, G. (2008). The diffusion decision model: Theory and data for two-choice decision tasks. <em>Neural Computation</em>, <em>20</em>(4), 873–922. <a href="https://doi.org/10.1162/neco.2008.12-06-420">https://doi.org/10.1162/neco.2008.12-06-420</a>
+</div>
+<div id="ref-ratcliff2016diffusion" class="csl-entry" role="listitem">
+Ratcliff, R., Smith, P. L., Brown, S. D., &amp; McKoon, G. (2016). Diffusion decision model: Current issues and history. <em>Trends in Cognitive Sciences</em>, <em>20</em>(4), 260–281. <a href="https://doi.org/10.1016/j.tics.2016.01.007">https://doi.org/10.1016/j.tics.2016.01.007</a>
+</div>
+<div id="ref-rouder2024signal" class="csl-entry" role="listitem">
+Rouder, J. N., &amp; Mehrvarz, M. (2024). A psychometrics of individual differences in experimental tasks. <em>Current Directions in Psychological Science</em>. <a href="https://doi.org/10.1177/09637214231220923">https://doi.org/10.1177/09637214231220923</a>
+</div>
+<div id="ref-schramm2019transformations" class="csl-entry" role="listitem">
+Schramm, P., &amp; Rouder, J. N. (2019). <em>Are reaction time transformations really beneficial?</em> PsyArXiv. <a href="https://doi.org/10.31234/osf.io/9ksa6">https://doi.org/10.31234/osf.io/9ksa6</a>
+</div>
+<div id="ref-sciandra2024discrete" class="csl-entry" role="listitem">
+Sciandra, M., Fasola, S., Albano, A., &amp; Plaia, A. (2024). Discrete beta and shifted beta-binomial models for rating and ranking data. <em>Environmental and Ecological Statistics</em>, <em>31</em>(2), 317–338. <a href="https://doi.org/10.1007/s10651-023-00592-5">https://doi.org/10.1007/s10651-023-00592-5</a>
+</div>
+<div id="ref-shinn2020flexible" class="csl-entry" role="listitem">
+Shinn, M., Lam, N. H., &amp; Murray, J. D. (2020). A flexible framework for simulating and fitting generalized drift-diffusion models. <em>eLife</em>, <em>9</em>, e56938. <a href="https://doi.org/10.7554/eLife.56938">https://doi.org/10.7554/eLife.56938</a>
+</div>
+<div id="ref-stevenson2026bayesian" class="csl-entry" role="listitem">
+Stevenson, N., Donzallaz, M. C., Innes, R. J., Forstmann, B. U., Matzke, D., &amp; Heathcote, A. (2026). Bayesian hierarchical cognitive modeling with the <span>EMC2</span> package. <em>Behavior Research Methods</em>. <a href="https://doi.org/10.3758/s13428-025-02869-y">https://doi.org/10.3758/s13428-025-02869-y</a>
+</div>
+<div id="ref-vandekerckhove2008diffusion" class="csl-entry" role="listitem">
+Vandekerckhove, J., &amp; Tuerlinckx, F. (2008). Diffusion model analysis with <span>MATLAB</span>: A <span>DMAT</span> primer. <em>Behavior Research Methods</em>, <em>40</em>(1), 61–72. <a href="https://doi.org/10.3758/BRM.40.1.61">https://doi.org/10.3758/BRM.40.1.61</a>
+</div>
+<div id="ref-vehtari2017practical" class="csl-entry" role="listitem">
+Vehtari, A., Gelman, A., &amp; Gabry, J. (2017). Practical <span>Bayesian</span> model evaluation using leave-one-out cross-validation and <span>WAIC</span>. <em>Statistics and Computing</em>, <em>27</em>(5), 1413–1432. <a href="https://doi.org/10.1007/s11222-016-9696-4">https://doi.org/10.1007/s11222-016-9696-4</a>
+</div>
+<div id="ref-voss2007fastdm" class="csl-entry" role="listitem">
+Voss, A., &amp; Voss, J. (2007). Fast-dm: A free program for efficient diffusion model analysis. <em>Behavior Research Methods</em>, <em>39</em>(4), 767–775. <a href="https://doi.org/10.3758/BF03192967">https://doi.org/10.3758/BF03192967</a>
+</div>
+<div id="ref-wagenmakers2008diffusion" class="csl-entry" role="listitem">
+Wagenmakers, E.-J., Ratcliff, R., Gomez, P., &amp; McKoon, G. (2008). A diffusion model account of criterion shifts in the lexical decision task. <em>Journal of Memory and Language</em>, <em>58</em>(1), 140–159. <a href="https://doi.org/10.1016/j.jml.2007.04.006">https://doi.org/10.1016/j.jml.2007.04.006</a>
+</div>
+<div id="ref-wiecki2013hddm" class="csl-entry" role="listitem">
+Wiecki, T. V., Sofer, I., &amp; Frank, M. J. (2013). <span>HDDM</span>: Hierarchical <span>Bayesian</span> estimation of the drift-diffusion model in <span>Python</span>. <em>Frontiers in Neuroinformatics</em>, <em>7</em>, 14. <a href="https://doi.org/10.3389/fninf.2013.00014">https://doi.org/10.3389/fninf.2013.00014</a>
+</div>
+<div id="ref-williams2021beneath" class="csl-entry" role="listitem">
+Williams, D. R., Mulder, J., Rouder, J. N., &amp; Rast, P. (2021). Beneath the surface: Unearthing within-person variability and mean relations with <span>Bayesian</span> mixed models. <em>Psychological Methods</em>, <em>26</em>(1), 74–95. <a href="https://doi.org/10.1037/met0000270">https://doi.org/10.1037/met0000270</a>
+</div>
+</div>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

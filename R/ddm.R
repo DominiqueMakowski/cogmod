@@ -10,10 +10,31 @@
 #'
 #' @param drift Drift rate. Can take any real value.
 #' @param bs Decision threshold (boundary separation). Must be positive.
-#' @param bias Starting point bias (proportion of boundary separation). Must be in (0, 1).
+#' @param bias Starting point bias, as a proportion of the boundary separation
+#'   *measured from the boundary coded `0`*. Must be in (0, 1). See Details.
 #' @param ndt Non-decision time. Must be non-negative.
 #' @param ... Other arguments to be passed to [brms::rwiener()] or [brms::dwiener()],
 #' @details
+#' # Response coding
+#'
+#' The response coded `1` (`response` here, `dec()` in a `brms` formula) is the
+#' **upper** boundary and the response coded `0` is the **lower** one, following
+#' `brms`'s own `wiener()` family. Two consequences are worth keeping in mind
+#' when reading a fitted model:
+#'
+#' * `bias` is measured *from the lower boundary*, so `bias > 0.5` places the
+#'   starting point closer to the response coded `1`, and `bias < 0.5` closer to
+#'   the response coded `0`. Since first-passage times are shorter for the nearer
+#'   boundary, `bias > 0.5` makes responses coded `1` *faster* than responses
+#'   coded `0`, and `bias < 0.5` makes them slower. At exactly `bias = 0.5` the
+#'   two conditional RT distributions are identical, whatever the drift rate.
+#' * A positive `drift` pushes the accumulator towards the response coded `1`.
+#'   When `0` codes correct responses and `1` codes errors (a common choice when
+#'   the task has no natural stimulus-to-boundary mapping), good performance
+#'   therefore corresponds to a *negative* drift rate.
+#'
+#' # Implementation
+#'
 #' The underlying 4-parameter process is simulated and evaluated with
 #' [brms::rwiener()]/[brms::dwiener()] (which require the `RWiener` package).
 #' The full 7-parameter model is built on top of these rather than delegated to

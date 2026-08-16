@@ -487,6 +487,89 @@ test_that("rddm() with variability produces valid simulated data", {
 })
 
 
+test_that("rddm() with variability samples the distribution dddm() describes", {
+  # The simulator draws the per-trial parameters while the density integrates
+  # them out analytically/by quadrature, so the two take genuinely different
+  # routes and agreeing is informative.
+  skip_on_cran()
+  set.seed(404)
+
+  p <- list(drift = -1.2, bs = 1.3, bias = 0.4, ndt = 0.25, minrt = 0.30)
+  grid <- seq(p$ndt + 1e-4, 12, length.out = 300)
+  h <- diff(grid)
+  trap <- function(y) sum((y[-1] + y[-length(y)]) / 2 * h)
+
+  for (v in list(c(0.8, 0, 0), c(0, 0.5, 0), c(0, 0, 0.5), c(0.8, 0.4, 0.4))) {
+    dens <- lapply(c(0, 1), function(r) {
+      dddm(
+        x = grid, drift = p$drift, bs = p$bs, bias = p$bias, ndt = p$ndt,
+        response = r, sigmadrift = v[1], sigmabias = v[2], sigmatau = v[3],
+        minrt = p$minrt
+      )
+    })
+    sim <- rddm(
+      n = 15000, drift = p$drift, bs = p$bs, bias = p$bias, ndt = p$ndt,
+      sigmadrift = v[1], sigmabias = v[2], sigmatau = v[3], minrt = p$minrt
+    )
+
+    lab <- sprintf("sv=%.1f, sigmabias=%.1f, sigmatau=%.1f", v[1], v[2], v[3])
+    p_lo <- trap(dens[[1]])
+    p_up <- trap(dens[[2]])
+
+    # A proper density over both responses.
+    expect_equal(p_lo + p_up, 1, tolerance = 0.005, label = paste("mass:", lab))
+    expect_equal(
+      p_up, mean(sim$response == 1),
+      tolerance = 0.02, label = paste("P(response = 1):", lab)
+    )
+    for (r in c(0, 1)) {
+      expect_equal(
+        trap(grid * dens[[r + 1]]) / c(p_lo, p_up)[r + 1],
+        mean(sim$rt[sim$response == r]),
+        tolerance = 0.02, label = sprintf("E[RT | response = %d]: %s", r, lab)
+      )
+    }
+  }
+})
+
+
+test_that("posterior_epred_ddm() matches the simulated mean RT", {
+  # The closed-form mean first-passage time takes the starting point on the
+  # absolute scale (z = bias * bs), not as the proportion `bias`. Using the
+  # proportion silently biases E[RT] whenever bs != 1.
+  set.seed(99)
+
+  grid <- expand.grid(
+    mu = c(-2.5, -1, -0.4, 0.4, 1, 2.5),
+    bs = c(0.8, 1.4, 2.0),
+    bias = c(0.35, 0.5, 0.65)
+  )
+
+  for (i in seq_len(nrow(grid))) {
+    g <- grid[i, ]
+    prep <- list(dpars = list(
+      mu = g$mu, bs = g$bs, bias = g$bias, tau = 0.8, minrt = 0.3125,
+      sigmadrift = 0, sigmabias = 0, sigmatau = 0
+    ))
+    sim <- rddm(60000, drift = g$mu, bs = g$bs, bias = g$bias, ndt = 0.25)
+    expect_equal(
+      posterior_epred_ddm(prep),
+      mean(sim$rt),
+      tolerance = 0.02,
+      label = sprintf("mu=%.1f, bs=%.1f, bias=%.2f", g$mu, g$bs, g$bias)
+    )
+  }
+
+  # The mu = 0 limit (removable singularity) is ndt + z * (bs - z).
+  prep0 <- list(dpars = list(
+    mu = 0, bs = 1.4, bias = 0.35, tau = 0.8, minrt = 0.3125,
+    sigmadrift = 0, sigmabias = 0, sigmatau = 0
+  ))
+  z <- 0.35 * 1.4
+  expect_equal(posterior_epred_ddm(prep0), 0.25 + z * (1.4 - z), tolerance = 1e-8)
+})
+
+
 test_that("posterior_epred_ddm() warns only when variability parameters are non-zero", {
   mock_prep <- function(sigmadrift, sigmabias, sigmatau) {
     list(
