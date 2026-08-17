@@ -16,9 +16,13 @@
   spurious effects on the other parameters.
 
   What makes the direct parameterization tractable is the outlier component: a
-  fixed `LogNormal(log(0.15), 1.5)` mixed in with weight `poutlier` keeps the
-  density positive below `ndt`, turning the hard min-RT boundary into a finite
-  cost and leaving the log-density smooth. No bound is taken from the data.
+  fixed half Student-t (scale `0.4`, `3` df) mixed in with weight `poutlier`
+  keeps the density positive below `ndt`, turning the hard min-RT boundary into a
+  finite cost and leaving the log-density smooth. No bound is taken from the
+  data. The half-t is flat at the origin, so the fastest responses are not
+  starved of density; its tails are heavy enough that supplying RT in
+  milliseconds degrades rather than underflowing to zero; and its mean is finite,
+  which `posterior_epred()` requires.
 
   Models must be updated: replace `tau ~ ...` with `ndt ~ ...`, drop
   `minrt = min(df$RT)`, and add `poutlier ~ 1`. Note that `ndt` coefficients
@@ -38,11 +42,43 @@
 
 ## New features
 
-* `contaminant_prob()` returns the posterior probability that each trial came
-  from the outlier component rather than the decision process.
+* `p_outlier()` returns the posterior probability that each trial came from the
+  outlier component rather than the decision process - the mixture
+  responsibility, averaged over draws. Responses below `ndt` come out at 1 and
+  those in the bulk near 0, but the probability rises again in the far slow tail,
+  where the half-t has heavier tails than the LogNormal; that is the mechanism
+  behind the advice to filter implausibly slow responses before fitting.
+
+* `posterior_predict()` and `posterior_epred()` for `rt_lognormal()` describe
+  the **decision process alone** by default, as if `poutlier` were zero. For
+  visualising effects the outlier component is a nuisance that pulls expected
+  values toward its own mean (0.441 s) and adds a spike of implausibly fast
+  draws; it is also a fixed regularizer rather than a claim about how guesses
+  are distributed, so simulating from it means simulating from something the
+  model does not assert. The likelihood is unaffected and is always the full
+  mixture, so `posterior_predict()` and `log_lik()` no longer describe the same
+  distribution - a hand-rolled LOO-PIT check should use `with_outliers()`.
+
+* `with_outliers()` restores the fitted mixture for prediction, and
+  `without_outliers()` returns to the default. The main use for the former is
+  `pp_check()`: on untrimmed data the decision-only predictive has no fast spike
+  to match the one in the data, which reads as misfit. The same flag can be set
+  up front with `rt_lognormal(predict_outliers = TRUE)`.
+
+  It is carried on the family rather than passed as an argument because `brms`
+  does not forward extra arguments to a custom family's prediction methods -
+  `posterior_epred` reaches the method with `prep` and nothing else - and
+  `insight`, `modelbased` and `marginaleffects` inherit that. Carrying it on the
+  object is what makes it work through all of them.
 
 * New *Outliers* article validating the outlier-mixture specification against
-  the Illusion Game dataset.
+  the Illusion Game dataset, cross-checked against the lexical decision data of
+  Wagenmakers et al. (2008) and the brightness discrimination of Ratcliff and
+  Rouder (1998), both from `rtdists`. It also derives recommended priors for all
+  four parameters from the rates it measures, and explains why they matter more
+  under this parameterization than the last: `ndt` is no longer bounded above by
+  construction, and `poutlier` has a degenerate region near 1 where `ndt` becomes
+  unidentified.
 
 # cogmod 0.1.0
 

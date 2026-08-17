@@ -11,7 +11,7 @@
 #' - `drt_lognormal()`: Computes the density (likelihood).
 #' - `rt_lognormal()`: Creates a `brms::custom_family()` for use in `brms` models.
 #' - `rt_lognormal_stanvars()`: Generates the `stanvars` to pass to `brm()`.
-#' - `contaminant_prob()`: Per-trial posterior probability of being an outlier.
+#' - `p_outlier()`: Per-trial posterior probability of being an outlier.
 #'
 #' @details
 #' # Parameterization
@@ -38,26 +38,74 @@
 #' smooth and differentiable. That is what makes the direct parameterization of
 #' `ndt` workable without taking a bound from the data.
 #'
-#' The outlier component is fixed at `LogNormal(meanlog = log(0.15), sdlog = 1.5)`:
-#' median 150 ms, with 95% of its mass between 0.008 s and 2.84 s. It is
-#' deliberately broad - an outlier is not necessarily an extreme value, and a
-#' response driven by some other process can land anywhere within the plausible
-#' range - but it peaks in the fast region, where the decision component has no
-#' density to offer. Plot it with `curve(dlnorm(x, log(0.15), 1.5), 0, 3)`.
+#' The outlier component is fixed at a **half Student-t** with scale `0.4` and
+#' `3` degrees of freedom, i.e. `2 * dt(x / 0.4, df = 3) / 0.4` on `[0, Inf)`.
+#' Two properties motivate it. It is **flat at the origin** (zero derivative), so
+#' the very fastest responses - the ones least plausibly decisions - are not
+#' starved of density; a LogNormal or Gamma vanishes at zero and an Exponential
+#' peaks there with maximal slope, and all three get this backwards. And its
+#' tails are heavy, so it keeps positive density across the whole plausible RT
+#' range rather than only in the fast region. Plot it with
+#' `curve(2 * dt(x / 0.4, 3) / 0.4, 0, 3)`.
 #'
 #' Because these hyperparameters are fixed, **reaction times are assumed to be
-#' measured in seconds**. Millisecond-scale data will fit without erroring but
-#' the outlier component will be badly calibrated.
+#' measured in seconds**. Millisecond-scale data will fit without erroring - the
+#' heavy tails degrade gracefully rather than underflowing - but the outlier
+#' component will be badly calibrated.
 #'
 #' `poutlier` is a *rate*, not a classification: the model never labels
 #' individual trials, it estimates what share of them came from elsewhere. Use
-#' [contaminant_prob()] for per-trial posterior probabilities.
+#' [p_outlier()] for per-trial posterior probabilities.
 #'
 #' Slow outliers are deliberately not handled by this component. A slow
 #' contaminant is statistically confounded with the right tail of the RT
 #' distribution itself, so it cannot be identified, and leaving such trials in
 #' the data biases `ndt` upward. Filter implausibly slow responses before
 #' fitting.
+#'
+#' # Predictions exclude the outlier component
+#'
+#' `posterior_predict()` and `posterior_epred()` describe the **decision process
+#' alone** by default, as if `poutlier` were zero. For visualising effects the
+#' outlier component is a nuisance that pulls expected values toward its own mean
+#' and adds a spike of implausibly fast draws; it is also a fixed regularizer
+#' rather than a claim about how guesses are distributed, so simulating from it
+#' means simulating from something the model does not assert.
+#'
+#' ```r
+#' brms::posterior_epred(m)
+#' modelbased::estimate_means(m, by = "Condition")
+#' marginaleffects::avg_predictions(m, by = "Condition")
+#' ```
+#'
+#' Use [with_outliers()] for the fitted mixture, and [without_outliers()] to go
+#' back. The one case that genuinely wants the mixture is a posterior predictive
+#' check, since on untrimmed data the decision-only predictive has no fast spike
+#' to match the one in the data:
+#'
+#' ```r
+#' brms::pp_check(with_outliers(m))
+#' ```
+#'
+#' The same flag can be set up front, with `rt_lognormal(predict_outliers =
+#' TRUE)`.
+#'
+#' The flag is carried on the model rather than passed as an argument for a
+#' reason. `brms` sends the `...` of `posterior_predict()` and
+#' `posterior_epred()` to `prepare_predictions()`, not down to the family method;
+#' `posterior_epred` reaches the family method with `prep` and nothing else. So
+#' `posterior_epred(m, predict_outliers = TRUE)` is *silently ignored* rather
+#' than erroring, and `insight`, `modelbased` and `marginaleffects` inherit that
+#' behaviour. Carrying the flag on the object is what makes it work everywhere.
+#'
+#' The `predict_outliers` argument on the methods themselves still works when
+#' they are called directly, and overrides the flag.
+#'
+#' `log_lik` has no such argument: the likelihood *is* the mixture, and dropping
+#' a component from it would not be a different summary of the same model but a
+#' different model. One consequence is that `posterior_predict()` and `log_lik()`
+#' no longer describe the same distribution by default, so a hand-rolled LOO-PIT
+#' check should use [with_outliers()].
 #'
 #' @param n Number of observations. If `length(n) > 1`, the length is taken to be
 #'   the number required.
@@ -69,7 +117,7 @@
 #'   non-negative. Represents time for processes such as stimulus encoding and
 #'   response execution. Range: [0, Inf).
 #' @param poutlier Proportion of responses generated by the outlier process
-#'   rather than by the decision process. Range: [0, 1]. At `poutlier = 0` the
+#'   rather than by the decision process. Range: `[0, 1]`. At `poutlier = 0` the
 #'   distribution reduces to the plain shifted LogNormal.
 #'
 #' @examples
@@ -82,7 +130,7 @@
 #' drt_lognormal(0.1, ndt = 0.3, poutlier = 0)
 #'
 #' # Density of the outlier component alone
-#' # curve(dlnorm(x, meanlog = log(0.15), sdlog = 1.5), from = 0, to = 3, n = 1000)
+#' # curve(2 * dt(x / 0.4, df = 3) / 0.4, from = 0, to = 3, n = 1000)
 #'
 #' @export
 rrt_lognormal <- function(n, mu = -0.7, sigma = 0.5, ndt = 0.2, poutlier = 0) {
@@ -102,7 +150,7 @@ rrt_lognormal <- function(n, mu = -0.7, sigma = 0.5, ndt = 0.2, poutlier = 0) {
   out <- numeric(m)
 
   if (any(is_out)) {
-    out[is_out] <- stats::rlnorm(sum(is_out), .CONTAM_MEANLOG, .CONTAM_SDLOG)
+    out[is_out] <- abs(.CONTAM_SCALE * stats::rt(sum(is_out), df = .CONTAM_DF))
   }
   if (any(!is_out)) {
     keep <- !is_out
@@ -150,12 +198,7 @@ drt_lognormal <- function(
   }
 
   # Outlier component: supported over the whole positive line
-  lp_out <- stats::dlnorm(
-    params$x,
-    meanlog = .CONTAM_MEANLOG,
-    sdlog = .CONTAM_SDLOG,
-    log = TRUE
-  )
+  lp_out <- .dcontam(params$x, log = TRUE)
 
   # Decision component: zero density at or below ndt
   x_adj <- params$x - params$ndt
@@ -183,12 +226,36 @@ drt_lognormal <- function(
 
 # Internals ---------------------------------------------------------------
 
-# Fixed hyperparameters of the outlier component. Hard-coded rather than exposed:
-# recovery of `ndt` is flat across sdlog in [0.75, 3] and across medians from
-# 0.05 to 0.40 s, so there is nothing useful for a user to tune, and fixing them
-# keeps `poutlier` comparable across datasets.
-.CONTAM_MEANLOG <- log(0.15)
-.CONTAM_SDLOG <- 1.5
+# Fixed hyperparameters of the outlier component: a half Student-t on [0, Inf).
+# Hard-coded rather than exposed - `ndt` recovery is insensitive to them over a
+# wide range, so there is nothing useful to tune, and fixing them keeps
+# `poutlier` comparable across datasets.
+#
+# The half-t is flat at the origin (zero derivative), which matters: the fastest
+# responses are the ones least likely to be decisions, so the component must not
+# thin out there. A LogNormal or Gamma vanishes at 0 and an Exponential peaks
+# there with maximal slope; all three get this wrong. df = 3 keeps tails heavy
+# enough that a unit error (RT in ms) degrades rather than underflowing to zero,
+# while keeping the mean finite for posterior_epred().
+.CONTAM_SCALE <- 0.4
+.CONTAM_DF <- 3
+
+# Density of the half-t component.
+#' @keywords internal
+.dcontam <- function(x, log = FALSE) {
+  ld <- log(2) + stats::dt(x / .CONTAM_SCALE, df = .CONTAM_DF, log = TRUE) -
+    log(.CONTAM_SCALE)
+  ld[x <= 0] <- -Inf
+  if (log) ld else exp(ld)
+}
+
+# Mean of the half-t; finite for df > 1.
+#' @keywords internal
+.mcontam <- function() {
+  nu <- .CONTAM_DF
+  2 * .CONTAM_SCALE * sqrt(nu) * gamma((nu + 1) / 2) /
+    (sqrt(pi) * (nu - 1) * gamma(nu / 2))
+}
 
 
 #' @keywords internal
