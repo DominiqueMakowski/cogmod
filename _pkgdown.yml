@@ -48,6 +48,8 @@ reference:
           - rrt_lba
     - title: "Other"
       contents:
-          - contaminant_prob
-          - conf_sdt
+          - cogmod_priors
+          - p_outlier
+          - with_outliers
+          # - conf_sdt  # commented out until the confidence SDT model is ready
           - badlm

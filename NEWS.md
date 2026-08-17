@@ -28,9 +28,42 @@
   `minrt = min(df$RT)`, and add `poutlier ~ 1`. Note that `ndt` coefficients
   are on the log scale, so `exp()` them for seconds.
 
-  Because the outlier component's hyperparameters are fixed, this family now
-  assumes RT is measured in **seconds**. Pass the response to
-  `rt_lognormal_stanvars(df$RT)` to have that validated before fitting.
+* The outlier component is scaled by `minrt`, the fastest reaction time that
+  could plausibly be a real decision, used directly as the half-t scale with no
+  conversion factor. It defaults to `0.3` seconds, where the conditional
+  accuracy functions in the *Outliers* article show responses sitting at chance
+  across three paradigms. 61% of the component falls below `minrt` whatever
+  value is chosen.
+
+  It is a judgement about the task rather than a statistic: nothing is read off
+  the sample, and `ndt` is not bounded by it.
+
+  This matters because the shifted LogNormal is scale-equivariant on its own -
+  multiply every response by 1000 and `ndt` comes back multiplied by 1000 - and
+  a component pinned to the second would be the one thing breaking that. With
+  millisecond data and a fixed scale, the outlier component sits many orders of
+  magnitude below the decision density everywhere in the data, `poutlier`
+  collapses toward zero and `ndt` reverts to being pinned by the fastest
+  observed response, silently and without a warning. Setting `minrt` in the unit
+  of the data makes the likelihood exactly equivariant instead, so millisecond
+  data need `minrt = 300`.
+
+  `minrt` is a constant, never estimated, and is deliberately **not** a dpar:
+  `brms` has no notion of a default for one, so a dpar omitted from the formula
+  is estimated rather than defaulted. It is carried on the family, and the
+  matching Stan constant comes from `rt_lognormal_stanvars()`, which also
+  accepts the family itself so the two cannot drift apart:
+
+  ```r
+  fam <- rt_lognormal(minrt = 0.3)
+  f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1, family = fam)
+  brms::brm(f, data = df, prior = cogmod_priors(f, df),
+            stanvars = rt_lognormal_stanvars(fam))
+  ```
+
+  `rrt_lognormal()` and `drt_lognormal()` gain a matching `minrt` argument.
+  Models fitted before this change fall back to the default, so their
+  predictions are unaffected.
 
 * The `wagenmakers2008` dataset has been removed. Those data were supplied by
   the original authors for distribution in the `rtdists` package specifically,
@@ -40,14 +73,53 @@
   it (`!censor & response != "error" & rt <= 2`), so previously reported
   results are unchanged.
 
+* The experimental confidence signal detection model (`rconf_sdt()`,
+  `dconf_sdt()`, `conf_sdt_stanvars()`, `conf_sdt_custom_family()` and its
+  `brms` methods) is no longer exported. It was not ready, and the code is
+  commented out in `R/conf_sdt.R` and `R/conf_sdt_brms.R` pending a rework.
+
+* **Priors are now required.** `brms` assigns a flat, improper prior to the
+  intercept of any custom-family parameter it does not recognise, which here
+  means both `ndt` and `poutlier`, and the likelihood has two flat directions
+  that a flat prior turns into an improper posterior: `poutlier` toward 1, where
+  every response is attributed to the outlier component and `mu`, `sigma` and
+  `ndt` drop out of the density altogether; and `ndt` toward 0, where the model
+  reduces to an unshifted LogNormal and the gradient with respect to `log(ndt)`
+  vanishes. The second is inherent to putting a positive shift on a log link and
+  has nothing to do with the mixture, which is why a prior on `poutlier` alone
+  is not enough. Symptom: intercepts around `1e14`, `Rhat` near 2 and an
+  effective sample size of about 5, with no error raised. `cogmod_priors()`
+  fills the gap.
+
 ## New features
+
+* `cogmod_priors(formula, data)` fills in every prior `brms` would otherwise
+  leave flat - for `rt_lognormal()`, the `ndt` and `poutlier` rows. It starts
+  from `brms::get_prior()` for the model in hand rather than guessing, so
+  `0 + Intercept` formulas, interactions, group-level terms and smooths are all
+  handled and a prior matching no parameter is impossible by construction. The
+  result is passed through `brms::validate_prior()`, so a malformed
+  specification errors there with the offending row in view, and the return
+  value is the complete prior table with a `source` column marking each row as
+  `user` or `default` - print it to see exactly what the model will be fitted
+  with. To change one, edit the row; `c()` will not work for a slot the table
+  already covers, because `brms` rejects two priors for the same slot.
+
+  The family is read off the formula, so build it with
+  `brms::bf(..., family = rt_lognormal())`. Any other family, or a formula
+  carrying none, gets a message and the `brms` defaults unchanged, so the call
+  is always safe to leave in a script.
 
 * `p_outlier()` returns the posterior probability that each trial came from the
   outlier component rather than the decision process - the mixture
   responsibility, averaged over draws. Responses below `ndt` come out at 1 and
   those in the bulk near 0, but the probability rises again in the far slow tail,
   where the half-t has heavier tails than the LogNormal; that is the mechanism
-  behind the advice to filter implausibly slow responses before fitting.
+  behind the advice to filter implausibly slow responses before fitting. The
+  responsibility is computed on the log scale, so it stays finite in tails where
+  both components underflow to zero. It returns `rt` and `p_outlier` only; the
+  `fast` column was a marginal median split that ignored any grouping in the
+  model and is gone.
 
 * `posterior_predict()` and `posterior_epred()` for `rt_lognormal()` describe
   the **decision process alone** by default, as if `poutlier` were zero. For

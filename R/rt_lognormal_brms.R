@@ -14,7 +14,8 @@ rt_lognormal <- function(
   link_sigma = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE
+  predict_outliers = FALSE,
+  minrt = 0.3
 ) {
   fam <- brms::custom_family(
     name = "rt_lognormal",
@@ -24,31 +25,51 @@ rt_lognormal <- function(
     ub = c(NA, NA, NA, 1), # poutlier <= 1
     type = "real" # Continuous outcome variable (RT)
   )
-  # The flag rides on the family because that is the only thing brms carries
-  # down to a custom family's prediction methods. See the Details section of
-  # ?rrt_lognormal, and with_outliers() for flipping it after fitting.
+  # Both ride on the family because that is the only thing brms carries down to
+  # a custom family's prediction methods. See the Details section of
+  # ?rrt_lognormal, and with_outliers() for flipping the flag after fitting.
+  #
+  # `minrt` is deliberately not a dpar. brms has no notion of a default for
+  # one: a dpar left out of the formula is *estimated*, not defaulted, so
+  # `minrt` would silently become a free parameter for every user who did not
+  # write `minrt = 0.3` into their bf(). Carrying it on the family gives it a
+  # real default; the matching Stan constant comes from rt_lognormal_stanvars().
   fam$predict_outliers <- isTRUE(predict_outliers)
+  invisible(.validate_minrt(minrt)) # validate before storing
+  fam$minrt <- minrt
   fam
 }
 
 
 #' @keywords internal
-.rt_lognormal_lpdf <- function() {
-  "
+.rt_lognormal_lpdf <- function(minrt = 0.3) {
+  # The scale is baked in as a literal rather than passed as a dpar: Stan
+  # functions cannot see the data block, and a dpar would be estimated whenever
+  # the user left it out of the formula.
+  # width = 1 so formatC does not pad the literal out with spaces
+  scale <- formatC(
+    .validate_minrt(minrt),
+    format = "g",
+    digits = 15,
+    width = 1
+  )
+  sprintf(
+    "
 // Log-likelihood for one observation from the shifted LogNormal distribution.
-// Y: observed reaction time (seconds).
+// Y: observed reaction time.
 // mu: mean of the decision time on the log scale (meanlog).
 // sigma: SD of the decision time on the log scale (> 0).
-// ndt: non-decision time in seconds (> 0).
+// ndt: non-decision time, same unit as Y (> 0).
 // poutlier: proportion of responses from the outlier process, in [0, 1].
 //
-// The outlier component is fixed at a half Student-t with scale 0.4 and 3
-// degrees of freedom. Its role is to keep the density strictly positive below
-// `ndt`, where the shifted decision component has none. That is what removes
-// the hard min-RT boundary and lets `ndt` be estimated directly instead of as a
-// fraction of an observed minimum. The half-t is flat at the origin, so the
-// fastest responses are not starved of density, and its tails are heavy enough
-// to cover the whole plausible RT range.
+// The outlier component is a half Student-t with 3 degrees of freedom and scale
+// %s (= 0.8 * minrt). Its role is to keep the density strictly positive
+// below `ndt`, where the shifted decision component has none. That is what
+// removes the hard min-RT boundary and lets `ndt` be estimated directly instead
+// of as a fraction of an observed minimum. The half-t is flat at the origin, so
+// the fastest responses are not starved of density, and its tails are heavy
+// enough to cover the whole plausible RT range. Because the scale is tied to
+// `minrt`, the likelihood is equivariant to the unit Y is measured in.
 real rt_lognormal_lpdf(real Y, real mu, real sigma, real ndt, real poutlier) {
     // Parameter checks
     if (sigma <= 0 || ndt < 0 || poutlier < 0 || poutlier > 1) {
@@ -57,7 +78,7 @@ real rt_lognormal_lpdf(real Y, real mu, real sigma, real ndt, real poutlier) {
     if (Y <= 0) return negative_infinity();
 
     // log(2) folds the symmetric Student-t onto [0, Inf).
-    real lp_out = log(2) + student_t_lpdf(Y | 3, 0, 0.4);
+    real lp_out = log(2) + student_t_lpdf(Y | 3, 0, %s);
     real t_adj  = Y - ndt;
 
     // Faster than the non-decision time: only the outlier component can have
@@ -67,20 +88,23 @@ real rt_lognormal_lpdf(real Y, real mu, real sigma, real ndt, real poutlier) {
 
     return log_mix(poutlier, lp_out, lognormal_lpdf(t_adj | mu, sigma));
     }
-"
+",
+    scale,
+    scale
+  )
 }
 
 
 #' @rdname rrt_lognormal
 #' @export
-rt_lognormal_lpdf_expose <- function() {
+rt_lognormal_lpdf_expose <- function(minrt = 0.3) {
   insight::check_if_installed("cmdstanr")
 
   # Wrap the function Stan block
   stancode <- paste0(
     "functions {
 ",
-    .rt_lognormal_lpdf(),
+    .rt_lognormal_lpdf(.as_minrt(minrt)),
     "}"
   )
 
@@ -92,8 +116,31 @@ rt_lognormal_lpdf_expose <- function() {
 
 #' @rdname rrt_lognormal
 #' @export
-rt_lognormal_stanvars <- function() {
-  brms::stanvar(scode = .rt_lognormal_lpdf(), block = "functions")
+rt_lognormal_stanvars <- function(minrt = 0.3) {
+  brms::stanvar(
+    scode = .rt_lognormal_lpdf(.as_minrt(minrt)),
+    block = "functions"
+  )
+}
+
+
+# Accept either a number or the family itself, so that
+# `rt_lognormal_stanvars(fam)` cannot drift out of step with the family the
+# model was fitted with.
+#' @keywords internal
+.as_minrt <- function(x) {
+  if (inherits(x, "brmsfamily") || inherits(x, "customfamily") || is.list(x)) {
+    m <- x$minrt
+    if (is.null(m)) {
+      stop(
+        "`minrt` was given a family that carries no `minrt`. ",
+        "Build it with rt_lognormal().",
+        call. = FALSE
+      )
+    }
+    return(m)
+  }
+  x
 }
 
 
@@ -127,6 +174,7 @@ log_lik_rt_lognormal <- function(i, prep) {
     sigma = sigma,
     ndt = ndt,
     poutlier = poutlier,
+    minrt = .minrt(prep),
     log = TRUE
   )
 
@@ -173,7 +221,8 @@ posterior_predict_rt_lognormal <- function(
     mu = mu,
     sigma = sigma,
     ndt = ndt,
-    poutlier = poutlier
+    poutlier = poutlier,
+    minrt = .minrt(prep)
   )
 
   # Return as a matrix (draws x 1)
@@ -197,7 +246,7 @@ posterior_epred_rt_lognormal <- function(prep, predict_outliers = NULL) {
 
   # E[RT] of the mixture
   poutlier <- brms::get_dpar(prep, "poutlier")
-  (1 - poutlier) * mean_dec + poutlier * .mcontam()
+  (1 - poutlier) * mean_dec + poutlier * .mcontam(.minrt(prep))
 }
 
 
@@ -210,8 +259,8 @@ posterior_epred_rt_lognormal <- function(prep, predict_outliers = NULL) {
 #'
 #' Predictions **exclude** the outlier component by default, because for almost
 #' every downstream use it is a nuisance: it pulls expected values toward its own
-#' mean (0.441 s) and adds a spike of implausibly fast draws to posterior
-#' predictive samples. It is also a deliberately fixed regularizer rather than a
+#' mean (0.331 s at the default `minrt`, and proportional to it) and adds a
+#' spike of implausibly fast draws to posterior predictive samples. It is also a deliberately fixed regularizer rather than a
 #' claim about how guesses are distributed, so simulating from it means
 #' simulating from something the model does not assert.
 #'
@@ -231,9 +280,10 @@ posterior_epred_rt_lognormal <- function(prep, predict_outliers = NULL) {
 #' `log_lik()` is unaffected and has no equivalent switch: the likelihood *is*
 #' the mixture, and dropping a component from it would not be a different summary
 #' of the same model but a different model. One consequence worth knowing is that
-#' `posterior_predict()` and `log_lik()` no longer describe the same
-#' distribution by default, so a hand-rolled LOO-PIT check should use
-#' `with_outliers()`.
+#' `posterior_predict()` and `log_lik()` do not describe the same distribution by
+#' default. This also desyncs `loo_pit()`, `loo_predict()` and `bayes_R2()` from
+#' `loo()`, not just hand-rolled checks - anything that compares a simulated
+#' replicate against the likelihood should be run on `with_outliers()`.
 #'
 #' @param object A `brmsfit` fitted with the [rt_lognormal()] family.
 #'
@@ -300,12 +350,18 @@ without_outliers <- function(object) {
 #' middle can still be an outlier; a low probability means the data cannot tell,
 #' not that the trial is clean.
 #'
+#' Averaging the responsibility over draws gives `P(trial i came from the
+#' outlier component | data)` directly, so the posterior mean *is* the quantity
+#' of interest and there is no interval to report alongside it. Pass
+#' `summary = FALSE` for the raw draws if you need the spread.
+#'
 #' @param object A `brmsfit` fitted with the [rt_lognormal()] family.
 #' @param summary Logical; if `TRUE` (default) returns a data frame with one row
 #'   per observation. If `FALSE`, returns the full draws x observations matrix.
 #'
-#' @return A data frame with columns `rt`, `p_outlier`, and `fast` (whether the
-#'   response falls below the median RT), or a matrix if `summary = FALSE`.
+#' @return A data frame with columns `rt` and `p_outlier`, in the order the
+#'   observations appear in the model frame, or a draws x observations matrix if
+#'   `summary = FALSE`.
 #'
 #' @examples
 #' # m <- brms::brm(bf(RT ~ 1, ndt ~ 1, poutlier ~ 1, family = rt_lognormal()),
@@ -336,23 +392,30 @@ p_outlier <- function(object, summary = TRUE) {
   poutlier <- as_mat(brms::get_dpar(prep, "poutlier"))
   Y <- matrix(y, nrow = n_draws, ncol = n, byrow = TRUE)
 
-  dens_out <- .dcontam(Y)
+  # Done in logs throughout: both components underflow to exactly 0 in the tails
+  # on the natural scale, which turns the ratio into 0/0 well before either
+  # component is genuinely negligible.
+  lp_out <- .dcontam(Y, minrt = .minrt(object), log = TRUE)
   x_adj <- Y - ndt
-  dens_dec <- ifelse(
+  lp_dec <- ifelse(
     x_adj > 0,
-    stats::dlnorm(pmax(x_adj, 1e-300), meanlog = mu, sdlog = sigma),
-    0
+    stats::dlnorm(
+      pmax(x_adj, 1e-300),
+      meanlog = mu,
+      sdlog = sigma,
+      log = TRUE
+    ),
+    -Inf
   )
 
-  num <- poutlier * dens_out
-  r <- num / (num + (1 - poutlier) * dens_dec)
-  r[!is.finite(r)] <- 1 # both components vanish: attribute to the outlier
+  log_num <- log(poutlier) + lp_out
+  log_den <- .log_mix(poutlier, lp_out, lp_dec)
+  r <- exp(log_num - log_den)
+  # Both components vanish (log_den = -Inf): nothing but the outlier could have
+  # produced the response.
+  r[!is.finite(r)] <- 1
 
   if (!summary) return(r)
 
-  data.frame(
-    rt = y,
-    p_outlier = colMeans(r),
-    fast = y < stats::median(y)
-  )
+  data.frame(rt = y, p_outlier = colMeans(r))
 }

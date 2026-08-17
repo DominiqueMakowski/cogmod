@@ -17,7 +17,7 @@ make_prep <- function(y, mu, sigma, ndt, poutlier, n_draws = 10) {
 
 # Reference implementation of the mixture, written out longhand
 ref_dens <- function(y, mu, sigma, ndt, poutlier) {
-  d_out <- 2 * dt(y / 0.4, df = 3) / 0.4
+  d_out <- 2 * dt(y / 0.3, df = 3) / 0.3
   d_dec <- if (y > ndt) dlnorm(y - ndt, mu, sigma) else 0
   poutlier * d_out + (1 - poutlier) * d_dec
 }
@@ -48,11 +48,11 @@ test_that("drt_lognormal matches the mixture density", {
 })
 
 test_that("responses faster than ndt keep positive density (the whole point)", {
-  # Under the old tau * minrt parameterization these were 0, which is what
-  # forced ndt below the fastest observed RT.
+  # Without the outlier component these are exactly 0, which is what forces ndt
+  # below the fastest observed RT.
   d <- drt_lognormal(0.1, ndt = 0.4, poutlier = 0.02)
   expect_gt(d, 0)
-  expect_equal(d, 0.02 * 2 * dt(0.1 / 0.4, df = 3) / 0.4, tolerance = 1e-12)
+  expect_equal(d, 0.02 * 2 * dt(0.1 / 0.3, df = 3) / 0.3, tolerance = 1e-12)
 
   # With no outlier component they are impossible again
   expect_equal(drt_lognormal(0.1, ndt = 0.4, poutlier = 0), 0)
@@ -106,7 +106,7 @@ test_that("rrt_lognormal recovers the mixture mean", {
 
   rts <- rrt_lognormal(2e5, mu, sigma, ndt, poutlier)
   theo <- (1 - poutlier) * (exp(mu + sigma^2 / 2) + ndt) +
-    poutlier * (2 * 0.4 * sqrt(3) * gamma(2) / (sqrt(pi) * 2 * gamma(1.5)))
+    poutlier * (2 * 0.3 * sqrt(3) * gamma(2) / (sqrt(pi) * 2 * gamma(1.5)))
 
   expect_equal(mean(rts), theo, tolerance = 0.05)
   expect_true(all(rts > 0))
@@ -181,7 +181,7 @@ test_that("posterior_predict_rt_lognormal excludes outliers by default", {
   # Asking for the mixture recovers the mixture mean
   rts_mix <- posterior_predict_rt_lognormal(1, prep, predict_outliers = TRUE)
   theo <- (1 - poutlier) * (exp(mu + sigma^2 / 2) + ndt) +
-    poutlier * (2 * 0.4 * sqrt(3) * gamma(2) / (sqrt(pi) * 2 * gamma(1.5)))
+    poutlier * (2 * 0.3 * sqrt(3) * gamma(2) / (sqrt(pi) * 2 * gamma(1.5)))
 
   expect_equal(mean(rts_mix), theo, tolerance = 0.05)
   expect_true(all(rts_mix > 0))
@@ -208,7 +208,7 @@ test_that("posterior_epred_rt_lognormal excludes outliers by default", {
   # With the outlier component: the mixture of component means
   expect_equal(
     posterior_epred_rt_lognormal(prep, predict_outliers = TRUE),
-    0.98 * (exp(mu + sigma^2 / 2) + ndt) + 0.02 * (2 * 0.4 * sqrt(3) * gamma(2) / (sqrt(pi) * 2 * gamma(1.5)))
+    0.98 * (exp(mu + sigma^2 / 2) + ndt) + 0.02 * (2 * 0.3 * sqrt(3) * gamma(2) / (sqrt(pi) * 2 * gamma(1.5)))
   )
 
   # and the two differ
@@ -329,14 +329,14 @@ test_that("p_outlier returns the mixture responsibility", {
 
   # Reference responsibility, written out longhand
   ref <- vapply(y, function(v) {
-    g <- 2 * dt(v / 0.4, df = 3) / 0.4
+    g <- 2 * dt(v / 0.3, df = 3) / 0.3
     f <- if (v > 0.25) dlnorm(v - 0.25, -0.9, 0.5) else 0
     0.02 * g / (0.02 * g + 0.98 * f)
   }, numeric(1))
 
   expect_equal(out$p_outlier, ref, tolerance = 1e-12)
   expect_equal(out$rt, y)
-  expect_equal(out$fast, y < median(y))
+  expect_named(out, c("rt", "p_outlier"))
 
   # The shape the article plots: certainty below ndt, near zero in the bulk,
   # and rising again in the far slow tail because the half-t has heavier tails
@@ -344,6 +344,37 @@ test_that("p_outlier returns the mixture responsibility", {
   expect_equal(out$p_outlier[1], 1)
   expect_lt(out$p_outlier[3], out$p_outlier[2])
   expect_gt(out$p_outlier[4], out$p_outlier[3])
+})
+
+test_that("p_outlier stays finite where the natural-scale ratio would be 0/0", {
+  # Responsibility is computed in logs. On the natural scale both densities
+  # underflow to exactly 0 in the far tails, turning the ratio into 0/0 before
+  # either component is genuinely negligible.
+  # sigma = 0.05 puts the decision process at 0.62-0.70 s, so 0.66 is the bulk
+  # and everything else here is a far tail on one side or the other.
+  y <- c(1e-8, 0.05, 0.66, 50, 1e6)
+  nd <- 3
+  prep <- list(
+    data = list(Y = y),
+    dpars = list(
+      mu = matrix(-0.9, nd, length(y)),
+      sigma = matrix(0.05, nd, length(y)), # tight enough to underflow dlnorm
+      ndt = matrix(0.25, nd, length(y)),
+      poutlier = matrix(1e-8, nd, length(y)) # tiny rate, as in early warmup
+    )
+  )
+
+  out <- with_mocked_bindings(
+    p_outlier(structure(list(), class = "brmsfit")),
+    prepare_predictions = function(object, ...) prep,
+    get_dpar = function(prep, dpar, ...) prep$dpars[[dpar]],
+    .package = "brms"
+  )
+
+  expect_true(all(is.finite(out$p_outlier)))
+  expect_true(all(out$p_outlier >= 0 & out$p_outlier <= 1))
+  expect_equal(out$p_outlier[1], 1) # below ndt: only the outlier could produce it
+  expect_lt(out$p_outlier[3], 1e-3) # in the bulk: the decision process owns it
 })
 
 test_that("p_outlier rejects non-brmsfit input", {
@@ -362,8 +393,9 @@ test_that("rt_lognormal() builds a valid brms custom family", {
     unname(c(fam$link, fam$link_sigma, fam$link_ndt, fam$link_poutlier)),
     c("identity", "softplus", "log", "logit")
   )
-  # tau and minrt are gone
-  expect_false(any(c("tau", "minrt") %in% fam$dpars))
+  # minrt is a constant on the family, never a dpar: brms would estimate it
+  expect_false("minrt" %in% fam$dpars)
+  expect_equal(fam$minrt, 0.3)
 })
 
 test_that("predict_outliers survives the family validation brm() performs", {
@@ -383,11 +415,251 @@ test_that("predict_outliers survives the family validation brm() performs", {
   expect_true(brms:::validate_formula(f, data = d)$family$predict_outliers)
 })
 
-test_that("stanvars carry the likelihood with the hard-coded outlier component", {
+test_that("stanvars carry the likelihood with the outlier component", {
   sv <- rt_lognormal_stanvars()
   code <- paste(vapply(sv, function(x) x$scode, character(1)), collapse = "\n")
 
   expect_true(grepl("rt_lognormal_lpdf", code, fixed = TRUE))
   expect_true(grepl("log_mix", code, fixed = TRUE))
-  expect_true(grepl("student_t_lpdf(Y | 3, 0, 0.4)", code, fixed = TRUE))
+  expect_true(grepl("student_t_lpdf(Y | 3, 0, 0.3)", code, fixed = TRUE))
+})
+
+
+# priors ------------------------------------------------------------------
+
+test_that("brms leaves the ndt and poutlier intercepts flat", {
+  # Both are improper, and both directions of each are flat in the likelihood
+  # (poutlier -> 1, ndt -> 0), so a model fitted without priors has an improper
+  # posterior. The article says so; this pins the upstream behaviour it rests
+  # on. Verified against brms 2.23.1.
+  d <- data.frame(RT = c(0.4, 0.5, 0.6, 0.9, 1.2))
+  p <- brms::get_prior(
+    brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1),
+    family = rt_lognormal(), data = d
+  )
+  flat <- p$prior[p$class == "Intercept" & p$dpar %in% c("ndt", "poutlier")]
+  expect_true(all(flat == ""))
+})
+
+test_that("cogmod_priors survives arbitrary formula shapes", {
+  # The whole point of reading get_prior() rather than guessing: every row comes
+  # from the model brms is actually going to build, so a prior matching no
+  # parameter is impossible by construction.
+  set.seed(1)
+  d <- data.frame(
+    RT = rrt_lognormal(200, ndt = 0.3, poutlier = 0.02),
+    x = rnorm(200), g = factor(sample(letters[1:5], 200, TRUE)),
+    cond = factor(sample(c("A", "B"), 200, TRUE))
+  )
+  fam <- rt_lognormal()
+  forms <- list(
+    plain = brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1, family = fam),
+    no_intercept = brms::bf(RT ~ 0 + Intercept + x, sigma ~ 1,
+                            ndt ~ 0 + Intercept + x, poutlier ~ 1, family = fam),
+    interaction = brms::bf(RT ~ cond * x, sigma ~ 1, ndt ~ cond,
+                           poutlier ~ 1 + (1 | g), family = fam),
+    ranef_both = brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1 + (1 | g),
+                          poutlier ~ 1 + (1 + x | g), family = fam),
+    smooth = brms::bf(RT ~ s(x), sigma ~ 1, ndt ~ s(x), poutlier ~ 1,
+                      family = fam)
+  )
+
+  for (nm in names(forms)) {
+    p <- cogmod_priors(forms[[nm]], d)
+    expect_s3_class(p, "brmsprior")
+    # No ndt or poutlier row is left flat unless a blanket row covers it -
+    # brms reports a blanket row plus one per coefficient, and filling the
+    # blanket is what makes the per-coefficient ones proper.
+    np <- p[p$dpar %in% c("ndt", "poutlier") & !nzchar(p$prior), ]
+    covered <- vapply(seq_len(nrow(np)), function(i) {
+      any(!nzchar(p$coef) & nzchar(p$prior) & p$class == np$class[i] &
+            p$dpar == np$dpar[i] & p$group == np$group[i])
+    }, logical(1))
+    expect_true(all(covered), label = nm)
+    expect_gt(sum(p$dpar %in% c("ndt", "poutlier") & nzchar(p$prior)), 0)
+    # brms accepts it, silently: no unmatched prior, no unused blanket row
+    expect_silent(
+      brms::make_stancode(forms[[nm]], data = d, family = rt_lognormal(),
+                          prior = p, stanvars = rt_lognormal_stanvars())
+    )
+  }
+
+  # `0 + Intercept` has no Intercept class, so the location has to land on the
+  # b coefficient named "Intercept" instead
+  p <- cogmod_priors(forms$no_intercept, d)
+  b <- p[p$dpar == "ndt" & p$class == "b", ]
+  expect_equal(b$prior[b$coef == "Intercept"], "normal(-1.5, 0.15)")
+  expect_equal(b$prior[!nzchar(b$coef)], "normal(0, 1)")
+})
+
+test_that("cogmod_priors passes other families straight through", {
+  d <- data.frame(y = rnorm(30), x = rnorm(30))
+
+  f <- brms::bf(y ~ x, family = stats::gaussian())
+  # the message names the family it found, not "<none found>"
+  expect_message(p <- cogmod_priors(f, d), "gaussian")
+  expect_message(cogmod_priors(f, d), "rt_lognormal")
+  # exactly the brms defaults, untouched
+  expect_equal(p, brms::validate_prior(brms::empty_prior(), f, d,
+                                       family = stats::gaussian()))
+
+  # a formula carrying no family at all is a message, not an error
+  expect_message(q <- cogmod_priors(brms::bf(y ~ x), d), "none found")
+  expect_s3_class(q, "brmsprior")
+})
+
+test_that("cogmod_priors moves the ndt location with minrt", {
+  d <- data.frame(RT = rrt_lognormal(50, ndt = 0.3, poutlier = 0.02))
+  mk <- function(fam) {
+    brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1, family = fam)
+  }
+
+  p <- cogmod_priors(mk(rt_lognormal()), d)
+  expect_equal(p$prior[p$dpar == "ndt"], "normal(-1.5, 0.15)")
+
+  # ndt is a location in time and shifts with the timescale; poutlier does not
+  ms <- cogmod_priors(mk(rt_lognormal(minrt = 300)),
+                      transform(d, RT = RT * 1000))
+  expect_equal(
+    ms$prior[ms$dpar == "ndt"],
+    sprintf("normal(%s, 0.15)", formatC(-1.5 + log(1000), format = "g",
+                                       digits = 4, width = 1))
+  )
+  expect_equal(ms$prior[ms$dpar == "poutlier"], "normal(-5, 1)")
+})
+
+test_that("returned priors compose and replace with c()", {
+  d <- data.frame(RT = rrt_lognormal(50, ndt = 0.3, poutlier = 0.02))
+  f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
+                family = rt_lognormal())
+
+  p <- c(
+    cogmod_priors(f, d),
+    brms::prior(normal(-2, 0.1), class = "Intercept", dpar = "ndt"),
+    replace = TRUE
+  )
+  expect_s3_class(p, "brmsprior")
+  code <- brms::make_stancode(f, data = d, family = rt_lognormal(), prior = p,
+                              stanvars = rt_lognormal_stanvars())
+  expect_true(grepl("| -2, 0.1", code, fixed = TRUE))
+})
+
+test_that("the likelihood is flat in both directions a prior has to cover", {
+  y <- rrt_lognormal(400, mu = -0.7, sigma = 0.5, ndt = 0.3, poutlier = 0.02)
+  ll <- function(nd, p) sum(drt_lognormal(y, -0.7, 0.5, nd, p, log = TRUE))
+
+  # poutlier -> 1: mu, sigma and ndt drop out of the density entirely
+  expect_equal(ll(1e-9, 1 - 1e-12), ll(0.1, 1 - 1e-12), tolerance = 1e-8)
+  # and the plateau is flat in poutlier itself once it saturates
+  expect_equal(ll(0.3, plogis(40)), ll(0.3, plogis(60)), tolerance = 1e-8)
+
+  # ndt -> 0 on a log link: flat in log(ndt), which has nothing to do with the
+  # mixture and is why a prior on poutlier alone is not enough
+  expect_equal(ll(1e-8, 0.02), ll(1e-12, 0.02), tolerance = 1e-6)
+})
+
+
+# minrt ----------------------------------------------------------------
+
+test_that("minrt defaults to 0.5 and reproduces the fixed 0.4 scale", {
+  expect_equal(rt_lognormal()$minrt, 0.3)
+  expect_equal(cogmod:::.validate_minrt(), 0.3)
+  expect_equal(cogmod:::.validate_minrt(0.3), 0.3)
+  # the shipped article numbers
+  expect_equal(cogmod:::.mcontam(), 0.3307, tolerance = 1e-3)
+  expect_equal(
+    drt_lognormal(0.1, ndt = 0.3, poutlier = 0.02),
+    0.02 * 2 * dt(0.1 / 0.3, df = 3) / 0.3,
+    tolerance = 1e-12
+  )
+})
+
+test_that("minrt makes the density equivariant to the unit of measurement", {
+  # The unmixed shifted LogNormal is exactly scale-equivariant; a fixed outlier
+  # scale breaks that, and scaling it with minrt restores it.
+  s <- drt_lognormal(1, mu = -0.7, sigma = 0.5, ndt = 0.3, poutlier = 0.02)
+  ms <- 1000 * drt_lognormal(1000,
+    mu = -0.7 + log(1000), sigma = 0.5, ndt = 300,
+    poutlier = 0.02, minrt = 300
+  )
+  expect_equal(s, ms, tolerance = 1e-10)
+
+  # and the fixed default does not have that property
+  ms_fixed <- 1000 * drt_lognormal(1000,
+    mu = -0.7 + log(1000), sigma = 0.5, ndt = 300, poutlier = 0.02
+  )
+  expect_false(isTRUE(all.equal(s, ms_fixed)))
+
+  # simulation follows the same scale
+  set.seed(1)
+  expect_gt(
+    median(rrt_lognormal(2e4, ndt = 300, poutlier = 1, minrt = 300)),
+    100
+  )
+})
+
+test_that("minrt reaches the Stan code and survives brms validation", {
+  code <- rt_lognormal_stanvars(minrt = 300)[[1]]$scode
+  expect_true(grepl("student_t_lpdf(Y | 3, 0, 300)", code, fixed = TRUE))
+
+  # a family can be passed instead of a number, so the two cannot drift apart
+  fam <- rt_lognormal(minrt = 300)
+  expect_equal(fam$minrt, 300)
+  expect_identical(rt_lognormal_stanvars(fam)[[1]]$scode, code)
+
+  # it has to reach prep$family, like predict_outliers
+  expect_equal(brms:::validate_family(fam)$minrt, 300)
+  d <- data.frame(RT = c(400, 500, 600, 900, 1200))
+  f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1, family = fam)
+  expect_equal(brms:::validate_formula(f, data = d)$family$minrt, 300)
+
+  # minrt is NOT a dpar: brms would estimate it whenever a user omitted it
+  expect_false("minrt" %in% fam$dpars)
+
+  expect_error(rt_lognormal(minrt = -1), "positive")
+  expect_error(rt_lognormal(minrt = c(1, 2)), "single")
+})
+
+test_that("brms methods pick minrt up off the family", {
+  n_draws <- 8
+  dpars <- list(
+    mu = rep(-0.7 + log(1000), n_draws), sigma = rep(0.5, n_draws),
+    ndt = rep(300, n_draws), poutlier = rep(0.02, n_draws)
+  )
+  prep <- structure(
+    list(data = list(Y = 1000), dpars = dpars,
+         family = list(name = "rt_lognormal", minrt = 300)),
+    class = "brmsprep"
+  )
+
+  expect_equal(
+    log_lik_rt_lognormal(1, prep),
+    rep(log(drt_lognormal(1000, -0.7 + log(1000), 0.5, 300, 0.02,
+                          minrt = 300)), n_draws),
+    tolerance = 1e-10
+  )
+
+  # a family with no minrt falls back to the reference value, so models
+  # fitted before it was adjustable still predict correctly
+  bare <- prep
+  bare$family <- list(name = "rt_lognormal")
+  expect_equal(
+    log_lik_rt_lognormal(1, bare),
+    rep(log(drt_lognormal(1000, -0.7 + log(1000), 0.5, 300, 0.02)), n_draws),
+    tolerance = 1e-10
+  )
+
+  # epred mixes in the component mean at the right scale
+  mat <- function(v) matrix(v, 2, 2)
+  p2 <- structure(
+    list(dpars = list(mu = mat(-0.7), sigma = mat(0.5), ndt = mat(0.3),
+                      poutlier = mat(0.02)),
+         family = list(name = "rt_lognormal", minrt = 1,
+                       predict_outliers = TRUE)),
+    class = "brmsprep"
+  )
+  expect_equal(
+    posterior_epred_rt_lognormal(p2),
+    mat(0.98 * (exp(-0.7 + 0.5^2 / 2) + 0.3) + 0.02 * cogmod:::.mcontam(1))
+  )
 })

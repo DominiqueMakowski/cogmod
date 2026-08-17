@@ -21,12 +21,9 @@
 #' median reaction time is `ndt + exp(mu)`.
 #'
 #' `ndt` is expressed **directly, in seconds** (through a log link in the `brms`
-#' family). Earlier versions expressed it as `tau * minrt`, a proportion of the
-#' minimum observed RT injected as data. That capped `ndt` at an order statistic
-#' of the sample, so a non-decision time larger than the fastest observed
-#' response could not be represented - a real limitation once `ndt` varies by
-#' condition or participant, because the cap is then shared across all of them.
-#' `tau` and `minrt` no longer exist.
+#' family). Nothing about it is taken from the data: it is not bounded by the
+#' fastest observed response, so a non-decision time that varies by condition or
+#' by participant can exceed the sample minimum wherever the data support it.
 #'
 #' # The outlier component
 #'
@@ -38,20 +35,59 @@
 #' smooth and differentiable. That is what makes the direct parameterization of
 #' `ndt` workable without taking a bound from the data.
 #'
-#' The outlier component is fixed at a **half Student-t** with scale `0.4` and
-#' `3` degrees of freedom, i.e. `2 * dt(x / 0.4, df = 3) / 0.4` on `[0, Inf)`.
-#' Two properties motivate it. It is **flat at the origin** (zero derivative), so
-#' the very fastest responses - the ones least plausibly decisions - are not
-#' starved of density; a LogNormal or Gamma vanishes at zero and an Exponential
-#' peaks there with maximal slope, and all three get this backwards. And its
-#' tails are heavy, so it keeps positive density across the whole plausible RT
-#' range rather than only in the fast region. Plot it with
-#' `curve(2 * dt(x / 0.4, 3) / 0.4, 0, 3)`.
+#' The outlier component is a **half Student-t** with `3` degrees of freedom and
+#' scale `minrt`, i.e. `2 * dt(x / 0.3, df = 3) / 0.3` on `[0, Inf)` at the
+#' default. Two properties motivate the shape. It is **flat at the origin**
+#' (zero derivative), so the very fastest responses - the ones least plausibly
+#' decisions - are not starved of density; a LogNormal or Gamma vanishes at zero
+#' and an Exponential peaks there with maximal slope, and all three get this
+#' backwards. And its tails are heavy, so it keeps positive density across the
+#' whole plausible RT range rather than only in the fast region. Plot it with
+#' `curve(2 * dt(x / 0.3, 3) / 0.3, 0, 3)`.
 #'
-#' Because these hyperparameters are fixed, **reaction times are assumed to be
-#' measured in seconds**. Millisecond-scale data will fit without erroring - the
-#' heavy tails degrade gracefully rather than underflowing - but the outlier
-#' component will be badly calibrated.
+#' # `minrt`
+#'
+#' `minrt` is the **fastest reaction time that could plausibly be a real
+#' decision** - a conceptual floor for the task, not an observed statistic. It
+#' is used directly as the scale of the outlier component, so it fixes what
+#' "too fast to be a decision" means.
+#'
+#' It is a judgement about the task, not a statistic: nothing is read off the
+#' sample, and `ndt` is not bounded by it. `minrt` only sets where the outlier
+#' component has its mass.
+#'
+#' Because it is the scale itself, the component's shape relative to it is
+#' fixed whatever value you choose: **61%** of the outlier mass falls below
+#' `minrt`, and the density there is still 66% of its peak. The default of
+#' `0.3` seconds suits keypress paradigms - the conditional accuracy functions
+#' in the *Outliers* article show responses at chance below about 0.30 s across
+#' three very different tasks.
+#'
+#' It is **not estimated**: it is a constant that fixes the timescale, in the
+#' same way that the number of response options is a constant in an ordinal
+#' model. It rarely needs touching, except when reaction times are not in
+#' seconds:
+#'
+#' ```r
+#' fam <- rt_lognormal(minrt = 300) # milliseconds
+#' f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1, family = fam)
+#' brms::brm(f, data = df,
+#'           prior = cogmod_priors(f, df),
+#'           stanvars = rt_lognormal_stanvars(fam))
+#' ```
+#'
+#' Put the family on the formula: `minrt` has to reach the Stan code, the
+#' prediction methods and the priors, and carrying it in one place is what stops
+#' them drifting apart. [cogmod_priors()] reads it off the formula, and
+#' `rt_lognormal_stanvars()` accepts the family object directly.
+#'
+#' Leaving it at `0.3` with millisecond data is a silent failure rather than a
+#' loud one: the component ends up many orders of magnitude below the decision
+#' density everywhere in the data, `poutlier` collapses toward zero, and `ndt`
+#' reverts to being pinned by the fastest observed response. Setting `minrt` in
+#' the unit of the data makes the likelihood exactly equivariant to that unit,
+#' so `ndt` comes back in whatever unit was supplied and `poutlier` is
+#' unchanged.
 #'
 #' `poutlier` is a *rate*, not a classification: the model never labels
 #' individual trials, it estimates what share of them came from elsewhere. Use
@@ -104,8 +140,10 @@
 #' `log_lik` has no such argument: the likelihood *is* the mixture, and dropping
 #' a component from it would not be a different summary of the same model but a
 #' different model. One consequence is that `posterior_predict()` and `log_lik()`
-#' no longer describe the same distribution by default, so a hand-rolled LOO-PIT
-#' check should use [with_outliers()].
+#' do not describe the same distribution by default. This also desyncs
+#' `loo_pit()`, `loo_predict()` and `bayes_R2()` from `loo()`, not just
+#' hand-rolled checks - anything that compares a simulated replicate against the
+#' likelihood should be run on [with_outliers()].
 #'
 #' @param n Number of observations. If `length(n) > 1`, the length is taken to be
 #'   the number required.
@@ -119,6 +157,12 @@
 #' @param poutlier Proportion of responses generated by the outlier process
 #'   rather than by the decision process. Range: `[0, 1]`. At `poutlier = 0` the
 #'   distribution reduces to the plain shifted LogNormal.
+#' @param minrt Fastest reaction time that could plausibly be a real decision,
+#'   in the same unit as the data. Used directly as the scale of the outlier
+#'   component. A judgement about the task rather than a statistic: it is a
+#'   constant, never estimated, is not read off the sample, and does not bound
+#'   `ndt`. Defaults to `0.3`; change it for data that are not in seconds. See
+#'   Details.
 #'
 #' @examples
 #' # Simulate 1000 RTs with 2% outliers
@@ -129,11 +173,25 @@
 #' drt_lognormal(0.1, ndt = 0.3, poutlier = 0.02)
 #' drt_lognormal(0.1, ndt = 0.3, poutlier = 0)
 #'
+#' # Setting minrt in the unit of the data makes the density equivariant to it
+#' drt_lognormal(1, mu = -0.7, sigma = 0.5, ndt = 0.3, poutlier = 0.02)
+#' 1000 * drt_lognormal(1000,
+#'   mu = -0.7 + log(1000), sigma = 0.5, ndt = 300,
+#'   poutlier = 0.02, minrt = 300
+#' )
+#'
 #' # Density of the outlier component alone
-#' # curve(2 * dt(x / 0.4, df = 3) / 0.4, from = 0, to = 3, n = 1000)
+#' # curve(2 * dt(x / 0.3, df = 3) / 0.3, from = 0, to = 3, n = 1000)
 #'
 #' @export
-rrt_lognormal <- function(n, mu = -0.7, sigma = 0.5, ndt = 0.2, poutlier = 0) {
+rrt_lognormal <- function(
+  n,
+  mu = -0.7,
+  sigma = 0.5,
+  ndt = 0.2,
+  poutlier = 0,
+  minrt = 0.3
+) {
   # Prepare and validate all inputs for RNG
   params <- .prepare_rt_lognormal(
     x = NULL,
@@ -150,7 +208,9 @@ rrt_lognormal <- function(n, mu = -0.7, sigma = 0.5, ndt = 0.2, poutlier = 0) {
   out <- numeric(m)
 
   if (any(is_out)) {
-    out[is_out] <- abs(.CONTAM_SCALE * stats::rt(sum(is_out), df = .CONTAM_DF))
+    out[is_out] <- abs(
+      .validate_minrt(minrt) * stats::rt(sum(is_out), df = .POUTLIER_DF)
+    )
   }
   if (any(!is_out)) {
     keep <- !is_out
@@ -174,6 +234,7 @@ drt_lognormal <- function(
   sigma = 0.5,
   ndt = 0.2,
   poutlier = 0,
+  minrt = 0.3,
   log = FALSE
 ) {
   # Prepare and validate inputs for density. Invalid parameter values give a
@@ -198,7 +259,7 @@ drt_lognormal <- function(
   }
 
   # Outlier component: supported over the whole positive line
-  lp_out <- .dcontam(params$x, log = TRUE)
+  lp_out <- .dcontam(params$x, minrt = minrt, log = TRUE)
 
   # Decision component: zero density at or below ndt
   x_adj <- params$x - params$ndt
@@ -226,34 +287,57 @@ drt_lognormal <- function(
 
 # Internals ---------------------------------------------------------------
 
-# Fixed hyperparameters of the outlier component: a half Student-t on [0, Inf).
-# Hard-coded rather than exposed - `ndt` recovery is insensitive to them over a
-# wide range, so there is nothing useful to tune, and fixing them keeps
-# `poutlier` comparable across datasets.
+# The outlier component is a half Student-t on [0, Inf) with `.POUTLIER_DF`
+# degrees of freedom and scale `minrt`.
 #
 # The half-t is flat at the origin (zero derivative), which matters: the fastest
 # responses are the ones least likely to be decisions, so the component must not
 # thin out there. A LogNormal or Gamma vanishes at 0 and an Exponential peaks
-# there with maximal slope; all three get this wrong. df = 3 keeps tails heavy
-# enough that a unit error (RT in ms) degrades rather than underflowing to zero,
-# while keeping the mean finite for posterior_epred().
-.CONTAM_SCALE <- 0.4
-.CONTAM_DF <- 3
+# there with maximal slope; all three get this wrong. df = 3 keeps the tails
+# heavy while keeping the mean finite for posterior_epred().
+.POUTLIER_DF <- 3
+
+# `minrt` is used directly as the half-t scale, with no conversion factor. That
+# fixes the component's shape relative to it: 61% of the mass falls below
+# `minrt`, and the density there is still 66% of its peak, whatever value is
+# supplied. Tying the scale to a quantity in the same unit as the data is what
+# makes the likelihood equivariant to that unit.
+#
+# Raising it makes `poutlier` claim more of the body and the slow tail; lowering
+# it much below 0.25 s stops the component covering contaminants that land near
+# `ndt`, and `ndt` gets noisier. `ndt` itself is insensitive across the whole
+# usable range.
+#' @keywords internal
+.validate_minrt <- function(minrt = 0.3) {
+  if (!is.numeric(minrt) || length(minrt) != 1 || is.na(minrt) ||
+    minrt <= 0) {
+    stop("`minrt` must be a single positive number.", call. = FALSE)
+  }
+  minrt
+}
+
+# Read `minrt` off a family, a brmsprep or a brmsfit, falling back to the
+# default for models fitted before it was adjustable.
+#' @keywords internal
+.minrt <- function(x) {
+  m <- x$family$minrt
+  if (is.null(m)) eval(formals(.validate_minrt)$minrt) else m
+}
 
 # Density of the half-t component.
 #' @keywords internal
-.dcontam <- function(x, log = FALSE) {
-  ld <- log(2) + stats::dt(x / .CONTAM_SCALE, df = .CONTAM_DF, log = TRUE) -
-    log(.CONTAM_SCALE)
+.dcontam <- function(x, minrt = 0.3, log = FALSE) {
+  s <- .validate_minrt(minrt)
+  ld <- log(2) + stats::dt(x / s, df = .POUTLIER_DF, log = TRUE) - log(s)
   ld[x <= 0] <- -Inf
   if (log) ld else exp(ld)
 }
 
 # Mean of the half-t; finite for df > 1.
 #' @keywords internal
-.mcontam <- function() {
-  nu <- .CONTAM_DF
-  2 * .CONTAM_SCALE * sqrt(nu) * gamma((nu + 1) / 2) /
+.mcontam <- function(minrt = 0.3) {
+  nu <- .POUTLIER_DF
+  2 * .validate_minrt(minrt) * sqrt(nu) * gamma((nu + 1) / 2) /
     (sqrt(pi) * (nu - 1) * gamma(nu / 2))
 }
 

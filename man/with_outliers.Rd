@@ -23,8 +23,8 @@ fitted mixture or the decision process alone.
 
 Predictions \strong{exclude} the outlier component by default, because for almost
 every downstream use it is a nuisance: it pulls expected values toward its own
-mean (0.441 s) and adds a spike of implausibly fast draws to posterior
-predictive samples. It is also a deliberately fixed regularizer rather than a
+mean (0.331 s at the default \code{minrt}, and proportional to it) and adds a
+spike of implausibly fast draws to posterior predictive samples. It is also a deliberately fixed regularizer rather than a
 claim about how guesses are distributed, so simulating from it means
 simulating from something the model does not assert.
 
@@ -44,9 +44,10 @@ through all of them. The same flag can be set up front with
 \code{log_lik()} is unaffected and has no equivalent switch: the likelihood \emph{is}
 the mixture, and dropping a component from it would not be a different summary
 of the same model but a different model. One consequence worth knowing is that
-\code{posterior_predict()} and \code{log_lik()} no longer describe the same
-distribution by default, so a hand-rolled LOO-PIT check should use
-\code{with_outliers()}.
+\code{posterior_predict()} and \code{log_lik()} do not describe the same distribution by
+default. This also desyncs \code{loo_pit()}, \code{loo_predict()} and \code{bayes_R2()} from
+\code{loo()}, not just hand-rolled checks - anything that compares a simulated
+replicate against the likelihood should be run on \code{with_outliers()}.
 }
 \examples{
 # m <- brms::brm(bf(RT ~ Condition, ndt ~ 1, poutlier ~ 1,

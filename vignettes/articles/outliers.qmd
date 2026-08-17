@@ -54,24 +54,19 @@ anomalously fast trial caps `ndt` for every condition and every participant in
 the model.
 
 This is not specific to `cogmod` - every implementation of a shifted RT model has
-to deal with it, and the solutions differ. HDDM estimates the
+to deal with it. HDDM estimates the
 shift directly under a bounded prior and ships a `p_outlier` parameter with a
 uniform contaminant - the same mixture idea used below. HSSM estimates it over
 the range its likelihood-approximation networks were trained on. EMC2 and DMC put
 the shift on a log scale and lean on particle-based samplers, which tolerate a
-hard boundary by rejecting proposals that cross it.
+hard boundary by rejecting proposals that cross it. Gradient-based samplers cannot afford a cliff, 
+so the mixture is what makes the problem tractable for HMC.
 
-That last point is the crux: samplers that only need to *evaluate* the posterior
-can afford a cliff, whereas gradient-based ones cannot, since the gradient at the
-boundary is undefined and the region beyond it is flat. A mixture is what makes
-the problem tractable for HMC.
-
-In `cogmod`, the approach taken was to remove the boundary by mixing the RT
-distribution with a proportion of responses from an **outlier component**.
+In `cogmod`, the boundary is removed by mixing the RT distribution with a
+proportion of responses from an **outlier component**.
 
 $$
-p(\text{RT}) = (1 - \text{poutlier}) \cdot f(\text{RT} - \text{ndt}) +
-  \text{poutlier} \cdot g(\text{RT})
+p(\text{RT}) = (1 - \text{poutlier}) \cdot f(\text{RT} - \text{ndt}) + \text{poutlier} \cdot g(\text{RT})
 $$
 
 Below `ndt` the first term is still zero, but the second is positive. The
@@ -81,8 +76,10 @@ taken from the data.
 
 ## Choosing the Outlier Component
 
-`g` is fixed at a **half Student-t** with scale 0.4 and 3 degrees of freedom.
-Three properties decide this, and most obvious candidates fail at least one.
+`g` is a **half Student-t** with 3 degrees of freedom and scale `minrt`, the
+theorethical lowest reaction time that could plausibly be a real decision, which defaults to
+0.3 s, and that is what every number below uses. Three properties decide the
+shape, and most obvious candidates fail at least one.
 
 ```{r}
 #| code-fold: true
@@ -91,9 +88,9 @@ Three properties decide this, and most obvious candidates fail at least one.
 ht <- function(s, nu) function(x) 2 * dt(x / s, nu) / s
 
 candidates <- list(
-  "Half-t(0.4, df = 3)  [shipped]" = ht(0.4, 3),
-  "Half-Normal(0.4)"               = function(x) 2 * dnorm(x, 0, 0.4),
-  "Half-Cauchy(0.4)"               = ht(0.4, 1),
+  "Half-t(0.3, df = 3)  [shipped]" = ht(0.3, 3),
+  "Half-Normal(0.3)"               = function(x) 2 * dnorm(x, 0, 0.3),
+  "Half-Cauchy(0.3)"               = ht(0.3, 1),
   "LogNormal(log 0.15, 1.5)"       = function(x) dlnorm(x, log(0.15), 1.5),
   "Exponential(mean 0.15)"         = function(x) dexp(x, 1 / 0.15),
   "Uniform(0, 0.35)"               = function(x) ifelse(x <= 0.35, 1 / 0.35, 0),
@@ -125,10 +122,13 @@ and collapses toward zero exactly where protection is needed most. An Exponentia
 has the opposite defect, peaking at zero with maximal slope. Both encode a claim
 nobody would defend: that anticipations are far more likely at e.g., 150 ms than
 at 3 ms. The half-t, half-Normal and uniform are all genuinely flat.
-- **Positive at the wrong scale.** If reaction times are supplied in milliseconds
-by mistake, a light-tailed component underflows to *exactly* zero, every
-sub-`ndt` response returns `-Inf`, and chains cannot initialise. Half-Normal,
-Exponential and both uniforms fail here. Heavy tails degrade instead of dying.
+- **Positive at the wrong scale.** `minrt` is what keeps `g` on the same
+timescale as the data, but it is a constant the user supplies, so it can be
+wrong. If it is left at 0.3 while reaction times are in milliseconds, a
+light-tailed component underflows to *exactly* zero, every sub-`ndt` response
+returns `-Inf`, and chains cannot initialise. Half-Normal, Exponential and both
+uniforms fail here. Heavy tails degrade instead of dying, which turns a
+misspecified `minrt` into a bad fit rather than no fit.
 - **Finite mean.** `posterior_epred()` needs `E[RT]`. A half-Cauchy has no finite
 mean, so it would return infinity. Three degrees of freedom is the smallest
 integer that keeps both the mean and the variance finite while leaving the tails
@@ -138,14 +138,68 @@ Only the half-t satisfies all three.
 
 ```{r}
 #| label: fig-component
-#| fig-cap: "*The outlier component: half-t(scale = 0.4, df = 3), flat near the origin with heavy tails.*"
+#| fig-cap: "*The outlier component: half-t(scale = 0.3, df = 3), flat near the origin with heavy tails.*"
 #| fig-height: 3
 
 ggplot() +
-  geom_function(fun = function(x) 2 * dt(x / 0.4, df = 3) / 0.4,
+  geom_function(fun = function(x) dt(x / 0.3, df = 3),
                 n = 1000, xlim = c(0.0001, 3), linewidth = 0.8) +
   labs(x = "RT (s)", y = "density")
 ```
+
+## Setting `minrt`
+
+`minrt` is a theorethical **fastest response that could plausibly be a real decision** - a
+conceptual floor for the task, not a statistic. It is used directly as the scale
+of `g`, with no conversion factor, so it fixes the component's shape relative to
+itself: whatever value you choose, **61%** of the outlier mass falls below
+`minrt` and the density there is still 66% of its peak.
+
+It is a judgement about the task, not a statistic: nothing is read off the
+sample, and `ndt` is not bounded by it - `minrt` only says where `g` lives.
+
+Because `minrt` is in the same unit as the data, the likelihood is
+**equivariant to that unit**. The shifted LogNormal already has that property on
+its own - multiply every response by 1000 and `ndt` comes back multiplied by 1000
+- and a `g` pinned to the second would be the one thing breaking it. The same
+data in seconds and in milliseconds give the same `poutlier` and an `ndt` that
+differs only by the factor.
+
+`minrt` is a constant, never estimated. It is not a dpar, because `brms` has no
+notion of a default for one - a dpar left out of the formula is *estimated*, not
+defaulted - so it rides on the family instead, and the matching Stan constant
+comes from `rt_lognormal_stanvars()`:
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1, 
+              family =  rt_lognormal(minrt = 0.3)) # 300 for millisecond data)
+
+brms::brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),        # not optional - see below
+  stanvars = rt_lognormal_stanvars(minrt = 0.3),
+  backend = "cmdstanr"
+)
+```
+
+Put the family on the formula with `bf(..., family = fam)`: `minrt` has to reach
+the Stan code, the prediction methods **and** the priors, and carrying it in one
+place is what stops them drifting apart. `cogmod_priors()` reads the family off
+the formula, and `rt_lognormal_stanvars()` accepts the family object directly.
+
+The default of 0.3 s rarely needs touching. It is where the conditional accuracy
+functions below show responses sitting at chance across three very different
+paradigms, and it leaves `g` 66% of its peak density at 0.25 s - close enough to
+flat that a contaminant landing just under `ndt` is not starved. Halving it
+would trade that away: at 0.15 s the density at 0.25 s falls to 10% of peak,
+which reintroduces exactly the defect the LogNormal candidate is rejected for
+above, and `ndt` gets about twice as noisy when contamination reaches up toward
+it. `ndt` itself is insensitive to the choice across the whole usable range,
+which is why being on the right **order of magnitude** is what matters.
 
 ## The Data
 
@@ -275,7 +329,7 @@ The outlier component is shaded behind, normalized so its maximum sits at chance
 #| fig-height: 4
 
 dens <- data.frame(x = seq(0.001, 2, length.out = 600))
-dens$y <- (2 * dt(dens$x / 0.4, df = 3) / 0.4) / (2 * dt(0, df = 3) / 0.4) * 0.5
+dens$y <- (2 * dt(dens$x / 0.3, df = 3) / 0.3) / (2 * dt(0, df = 3) / 0.3) * 0.5
 
 ggplot(caf[caf$mid < 2 & caf$n >= 5, ], aes(x = mid, y = err, colour = series)) +
   geom_area(data = dens, aes(x = x, y = y), inherit.aes = FALSE,
@@ -443,9 +497,9 @@ produced them.
 to `r sprintf("%.1f%%", 100 * rates$lexical$pooled[rates$lexical$condition == "speed"])`
 in lexical decision depending on instruction. On the logit scale that is around
 `r sprintf("%.1f", qlogis(il$pooled))`, so a weakly informative prior such as
-`normal(-4, 1.5)` on the `poutlier` intercept spans roughly 0.1% to 25% - wide
-enough not to fight the data, tight enough to keep chains away from the region
-where half the dataset is called contamination.
+`normal(-5, 1)` on the `poutlier` intercept is centred at about 0.7% and puts
+roughly 95% of its mass between 0.1% and 5% - tight enough to keep chains away
+from the region where half the dataset is called contamination.
 
 **It is extremely unevenly distributed.** The per-participant standard deviation
 (`r sprintf("%.4f", il$sd)`) is about four times the mean
@@ -469,43 +523,99 @@ contributing noisy data so much as not doing the task; screening them is a
 separate decision from modelling the rate.
 :::
 
-## Prior Recommendation
+## Priors Are Not Optional
 
-Priors matter more here than they did under the old parameterization, for two
-specific reasons rather than as a general principle.
+::: {.callout-important}
+`brms` gives a **flat, improper prior** to the intercept of any custom-family
+parameter it does not recognise, which here means both `ndt` and `poutlier`.
+Fitting without priors does not fail loudly - it returns numbers, and the numbers
+are nonsense:
 
-`ndt` is now **unbounded above**, and the mixture that removed the
-hard boundary also removed the sharp likelihood penalty that used to stand in for
-one. Nothing but the prior now discourages an implausibly long non-decision time.
+```
+                            Estimate  Rhat  Bulk_ESS
+ndt_Intercept      -2.137016e+14      2.43       4.9
+poutlier_Intercept  3.010229e+14      2.20       5.2
+```
 
-`poutlier` has a **degenerate region** at the top of its range. Push it toward 1
-and the likelihood becomes the half-t alone, at which point `ndt` is unidentified
-- any value above the slowest response fits equally well. That region is a poor
-fit for real RT data and so is not usually a competitive mode, but it is flat and
-easy to wander into early in warmup, especially with few trials per group. The
-prior's job is to make it uninviting.
+This is not confined to awkward datasets: a clean simulation with a single
+shift and 2% fast contamination fails the same way. Use `cogmod_priors()`.
+:::
 
-The defaults below follow from the rates measured above.
+The likelihood has **two flat directions**, and a flat prior turns each of them
+into an improper posterior.
+
+`poutlier` toward 1. The likelihood becomes the half-t alone, at which point
+`mu`, `sigma` and `ndt` drop out of the density entirely. On a logit link that
+region sits at infinity: past about `logit(poutlier) = 40` the gradient is
+identically zero, so the chain random-walks outward forever. It is a *bad* fit -
+several hundred log-likelihood units worse than the sensible mode - but it has
+infinite volume, and against a flat prior infinite volume wins.
+
+`ndt` toward 0. On a log link this is the other infinity. Once `ndt` is
+negligible against the fastest response the model is just an unshifted LogNormal,
+and the gradient with respect to `log(ndt)` vanishes exponentially. This one has
+nothing to do with the mixture - it is inherent to putting a positive shift on a
+log scale - and it is the reason a prior on `poutlier` **alone is not enough**.
+
+`ndt` is also **unbounded above**, where the mixture has removed the sharp
+likelihood penalty that a hard boundary would supply. Only the prior discourages
+an implausibly long non-decision time.
+
+`cogmod_priors()` fills in every `ndt` and `poutlier` slot `brms` would
+leave flat, for the model you are actually fitting:
 
 ```{r}
 #| eval: false
 #| code-fold: false
 
+f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1 + (1 | Participant),
+              family = rt_lognormal())
+
+brms::brm(f, data = df,
+          prior = cogmod_priors(f, df),
+          stanvars = rt_lognormal_stanvars())
+```
+
+It reads `brms::get_prior()` rather than guessing, so it cannot produce a prior
+that matches no parameter - `0 + Intercept`, interactions, group-level terms and
+smooths are all handled because none of them are assumed. It touches only slots
+`brms` left flat, and only for those two parameters: `mu` and `sigma` keep the
+proper `student_t` intercepts `brms` already gives them. The result is passed
+through `brms::validate_prior()`, so what comes back is a `brmsprior` object:
+the same class returned by `brms::get_prior()` and `brms::prior()`. It prints
+as the complete prior table, but can be composed with `c()`. Use
+`replace = TRUE` to replace a default:
+
+```{r}
+#| eval: false
+#| code-fold: true
+#| code-summary: "Overriding a prior, and the same set written by hand"
+
 priors <- c(
-  brms::prior(normal(-1, 1), class = "Intercept"),                    # mu
-  brms::prior(normal(0, 1), class = "Intercept", dpar = "sigma"),
-  brms::prior(normal(-1.5, 0.5), class = "Intercept", dpar = "ndt"),
-  brms::prior(normal(-4, 1.5), class = "Intercept", dpar = "poutlier"),
-  # only if poutlier varies by participant, which it usually should
-  brms::prior(exponential(1), class = "sd", dpar = "poutlier")
+  cogmod_priors(f, df),
+  brms::prior(normal(-2, 0.3), class = "Intercept", dpar = "ndt"),
+  replace = TRUE
 )
 
-brms::brm(
-  brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1 + (1 | Participant)),
-  family = rt_lognormal(), data = df, prior = priors,
-  stanvars = rt_lognormal_stanvars()
+# what it fills in, for the formula above
+c(
+  brms::prior(normal(-1.5, 0.15), class = "Intercept", dpar = "ndt"),
+  brms::prior(normal(-5, 1), class = "Intercept", dpar = "poutlier"),
+  brms::prior(exponential(1), class = "sd", group = "Participant",
+              dpar = "poutlier")
 )
 ```
+
+The values regularize both flat directions while keeping the prior mass in
+plausible regions. Slopes get `normal(0, 1)` and group-level SDs
+`exponential(1)`: on a log or a logit link a flat slope prior is not as harmless
+as it looks, and an unconstrained group-level SD lets individual participants
+reach the flat regions even when the population intercept is well behaved.
+
+`ndt` is a location in time, so its prior shifts by `log(minrt / 0.3)` and stays
+equivariant to the unit of measurement in the same way the likelihood does.
+`sigma` (an SD on the log scale) and `poutlier` (a proportion) are unitless and
+do not move.
 
 What each one means once pushed through its link:
 
@@ -526,25 +636,24 @@ implied <- function(parameter, mean, sd, inv, scale) {
 knitr::kable(rbind(
   implied("mu",       -1,   1,   exp,      "median decision time (s)"),
   implied("sigma",     0,   1,   softplus, "SD of log decision time"),
-  implied("ndt",      -1.5, 0.5, exp,      "non-decision time (s)"),
-  implied("poutlier", -4,   1.5, plogis,   "proportion of trials")
+  implied("ndt",      -1.5, 0.15, exp,     "non-decision time (s)"),
+  implied("poutlier", -5,   1, plogis,      "proportion of trials")
 ), digits = 3)
 ```
 
-**`poutlier`.** `normal(-4, 1.5)` is the one prior this article actually
-measures. It is centred near the pooled rates found above and spans the range in
-the table, wide enough not to fight a participant who fast-guesses constantly and
-tight enough that the degenerate region is far into the tail. `exponential(1)`
+**`poutlier`.** `normal(-5, 1)` is centred at about 0.7%, in line with the
+pooled rates found above, and keeps the degenerate region far into the tail.
+`exponential(1)`
 on the between-participant SD matches the spread observed earlier (a logit-scale
 SD of about `r sprintf("%.1f", il$logit_sd)`) while still pooling hard toward a
 common rate when a dataset gives no evidence of heterogeneity.
 
-**`ndt`.** `normal(-1.5, 0.5)` puts the non-decision time between about 80 and
-600 ms, covering the usual range for keypress responses without asserting much
-within it. This is a convention informed by the RT literature rather than
-something demonstrated here, and it is the prior most worth revisiting: a task
-with an unusual motor requirement, or reaction times recorded from a different
-zero point, will need it moved.
+**`ndt`.** `normal(-1.5, 0.15)` puts the non-decision time between about 170
+and 300 ms, concentrating prior mass on the usual range for keypress responses.
+This is a convention informed by the RT literature rather than something
+demonstrated here, and it is the prior most worth revisiting: a task with an
+unusual motor requirement, or reaction times recorded from a different zero
+point, will need it moved.
 
 **`mu` and `sigma`.** Both are weakly informative and mostly there to keep warmup
 sane; the table gives their reach. They assume RT in seconds, like everything
@@ -708,7 +817,7 @@ values (`mu = -0.9`, `sigma = 0.5`, `ndt = 0.25`, giving a median RT of
 MU <- -0.9; SIGMA <- 0.5; NDT <- 0.25
 
 responsibility <- function(rt, poutlier, mu = MU, sigma = SIGMA, ndt = NDT) {
-  g <- 2 * dt(rt / 0.4, df = 3) / 0.4                    # outlier component
+  g <- 2 * dt(rt / 0.3, df = 3) / 0.3                    # outlier component
   f <- ifelse(rt > ndt, dlnorm(pmax(rt - ndt, 1e-300), mu, sigma), 0)
   r <- poutlier * g / (poutlier * g + (1 - poutlier) * f)
   r[!is.finite(r)] <- 1   # both components vanish: attribute to the outlier
@@ -737,8 +846,8 @@ of any threshold.
 
 **Below `ndt` the probability is exactly 1**, because the decision component has
 no density there at all - nothing else could have produced the response. This is
-the cliff from the first section, seen from the other side: what used to make the
-model unfittable is now just a region the outlier component owns outright.
+the cliff from the first section, seen from the other side: the region that makes
+an unmixed model unfittable is simply one the outlier component owns outright.
 
 **The collapse is fast but not a step.** From 1 at `ndt` the curve falls to near
 zero within roughly 150 ms, and where it crosses depends on the estimated rate:
@@ -802,8 +911,10 @@ makes it work through all of them.
 `log_lik()` has no equivalent. The likelihood *is* the mixture; dropping a
 component from it would not be a different summary of the same model, but a
 different model. One consequence is worth knowing: `posterior_predict()` and
-`log_lik()` no longer describe the same distribution by default, so a
-hand-rolled LOO-PIT check should use `with_outliers()`.
+`log_lik()` do not describe the same distribution by default. This also desyncs
+`loo_pit()`, `loo_predict()` and `bayes_R2()` from `loo()`, not just hand-rolled
+checks - anything that compares a simulated replicate against the likelihood
+should be run on `with_outliers(m)`.
 
 ## Slow Responses Are Your Problem
 
@@ -828,8 +939,12 @@ fast responses, the model cannot do it for you.
 - Mixing in an outlier component removes the boundary, keeps the log-density
   smooth, and lets `ndt` be estimated directly in seconds.
 - `g` must be flat at the origin, heavy-tailed enough to survive a unit error,
-  and possess a finite mean. Half-t(0.4, df = 3) is the only common candidate
-  that satisfies all three.
+  and possess a finite mean. Half-t(df = 3) is the only common candidate that
+  satisfies all three. Its scale is `minrt` itself (default 0.3 s), which makes
+  the likelihood equivariant to the unit RT is measured in.
+- Priors on `ndt` and `poutlier` are required, not advisory: `brms` leaves both
+  flat and the likelihood has two flat directions, so the posterior is improper
+  without them. `cogmod_priors()` fills them in.
 - Accuracy confirms the premise independently: fast responses climb toward
   chance across three very different paradigms.
 - The rate is well under 1% pooled, but wildly uneven between participants -
