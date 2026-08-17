@@ -6,12 +6,14 @@ with the names of the families available for it.
 
     python paper/make_fig_overview.py
 
-Writes paper/figures/fig_overview.png.
+Writes paper/figures/fig_overview.png and a copy in man/figures/, which is
+where the README picks it up.
 """
 
 import math
 import os
 import re
+import shutil
 
 import matplotlib
 
@@ -230,10 +232,12 @@ REGIONS = [
     dict(
         title="Analog ratings", subtitle="Slider, visual analog scale",
         icon=icon_slider, color=PINK, xbox=RIGHT, side="top",
-        # NOTE: choco() (Choice-Confidence) is deliberately left out - it is
-        # the subject of a separate paper and is not covered here. Do not
-        # re-add it.
-        families=[("betagate()", 10.5, "Beta-Gate")],
+        # NOTE: choco() belongs in this inventory, since the package ships it,
+        # but it is the subject of a separate paper and is deliberately not
+        # discussed anywhere in the manuscript - not in the text, and not in
+        # this figure's caption. Leave it listed here and unmentioned there.
+        families=[("choco()", 10.5, "Choice-Confidence"),
+                  ("betagate()", 10.5, "Beta-Gate")],
     ),
     dict(
         title="Choices and RTs", subtitle="Speeded two-choice decision",
@@ -381,6 +385,12 @@ def main():
     out = os.path.join(OUTDIR, "fig_overview.png")
     fig.savefig(out, dpi=DPI, facecolor="white")
     print("wrote", out)
+
+    # The README shows the same figure; man/figures/ is what GitHub and
+    # pkgdown serve it from.
+    readme_out = os.path.join(ROOT, "man", "figures", "fig_overview.png")
+    shutil.copyfile(out, readme_out)
+    print("wrote", readme_out)
 
 
 if __name__ == "__main__":

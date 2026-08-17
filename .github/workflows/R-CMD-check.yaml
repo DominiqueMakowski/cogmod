@@ -29,6 +29,9 @@ jobs:
       R_KEEP_PKG_SOURCE: yes
       # Run the full test suite here, including the parts skipped on CRAN.
       NOT_CRAN: true
+      # cmdstanr is deliberately absent (see below), and R CMD check otherwise
+      # errors out on a suggested package it cannot find.
+      _R_CHECK_FORCE_SUGGESTS_: false
 
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +43,10 @@ jobs:
           r-version: ${{ matrix.config.r }}
           http-user-agent: ${{ matrix.config.http-user-agent }}
           use-public-rspm: true
+          # pak resolves dependencies from the configured repositories only - it
+          # does not read Additional_repositories out of DESCRIPTION - so
+          # without this it cannot find cmdstanr and the lockfile fails to solve.
+          extra-repositories: 'https://mc-stan.org/r-packages/'
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -48,9 +55,9 @@ jobs:
 
       # Model fitting needs a CmdStan installation, which is far too slow to
       # build here, so those tests are local-only. They guard on
-      # skip_if_not_installed("cmdstanr"), which only checks for the R package -
-      # and pak resolves that one from Additional_repositories. Dropping it
-      # again is what makes those tests skip rather than fail.
+      # skip_if_not_installed("cmdstanr"), which checks for the R package alone:
+      # leaving it installed without CmdStan behind it would make them fail
+      # rather than skip. Dropping it here is what makes them skip.
       - name: Remove cmdstanr (Stan tests are local-only)
         run: |
           if ("cmdstanr" %in% rownames(installed.packages())) {

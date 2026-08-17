@@ -759,20 +759,24 @@ Following the original authors, trials faster than 200 ms or slower than
 (\(n = 1{,}917\) trials, 8.4\% of them errors) with no random effects
 for clarity.
 
-As it is common in the field, the ``decision'' being modelled is
-\textbf{correct vs.~error}, which is added to the formula with a
-\texttt{dec()} term on the response side of the formula. Everything else
-is the ordinary \texttt{brms} syntax:
+In order to fit a basic Drift Diffusion Model (DDM) in \texttt{cogmod},
+one needs to specify 1) a formula for each of the parameters, 2) the
+model family (\texttt{ddm()}) and attach the custom family Stan code
+with \texttt{ddm\_stanvars()}. As it is common in the field, the
+``decision'' being modelled is \textbf{correct vs.~error}, which is
+added to the formula with a \texttt{dec()} term on the response side of
+the formula. Everything else is the ordinary \texttt{brms} syntax:
 
 \begin{Shaded}
 \begin{Highlighting}[]
 \NormalTok{df }\OtherTok{\textless{}{-}}\NormalTok{ cogmod}\SpecialCharTok{::}\NormalTok{wagenmakers2008}
+\NormalTok{df }\OtherTok{\textless{}{-}}\NormalTok{ df[df}\SpecialCharTok{$}\NormalTok{Participant }\SpecialCharTok{==} \DecValTok{1}\NormalTok{, ]}
 
 \NormalTok{f }\OtherTok{\textless{}{-}} \FunctionTok{bf}\NormalTok{(}
-\NormalTok{  RT }\SpecialCharTok{|} \FunctionTok{dec}\NormalTok{(Error) }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,  }\CommentTok{\# mu: drift rate}
-\NormalTok{  bs }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,               }\CommentTok{\# boundary separation}
-\NormalTok{  bias }\SpecialCharTok{\textasciitilde{}} \DecValTok{1}\NormalTok{,                     }\CommentTok{\# starting point}
-\NormalTok{  tau }\SpecialCharTok{\textasciitilde{}} \DecValTok{1}\NormalTok{,                      }\CommentTok{\# non{-}decision time}
+\NormalTok{  RT }\SpecialCharTok{|} \FunctionTok{dec}\NormalTok{(Error) }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,}
+\NormalTok{  bs }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition, }
+\NormalTok{  bias }\SpecialCharTok{\textasciitilde{}} \DecValTok{1}\NormalTok{, }
+\NormalTok{  tau }\SpecialCharTok{\textasciitilde{}} \DecValTok{1}\NormalTok{,  }
   \AttributeTok{minrt =} \FunctionTok{min}\NormalTok{(df}\SpecialCharTok{$}\NormalTok{RT),}
   \AttributeTok{sigmadrift =} \DecValTok{0}\NormalTok{, }\AttributeTok{sigmabias =} \DecValTok{0}\NormalTok{, }\AttributeTok{sigmatau =} \DecValTok{0}\NormalTok{,}
   \AttributeTok{family =} \FunctionTok{ddm}\NormalTok{()}
@@ -783,25 +787,52 @@ is the ordinary \texttt{brms} syntax:
 \end{Highlighting}
 \end{Shaded}
 
+The first unnamed parameter, referred to as \texttt{mu} in the Stan code
+as per \texttt{brms} convention, actually corresponds to the drift rate.
+The other parameters correspond to boundary separation (\texttt{bs}),
+starting point bias (\texttt{bias}), and non-decision time (\texttt{tau}
+and \texttt{minrt}), respectively.
+
+Non-decision time deserves a comment, because it is the parameter most
+likely to break a fit. It is bounded on both sides --- it cannot be
+negative, and it cannot exceed the fastest response in the data, since
+the decision time of that trial would then be negative and its density
+zero --- and a sampler that is free to step across either bound will
+fail to initialize or diverge. \texttt{cogmod} removes the problem by
+construction rather than by a prior. The \texttt{minrt} argument fixes a
+constant, normally the fastest observed RT, and \texttt{tau} is
+estimated on a logit link as the \emph{proportion} of it that is taken
+up by encoding and motor execution, so that the non-decision time
+entering the likelihood is \texttt{tau} \(\times\) \texttt{minrt} and is
+confined to the admissible interval whatever the sampler proposes. The
+cost of this convenience is that \texttt{tau} is expressed relative to
+an order statistic of the sample, which we return to in the Limitations.
+
 The three \texttt{sigma*} arguments fix the between-trial variabilities
-of the full seven-parameter diffusion model at zero, giving the
-``simple'' four-parameter DDM. \texttt{Condition} is placed on the
-boundary separation, which is the textbook hypothesis for a
-speed-accuracy manipulation, and the fit obliges: boundary separation
-drops from 1.45 to 1.21 under speed instructions (95\% CI on the linear
-predictor \([-0.40, -0.23]\), \(pd = 100\%\)), while the drift rate is
-not credibly affected (\(pd = 94\%\)).
+of the full seven-parameter diffusion model
+(\citeproc{ref-ratcliff2008diffusion}{Ratcliff \& McKoon, 2008}) at
+zero, giving the ``simple'' four-parameter DDM --- a common
+simplification, since the variability parameters are expensive to sample
+and notoriously hard to recover
+(\citeproc{ref-boehm2018estimating}{Boehm et al., 2018}), and we free
+one of them below. The effect of \texttt{Condition} is also estimated
+for the boundary separation, which is the textbook hypothesis for a
+speed-accuracy manipulation, which the results support: boundary
+separation drops from 1.45 to 1.22 under speed instructions (95\% CI on
+the linear predictor \([-0.40, -0.23]\), \(pd = 100\%\)), while the
+drift rate is not credibly affected (\(0.17\), 95\% CI
+\([-0.04, 0.38]\), \(pd = 94\%\)).
 
 \subsection{Four more architectures}\label{four-more-architectures}
 
-Whether that is the right model, however, is a separate question from
-what it says, and answering it means fitting the alternatives. Each is
-the same two edits: a different \texttt{family}, its \texttt{stanvars},
-and whichever distributional parameters that family owns. The
-\textbf{DDM-5} is the model above with between-trial variability in
-drift rate freed (\texttt{sigmadrift\ \textasciitilde{}\ 1}). The
-\textbf{LogNormal race} (LNR, \citeproc{ref-rouder2015lognormal}{Rouder
-et al., 2015}), the \textbf{linear ballistic accumulator} (LBA,
+Whether that is the right model, however, is a separate question, and
+answering it means fitting the alternatives, which only involves a few
+code changes: a different \texttt{family}, its \texttt{stanvars}, and
+whichever distributional parameters that family owns. The \textbf{DDM-5}
+is the model above with between-trial variability in drift rate freed
+(\texttt{sigmadrift\ \textasciitilde{}\ 1}). The \textbf{LogNormal race}
+(LNR, \citeproc{ref-rouder2015lognormal}{Rouder et al., 2015}), the
+\textbf{linear ballistic accumulator} (LBA,
 \citeproc{ref-brown2008simplest}{Brown \& Heathcote, 2008}) and the
 \textbf{racing diffusion model} (RDM,
 \citeproc{ref-tillman2020sequential}{Tillman et al., 2020}) replace the

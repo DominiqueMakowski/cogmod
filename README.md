@@ -28,8 +28,8 @@ are useful in the field of cognitive science and computational
 neuropsycholology.
 
 If you have suggestions for improvement, please [get in
-touch](https://github.com/DominiqueMakowski/cogmod/issues)! See also this
-related attempt at [**creating
+touch](https://github.com/DominiqueMakowski/cogmod/issues)! See also
+this related attempt at [**creating
 tutorials**](https://dominiquemakowski.github.io/CognitiveModels/).
 
 ## Features
@@ -60,9 +60,12 @@ tutorials**](https://dominiquemakowski.github.io/CognitiveModels/).
   - [x] Linear Ballistic Accumulator (LBA)
   - [x] LogNormal Race (LNR)
   - [x] Racing Diffusion Model (RDM, [Tillman et al.,
-    2020](https://doi.org/10.3758/s13423-020-01738-8))
+    2020](https://doi.org/10.3758/s13423-020-01719-6))
 
-![](man/figures/rt_models1.png)
+![Response formats covered by cogmod, and the main families available
+for each. Every family comes with a `_stanvars()` function supplying its
+Stan code, and with `d*()` and `r*()` functions for density evaluation
+and simulation.](man/figures/fig_overview.png)
 
 ## What are Computational Cognitive Models?
 

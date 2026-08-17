@@ -466,9 +466,10 @@ on the response side of the formula. Everything else is the ordinary
 #| eval: false
 
 df <- cogmod::wagenmakers2008
+df <- df[df$Participant == 1, ]
 
 f <- bf(
-  RT | dec(Error) ~ Condition, 
+  RT | dec(Error) ~ Condition,
   bs ~ Condition, 
   bias ~ 1, 
   tau ~ 1,  
@@ -482,15 +483,22 @@ m_ddm <- brm(f, data = df, stanvars = ddm_stanvars(), init = 0) |>
 ```
 
 The first unnamed parameter, referred to as `mu` in the Stan code as per `brms` convention, actually corresponds to the drift rate.
-The other parameters correspond to boundary separation (`bs`), starting point bias (`bias`), and non-decision time (`tau` and `minrt`), respectively. [TODO: say a sentence or two about minrt and that NDT is typically annoying to estimate and parametrize as it can lead to sampling failures and estimation difficulties if it doesn't has a lower bound. In cogmod, we workaround that by injecting a fixed value correspondong to the lower observed RT, and then estimating the NDT as an offset. NDT is a function of both tau and minrt.]
+The other parameters correspond to boundary separation (`bs`), starting
+point bias (`bias`), and non-decision time (`tau` and `minrt`),
+respectively. Estimating non-decision time is a common source of difficulty in fitting diffusion models, 
+known to be poorly identified and to cause convergence issues (as it is bounded on the upper side by an observed value corresponding to the minimum RT, which needs to be injected from the data into the model itself).
+`cogmod` addresses the issue by adding `minrt` as a fixed constant, and `tau` is defined as a scaling factor of that constant.
+The cost of this convenience is that `tau` is expressed relative to an order statistic of the sample, which
+we return to in the Limitations.
 
 The three `sigma*` arguments fix the between-trial variabilities of the
-full seven-parameter diffusion model at zero, giving the "simple"
-four-parameter DDM [TODO: cite ratcliff etc.? here]. The effect of `Condition` 
-is also estimated for the boundary separation,
-which is the textbook hypothesis for a speed-accuracy manipulation, which the results support: boundary separation drops from 1.45 to 1.21 under speed
-instructions (95% CI on the linear predictor $[-0.40, -0.23]$), while the drift rate is not credibly affected
-[TODO: add CI].
+full seven-parameter diffusion model [@ratcliff2008diffusion] at zero,
+giving the "simple" four-parameter DDM, which is a common simplification, since
+the variability parameters are expensive to sample and notoriously hard
+to recover [@boehm2018estimating]. The
+effect of `Condition` is also estimated for the boundary separation,
+which is the textbook hypothesis for a speed-accuracy manipulation, which the results support: boundary separation drops significantly under speed instructions (95% CI on the linear predictor $[-0.40, -0.23]$), while the drift rate is not credibly affected
+($0.17$, 95% CI $[-0.04, 0.38]$).
 
 ## Four more architectures
 

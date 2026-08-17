@@ -50,9 +50,9 @@ If you have suggestions for improvement, please [get in touch](https://github.co
   - [x] Drift Diffusion Model (DDM)
   - [x] Linear Ballistic Accumulator (LBA)
   - [x] LogNormal Race (LNR)
-  - [x] Racing Diffusion Model (RDM, [Tillman et al., 2020](https://doi.org/10.3758/s13423-020-01738-8))
+  - [x] Racing Diffusion Model (RDM, [Tillman et al., 2020](https://doi.org/10.3758/s13423-020-01719-6))
 
-![](man/figures/rt_models1.png)
+![Response formats covered by cogmod, and the main families available for each. Every family comes with a `_stanvars()` function supplying its Stan code, and with `d*()` and `r*()` functions for density evaluation and simulation.](man/figures/fig_overview.png)
 
 ## What are Computational Cognitive Models?
 
