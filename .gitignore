@@ -56,3 +56,6 @@ README.knit.md
 docs
 papers/
 **/.quarto/
+vignettes/*.html
+vignettes/*.R
+vignettes/*_files

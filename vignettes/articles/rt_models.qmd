@@ -133,45 +133,36 @@ the latter allows for potentially stronger and more interpretable claims.
 
 ## The Data
 
-For this chapter, we will be using the data from [Wagenmakers et al., (2008)](https://doi.org/10.1016/j.jml.2007.04.006) - Experiment 1 also reanalyzed by [Heathcote & Love (2012)](https://doi.org/10.3389/fpsyg.2012.00292), that contains responses and response times for several participants in two conditions (where instructions emphasized either **speed** or **accuracy**). The data are distributed in the [`rtdists`](https://cran.r-project.org/package=rtdists) package as `speed_acc`, courtesy of the original authors.
-Using the same procedure as the authors, we excluded all trials with uninterpretable response time, i.e., responses that are too fast (<200 ms instead of <180 ms) or too slow (>2 sec instead of >3 sec).
+For this chapter, we will be using the data from [Wagenmakers et al., (2008)](https://doi.org/10.1016/j.jml.2007.04.006) - Experiment 1 also reanalyzed by [Heathcote & Love (2012)](https://doi.org/10.3389/fpsyg.2012.00292), that contains responses and response times for several participants in two conditions (where instructions emphasized either **speed** or **accuracy**). The data are distributed in the [`rtdists`](https://cran.r-project.org/package=rtdists) package as `speed_acc`. We excluded trials with extreme slow responses (>2 sec).
 
 ```{r}
 #| code-fold: false
 
 set.seed(123)  # For reproducibility
 
-# Experiment 1 of Wagenmakers et al. (2008), from rtdists. `censor` flags the
-# trials the authors excluded (uninterpretable, RT < 180 ms, RT > 3 s).
+# Experiment 1 of Wagenmakers et al. (2008), from rtdists. 
 data(speed_acc, package = "rtdists")
-d <- speed_acc[!speed_acc$censor & speed_acc$response != "error" &
-                 speed_acc$rt <= 2, ]
 
 df <- data.frame(
-  Participant = as.integer(as.character(d$id)),
+  Participant = as.integer(as.character(speed_acc$id)),
   Condition = unname(c(accuracy = "Accuracy", speed = "Speed")[
-    as.character(d$condition)]),
-  RT = d$rt,
-  Error = as.integer(as.character(d$response) != as.character(d$stim_cat)),
+    as.character(speed_acc$condition)]),
+  RT = speed_acc$rt,
+  Error = as.integer(as.character(speed_acc$response) != as.character(speed_acc$stim_cat)),
   Frequency = unname(c(high = "High", low = "Low", very_low = "Very Low")[
-    sub("^nw_", "", as.character(d$frequency))])
+    sub("^nw_", "", as.character(speed_acc$frequency))])
 )
 
-df <- df[df$RT > 0.2 & df$Participant %in% c(1, 2, 3), ]
+
+df <- df[df$Participant %in% c(1, 2, 3) &
+           df$Error == 0 & 
+           df$RT <= 2, ]
 
 # Show 10 first rows
 head(df, 10)
 ```
 
-<!-- In the previous chapter, we modeled the error rate (the probability of making an error) using a logistic model, and observed that it was higher in the `"Speed"` condition.  -->
-<!-- But how about speed?  -->
 We are going to first take interest in the response times (RT) of **Correct** answers only (as we can assume that errors are underpinned by a different *generative process*).
-
-```{r}
-#| output: false
-
-df <- df[df$Error == 0, ]
-```
 
 
 ```{r}
@@ -234,7 +225,7 @@ m_normal <- brms::add_criterion(m_normal, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_normal, file = "models/m_normal.rds")
+saveRDS(m_normal, file = "../models/m_normal.rds")
 ```
 
 The animation below unpacks what such a model actually contains: the two
@@ -362,7 +353,7 @@ m_exgauss <- brms::add_criterion(m_exgauss, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_exgauss, file = "models/m_exgauss.rds")
+saveRDS(m_exgauss, file = "../models/m_exgauss.rds")
 ```
 
 ### Shifted LogNormal
@@ -399,20 +390,25 @@ than adding to, the duration of the previous ones. Note that this is a
 LogNormal a well-motivated default, but it does not turn `mu` and `sigma` into
 cognitive parameters.
 
-The **shifted** version adds a third ingredient: a non-decision time (`ndt`)
-before which no response can physically occur, corresponding to the time taken
-by stimulus encoding and motor execution. Without it, the distribution is
-forced to start at zero, and the model has to distort the shape of the whole
-distribution to accommodate the empty space between 0 and the fastest observed
-response. In `cogmod`'s `rt_lognormal()` family, `mu` and `sigma` are the mean
-and SD *on the log scale* (so that the median of the distribution is
-`ndt + exp(mu)`), and the shift is expressed as `tau`, the *proportion* of the
-minimum RT that is taken up by non-decision time (`ndt = tau * minrt`). This
-reparameterization keeps `tau` bounded between 0 and 1, which is both easier
-to sample and guarantees that the shift never exceeds the fastest observed
-response.
+Similarly to most implementations, `rt_lognormal()` parametrizes `mu` and `sigma` as the mean
+and SD of the distribution *on the log scale* (so that the median of the distribution is
+`ndt + exp(mu)`).
 
-Like the ExGaussian, this model is primarily **descriptive**: it captures the
+<!-- TODO: Remove and rewrite the following paragraph based on new parametrization -->
+
+<!-- The **shifted** version adds a third ingredient: a non-decision time (`ndt`) -->
+<!-- before which no response can physically occur, corresponding to the time taken -->
+<!-- by stimulus encoding and motor execution. Without it, the distribution is -->
+<!-- forced to start at zero, and the model has to distort the shape of the whole -->
+<!-- distribution to accommodate the empty space between 0 and the first responses. -->
+<!--  and the shift is expressed as `tau`, the *proportion* of the -->
+<!-- minimum RT that is taken up by non-decision time (`ndt = tau * minrt`). This -->
+<!-- reparameterization keeps `tau` bounded between 0 and 1, which is both easier -->
+<!-- to sample and guarantees that the shift never exceeds the fastest observed -->
+<!-- response. -->
+
+Less purely descriptive than the ExGaussian, this model has some theoretical grounding, 
+conceptualizing a response as the output of multiplicative random processes. It captures the
 shape of RT distributions very well, but `mu` and `sigma` are not, in
 themselves, cognitive quantities. It does, however, sit at the base of a
 proper process model - the Lognormal Race (see `lnr()`), in which several
@@ -439,13 +435,12 @@ effect through a single location parameter.
 f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
-  tau ~ Condition,
-  minrt = min(df$RT),
+  ndt ~ Condition,
+  poutlier ~ 1,
   family = rt_lognormal()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = df)
+priors <- cogmod_priors(f, data = df)
 
 m_lognormal <- brm(
   f,
@@ -879,11 +874,11 @@ pred <- rbind(
     data_modify(Model = "InvGamma"),
   estimate_prediction(m_lba, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
-    data_modify(Model = "LBA") |>
-    data_filter(iter_value < 2)
-)
+    data_modify(Model = "LBA") 
+) 
 
 p <- pred |>
+  data_filter(iter_value < 2) |> 
   ggplot(aes(x=iter_value)) +
   geom_histogram(data = df, aes(x=RT, y = after_stat(density), fill = Condition),
                  position = "identity", bins=120, alpha = 0.8) +

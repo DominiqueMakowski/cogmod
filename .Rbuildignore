@@ -17,5 +17,5 @@ README.qmd
 ^vignettes/articles$
 ^vignettes/.*_files$
 ^vignettes/.*\.html$
-^vignettes/models/
+^vignettes/articles/models/
 ^data-raw$

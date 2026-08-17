@@ -596,14 +596,6 @@ priors <- c(
   brms::prior(normal(-2, 0.3), class = "Intercept", dpar = "ndt"),
   replace = TRUE
 )
-
-# what it fills in, for the formula above
-c(
-  brms::prior(normal(-1.5, 0.15), class = "Intercept", dpar = "ndt"),
-  brms::prior(normal(-5, 1), class = "Intercept", dpar = "poutlier"),
-  brms::prior(exponential(1), class = "sd", group = "Participant",
-              dpar = "poutlier")
-)
 ```
 
 The values regularize both flat directions while keeping the prior mass in
@@ -636,7 +628,7 @@ implied <- function(parameter, mean, sd, inv, scale) {
 knitr::kable(rbind(
   implied("mu",       -1,   1,   exp,      "median decision time (s)"),
   implied("sigma",     0,   1,   softplus, "SD of log decision time"),
-  implied("ndt",      -1.5, 0.15, exp,     "non-decision time (s)"),
+  implied("ndt",      -1.2, 0.2, exp,     "non-decision time (s)"),
   implied("poutlier", -5,   1, plogis,      "proportion of trials")
 ), digits = 3)
 ```
@@ -648,8 +640,8 @@ on the between-participant SD matches the spread observed earlier (a logit-scale
 SD of about `r sprintf("%.1f", il$logit_sd)`) while still pooling hard toward a
 common rate when a dataset gives no evidence of heterogeneity.
 
-**`ndt`.** `normal(-1.5, 0.15)` puts the non-decision time between about 170
-and 300 ms, concentrating prior mass on the usual range for keypress responses.
+**`ndt`.** `normal(-1.2, 0.2)` puts the non-decision time between about 165
+and 550 ms, concentrating prior mass on the usual range for keypress responses.
 This is a convention informed by the RT literature rather than something
 demonstrated here, and it is the prior most worth revisiting: a task with an
 unusual motor requirement, or reaction times recorded from a different zero

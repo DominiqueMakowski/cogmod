@@ -63,13 +63,13 @@
 #'
 #' | class | `ndt` | `poutlier` |
 #' | --- | --- | --- |
-#' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.5 + log(minrt / 0.3), 0.15)` | `normal(-5, 1)` |
+#' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2 + log(minrt / 0.3), 0.2)` | `normal(-5, 1)` |
 #' | `b` (slopes) | `normal(0, 1)` | `normal(0, 1)` |
 #' | `sd`, `sds` | `exponential(1)` | `exponential(1)` |
 #'
 #' The `ndt` location moves with `minrt`, so the priors stay equivariant to the
 #' unit of measurement in the same way the likelihood does; at the default it is
-#' `normal(-1.5, 0.15)`, roughly 170 to 300 ms. `poutlier` is a proportion and
+#' `normal(-1.2, 0.2)`, roughly 170 to 300 ms. `poutlier` is a proportion and
 #' does not move: `normal(-5, 1)` is centred at about 0.7% and puts roughly 95%
 #' of its mass between 0.1% and 5%.
 #'
@@ -143,7 +143,7 @@ cogmod_priors <- function(formula, data, ...) {
   # ndt is a location in time and moves with the timescale; poutlier is a
   # proportion and does not.
   shift <- log(.validate_minrt(.as_minrt(family)) / eval(formals(.validate_minrt)$minrt))
-  loc_ndt <- formatC(-1.5 + shift, format = "g", digits = 4, width = 1)
+  loc_ndt <- formatC(-1.2 + shift, format = "g", digits = 4, width = 1)
 
   p$prior <- vapply(
     seq_len(nrow(p)),
@@ -152,12 +152,12 @@ cogmod_priors <- function(formula, data, ...) {
       intercept <- cls == "Intercept" || (cls == "b" && p$coef[i] == "Intercept")
       if (intercept) {
         if (p$dpar[i] == "ndt") {
-          sprintf("normal(%s, 0.15)", loc_ndt)
+          sprintf("normal(%s, 0.2)", loc_ndt)
         } else {
           "normal(-5, 1)"
         }
       } else if (cls == "b") {
-        "normal(0, 1)"
+        "normal(0, 0.2)"
       } else if (cls %in% c("sd", "sds")) {
         "exponential(1)"
       } else {
