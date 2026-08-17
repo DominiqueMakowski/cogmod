@@ -29,7 +29,7 @@ options(mc.cores = parallel::detectCores() - 2)
 
 Decision making models jointly account for the **choice** that was made and
 the **response time (RT)** it took to make it. Rather than simulating data,
-we re-use the `wagenmakers2008` dataset (see the
+we re-use the Wagenmakers et al. (2008) lexical decision data (see the
 [RT-only Models](rt_models.html) vignette) - but this time, instead of
 discarding the errors, we model **choice** as *correct* vs. *error* responses.
 This is a common strategy in the decision-making literature when the task
@@ -46,7 +46,22 @@ the models below can be fit in a reasonable amount of time for demonstration pur
 
 set.seed(123)  # For reproducibility
 
-df <- cogmod::wagenmakers2008
+# Experiment 1 of Wagenmakers et al. (2008), from rtdists. `censor` flags the
+# trials the authors excluded (uninterpretable, RT < 180 ms, RT > 3 s).
+data(speed_acc, package = "rtdists")
+d <- speed_acc[!speed_acc$censor & speed_acc$response != "error" &
+                 speed_acc$rt <= 2, ]
+
+df <- data.frame(
+  Participant = as.integer(as.character(d$id)),
+  Condition = unname(c(accuracy = "Accuracy", speed = "Speed")[
+    as.character(d$condition)]),
+  RT = d$rt,
+  Error = as.integer(as.character(d$response) != as.character(d$stim_cat)),
+  Frequency = unname(c(high = "High", low = "Low", very_low = "Very Low")[
+    sub("^nw_", "", as.character(d$frequency))])
+)
+
 df <- df[df$Participant == 1, ]
 
 # Show 10 first rows

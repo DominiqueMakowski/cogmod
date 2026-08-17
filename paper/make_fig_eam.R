@@ -33,7 +33,8 @@ models <- list(
 )
 
 # Same subset as the vignette: one participant, correct and error trials.
-df <- cogmod::wagenmakers2008
+source("wagenmakers.R") # reconstructs the data from rtdists::speed_acc
+df <- wagenmakers()
 df <- df[df$Participant == 1, ]
 n_obs <- nrow(df)
 

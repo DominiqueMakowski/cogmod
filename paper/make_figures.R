@@ -13,8 +13,10 @@ library(cogmod)
 
 dir.create("figures", showWarnings = FALSE)
 
+source("wagenmakers.R") # reconstructs the data from rtdists::speed_acc
+
 # Intermediate consumed by make_fig_approaches.py
-write.csv(cogmod::wagenmakers2008, "wagenmakers2008.csv", row.names = FALSE)
+write.csv(wagenmakers(), "wagenmakers2008.csv", row.names = FALSE)
 
 # ---------------------------------------------------------------------------
 # Figure 1: two conditions with identical means but radically different shapes.

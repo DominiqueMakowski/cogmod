@@ -450,7 +450,7 @@ marginal means available as usual.
 
 To illustrate the typical workflow of fitting evidence accumulation models, 
 we will fit them to the lexical decision task data of @wagenmakers2008diffusion (Experiment 1),
-bundled with the package as `wagenmakers2008`: participants classified
+distributed in the `rtdists` package as `speed_acc`: participants classified
 letter strings as words or non-words under instructions emphasising either
 **speed** or **accuracy**. Following the original authors, trials faster
 than 200 ms or slower than 2 s were excluded. This example uses a single participant
@@ -465,7 +465,16 @@ on the response side of the formula. Everything else is the ordinary
 ```{r}
 #| eval: false
 
-df <- cogmod::wagenmakers2008
+data(speed_acc, package = "rtdists")
+d <- speed_acc[!speed_acc$censor & speed_acc$response != "error" &
+                 speed_acc$rt <= 2, ]
+df <- data.frame(
+  Condition = unname(c(accuracy = "Accuracy", speed = "Speed")[
+    as.character(d$condition)]),
+  RT = d$rt,
+  Error = as.integer(as.character(d$response) != as.character(d$stim_cat)),
+  Participant = as.integer(as.character(d$id))
+)
 df <- df[df$Participant == 1, ]
 
 f <- bf(
@@ -520,8 +529,11 @@ and the threshold increment enter the likelihood only through their sum.
 Because each fit is a `brmsfit` carrying a `loo` criterion, comparing the
 five is one call:
 
+[TODO: put that table in a R code chunk with the caption as a chunk parameter].
+
 ```r
-loo_compare(m_ddm, m_ddm5, m_lnr, m_lba, m_rdm)
+loo_compare(m_ddm, m_ddm5, m_lnr, 
+            m_lba, m_rdm)
 ```
 
 | Model | LOOIC | ENP | ELPD | Difference | SE | Time (s) |
@@ -1173,8 +1185,11 @@ between them an empirical question rather than an inherited convention.
 
 `cogmod` is open source (MIT licence) and available at
 <https://github.com/DominiqueMakowski/cogmod>, with documentation at
-<https://dominiquemakowski.github.io/cogmod/>. The `wagenmakers2008`
-data are redistributed with the package, and the simulated data used in
+<https://dominiquemakowski.github.io/cogmod/>. The lexical decision data of
+@wagenmakers2008diffusion are not redistributed with the package; they are read
+from the `rtdists` package, where they appear as `speed_acc` courtesy of the
+original authors, and the subset used here is reconstructed by a script in the
+repository. The simulated data used in
 the Introduction are bundled as `badlm` (with their
 generating script in `data-raw/`). The clinical data of Example 2 are not redistributed; they
 are downloaded from OpenNeuro (`ds000030`) by a script in the same

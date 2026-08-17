@@ -1,0 +1,403 @@
+---
+title: "Outliers and Non-Decision Time"
+knitr:
+  opts_chunk:
+    collapse: true
+    comment: '#>'
+format:
+  html:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+
+library(cogmod)
+library(ggplot2)
+
+theme_set(theme_minimal())
+```
+
+```{r}
+#| label: load-caches
+#| echo: false
+
+path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"
+
+desc <- readRDS(url(paste0(path, "outliers_desc.rds")))
+hst <- readRDS(url(paste0(path, "outliers_hist.rds")))
+caf <- readRDS(url(paste0(path, "outliers_caf.rds")))
+perds <- readRDS(url(paste0(path, "outliers_perdataset.rds")))
+sens <- readRDS(url(paste0(path, "outliers_sensitivity.rds")))
+rec <- readRDS(url(paste0(path, "outliers_recovery.rds")))
+```
+
+## The Problem with Non-Decision Time
+
+Every shifted reaction time distribution has a non-decision time `ndt`: the
+incompressible encoding and motor delay before evidence accumulation begins.
+And every shifted distribution assigns **exactly zero density** to any response
+faster than `ndt`. That is not a modelling choice, it follows from the
+definition: `RT = ndt + decision_time`, and decision time cannot be negative.
+
+The consequence is a hard boundary in the likelihood. If a single response in
+the dataset is faster than the `ndt` a sampler is currently considering, the
+log-density is `-Inf` and the whole posterior collapses. So `ndt` is bounded
+above by the *fastest observed response*, which is an order statistic of the
+sample rather than a property of the participant.
+
+Earlier versions of `cogmod` handled this by injecting `min(RT)` as data and
+expressing the shift as a proportion of it, `ndt = tau * minrt` with
+`tau` in `(0, 1)`. That sampled well, but it capped `ndt` at the fastest
+response *in the entire dataset*. As soon as `ndt` varied by condition or by
+participant, the cap was shared across all of them, and any group whose true
+non-decision time exceeded the global minimum could not be represented at all.
+
+`cogmod` now estimates `ndt` directly, in seconds, and makes that possible by
+mixing a small proportion `poutlier` of responses from an **outlier
+distribution** that has support over the whole positive line:
+
+$$
+p(\text{RT}) = (1 - \text{poutlier}) \cdot f(\text{RT} - \text{ndt}) +
+  \text{poutlier} \cdot g(\text{RT})
+$$
+
+Below `ndt` the first term is still exactly zero, but the second is positive.
+The boundary becomes a finite *cost* rather than a wall, the log-density stays
+smooth and differentiable, and nothing needs to be taken from the data.
+
+The component `g` is hard-coded as `LogNormal(log(0.15), 1.5)`:
+
+```{r}
+#| label: fig-component
+#| fig-cap: "*The hard-coded outlier component: LogNormal(log(0.15), 1.5). Median 150 ms; the dashed lines mark the 2.5th and 97.5th percentiles.*"
+#| fig-height: 3
+
+q <- qlnorm(c(0.025, 0.975), log(0.15), 1.5)
+
+ggplot() +
+  geom_function(fun = dlnorm, args = list(meanlog = log(0.15), sdlog = 1.5),
+                n = 1000, xlim = c(0.001, 3), linewidth = 0.8) +
+  geom_vline(xintercept = q, linetype = "dashed", colour = "grey50") +
+  labs(x = "RT (s)", y = "density")
+```
+
+It is deliberately broad - 95% of its mass falls between
+`r round(q[1], 3)` s and `r round(q[2], 2)` s - because an outlier is not
+necessarily an *extreme* value. A response driven by some process other than
+the decision can land anywhere in the plausible range. But it peaks in the fast
+region, where the decision component has no density to offer.
+
+This article asks whether that specification is defensible.
+
+## The Data
+
+Validating this needs reaction times that have **not** been trimmed, which is
+unusual: almost every published dataset has had its fast responses removed
+before distribution. The [Illusion Game](https://github.com/RealityBending/IllusionGameComputational)
+data are untrimmed, very large, and - crucially - include accuracy, which will
+let us identify contaminant trials without using an RT model at all.
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+repo <- paste0("https://raw.githubusercontent.com/RealityBending/",
+               "IllusionGameComputational/refs/heads/main/data/")
+
+df <- rbind(
+  read.csv(paste0(repo, "illusion_part1.csv")),
+  read.csv(paste0(repo, "illusion_part2.csv")),
+  read.csv(paste0(repo, "illusion_part3.csv"))
+)
+```
+
+```{r}
+#| echo: false
+
+cat(sprintf("%s trials, %s participants, RT from %.3f to %.2f s\n",
+            format(desc$n, big.mark = ","), format(desc$n_ppt, big.mark = ","),
+            desc$rt_range[1], desc$rt_range[2]))
+cat(sprintf("overall error rate: %.3f\n", desc$err))
+cat(sprintf("responses faster than 0.30 s: %d (%.3f%%)\n",
+            desc$n_fast, desc$pct_fast))
+```
+
+Participants judged which of two shapes was larger or longer under various
+visual illusions - a two-alternative discrimination, so **chance performance is
+an error rate of 0.5**. The fastest recorded response is 1 ms, which is not a
+decision about anything.
+
+To keep the analyses below quick, and because the whole dataset is a
+million trials, the model fits use a single sub-study
+(`r format(attr(sens, "n"), big.mark = ",")` trials from
+`r attr(sens, "n_ppt")` participants). The descriptive analyses use everything.
+
+## Why the Old Parameterization Cannot Work Here
+
+The fastest response in the modelling subset is
+**`r sprintf("%.3f", attr(sens, "min_rt"))` s**. Under `ndt = tau * minrt`,
+that would have been the ceiling on non-decision time for every participant and
+every condition - a physiological impossibility, and roughly two orders of
+magnitude below any plausible value.
+
+This is not a subtle bias. It is what the fully un-trimmed case looks like, and
+it is the reason the parameterization changed.
+
+## Model-Free Evidence: the Conditional Accuracy Function
+
+Before fitting anything, accuracy alone can tell us whether fast contamination
+is real and where it lives. A genuine decision, however hurried, should perform
+above chance. A contaminant response - a key press with no decision behind it -
+should be at chance regardless of how fast it was.
+
+```{r}
+#| label: fig-caf
+#| fig-cap: "*Error rate as a function of RT. The dashed line is chance (0.5) for this two-alternative task; the dotted line is the error rate of unambiguously genuine decisions. Point size is proportional to the number of trials in the bin.*"
+#| fig-height: 3.6
+
+err_good <- with(caf, sum(err * n * (lo >= 0.4 & hi <= 1.5)) /
+                   sum(n * (lo >= 0.4 & hi <= 1.5)))
+
+ggplot(caf[caf$mid < 1.5, ], aes(x = mid, y = err)) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", colour = "red") +
+  geom_hline(yintercept = err_good, linetype = "dotted") +
+  geom_line(colour = "grey40") +
+  geom_point(aes(size = n), alpha = 0.7) +
+  scale_size_area(max_size = 5, guide = "none") +
+  labs(x = "RT (s)", y = "error rate")
+```
+
+```{r}
+#| echo: false
+
+k <- caf[caf$hi <= 0.45, c("lo", "hi", "n", "err")]
+k$err <- round(k$err, 3)
+knitr::kable(k, col.names = c("RT from", "RT to", "n", "error rate"))
+```
+
+The result is unambiguous. Below 0.30 s the error rate sits flat at chance,
+then climbs steeply to the genuine-decision baseline of
+`r sprintf("%.3f", err_good)` by about 0.45 s. That is direct evidence, owing
+nothing to any RT model, that
+
+- fast contamination is **real** and not an artefact of distributional
+  assumptions,
+- it occupies roughly **[0, 0.30] s** in this task,
+- it accounts for about **`r sprintf("%.1f%%", desc$pct_fast)`** of trials here.
+
+This also justifies the mixture *form* independently of the hyperparameters. A
+model that assigns zero density to these trials is not describing them
+conservatively, it is declaring them impossible.
+
+## What Accuracy Cannot Tell Us: the Slow Tail
+
+The same logic tempts one to extend the analysis upward, and it fails. Notice
+in the figure that the error rate *rises again* for slow responses, from
+`r sprintf("%.3f", min(caf$err))` around 0.5 s to
+`r sprintf("%.3f", caf$err[nrow(caf)])` in the slowest bin. Naively treating
+that excess as contamination implies over 7% contaminant trials with a median
+near 1 s.
+
+That inference is wrong. Slow trials are *hard* trials - strong illusions and
+small differences - so difficulty confounds RT and accuracy at the slow end. A
+slow contaminant is statistically indistinguishable from the right tail of the
+RT distribution itself, which is precisely why `cogmod` does not attempt to
+model one. Implausibly slow responses should be filtered before fitting; unlike
+fast responses, the model cannot identify them for you.
+
+## Does the Hard-Coded Choice Matter?
+
+The hyperparameters of `g` are not a claim about how fast guesses are
+distributed. Their job is narrower: to put positive density below `ndt` so that
+the boundary dissolves. The right test is therefore not "are these the true
+values?" but "does the answer depend on them?"
+
+Refitting the same data under seven very different outlier components:
+
+```{r}
+#| echo: false
+
+s <- sens
+s$ndt <- round(s$ndt, 4)
+s$poutlier <- round(s$poutlier, 4)
+s$logLik <- ifelse(s$logLik < -1e8, NA, round(s$logLik, 1))
+knitr::kable(s, col.names = c("outlier component g", "ndt (s)", "poutlier",
+                              "logLik"))
+```
+
+```{r}
+#| echo: false
+
+ok <- sens[sens$contaminant != "none (poutlier = 0)", ]
+cat(sprintf("ndt across all seven specifications: %.3f to %.3f s (a %.0f ms range)\n",
+            min(ok$ndt), max(ok$ndt), 1000 * diff(range(ok$ndt))))
+```
+
+Two things stand out.
+
+**`ndt` barely moves.** Components that differ by orders of magnitude in shape,
+location and boundedness - including a uniform spanning the entire RT range -
+all recover a non-decision time within about 15 ms of each other. The parameter
+of scientific interest is effectively invariant to the choice, which is exactly
+what a regularizing device should deliver.
+
+**`poutlier` does move**, from
+`r sprintf("%.3f", min(ok$poutlier))` to `r sprintf("%.3f", max(ok$poutlier))`.
+It is a rate defined *relative to an assumed reference distribution*, not an
+absolute proportion of bad trials, so it is not comparable across differently
+specified models. Report the component alongside it.
+
+**Without any outlier component the model cannot be fitted at all.** The last
+row of the table is not a poor estimate; it is a failure. With a fastest
+response of `r sprintf("%.3f", attr(sens, "min_rt"))` s the likelihood has no
+usable region, and the optimizer never leaves its starting value.
+
+## The Shape Is Not Optimal, and That Is Informative
+
+Being honest about it: the shipped component is *not* the best-fitting one. The
+empirical distribution of the chance-level responses is roughly flat from 0 to
+about 0.19 s and then rises steeply toward 0.30 s, whereas
+`LogNormal(log(0.15), 1.5)` decreases monotonically across that range.
+
+```{r}
+#| label: fig-fasttail
+#| fig-cap: "*Observed responses in 10 ms bins (bars) against the hard-coded outlier component (line, rescaled to the counts). The component decreases where the data are flat and then rising.*"
+#| fig-height: 3.4
+
+fast <- hst[hst$mid < 0.42, ]
+scl <- max(fast$count[fast$mid < 0.2]) / dlnorm(0.1, log(0.15), 1.5)
+
+ggplot(fast, aes(x = mid, y = count)) +
+  geom_col(width = 0.0095, fill = "grey65") +
+  geom_line(aes(y = dlnorm(mid, log(0.15), 1.5) * scl),
+            colour = "red", linewidth = 0.8) +
+  coord_cartesian(ylim = c(0, max(fast$count[fast$mid < 0.32]) * 1.1)) +
+  labs(x = "RT (s)", y = "number of trials")
+```
+
+There is a sensible reading. A contaminant response is a motor act with no
+decision behind it, and simple reaction time peaks around 0.2-0.3 s. True
+anticipations - pressing before the stimulus registers at all - sit near zero
+and are rare. So the fast tail is a thin flat anticipation floor plus a
+guessing component at simple-RT latency, and a distribution peaked at 0.15 s
+splits the difference between the two.
+
+Consistently with that, the table above shows that moving the peak *later*
+improves the fit (`LogNormal(log(0.25), 1.0)` gains roughly 300 log units) while
+moving it *earlier* makes things worse.
+
+The component was nonetheless left as it is, for two reasons. `ndt` is
+invariant, so the better-fitting shapes buy no accuracy in the quantity anyone
+reports. And a narrower component puts less density at the extreme fast end,
+which is where the boundary protection has to work for tasks whose `ndt` is far
+below the 0.32 s seen here. `LogNormal(log(0.25), 1.0)` is recorded here as the
+evidence-based candidate should the default ever be revisited.
+
+::: {.callout-note}
+One caveat on generality: this is one task, in one modality, with a particular
+response device. The flat-then-rising shape may not transfer. What should
+transfer is the invariance of `ndt`, which is a property of the mixture rather
+than of the dataset.
+:::
+
+## Parameter Recovery
+
+The insensitivity above says the estimate is stable, not that it is correct.
+For that, simulate from the model with a known non-decision time using
+`rrt_lognormal()` and fit it back.
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+x <- rrt_lognormal(500, mu = -0.7, sigma = 0.5, ndt = 0.35, poutlier = 0.02)
+```
+
+```{r}
+#| echo: false
+
+cat(sprintf("40 replications, n = 500 per replication\n"))
+cat(sprintf("  ndt      : mean %.4f (sd %.4f)   truth 0.350\n",
+            mean(rec$ndt), sd(rec$ndt)))
+cat(sprintf("  poutlier : mean %.4f (sd %.4f)   truth 0.020\n",
+            mean(rec$poutlier), sd(rec$poutlier)))
+```
+
+Both parameters recover, and `poutlier` recovers well when the assumed
+component matches the generating one - which is the case here by construction,
+and is the best case rather than the typical one.
+
+## Per-Trial Outlier Probabilities
+
+`poutlier` is a rate, not a classification: the model never labels individual
+trials. But the mixture does assign each response a posterior probability of
+having come from the outlier component, which `contaminant_prob()` returns:
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
+              family = rt_lognormal())
+
+m <- brms::brm(f, data = df, stanvars = rt_lognormal_stanvars())
+
+head(contaminant_prob(m))
+```
+
+The quantity is
+`poutlier * g(rt) / (poutlier * g(rt) + (1 - poutlier) * f(rt - ndt))`.
+Responses faster than `ndt` come out at 1, responses in the heart of the
+distribution near 0, and responses in either tail somewhere in between. The
+grading is driven by evidence rather than by a cutoff, and it lines up with the
+conditional accuracy function without ever having been shown the accuracy data.
+
+The interpretation needs care in one respect. A low probability does **not**
+mean a trial is clean; it means the data cannot tell. A lapse that happens to
+produce a plausible reaction time is statistically invisible, and the mixture
+handles it correctly by accounting for its *rate* without pretending to
+identify it. No trimming rule can do that - a cutoff can only remove what looks
+extreme, which is both the wrong trials and not enough of them.
+
+## A Note on Reading Density Plots of the Fast Tail
+
+One practical warning, because it is easy to be misled. Plotting the fast tail
+split by sub-study suggests a local peak near 0.1 s that is not in the pooled
+data. The reason is sample size:
+
+```{r}
+#| echo: false
+
+pd <- perds[order(perds$n_fast), ]
+knitr::kable(pd, row.names = FALSE,
+             col.names = c("Dataset", "n trials", "n below 0.25 s"))
+```
+
+Some sub-studies contribute barely a dozen responses to the whole region. Since
+a kernel density is renormalized *within* each group, those few trials are
+stretched into a full-height curve, and one or two of them become a "peak".
+Pooled, the shape is flat and then rising, with no local maximum near 0.1 s.
+When inspecting a region that holds a fraction of a percent of the data, plot
+counts rather than densities.
+
+## Summary
+
+- A shifted RT distribution gives zero density below `ndt`, which bounds
+  non-decision time by the fastest observed response. On untrimmed data that
+  makes the unmixed model unfittable, not merely biased.
+- Mixing in a broad outlier component removes the boundary while keeping the
+  log-density smooth, and lets `ndt` be estimated directly in seconds.
+- Accuracy provides model-free confirmation: responses below 0.30 s in this task
+  are at chance, and constitute about half a percent of trials.
+- The hard-coded hyperparameters of that component are a regularizing choice,
+  not an empirical claim. `ndt` moves by ~15 ms across wildly different
+  specifications, which is the property that matters.
+- The shipped shape is not the best-fitting one; `LogNormal(log(0.25), 1.0)`
+  fits this dataset better and is noted as a candidate for future revision.
+- Slow contamination is *not* handled by the mixture, because it is confounded
+  with the right tail of the RT distribution. Filter it beforehand.

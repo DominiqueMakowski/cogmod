@@ -1,74 +1,79 @@
-#' Shifted Lognormal Model
-#'
-#' Provides the necessary functions to use a shifted lognormal distribution
-#' as a custom family in `brms`. This version is reparameterized to use
-#' `tau` (proportion of non-decision time relative to minimum RT) and `minrt`
-#' (minimum possible RT), where the non-decision time `ndt = tau * minrt`.
-#' The distribution is parameterized by the mean (`meanlog`, named `mu` in brms)
-#' and standard deviation (`sigma`) of the distribution on the log scale (`sdlog`),
-#' as well as `tau`, and `minrt` (which is typically fixed).
-#'
-#' @param link_mu,link_sigma,link_tau,link_minrt Link functions for the parameters.
-#'
+#' @rdname rrt_lognormal
+#' @param link_mu,link_sigma,link_ndt,link_poutlier Link functions for the
+#'   parameters.
 #' @export
-rt_lognormal <- function(link_mu = "identity", link_sigma = "softplus",
-                         link_tau = "logit", link_minrt = "identity") {
+rt_lognormal <- function(
+  link_mu = "identity",
+  link_sigma = "softplus",
+  link_ndt = "log",
+  link_poutlier = "logit"
+) {
   brms::custom_family(
     name = "rt_lognormal",
-    dpars = c("mu", "sigma", "tau", "minrt"),
-    links = c(link_mu, link_sigma, link_tau, link_minrt), # Updated links
-    lb = c(NA, 0, 0, 0), # Lower bounds: sigma > 0, tau >= 0, minrt > 0
-    ub = c(NA, NA, 1, NA), # Upper bound: tau <= 1
+    dpars = c("mu", "sigma", "ndt", "poutlier"),
+    links = c(link_mu, link_sigma, link_ndt, link_poutlier),
+    lb = c(NA, 0, 0, 0), # sigma > 0, ndt > 0, poutlier >= 0
+    ub = c(NA, NA, NA, 1), # poutlier <= 1
     type = "real" # Continuous outcome variable (RT)
   )
 }
 
 
-
-
-
 #' @keywords internal
 .rt_lognormal_lpdf <- function() {
-"
-// Log-likelihood for a single observation from the Shifted Lognormal distribution.
-// Y: observed reaction time.
-// mu: mean of the distribution on the log scale (meanlog).
-// sigma: standard deviation of the distribution on the log scale (> 0).
-// tau: Scale factor for non-decision time (0-1, scaled by minimum RT).
-// minrt: Minimum possible reaction time (> 0).
-real rt_lognormal_lpdf(real Y, real mu, real sigma, real tau, real minrt) {
+  "
+// Log-likelihood for one observation from the shifted LogNormal distribution.
+// Y: observed reaction time (seconds).
+// mu: mean of the decision time on the log scale (meanlog).
+// sigma: SD of the decision time on the log scale (> 0).
+// ndt: non-decision time in seconds (> 0).
+// poutlier: proportion of responses from the outlier process, in [0, 1].
+//
+// The outlier component is fixed at LogNormal(log(0.15), 1.5). Its role is to
+// keep the density strictly positive below `ndt`, where the shifted decision
+// component has none. That is what removes the hard min-RT boundary and lets
+// `ndt` be estimated directly instead of as a fraction of an observed minimum.
+real rt_lognormal_lpdf(real Y, real mu, real sigma, real ndt, real poutlier) {
     // Parameter checks
-    if (sigma <= 0 || tau < 0 || tau > 1 || minrt <= 0) return negative_infinity();
+    if (sigma <= 0 || ndt < 0 || poutlier < 0 || poutlier > 1) {
+      return negative_infinity();
+    }
+    if (Y <= 0) return negative_infinity();
 
-    // Compute non-decision time and adjusted time
-    real ndt   = tau * minrt;
-    real t_adj = Y - ndt;
-    if (t_adj <= 0) return negative_infinity(); // Density is 0 if Y <= ndt
+    real lp_out = lognormal_lpdf(Y | log(0.15), 1.5);
+    real t_adj  = Y - ndt;
 
-    // Use Stan's built-in lognormal lpdf
-    return lognormal_lpdf(t_adj | mu, sigma);
+    // Faster than the non-decision time: only the outlier component can have
+    // produced this response. Finite, and smooth in ndt, because the LogNormal
+    // decision density approaches zero with vanishing derivatives at t_adj = 0.
+    if (t_adj <= 0) return log(poutlier) + lp_out;
+
+    return log_mix(poutlier, lp_out, lognormal_lpdf(t_adj | mu, sigma));
     }
 "
 }
 
-#' @rdname rt_lognormal
+
+#' @rdname rrt_lognormal
 #' @export
 rt_lognormal_lpdf_expose <- function() {
   insight::check_if_installed("cmdstanr")
 
   # Wrap the function Stan block
   stancode <- paste0(
-"functions {
-", .rt_lognormal_lpdf(), "
-}")
+    "functions {
+",
+    .rt_lognormal_lpdf(),
+    "}"
+  )
 
   mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(stancode))
   mod$expose_functions()
-  mod$functions$rt_lognormal_lpdf # Corrected function name
+  mod$functions$rt_lognormal_lpdf
 }
 
 
-#' @rdname rt_lognormal
+#' @rdname rrt_lognormal
 #' @export
 rt_lognormal_stanvars <- function() {
   brms::stanvar(scode = .rt_lognormal_lpdf(), block = "functions")
@@ -78,83 +83,151 @@ rt_lognormal_stanvars <- function() {
 
 # brms methods ------------------------------------------------------------
 
-#' @rdname rt_lognormal
+#' @rdname rrt_lognormal
 #' @inheritParams lnr
 #' @export
-log_lik_rt_lognormal <- function(i, prep) { # Renamed function
+log_lik_rt_lognormal <- function(i, prep) {
   # Extract observation
-  if (!"Y" %in% names(prep$data)) stop("Outcome variable 'Y' not found in prep$data.")
+  if (!"Y" %in% names(prep$data)) {
+    stop("Outcome variable 'Y' not found in prep$data.")
+  }
   y <- prep$data$Y[i]
   if (is.na(y)) return(NA_real_)
 
   # Get parameters for observation i across all draws
-  meanlog <- brms::get_dpar(prep, "mu", i = i)
-  sdlog   <- brms::get_dpar(prep, "sigma", i = i)
-  tau     <- brms::get_dpar(prep, "tau", i = i) # Get tau
-  minrt   <- brms::get_dpar(prep, "minrt", i = i) # Get minrt
+  mu <- brms::get_dpar(prep, "mu", i = i)
+  sigma <- brms::get_dpar(prep, "sigma", i = i)
+  ndt <- brms::get_dpar(prep, "ndt", i = i)
+  poutlier <- brms::get_dpar(prep, "poutlier", i = i)
 
-  # Determine number of draws
-  n_draws <- length(meanlog)
+  n_draws <- max(length(mu), length(sigma), length(ndt), length(poutlier))
   if (n_draws == 0) return(numeric(0))
 
-  # Replicate the scalar y to match the number of draws
-  y_vec <- rep(y, length.out = n_draws)
+  # Compute log-likelihood using the vectorized drt_lognormal function
+  ll <- drt_lognormal(
+    x = rep(y, length.out = n_draws),
+    mu = mu,
+    sigma = sigma,
+    ndt = ndt,
+    poutlier = poutlier,
+    log = TRUE
+  )
 
-  # Calculate non-decision time (vectorized)
-  ndt <- tau * minrt # Calculate ndt from tau and minrt
-
-  # Calculate log-likelihood using R's dlnorm (vectorized)
-  ll <- stats::dlnorm(x = y_vec - ndt, meanlog = meanlog, sdlog = sdlog, log = TRUE)
-
-  # Ensure correct handling for y <= ndt
-  ll[y_vec <= ndt] <- -Inf
-
-  # Ensure no other NaN/NA values
-  ll[is.nan(ll) | is.na(ll)] <- -Inf
-
+  ll[is.na(ll)] <- -Inf
   ll
 }
 
 
-#' @rdname rt_lognormal
+#' @rdname rrt_lognormal
 #' @export
-posterior_predict_rt_lognormal <- function(i, prep, ...) { # Renamed function
+posterior_predict_rt_lognormal <- function(i, prep, ...) {
   # Get parameters for observation i across all draws
-  meanlog <- brms::get_dpar(prep, "mu", i = i)
-  sdlog   <- brms::get_dpar(prep, "sigma", i = i)
-  tau     <- brms::get_dpar(prep, "tau", i = i) # Get tau
-  minrt   <- brms::get_dpar(prep, "minrt", i = i) # Get minrt
+  mu <- brms::get_dpar(prep, "mu", i = i)
+  sigma <- brms::get_dpar(prep, "sigma", i = i)
+  ndt <- brms::get_dpar(prep, "ndt", i = i)
+  poutlier <- brms::get_dpar(prep, "poutlier", i = i)
 
-  # Number of posterior draws
-  n_draws <- length(meanlog)
+  n_draws <- max(length(mu), length(sigma), length(ndt), length(poutlier))
 
-  # Calculate non-decision time (vectorized)
-  ndt <- tau * minrt # Calculate ndt
-
-  # Simulate using rlnorm (vectorized) and add the shift
-  lognormal_part <- stats::rlnorm(n = n_draws, meanlog = meanlog, sdlog = sdlog)
-  final_out <- lognormal_part + ndt # Add calculated ndt
+  # Simulate using rrt_lognormal (vectorized over its parameters)
+  out <- rrt_lognormal(
+    n = n_draws,
+    mu = mu,
+    sigma = sigma,
+    ndt = ndt,
+    poutlier = poutlier
+  )
 
   # Return as a matrix (draws x 1)
-  as.matrix(final_out)
+  as.matrix(out)
 }
 
 
-#' @rdname rt_lognormal
+#' @rdname rrt_lognormal
 #' @export
-posterior_epred_rt_lognormal <- function(prep) { # Renamed function
-  # Extract draws for the necessary parameters (matrices: draws x observations)
-  meanlog <- brms::get_dpar(prep, "mu")
-  sdlog   <- brms::get_dpar(prep, "sigma")
-  tau     <- brms::get_dpar(prep, "tau") # Get tau
-  minrt   <- brms::get_dpar(prep, "minrt") # Get minrt
+posterior_epred_rt_lognormal <- function(prep) {
+  # Extract draws (matrices: draws x observations)
+  mu <- brms::get_dpar(prep, "mu")
+  sigma <- brms::get_dpar(prep, "sigma")
+  ndt <- brms::get_dpar(prep, "ndt")
+  poutlier <- brms::get_dpar(prep, "poutlier")
 
-  # Calculate non-decision time (matrix: draws x observations)
-  ndt <- tau * minrt # Calculate ndt
+  # E[RT] is the mixture of the two component means
+  mean_dec <- exp(mu + sigma^2 / 2) + ndt
+  mean_out <- exp(.CONTAM_MEANLOG + .CONTAM_SDLOG^2 / 2)
 
-  # Calculate the expectation (mean) for each draw and observation
-  # E[ShiftedLognormal] = E[Lognormal] + ndt
-  epred <- exp(meanlog + sdlog^2 / 2) + ndt # Add calculated ndt
+  (1 - poutlier) * mean_dec + poutlier * mean_out
+}
 
-  epred
+
+#' Per-trial outlier probabilities
+#'
+#' @description
+#' Posterior probability that each response was generated by the outlier
+#' component rather than by the decision process, for a model fitted with
+#' [rt_lognormal()]. This is the mixture *responsibility*
+#' `poutlier * g(rt) / (poutlier * g(rt) + (1 - poutlier) * f(rt - ndt))`,
+#' averaged over posterior draws.
+#'
+#' Responses faster than `ndt` come out at 1, responses in the heart of the
+#' distribution near 0, and responses in either tail somewhere in between - the
+#' model discriminates by evidence rather than by a cutoff. A response in the
+#' middle can still be an outlier; a low probability means the data cannot tell,
+#' not that the trial is clean.
+#'
+#' @param object A `brmsfit` fitted with the [rt_lognormal()] family.
+#' @param summary Logical; if `TRUE` (default) returns a data frame with one row
+#'   per observation. If `FALSE`, returns the full draws x observations matrix.
+#'
+#' @return A data frame with columns `rt`, `p_outlier`, and `fast` (whether the
+#'   response falls below the median RT), or a matrix if `summary = FALSE`.
+#'
+#' @examples
+#' # m <- brms::brm(bf(RT ~ 1, ndt ~ 1, poutlier ~ 1, family = rt_lognormal()),
+#' #                data = df, stanvars = rt_lognormal_stanvars())
+#' # head(contaminant_prob(m))
+#'
+#' @export
+contaminant_prob <- function(object, summary = TRUE) {
+  if (!inherits(object, "brmsfit")) {
+    stop("`object` must be a brmsfit.")
+  }
+  prep <- brms::prepare_predictions(object)
+  if (!"Y" %in% names(prep$data)) {
+    stop("Outcome variable 'Y' not found in the fitted model.")
+  }
+  y <- prep$data$Y
+  n <- length(y)
+
+  mu <- brms::get_dpar(prep, "mu")
+  n_draws <- if (is.matrix(mu)) nrow(mu) else brms::ndraws(object)
+  as_mat <- function(x) {
+    if (is.matrix(x)) x else matrix(x, nrow = n_draws, ncol = n)
+  }
+
+  mu <- as_mat(mu)
+  sigma <- as_mat(brms::get_dpar(prep, "sigma"))
+  ndt <- as_mat(brms::get_dpar(prep, "ndt"))
+  poutlier <- as_mat(brms::get_dpar(prep, "poutlier"))
+  Y <- matrix(y, nrow = n_draws, ncol = n, byrow = TRUE)
+
+  dens_out <- stats::dlnorm(Y, .CONTAM_MEANLOG, .CONTAM_SDLOG)
+  x_adj <- Y - ndt
+  dens_dec <- ifelse(
+    x_adj > 0,
+    stats::dlnorm(pmax(x_adj, 1e-300), meanlog = mu, sdlog = sigma),
+    0
+  )
+
+  num <- poutlier * dens_out
+  r <- num / (num + (1 - poutlier) * dens_dec)
+  r[!is.finite(r)] <- 1 # both components vanish: attribute to the outlier
+
+  if (!summary) return(r)
+
+  data.frame(
+    rt = y,
+    p_outlier = colMeans(r),
+    fast = y < stats::median(y)
+  )
 }

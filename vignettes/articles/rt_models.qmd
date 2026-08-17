@@ -133,7 +133,7 @@ the latter allows for potentially stronger and more interpretable claims.
 
 ## The Data
 
-For this chapter, we will be using the data from [Wagenmakers et al., (2008)](https://doi.org/10.1016/j.jml.2007.04.006) - Experiment 1 also reanalyzed by [Heathcote & Love (2012)](https://doi.org/10.3389/fpsyg.2012.00292), that contains responses and response times for several participants in two conditions (where instructions emphasized either **speed** or **accuracy**). This dataset is bundled directly with `cogmod` as `wagenmakers2008`.
+For this chapter, we will be using the data from [Wagenmakers et al., (2008)](https://doi.org/10.1016/j.jml.2007.04.006) - Experiment 1 also reanalyzed by [Heathcote & Love (2012)](https://doi.org/10.3389/fpsyg.2012.00292), that contains responses and response times for several participants in two conditions (where instructions emphasized either **speed** or **accuracy**). The data are distributed in the [`rtdists`](https://cran.r-project.org/package=rtdists) package as `speed_acc`, courtesy of the original authors.
 Using the same procedure as the authors, we excluded all trials with uninterpretable response time, i.e., responses that are too fast (<200 ms instead of <180 ms) or too slow (>2 sec instead of >3 sec).
 
 ```{r}
@@ -141,7 +141,22 @@ Using the same procedure as the authors, we excluded all trials with uninterpret
 
 set.seed(123)  # For reproducibility
 
-df <- cogmod::wagenmakers2008
+# Experiment 1 of Wagenmakers et al. (2008), from rtdists. `censor` flags the
+# trials the authors excluded (uninterpretable, RT < 180 ms, RT > 3 s).
+data(speed_acc, package = "rtdists")
+d <- speed_acc[!speed_acc$censor & speed_acc$response != "error" &
+                 speed_acc$rt <= 2, ]
+
+df <- data.frame(
+  Participant = as.integer(as.character(d$id)),
+  Condition = unname(c(accuracy = "Accuracy", speed = "Speed")[
+    as.character(d$condition)]),
+  RT = d$rt,
+  Error = as.integer(as.character(d$response) != as.character(d$stim_cat)),
+  Frequency = unname(c(high = "High", low = "Low", very_low = "Very Low")[
+    sub("^nw_", "", as.character(d$frequency))])
+)
+
 df <- df[df$RT > 0.2 & df$Participant %in% c(1, 2, 3), ]
 
 # Show 10 first rows

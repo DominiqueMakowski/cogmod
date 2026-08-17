@@ -1,29 +1,3 @@
-#' Lexical Decision Data from Wagenmakers et al. (2008)
-#'
-#' Response times and accuracy from a lexical decision task, Experiment 1 in
-#' Wagenmakers et al. (2008) \doi{10.1016/j.jml.2007.04.006} (also reanalyzed in
-#' Heathcote & Love, 2012, \doi{10.3389/fpsyg.2012.00292}).
-#' Six participants judged whether letter strings were valid English words
-#' under instructions that emphasized either speed or accuracy.
-#'
-#' @format A data frame with 10,369 rows and 5 variables:
-#' \describe{
-#'   \item{Participant}{Participant identifier (integer, 1-6).}
-#'   \item{Condition}{Instruction condition, `"Speed"` or `"Accuracy"`.}
-#'   \item{RT}{Response time, in seconds.}
-#'   \item{Error}{Integer, `1` if the response was an error, `0` otherwise.}
-#'   \item{Frequency}{Word frequency category of the presented stimulus.}
-#' }
-#'
-#' @source
-#' <https://github.com/DominiqueMakowski/CognitiveModels/blob/main/data/wagenmakers2008.csv>
-#'
-#' @examples
-#' data(wagenmakers2008)
-#' head(wagenmakers2008)
-"wagenmakers2008"
-
-
 #' Simulated Data Where Linear Models Fail
 #'
 #' A simulated repeated-measures experiment in which the two conditions have,

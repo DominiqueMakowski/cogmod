@@ -12,6 +12,22 @@
 
 
 
+# Stable log of a two-component mixture, mirroring Stan's log_mix():
+#   log(theta * exp(lp1) + (1 - theta) * exp(lp2))
+# Handles lp2 = -Inf (a component with zero density), which is the normal case
+# for shifted distributions evaluated below their shift.
+#' @keywords internal
+.log_mix <- function(theta, lp1, lp2) {
+  a <- log(theta) + lp1
+  b <- log1p(-theta) + lp2
+  m <- pmax(a, b)
+  out <- m + log(exp(a - m) + exp(b - m))
+  # Both components vanish; pmax() is -Inf and the shift would give NaN.
+  out[!is.finite(m)] <- -Inf
+  out
+}
+
+
 # Rejection sampling algorithm by Robert (Stat. Comp (1995), 5, 121-5)
 # for simulating from the truncated normal distribution.
 # Copied from the msm package

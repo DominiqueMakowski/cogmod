@@ -17,9 +17,7 @@ subjective ratings collected on Likert or analog scales, and decision making
 tasks that yield reaction times and choices.
 
 Each model comes in two halves. The first is a set of plain R functions -
-`r*()` to simulate, `d*()` for the density, and sometimes `p*()`/`q*()` - which
-depend only on **stats** and are useful on their own for simulation, prior
-predictive work, and teaching.
+`r*()` to simulate, `d*()` for the density, useful on their own for simulation, predictions, visualization, and teaching.
 
 ```{r}
 library(cogmod)
