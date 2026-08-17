@@ -125,7 +125,7 @@ This implementation is based on the description and parameters used in:
 Tillman, G., Van Zandt, T., & Logan, G. D. (2020). Sequential sampling models
 without random between-trial variability: The racing diffusion model of
 speeded decision making. \emph{Psychonomic Bulletin & Review}, \emph{27}, 911-936.
-\doi{10.3758/s13423-020-01738-8} (specifically matching the \code{WaldA} component
+\doi{10.3758/s13423-020-01719-6} (specifically matching the \code{WaldA} component
 used within their RDM simulation).
 
 \code{prdm()} describes the RT of the race as a whole (whichever accumulator
@@ -170,7 +170,7 @@ Transformations with Multiple Roots. \emph{The American Statistician}, \emph{30}
 \item Tillman, G., Van Zandt, T., & Logan, G. D. (2020). Sequential sampling models
 without random between-trial variability: The racing diffusion model of
 speeded decision making. \emph{Psychonomic Bulletin & Review}, \emph{27}, 911-936.
-\doi{10.3758/s13423-020-01738-8}
+\doi{10.3758/s13423-020-01719-6}
 \item Folks, J. L., & Chhikara, R. S. (1978). The inverse Gaussian distribution and its
 statistical application—a review. \emph{Journal of the Royal Statistical Society Series B:
 Statistical Methodology}, \emph{40}(3), 263-275.

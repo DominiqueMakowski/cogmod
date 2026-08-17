@@ -22,9 +22,8 @@ wagenmakers2008
 }
 \description{
 Response times and accuracy from a lexical decision task, Experiment 1 in
-\href{https://doi.org/10.1016/j.jml.2007.04.006}{Wagenmakers et al. (2008)}
-(also reanalyzed in
-\href{https://doi.org/10.3389/fpsyg.2012.00292}{Heathcote & Love, 2012}).
+Wagenmakers et al. (2008) \doi{10.1016/j.jml.2007.04.006} (also reanalyzed in
+Heathcote & Love, 2012, \doi{10.3389/fpsyg.2012.00292}).
 Six participants judged whether letter strings were valid English words
 under instructions that emphasized either speed or accuracy.
 }

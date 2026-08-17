@@ -230,8 +230,10 @@ REGIONS = [
     dict(
         title="Analog ratings", subtitle="Slider, visual analog scale",
         icon=icon_slider, color=PINK, xbox=RIGHT, side="top",
-        families=[("choco()", 10.5, "Choice-Confidence"),
-                  ("betagate()", 10.5, "Beta-Gate")],
+        # NOTE: choco() (Choice-Confidence) is deliberately left out - it is
+        # the subject of a separate paper and is not covered here. Do not
+        # re-add it.
+        families=[("betagate()", 10.5, "Beta-Gate")],
     ),
     dict(
         title="Choices and RTs", subtitle="Speeded two-choice decision",

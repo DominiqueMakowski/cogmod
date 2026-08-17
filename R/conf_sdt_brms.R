@@ -32,7 +32,6 @@ real conf_sdt_lpdf(real Y, real mu, real c, real tzeroone, real tzerotwo, real t
       lower_bound = crit_tonetwo;
       upper_bound = positive_infinity();
     } else {
-      print(1);
       return negative_infinity(); // Invalid confidence level
     }
   } else if (dec == 0) {
@@ -46,22 +45,11 @@ real conf_sdt_lpdf(real Y, real mu, real c, real tzeroone, real tzerotwo, real t
       lower_bound = negative_infinity();
       upper_bound = crit_tzerotwo;
     } else {
-      print(2);
       return negative_infinity(); // Invalid confidence level
     }
   } else {
-    print(3);
     return negative_infinity(); // Invalid response
   }
-
-  // print(\"upper_bound:\", upper_bound);
-  // print(\"lower_bound:\", lower_bound);
-  // print(\"mean_x:\", mean_x);
-  // print(\"upper\", normal_lcdf(upper_bound | mean_x, 1.0));
-  // print(\"lower\", normal_lcdf(lower_bound | mean_x, 1.0));
-  print(\"logdiffexp\",
-        log_diff_exp(normal_lcdf(upper_bound | mean_x, 1.0),
-                     normal_lcdf(lower_bound | mean_x, 1.0)));
 
   // --- Log-likelihood Calculation ---
   return log_diff_exp(normal_lcdf(upper_bound | mean_x, 1.0),

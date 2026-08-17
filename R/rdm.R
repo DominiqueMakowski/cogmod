@@ -38,7 +38,7 @@
 #' Tillman, G., Van Zandt, T., & Logan, G. D. (2020). Sequential sampling models
 #' without random between-trial variability: The racing diffusion model of
 #' speeded decision making. *Psychonomic Bulletin & Review*, *27*, 911-936.
-#' \doi{10.3758/s13423-020-01738-8} (specifically matching the `WaldA` component
+#' \doi{10.3758/s13423-020-01719-6} (specifically matching the `WaldA` component
 #' used within their RDM simulation).
 #'
 #' @param n Number of trials to simulate. Must be a positive integer.
@@ -64,7 +64,7 @@
 #' - Tillman, G., Van Zandt, T., & Logan, G. D. (2020). Sequential sampling models
 #'     without random between-trial variability: The racing diffusion model of
 #'     speeded decision making. *Psychonomic Bulletin & Review*, *27*, 911-936.
-#'     \doi{10.3758/s13423-020-01738-8}
+#'     \doi{10.3758/s13423-020-01719-6}
 #' - Folks, J. L., & Chhikara, R. S. (1978). The inverse Gaussian distribution and its
 #'     statistical application—a review. *Journal of the Royal Statistical Society Series B:
 #'     Statistical Methodology*, *40*(3), 263-275.

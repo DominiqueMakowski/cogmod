@@ -147,8 +147,7 @@ hist(x2, breaks = 50, main = "CHOCO: Asymmetric p, Higher Conf Left", xlab = "y"
 x3 <- rchoco(n=5000, p = 0.5, confright = 0.2, precright = 3,
   confleft = 0.2, precleft = 3, pex = 0, bex = 0.5, pmid = 0.05, mid = 0.5)
 hist(x3, breaks = 50, main = "CHOCO: Low confidence overall", xlab = "y")
-\dontrun{
-# Example usage in brm formula:
+# Example usage in a brms formula:
 # bf(y ~ x1 + (1|group),
 #    confright ~ x3,
 #    confleft ~ x3,
@@ -158,7 +157,7 @@ hist(x3, breaks = 50, main = "CHOCO: Low confidence overall", xlab = "y")
 #    bex ~ 1,
 #    pmid ~ 1,
 #    family = choco())
-}
+choco()
 }
 \references{
 \itemize{

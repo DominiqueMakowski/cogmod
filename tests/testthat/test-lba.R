@@ -1,6 +1,7 @@
 context("LBA")
 
 test_that("rlba generates consistent data across various parameter settings", {
+  skip_on_cran()
   set.seed(456) # For reproducibility
   n_samples_loop <- 10000 # Use a reasonably large sample for stable averages
 
@@ -220,6 +221,7 @@ test_that("rlba is vectorized over its parameters", {
 
 
 test_that("dlba integrates correctly and matches rlba empirical probabilities", {
+  skip_on_cran()
   set.seed(789) # For reproducibility
   n_samples <- 15000 # Large sample size for stable averages
   tol_prob <- 0.03 # Tolerance for empirical probability comparison

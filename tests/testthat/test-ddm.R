@@ -324,6 +324,7 @@ test_that("Stan DDM lpdf matches R dddm function", {
 context("DDM - full (rtdists-backed) 7-parameter model")
 
 test_that("dddm() with variability matches rtdists::ddiffusion()", {
+  skip_on_cran()
   skip_if_not_installed("rtdists")
 
   grid <- expand.grid(
@@ -534,6 +535,7 @@ test_that("rddm() with variability samples the distribution dddm() describes", {
 
 
 test_that("posterior_epred_ddm() matches the simulated mean RT", {
+  skip_on_cran()
   # The closed-form mean first-passage time takes the starting point on the
   # absolute scale (z = bias * bs), not as the proportion `bias`. Using the
   # proportion silently biases E[RT] whenever bs != 1.

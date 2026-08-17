@@ -40,7 +40,7 @@ author-note:
     financial-support: null
     gratitude: null
     authorship-agreements: null
-abstract: "Cognitive tasks yield far more information than the condition means that dominate published analyses. Descriptive distributional families such as the ex-Gaussian, and process models such as the Drift Diffusion Model, both recover structure that a mean difference discards. Adoption remains limited, and the obstacle is practical: each model family lives in its own package, with its own syntax, its own parameterization and its own output objects. Families are therefore rarely compared, and cognitive modelling sits apart from the regression workflow psychologists already use. We introduce `cogmod`, an R package implementing a growing collection of such models as `brms` custom families. Models are specified with ordinary `brms` formula syntax; any parameter (drift rate, boundary separation, non-decision time, confidence, precision) can be predicted by covariates and given random effects; and the fitted object is a standard `brmsfit`, supporting the usual priors, diagnostics, posterior predictive checks, leave-one-out cross-validation and `easystats` post-processing. Four worked examples use simulated, laboratory and clinical data: escalating from a Gaussian model to a full diffusion model on one dataset by changing an argument at a time, and comparing ten reaction time families in a single call; reaching a bounded-rating outcome through the same interface; establishing whether model parameters are precise enough to serve as individual-level scores; and reanalysing a task-switching dataset in which the conventional executive-control index does not separate ADHD participants from controls at all, while the model localises the group difference in two components that cancel at the level of the mean. `cogmod` is openly available at <https://github.com/DominiqueMakowski/cogmod>."
+abstract: "Cognitive tasks yield far more information than the condition means that dominate published analyses. Descriptive distributional families such as the ex-Gaussian, and process models such as the Drift Diffusion Model, both recover structure that a mean difference discards. Adoption remains limited, and the obstacle is practical: each model family lives in its own package, with its own syntax, its own parameterization and its own output objects. Families are therefore rarely compared, and cognitive modelling sits apart from the regression workflow psychologists already use. We introduce `cogmod`, an R package implementing a growing collection of such models as `brms` custom families. Models are specified with ordinary `brms` formula syntax; any parameter (drift rate, boundary separation, non-decision time, dispersion, precision) can be predicted by covariates and given random effects; and the fitted object is a standard `brmsfit`, supporting the usual priors, diagnostics, posterior predictive checks, leave-one-out cross-validation and `easystats` post-processing. Three worked examples, one per family of models, use simulated, laboratory and clinical data. Five evidence accumulation architectures are fitted to the same choices and reaction times, compared in a single call, and the misfit of the simplest one traced to a specific missing parameter. Ten reaction time families are then compared with the choice discarded, before the same likelihood is used to ask whether its parameters are precise enough to serve as individual-level scores, and to reanalyse a task-switching dataset in which the conventional executive-control index does not separate ADHD participants from controls at all, while the model localises the group difference in two components that cancel at the level of the mean. A third example reaches bounded rating scales through the same interface. `cogmod` is openly available at <https://github.com/DominiqueMakowski/cogmod>."
 keywords:
   - cognitive modelling
   - Bayesian statistics
@@ -227,7 +227,7 @@ the conclusions that can be drawn from the same data, revealing significant diff
 Despite the massive benefits we can get from using more appropriate models, they are rarely used in practice, which is what the `cogmod` package aims to address.
 
 
-![Two simulated conditions with identical means (20 participants, 25 trials per condition each), available in the `cogmod` package. **(A)** Observed distributions (dashed lines: condition means). **(B, C)** The effect of condition as each model reports it, in seconds with 95% intervals; green marks an interval excluding zero, red one that does not. $\mu$, $\sigma$ and $\tau$ are the `mu`, `sigma` and `tau` parameters of `rt_exgaussian()`. Because the mean of an ex-Gaussian is $\mu + \tau$, the $+0.306$ s in the bulk and the $-0.308$ s in the tail cancel, which is the null reported in panel B.](figures/fig_motivation.png){#fig-motivation apa-twocolumn=true fig-align="center" width="85%"}
+![Simulated reaction times from two experimental conditions, available in the `cogmod` package. **(A)** Observed distributions; dashed lines mark the condition means. **(B, C)** The effect of condition as each model reports it, with 95% intervals; green marks an interval excluding zero, red one that does not. The linear mixed model has only a mean to report, and finds no effect in it. The ex-Gaussian splits the same data into a Gaussian bulk ($\mu$), its spread ($\sigma$) and an exponential tail ($\tau$), and finds an effect on all three; because its mean is $\mu + \tau$, the opposing effects on bulk and tail cancel into exactly the null of panel B.](figures/fig_motivation.png){#fig-motivation apa-twocolumn=true fig-align="center" width="85%"}
 
 ## From means to mechanisms
 
@@ -270,7 +270,7 @@ committing, and the time spent encoding the stimulus and executing the
 response [@ratcliff2008diffusion; @brown2008simplest].
 
 
-![The three approaches applied to the same trials: correct responses from three participants in the lexical decision data of @wagenmakers2008diffusion, used again in Example 1. Observed reaction times are on the left; each row then shows what one model is made of and the distribution that follows from it, drawn back over the same data. The 141 ms difference between instruction conditions is first a single number, then a shift plus a shorter tail, then a statement about how evidence was accumulated. The ex-Gaussian curves use the posterior means reported in Example 1; the shifted Wald curves are maximum-likelihood fits, since the text does not report its non-decision time.](figures/fig_approaches.png){#fig-approaches apa-twocolumn=true width="100%"}
+![The three approaches applied to the same trials: correct responses from three participants in the lexical decision data of @wagenmakers2008diffusion, used again in Examples 1 and 2. Observed reaction times are on the left; each row then shows what one model is made of and the distribution that follows from it, drawn back over the same data. The 141 ms difference between instruction conditions is first a single number, then a shift plus a shorter tail, then a statement about how evidence was accumulated. The ex-Gaussian curves use the posterior means reported in Example 2; the shifted Wald curves are maximum-likelihood fits, since the text does not report its non-decision time.](figures/fig_approaches.png){#fig-approaches apa-twocolumn=true width="100%"}
 
 The case for moving past the first approach is well supported. Distributional
 analyses recover effects that mean comparisons miss and disambiguate
@@ -346,21 +346,16 @@ these models inside a framework researchers already use.
 Every model is defined as a `brms` custom family
 [@burkner2017brms], and therefore a Stan model [@carpenter2017stan]
 specified with ordinary `brms` formula syntax. Everything a `brms` user
-already knows then applies unchanged to a Drift Diffusion Model or a
-Choice-Confidence model: distributional regression on every parameter,
+already knows then applies unchanged to a Drift Diffusion Model or an
+ordered-Beta rating model: distributional regression on every parameter,
 multilevel structure, priors, convergence diagnostics, posterior predictive
 checks, leave-one-out cross-validation [@vehtari2017practical]. The
 `easystats` ecosystem [@ludecke2019insight; @makowski2019bayestestr; @ludecke2021performance] has
 been adapted to accommodate these families, providing first-rate post-processing tools.
 
 We describe below the design of the package and the models it provides,
-then give four worked examples of what a unified interface makes
-possible: escalating one dataset from a Gaussian model to a full
-diffusion model and comparing ten RT families in a single call, reaching
-bounded ratings through the same interface, establishing whether model
-parameters are precise enough to serve as individual-level scores, and
-recovering a clinical group difference that every conventional index of
-the same task misses.
+then give three worked examples, one per family of models, to illustrate the workflow 
+and applications. 
 
 # Design and Implementation
 
@@ -382,6 +377,7 @@ standard `brm()` call: `family` and `stanvars`.
 library(cogmod)
 library(brms)
 
+# Specify the formula using brms' bf()
 f <- bf(
   RT ~ Condition +
     (Condition | Participant),
@@ -393,6 +389,7 @@ f <- bf(
   family = rt_lognormal()
 )
 
+# Fit the model
 m <- brm(
   f,
   data = df,
@@ -407,8 +404,7 @@ autocorrelation structures or monotonic effects. The fitted object is a
 plain `brmsfit`, so `summary()`, `pp_check()`, `loo()`, `emmeans`,
 `bayesplot` and the `easystats` functions work out of the box.
 
-Moreover, in most specialized
-software, the analyst declares which parameters are "free" and which are
+Moreover, in most specialized software, the analyst declares which parameters are "free" and which are
 fixed, and condition effects enter through a toolbox-specific design
 matrix. Here, each distributional parameter is a regression target with its own formula.
 Testing the effect of a manipulation on various parameters becomes trivial, 
@@ -418,17 +414,17 @@ dispersion of a participant's RTs is a person-specific quantity with its
 own predictors, to be the default rather than a special case.
 
 
-## Available models
-
-@fig-overview shows the families available at the time of writing,
-grouped by the kind of response they are written for. As adding a new model is a self-contained
-piece of work, the set is expected to grow to track cutting-edge advances. 
-The package website carries the current inventory, with each family's distributional parameters, link
-functions and defaults.
-
-![Response formats covered by `cogmod` and the main families available for each at the time of writing; the package website carries the current list. Five further descriptive RT families are also available (`rt_weibull()`, `rt_logweibull()`, `rt_invweibull()`, `rt_gamma()` and `rt_invgamma()`) and are compared against the others in Example 1. Every family comes with a `_stanvars()` function supplying the corresponding Stan code, and with `d*()` and `r*()` functions for density evaluation and simulation.](figures/fig_overview.png){#fig-overview apa-twocolumn=true width="100%"}
-
 ## Relation to existing software
+
+@fig-overview shows the families available at the time of writing. 
+As adding a new model is a self-contained
+piece of work, the set is expected to grow to track cutting-edge advances in computational psychology. 
+The package's documentation website contains the list of available models, with each family's distributional parameters, link
+functions and defaults, as well as hands-on tutorials.
+
+![Response formats covered by `cogmod` and the main families available for each at the time of writing; the package website carries the current list. Five further descriptive RT families are also available (`rt_weibull()`, `rt_logweibull()`, `rt_invweibull()`, `rt_gamma()` and `rt_invgamma()`) and are compared against the others in Example 2. Every family comes with a `_stanvars()` function supplying the corresponding Stan code, and with `d*()` and `r*()` functions for density evaluation and simulation.](figures/fig_overview.png){#fig-overview apa-twocolumn=true width="100%"}
+
+
 
 `cogmod` is not a replacement for the specialized evidence accumulation
 toolboxes, and the division of labour is worth stating. EMC2
@@ -440,30 +436,162 @@ estimable. For a study whose scientific question *is* the architecture
 of the decision process, those are the right tools, and they will be
 faster and more capable at the far end of model complexity.
 
-`cogmod` targets a different and more common situation: a researcher
+`cogmod` targets a different (and arguably more common) situation: a researcher
 with an experimental dataset, a regression-shaped question and a need
 for a likelihood that respects the data. For that user the relevant
 comparison is between a linear model and something better, not between
 one accumulator toolbox and another. Moving from `brm(RT ~ Condition)`
-to a shifted LogNormal, then to a Wald, then to a full DDM means
+to a shifted LogNormal or a Wald model means
 changing two arguments rather than changing software, and at every step
 the analysis remains a regression, with random effects, contrasts and
-marginal means available as usual. The trade-off is computational:
-general-purpose HMC on custom Stan code is slower than a purpose-built
-sampler, and we quantify that cost below rather than gloss over it.
+marginal means available as usual.
 
-# Example 1: Changing the Model, Not the Software
+# Example 1: Five Decision Models, One Workflow
 
-We use the lexical decision data of @wagenmakers2008diffusion
-(Experiment 1), bundled with the package as `wagenmakers2008`.
-Participants classified letter strings as words or non-words under
-instructions emphasising either **speed** or **accuracy**. Following the
-original authors, trials faster than 200 ms or slower than 2 s were
-excluded. For this illustration we use correct responses from three
-participants ($n = 4{,}281$ trials), pooled without random effects to keep
-the example minimal; Example 3 returns to the multilevel case.
+To illustrate the typical workflow of fitting evidence accumulation models, 
+we will fit them to the lexical decision task data of @wagenmakers2008diffusion (Experiment 1),
+bundled with the package as `wagenmakers2008`: participants classified
+letter strings as words or non-words under instructions emphasising either
+**speed** or **accuracy**. Following the original authors, trials faster
+than 200 ms or slower than 2 s were excluded. This example uses a single participant
+($n = 1{,}917$ trials, 8.4% of them errors) with no random effects for clarity.
 
-## Four likelihoods, one workflow
+In order to fit a basic Drift Diffusion Model (DDM) in `cogmod`, one needs to specify 1) a formula for each of the parameters, 2) the model family (`ddm()`) and attach the custom family Stan code with `ddm_stanvars()`.
+As it is common in the field, the "decision" being modelled
+is **correct vs. error**, which is added to the formula with a `dec()` term
+on the response side of the formula. Everything else is the ordinary
+`brms` syntax:
+
+```{r}
+#| eval: false
+
+df <- cogmod::wagenmakers2008
+
+f <- bf(
+  RT | dec(Error) ~ Condition, 
+  bs ~ Condition, 
+  bias ~ 1, 
+  tau ~ 1,  
+  minrt = min(df$RT),
+  sigmadrift = 0, sigmabias = 0, sigmatau = 0,
+  family = ddm()
+)
+
+m_ddm <- brm(f, data = df, stanvars = ddm_stanvars(), init = 0) |>
+  add_criterion("loo")
+```
+
+The first unnamed parameter, referred to as `mu` in the Stan code as per `brms` convention, actually corresponds to the drift rate.
+The other parameters correspond to boundary separation (`bs`), starting point bias (`bias`), and non-decision time (`tau` and `minrt`), respectively. [TODO: say a sentence or two about minrt and that NDT is typically annoying to estimate and parametrize as it can lead to sampling failures and estimation difficulties if it doesn't has a lower bound. In cogmod, we workaround that by injecting a fixed value correspondong to the lower observed RT, and then estimating the NDT as an offset. NDT is a function of both tau and minrt.]
+
+The three `sigma*` arguments fix the between-trial variabilities of the
+full seven-parameter diffusion model at zero, giving the "simple"
+four-parameter DDM [TODO: cite ratcliff etc.? here]. The effect of `Condition` 
+is also estimated for the boundary separation,
+which is the textbook hypothesis for a speed-accuracy manipulation, which the results support: boundary separation drops from 1.45 to 1.21 under speed
+instructions (95% CI on the linear predictor $[-0.40, -0.23]$), while the drift rate is not credibly affected
+[TODO: add CI].
+
+## Four more architectures
+
+Whether that is the right model, however, is a separate question, and answering it means fitting the alternatives, which only involves
+a few code changes: a different `family`, its `stanvars`, and whichever
+distributional parameters that family owns. The **DDM-5** is the model
+above with between-trial variability in drift rate freed
+(`sigmadrift ~ 1`). The **LogNormal race** [LNR, @rouder2015lognormal],
+the **linear ballistic accumulator** [LBA, @brown2008simplest] and the
+**racing diffusion model** [RDM, @tillman2020sequential] replace the
+single diffusion with two
+accumulators racing towards a threshold, and differ in how each
+accumulator gets there: by drawing its finishing time from a LogNormal, by
+accumulating linearly with between-trial variability in its rate, or by
+diffusing with within-trial noise alone. In the last two, a weakly
+informative prior on `sigmabias` is needed, because the start-point range
+and the threshold increment enter the likelihood only through their sum.
+
+Because each fit is a `brmsfit` carrying a `loo` criterion, comparing the
+five is one call:
+
+```r
+loo_compare(m_ddm, m_ddm5, m_lnr, m_lba, m_rdm)
+```
+
+| Model | LOOIC | ENP | ELPD | Difference | SE | Time (s) |
+|:------|------:|----:|-----:|-----------:|---:|---------:|
+| LBA | −1921.4 | 8.06 | 960.7 | 0.0 | 0.0 | 335.8 |
+| LNR | −1809.4 | 10.44 | 904.7 | −56.0 | 11.5 | 11.4 |
+| DDM-5 | −1769.0 | 12.53 | 884.5 | −76.2 | 15.8 | 129.0 |
+| RDM | −1722.6 | 14.03 | 861.3 | −99.4 | 20.7 | 296.9 |
+| DDM | −1560.3 | 15.07 | 780.2 | −180.6 | 21.1 | 34.7 |
+
+: Leave-one-out cross-validation for five evidence accumulation models fitted to the choices and reaction times of one participant ($n = 1{,}917$). ENP is the effective number of parameters; Difference is the difference in expected log predictive density relative to the best model, with its standard error. Time is the median sampling duration per chain (4 chains, 500 iterations, on a consumer laptop). One observation has a Pareto $k$ above 0.7 in every model except the LBA, so the differences are approximate. {#tbl-eam apa-twocolumn=true}
+
+## The comparison as a diagnosis
+
+The ranking in @tbl-eam is one participant's worth of evidence and is not
+the point. What the comparison is *for* is visible in the model that comes
+last, 181 ELPD points behind. The simple DDM carries exactly the
+mechanism the manipulation is believed to act on, `Condition` on the
+boundary separation, and it recovered the expected effect; three of the
+four models that outpredict it have no threshold parameter free to move
+at all. Its deficit lies
+on an axis nobody was testing, and a posterior predictive check locates it
+(@fig-eam A): the model puts its error distribution well to the left of
+the observed errors, while the three races put theirs on top of them. In
+the upper half of the same panel all five models are close, which is the
+part worth remembering: a model's problem can be invisible if one only
+looks at the RTs of correct responses.
+
+![Five evidence accumulation models fitted to the choices and reaction times of one participant. **(A)** Posterior predictive check: observed trials as histograms, 100 predictive draws per model as faint lines and their pooled density in bold, with correct responses drawn upwards and errors downwards. Both halves are scaled by the *proportion* of that response, so the area under each curve is its predicted frequency and the check is on the joint distribution of choices and RTs. **(B)** The same check reduced to one statistic per draw, the predicted difference between the mean error RT and the mean correct RT, against the value observed in the data. **(C)** Predictive accuracy against sampling cost. Predicted RTs above 3 s (0.04% of draws, produced by near-zero drift rates in the races) are excluded from panels A and B.](figures/fig_eam.png){#fig-eam apa-twocolumn=true width="100%"}
+
+Reduced to a single statistic (@fig-eam B), the DDM predicts errors 106 ms
+*faster* than correct responses (95% CI $[-134, -80]$) against an observed
+$+39$ ms. Slow errors at an unchanged leading edge are the signature of
+between-trial variability in drift rate: errors are then contributed
+disproportionately by the trials that happened to draw a low drift, which
+lengthens the error tail without moving its onset
+[@ratcliff2008diffusion]. That is precisely the parameter DDM-5 frees, and
+freeing it is worth 104 ELPD points, moves the DDM from last to third, and
+closes the gap ($+10$ ms, $[-51, +83]$). The races need no such parameter,
+since each already carries a separate drift rate for the error
+accumulator.
+
+The lesson is about diagnosis rather than about which family wins. A poor
+fit had an identifiable cause, the cause pointed at one parameter, and
+freeing that parameter recovered the fit — with the comparison, the
+predictive check and the re-fit in one session and one syntax. The
+alternative arrangement, in which each architecture lives in its own
+package, does not forbid this sequence so much as make it unlikely to be
+attempted.
+
+## What the architectures cost
+
+@fig-eam C reports the other half of the decision, and it does not rank
+the models the same way. The LBA is nominally best and takes 336 seconds
+per chain; the LNR is 56 ELPD points behind it (SE 11.5) at 11 seconds,
+thirty times cheaper. Freeing drift variability is not free either: DDM-5
+costs 3.7 times the simple DDM. On a single participant these are minutes;
+multiplied by a hierarchical model over a full sample, they are the
+difference between an afternoon and a week, and this is the boundary at
+which the specialized samplers of EMC2 [@stevenson2026bayesian] and HSSM
+[@fengler2026hssm] earn their place.
+
+Two caveats bound the example. Errors are rare here (161 trials), so the
+between-trial variability parameters are weakly identified and the
+comparison of the two DDMs is correspondingly soft; and a single
+participant fitted with short chains is a demonstration, not a result.
+
+# Example 2: Reaction Times Without Choices
+
+Many datasets carry no informative choice. Accuracy is at ceiling, the
+task has one response, or errors are too few to estimate anything from —
+which is the usual situation in the clinical instruments this example ends
+on. What is left is a duration, and the question becomes which
+distribution to give it. We keep the same experiment for the first part of
+this example, now using the correct responses of three participants
+($n = 4{,}281$ trials) and discarding the choice.
+
+## From a mean to a shape
 
 A Gaussian model gives the familiar answer: responses were 141 ms faster
 under speed instructions (95% CI $[129, 153]$). Moving to a likelihood
@@ -484,65 +612,15 @@ The three parameters reproduce the Gaussian estimate exactly
 under speed), but they attribute it: **65% of the 141 ms speed-up is a
 shortening of the tail**, only 35% a shift in the bulk. A speed
 instruction does not move every response earlier; it removes the slow
-ones.
-
-Switching from a descriptive family to a *process* model is the same edit
-again. In the shifted Wald, `mu` is a drift rate, `bs` a boundary
-separation and `tau` a non-decision time, and the textbook hypothesis for
-a speed-accuracy manipulation is that instructions move the threshold —
-so `Condition` moves onto `bs`:
-
-```r
-f <- bf(RT ~ 1,
-        bs ~ Condition,
-        tau ~ 1,
-        minrt = min(df$RT),
-        family = rt_invgaussian())
-```
-
-The result is the opposite of the textbook account: a large increase in
-drift rate under speed instructions (2.93 to 4.16) and no change in
-boundary separation (95% CI on the linear predictor $[-0.12, 0.15]$).
-That is a limitation of the model rather than a discovery about the data.
-A single-boundary Wald sees only correct responses, and with RTs alone
-drift rate and boundary separation are weakly identified and trade off
-against each other [@matzke2009psychological]. Fixing one of the two is
-the usual remedy; the alternative is to let the model see the errors,
-which means adding a `dec()` term to the response and changing the family
-once more:
-
-```r
-f <- bf(RT | dec(Error) ~ Condition,
-        bs ~ Condition,
-        bias ~ 1,
-        tau ~ 1,
-        minrt = min(df$RT),
-        sigmadrift = 0, sigmabias = 0, sigmatau = 0,
-        family = ddm())
-
-m <- brm(f, data = df, stanvars = ddm_stanvars())
-```
-
-Fitted to the choices *and* the RTs of one participant
-($n = 1{,}917$ trials), the full DDM recovers the canonical result:
-boundary separation drops from 1.45 to 1.21 under speed instructions (95%
-CI on the linear predictor $[-0.40, -0.23]$, $pd = 100\%$), while drift
-rate is unchanged ($pd = 94\%$).
-
-The sequence matters more than any model in it. Four likelihoods, from a
-Gaussian to a two-boundary diffusion, were fitted to the same data frame
-with the same formula syntax, the same sampler and the same
-post-processing. What changed at each step was the `family` argument, its
-`stanvars`, and which parameter `Condition` was placed on. The last step
-is the payoff: the Wald's answer is recognisable as misleading only
-because the DDM can be fitted beside it without leaving the session.
+ones. That is the whole argument of the distributional approach in one
+comparison, and it costs nothing to run.
 
 ## Ten families, one call
 
-Because every `cogmod` model is a `brmsfit`, comparing families is the
-ordinary `loo` workflow [@vehtari2017practical] rather than a bespoke
-one. Each fit is the same two lines with a different family, and the
-comparison is a single call:
+The ex-Gaussian is a choice among many, and because every `cogmod` model
+is a `brmsfit`, deciding between them is the ordinary `loo` workflow
+[@vehtari2017practical] rather than a bespoke one. Each fit is the same
+two lines with a different family, and the comparison is a single call:
 
 ```r
 m_exgaussian <- brm(
@@ -570,7 +648,7 @@ loo_compare(m_gaussian, m_exgaussian, m_lognormal, m_wald, m_lba, ...)
 | Weibull | −3680.4 | 9.33 | 1840.2 | −582.4 | 39.0 | 20.2 |
 | Gaussian | −1904.2 | 7.82 | 952.1 | −1470.5 | 73.3 | 0.1 |
 
-: Leave-one-out cross-validation for ten RT families fitted to the same data ($n = 4{,}281$). ENP is the effective number of parameters; Difference is the difference in expected log predictive density relative to the best model, with its standard error. Time is the median sampling duration per chain (4 chains, 500 iterations, on a consumer laptop). {#tbl-loo apa-twocolumn=true}
+: Leave-one-out cross-validation for ten RT families fitted to the same data ($n = 4{,}281$). The LBA here is `rt_lba()`, the single-accumulator variant that predicts a duration only, not the racing model of @tbl-eam. ENP is the effective number of parameters; Difference is the difference in expected log predictive density relative to the best model, with its standard error. Time is the median sampling duration per chain (4 chains, 500 iterations, on a consumer laptop). {#tbl-loo apa-twocolumn=true}
 
 The ranking itself is one dataset's worth of evidence and is not the
 point. What matters is that three questions become answerable in an
@@ -585,82 +663,48 @@ times slower than the ex-Gaussian, for a gain within noise of families
 five times faster). The last of these is a column in @tbl-loo rather than
 an inference the reader must assemble across papers.
 
-Two caveats apply to reading it. These models pool three participants
-without random effects, so families that absorb between-participant
-heterogeneity more gracefully are advantaged; a hierarchical comparison is
-easy to specify but expensive to fit. And LOO measures predictive fit, not
-theoretical adequacy: the shifted Wald sits below three descriptive
-families while being the only model among them whose parameters refer to
-anything.
+As in Example 1, *where* a model fails is the more informative question,
+and the posterior predictive checks that answer it come out of the same
+call as for any `brmsfit`, since `cogmod` supplies `posterior_predict_*`
+methods for every family — `modelbased::estimate_prediction()` returns
+draws ready for plotting [@makowski2020modelbased]. @fig-ppcheck shows the
+nine non-Gaussian families over the observed distributions: the Weibull
+and the Gamma, which the table places far behind, miss the peak and the
+tail in visibly different ways, while the families at the top of the table
+are hard to tell apart by eye.
 
-*Where* a model fails, rather than by how much, is a question for
-posterior predictive checks, and because `cogmod` supplies
-`posterior_predict_*` methods for every family these come out of the same
-call as for any `brmsfit` — `modelbased::estimate_prediction()` returns
-draws ready for plotting [@makowski2020modelbased]. The package vignettes
-work through all ten family by family.
+![Nine of the ten families of @tbl-loo, fitted to the same 4,281 trials and drawn back over them (the Gaussian is omitted). Histograms are the observed RTs in the two instruction conditions; lines are posterior predictive draws. InvGaussian is the shifted Wald. Reproduced from the package's *RT-only models* vignette, which works through the families one by one.](figures/fig_ppcheck.png){#fig-ppcheck apa-twocolumn=true width="100%"}
 
-# Example 2: The Same Interface for Bounded Ratings
+Two caveats apply to reading the table. These models pool three
+participants without random effects, so families that absorb
+between-participant heterogeneity more gracefully are advantaged; a
+hierarchical comparison is easy to specify but expensive to fit. And LOO
+measures predictive fit, not theoretical adequacy. The shifted Wald sits
+below five descriptive families while being the only one of the six whose
+parameters refer to a process — and even its parameters have to be
+read with care here. Placing `Condition` on its boundary separation, the
+textbook hypothesis for a speed-accuracy manipulation, returns the
+opposite of the textbook account: a large increase in drift rate under
+speed instructions (2.93 to 4.16) and no change in boundary separation
+(95% CI on the linear predictor $[-0.12, 0.15]$). That is a limitation of
+the model rather than a discovery about the data. A single-boundary Wald
+sees only correct responses, and with RTs alone drift rate and boundary
+separation are weakly identified and trade off against each other
+[@matzke2009psychological]. Fixing one of the two is the usual remedy; the
+other is to give the model the errors as well, which is what Example 1
+did.
 
-Cognitive modelling is usually discussed in terms of RTs, but nothing in
-the interface is specific to them. Analog (slider) scales make a useful
-contrast: responses are bounded, and they pile up at the endpoints,
-because answering "completely agree" is a different kind of act from
-answering "agree quite a lot". A mean rating cannot tell the two apart.
-
-`betagate()` is `cogmod`'s reparameterization of the ordered Beta model
-[@kubinec2023ordered], in which an observed 0 or 1 arises when an
-underlying continuous tendency passes a lower or upper "gate". Its four
-parameters are separately interpretable: `mu` is that underlying tendency,
-`phi` the consistency of the non-extreme responses, `pex` the overall
-probability of an extreme response, and `bex` the direction of the
-extremity. As in every other family, each takes its own formula:
-
-```r
-f <- bf(score ~ Condition,
-        phi ~ Condition,
-        pex ~ Condition,
-        bex ~ Condition,
-        family = betagate())
-
-m <- brm(f, data = df, stanvars = betagate_stanvars())
-```
-
-We simulated 1,000 ratings (`rbetagate()`) from two conditions in which
-the manipulation raised both the underlying tendency and the inclination
-to answer at the top of the scale. The mean rating rises from 0.57 to
-0.83, and a *t*-test duly returns one number ($t = 17.5$, $p < .001$).
-@tbl-betagate shows what the four parameters return instead. The
-underlying tendency does rise, but so does extreme responding, from 10% to
-36% of trials, and those extremes shift towards the upper end — nearly
-half of the condition B responses sit exactly at the ceiling. Consistency
-is correctly reported as unchanged, a useful negative control. All four
-parameters recover their generating values.
-
-| Parameter | Condition A | Condition B | Generating values |
-|:----------|------------:|------------:|------------------:|
-| `mu` — underlying tendency | 0.56 [0.55, 0.58] | 0.71 [0.69, 0.74] | 0.55 → 0.70 |
-| `phi` — consistency | 3.29 [2.92, 3.68] | 2.82 [2.36, 3.32] | 3.00 → 3.00 |
-| `pex` — extreme responding | 0.10 [0.07, 0.13] | 0.36 [0.31, 0.40] | 0.10 → 0.35 |
-| `bex` — direction of extremes | 0.55 [0.41, 0.69] | 0.79 [0.69, 0.87] | 0.50 → 0.80 |
-
-: Beta-Gate parameters for 1,000 simulated ratings; posterior means with 95% credible intervals on the response scale, against the values used to generate the data. {#tbl-betagate}
-
-The simulation is not the point; the arrangement is. A response format
-that ordinarily calls for a specialised package is here one more `family`
-argument, carrying the same formula syntax, the same diagnostics and the
-same post-processing as the diffusion model in Example 1.
-
-# Example 3: Are Model Parameters Usable as Individual Scores?
-
-## The question
+## From a group effect to an individual score
 
 A significant group-level effect and a usable individual-level measure
 are different things, and a study designed to establish the first can be
 blind to the second [@hedge2018reliability]. The distinction is decisive
 for neuropsychology and for differential research, where the point of a
 task is to produce a number that characterises a *person*, and where a
-task is often adopted on the strength of a group effect alone.
+task is often adopted on the strength of a group effect alone. The
+families just compared are the ones such a task would use, and the
+question is whether their parameters survive the move from the group to
+the individual.
 
 We simulated the validation study such a task would need: 30
 participants, 80 trials in each of three conditions, RTs generated from
@@ -671,7 +715,7 @@ has a population mean of exactly zero but enormous interindividual
 variability (SD of 0.30): some participants dramatically slowed, others
 dramatically speeded.
 
-## Fitting and reading the model
+### Fitting and reading the model
 
 The model mirrors the generative process, with random effects on every
 parameter of the family:
@@ -711,7 +755,7 @@ individual scores outperform difference scores, especially when
 participants contribute few, noisy or unbalanced numbers of trials
 [@haines2020learning; @rouder2024signal].
 
-## Quantifying it
+### Quantifying it
 
 Participant-level estimates are extracted with
 `modelbased::estimate_grouplevel()`, and their usability as individual
@@ -778,11 +822,14 @@ makes it followable:
 **compute a reliability index for every parameter intended for use as an individual-level score**,
 and report it alongside the effect itself.
 
-# Example 4: A Clinical Illustration
+## A clinical reanalysis
 
-The examples so far used simulated data and a laboratory dataset. The
+The data so far have been a laboratory experiment and a simulation. The
 case for computational neuropsychology, though, is a case about clinical
-data, so we close with a demonstration on a patient sample.
+data, where trials are few, samples are heterogeneous and the index being
+reported was fixed decades ago. The rest of this example is the same
+family — a shifted LogNormal with random effects — applied to such a
+dataset.
 
 We use the UCLA Consortium for Neuropsychiatric Phenomics dataset
 [@poldrack2016phenome], openly available on OpenNeuro as `ds000030`, and
@@ -795,7 +842,7 @@ trials, at most 96 per participant. That is a realistic clinical
 quantity, and far below what demonstrations of these models usually
 assume.
 
-## What the conventional analysis finds
+### What the conventional analysis finds
 
 The standard index for this task is the **switch cost**, the difference
 between a participant's mean RT on switch and non-switch trials, read as
@@ -814,7 +861,7 @@ index that does differ is the skewness of the RT distribution
 ($p = .02$), which is not a quantity anyone reports. On the conventional
 reading, this task detects no deficit in this sample.
 
-## What the model finds
+### What the model finds
 
 We fitted a shifted LogNormal in which diagnosis and switching predict
 the location, the dispersion and the non-decision time, with random
@@ -846,7 +893,7 @@ null the *t*-test reported.
 
 ![The same task-switching data under two analyses (42 ADHD, 125 controls, 14,543 trials). **(A)** Per-participant switch costs, the conventional executive-control index, which does not separate the groups. **(B)** The RT distributions the index is computed from. **(C)** Posterior distributions of the group difference under the shifted LogNormal, on the response scale. The total mean difference straddles zero, but it is the sum of a slower decision component and a faster non-decision component, each credibly non-zero.](figures/fig_adhd.png){#fig-adhd apa-twocolumn=true width="100%"}
 
-This is the cancellation anticipated in the Design section, arriving in
+This is the cancellation of @fig-motivation, arriving in
 real clinical data: two components move in opposite directions, the mean
 records their sum, and a difference score computed from means is
 therefore blind to both. No amount of statistical power on the switch
@@ -855,7 +902,7 @@ effect is.
 
 Three caveats bound what this shows. The decision and non-decision
 parameters trade off in the posterior ($r = -0.56$), the same weak
-identification that limited the shifted Wald in Example 1, so the split
+identification that limited the shifted Wald above, so the split
 between them is less certain than either interval taken alone; what is
 robust is that a group difference exists in the shape of the
 distributions and not in their means. The screen of summary statistics
@@ -868,6 +915,81 @@ that a task widely read as showing no deficit does distinguish the
 groups, once the analysis is allowed to say something other than a
 difference in means.
 
+The two halves of this example are also two halves of one clinical
+argument. A group difference in a parameter, as here, is a statement
+about a population; using that parameter as a patient's score requires
+the check of the previous section, run on the same fit. Both come out of
+one model, and neither requires the analyst to leave the regression they
+started from.
+
+# Example 3: The Same Interface for Subjective Ratings
+
+<!-- NOTE FOR FUTURE EDITS: the CHOCO (Choice-Confidence) family is
+     deliberately NOT covered in this paper - it is the subject of a
+     separate paper of its own. Do not re-introduce it here, in the
+     overview figure, in the abstract, or in the figure scripts. -->
+
+Cognitive modelling is usually discussed in terms of RTs, but nothing in
+the interface is specific to them, and the two rating quadrants of
+@fig-overview are written for response formats psychology collects at
+least as often. Analog (slider) scales are bounded, and responses pile up
+at the endpoints, because answering "completely agree" is a different
+kind of act from answering "agree quite a lot". A mean rating cannot tell
+the two apart.
+
+`betagate()` is `cogmod`'s reparameterization of the ordered Beta model
+[@kubinec2023ordered], in which an observed 0 or 1 arises when an
+underlying continuous tendency passes a lower or upper "gate". Its four
+parameters are separately interpretable: `mu` is that underlying tendency,
+`phi` the consistency of the non-extreme responses, `pex` the overall
+probability of an extreme response, and `bex` the direction of the
+extremity. As in every other family, each takes its own formula:
+
+```r
+f <- bf(score ~ Condition,
+        phi ~ Condition,
+        pex ~ Condition,
+        bex ~ Condition,
+        family = betagate())
+
+m <- brm(f, data = df, stanvars = betagate_stanvars())
+```
+
+We simulated 1,000 ratings (`rbetagate()`) from two conditions in which
+the manipulation raised both the underlying tendency and the inclination
+to answer at the top of the scale. The mean rating rises from 0.57 to
+0.83, and a *t*-test duly returns one number ($t = 17.5$, $p < .001$).
+@tbl-betagate shows what the four parameters return instead. The
+underlying tendency does rise, but so does extreme responding, from 10% to
+36% of trials, and those extremes shift towards the upper end — nearly
+half of the condition B responses sit exactly at the ceiling. Consistency
+is correctly reported as unchanged, a useful negative control. All four
+parameters recover their generating values.
+
+| Parameter | Condition A | Condition B | Generating values |
+|:----------|------------:|------------:|------------------:|
+| `mu` — underlying tendency | 0.56 [0.55, 0.58] | 0.71 [0.69, 0.74] | 0.55 → 0.70 |
+| `phi` — consistency | 3.29 [2.92, 3.68] | 2.82 [2.36, 3.32] | 3.00 → 3.00 |
+| `pex` — extreme responding | 0.10 [0.07, 0.13] | 0.36 [0.31, 0.40] | 0.10 → 0.35 |
+| `bex` — direction of extremes | 0.55 [0.41, 0.69] | 0.79 [0.69, 0.87] | 0.50 → 0.80 |
+
+: Beta-Gate parameters for 1,000 simulated ratings; posterior means with 95% credible intervals on the response scale, against the values used to generate the data. {#tbl-betagate}
+
+Beta-Gate is one of several ways to give a bounded response its point
+masses — the zero-one inflated Beta and the extended-support Beta
+[@kosmidis2024extended] are others, and each attributes the endpoints to
+a different mechanism. Choosing between them is the same problem as
+choosing an RT family, and it is solved the same way: `loo_compare()` and
+`modelbased::estimate_prediction()` behave here exactly as they did for
+the accumulator models of Example 1, and the package's *Subjective
+ratings* vignette runs the comparison.
+
+The simulation is not the point; the arrangement is. A response format
+that ordinarily calls for its own specialised package is here one more
+`family` argument, carrying the same formula syntax, the same
+diagnostics and the same post-processing as the diffusion model in
+Example 1.
+
 # Discussion
 
 ## Summary
@@ -879,19 +1001,21 @@ minimal. The package supplies likelihoods and the post-processing
 methods that make them first-class citizens of the `brms` ecosystem, and
 inherits the rest. The particular families it ships today matter less
 than the arrangement, which is built so that the set can grow without
-any of the surrounding workflow changing. The four examples show what
-this buys. Escalating from a Gaussian model to an ex-Gaussian, a shifted
-Wald and a full diffusion model takes a changed argument at each step
-rather than a change of software, and comparing ten families is one call
-(Example 1). The same interface reaches outcomes the RT literature does
-not usually address, such as bounded ratings (Example 2). Because every
-parameter can carry random effects, the reliability of every parameter
-as an individual-level score becomes a routine check (Example 3). And in
-clinical data, the decomposition recovers a group difference that the
-task's conventional index, and every other summary statistic we
-computed, entirely misses (Example 4).
+any of the surrounding workflow changing. The three examples show what
+this buys. Five accumulator architectures fitted to the same choices and
+RTs are compared in one call, and the worst of them is not merely ranked
+but diagnosed: a predictive check names the missing parameter, and
+freeing it is one line (Example 1). Dropping the choice, ten RT families
+are compared just as cheaply; because every parameter of the chosen one
+can carry random effects, the reliability of each as an individual-level
+score becomes a routine check, and in clinical data the same
+decomposition recovers a group difference that the task's conventional
+index, and every other summary statistic we computed, entirely misses
+(Example 2). The same interface then reaches outcomes the RT literature
+does not usually address, such as bounded ratings
+(Example 3).
 
-What the four have in common is that **what you fit is what you get**. A
+What the three have in common is that **what you fit is what you get**. A
 likelihood is not only a claim about the shape of the data; it fixes the
 vocabulary in which any result can be stated. A Gaussian model can
 report that two conditions differ by 141 ms and nothing else, because a
@@ -902,8 +1026,8 @@ participant rates something from how readily they answer at the ends of
 the scale. Fit and
 interpretability usually improve together along this sequence, though
 @tbl-loo is a reminder that they need not: the shifted Wald is
-outpredicted by three families whose parameters mean nothing in
-particular. Choosing a likelihood is choosing which questions can be
+outpredicted by five descriptive families whose parameters mean nothing
+in particular. Choosing a likelihood is choosing which questions can be
 asked at all, and the choice deserves to be made rather than inherited.
 
 ## Computational neuropsychology
@@ -919,14 +1043,15 @@ Model parameters turn "impaired on the Stroop" into a claim about which
 component is impaired, and two patients with the same score but opposite
 parameter profiles stop being indistinguishable
 [@ratcliff2022neuropsychological; @steinke2020computational]. Ageing
-shows what this changes in practice [@theisen2021age], and Example 4
-shows the sharper version of the same point: a conventional index can
-report no group difference at all while two components underneath it
-differ substantially, because the index is their sum. The logic covers
-any group whose deficit could be caution, encoding, motor execution or
-evidence quality.
+shows what this changes in practice [@theisen2021age], and the clinical
+reanalysis of Example 2 shows the sharper version of the same point: a
+conventional index can report no group difference at all while two
+components underneath it differ substantially, because the index is
+their sum. The logic covers any group whose deficit could be caution,
+encoding, motor execution or evidence quality.
 
-Example 3 supplies the other half of the argument. A parameter is usable
+The reliability check that precedes it supplies the rest of the
+argument. A parameter is usable
 as a clinical score only if it separates people by more than it is
 uncertain about each of them, and this framework makes that checkable
 for every parameter rather than assumed for whichever one the test
@@ -956,10 +1081,10 @@ enough to remain a research activity rather than an analysis step.
 ## Limitations
 
 **Computational cost.** General-purpose HMC on custom Stan code is
-slower than a sampler built for a specific model class. @tbl-loo makes
-this concrete: the LBA took roughly 10 minutes per chain on a
-four-thousand-trial dataset without random effects, and hierarchical
-versions cost substantially more. Users whose primary question concerns
+slower than a sampler built for a specific model class. @tbl-eam and
+@tbl-loo make this concrete: the LBA took between 6 and 10 minutes per
+chain on datasets of two to four thousand trials without random effects,
+and hierarchical versions cost substantially more. Users whose primary question concerns
 the fine structure of the decision process, or who must fit many
 participants with complex accumulator architectures, are better served
 by EMC2 [@stevenson2026bayesian] or HSSM [@fengler2026hssm].
@@ -988,7 +1113,7 @@ families reported here is a snapshot rather than a specification. Some,
 the confidence signal detection model in particular, are marked
 experimental, and parameterizations may still change; the package
 website and `NEWS.md` track the current state. Several descriptive RT
-families have little precedent in this literature, and while Example 1
+families have little precedent in this literature, and while Example 2
 suggests they deserve attention, their behaviour is correspondingly less
 well documented than the ex-Gaussian's or the shifted LogNormal's.
 
@@ -1043,14 +1168,15 @@ between them an empirical question rather than an inherited convention.
 <https://dominiquemakowski.github.io/cogmod/>. The `wagenmakers2008`
 data are redistributed with the package, and the simulated data used in
 the Introduction are bundled as `badlm` (with their
-generating script in `data-raw/`). The clinical data of Example 4 are not redistributed; they
+generating script in `data-raw/`). The clinical data of Example 2 are not redistributed; they
 are downloaded from OpenNeuro (`ds000030`) by a script in the same
 repository, which also performs the trial-level extraction described
 above. All models reported here, the scripts used to fit them, and the
 code reproducing every figure and table are available in that
-repository. None of the analyses were preregistered; the Introduction and
-Examples 2 and 3 use simulated data, while Examples 1 and 4 reanalyse
-previously published data.
+repository. None of the analyses were preregistered; the Introduction,
+Example 3 and the reliability section of Example 2 use simulated data,
+while Example 1 and the rest of Example 2 reanalyse previously published
+data.
 
 # References
 

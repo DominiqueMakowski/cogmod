@@ -1,16 +1,21 @@
-"""Put a bold title on the two vignette figures, so each one stands alone.
+"""Put a bold title on the vignette figures used in the paper.
 
-Both come from the package vignettes, which need fitted brms models and so
+They come from the package vignettes, which need fitted brms models and so
 are not rebuilt here. This script only adds a title band on top and writes
 the result into paper/figures/. (fig_motivation carries its own title,
 written by make_figures.R.)
 
 Title sizes are set from how wide each image ends up in the PDF, so that all
-three headings print at the same size regardless of the source resolution.
+headings print at the same size regardless of the source resolution.
 
     python add_figure_titles.py
 
-Writes figures/fig_ppcheck.png and figures/fig_choco.png.
+Writes figures/fig_ppcheck.png.
+
+The CHOCO (Choice-Confidence) family is deliberately absent from the paper -
+it is the subject of a separate paper of its own - so the bimodal-ratings
+figure from the `Subjective ratings` vignette is not built here. Do not
+re-add it.
 """
 
 import os
@@ -37,11 +42,6 @@ FIGURES = [
          shown_in=6.5,
          title="Nine reaction time families fitted to the same trials",
          subtitle="Posterior predictive draws over the observed data"),
-    dict(src=os.path.join(VIG, "subjective_ratings1.png"),
-         dst=os.path.join(OUTDIR, "fig_choco.png"),
-         shown_in=6.5, crop_top=90,      # drops the plot's own ggplot title
-         title="Four models of bimodal slider ratings",
-         subtitle="Only CHOCO reproduces both modes and the endpoint masses"),
 ]
 
 

@@ -1,5 +1,8 @@
-# Example 2 of the paper: bounded ratings with betagate().
+# Example 3 of the paper: bounded ratings with betagate().
 # Run from the `paper/` directory. Reproduces @tbl-betagate.
+# The CHOCO (Choice-Confidence) family is deliberately not covered by the
+# paper - it is the subject of a separate paper of its own - so nothing here
+# should grow to include it.
 #
 # The manipulation raises both the underlying tendency (`mu`) and the
 # inclination to answer at the top of the scale (`pex`, `bex`), so the mean

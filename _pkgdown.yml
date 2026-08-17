@@ -1,4 +1,4 @@
-url: "https://github.com/DominiqueMakowski/cogmod"
+url: "https://dominiquemakowski.github.io/cogmod/"
 template:
     bootstrap: 5
 
@@ -7,6 +7,8 @@ navbar:
         articles:
             text: Articles
             menu:
+                - text: "Overview"
+                  href: articles/overview.html
                 - text: "Subjective Ratings"
                   href: articles/subjective_ratings.html
                 - text: "RT-only Models"

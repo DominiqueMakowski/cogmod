@@ -73,7 +73,8 @@ with additional point masses at the extremes (0 and 1). This structure effective
 common patterns in subjective rating data where respondents often select extreme values
 at higher rates than would be expected from a Beta distribution alone.
 
-The Beta-Gate model corresponds to a reparametrized ordered beta model (\href{https://doi.org/10.1017/pan.2022.20}{Kubinec, 2023}).
+The Beta-Gate model corresponds to a reparametrized ordered beta model
+(Kubinec, 2023, \doi{10.1017/pan.2022.20}).
 In the ordered Beta model, the extreme values (0 and 1) arise from censoring an underlying
 latent process based on cutpoints ("gates"). Values falling past the gates are considered extremes
 (zeros and ones). The difference from the Ordered Beta is the way the cutpoints are defined,

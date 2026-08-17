@@ -27,22 +27,10 @@ computational models of cognition in R under a Bayesian framework. These
 are useful in the field of cognitive science and computational
 neuropsycholology.
 
-## Status
-
-![Status](https://img.shields.io/badge/status-WIP-orange.svg)
-
-**This package is under development.** It’s not meant to be stable and
-robust at this stage. Use at your own risks. If you have suggestions for
-improvement, please get in touch!
-
-- I’ve been seeking the best way to implement various sequential models
-  for a long time, initially trying and [failing in
-  R](https://github.com/DominiqueMakowski/easyRT), then developing a lot
-  of hopes for a Julia solution (see the
-  [SequentialSamplingModels.jl](https://github.com/itsdfish/SequentialSamplingModels.jl)),
-  but I’m back at making some new attempts in R.
-- See also this attempt at [**creating
-  tutorials**](https://dominiquemakowski.github.io/CognitiveModels/)
+If you have suggestions for improvement, please [get in
+touch](https://github.com/DominiqueMakowski/cogmod/issues)! See also this
+related attempt at [**creating
+tutorials**](https://dominiquemakowski.github.io/CognitiveModels/).
 
 ## Features
 

@@ -1,6 +1,7 @@
 context("Beta-Gate")
 
 test_that("rbetagate empirical proportions match theoretical probabilities", {
+  skip_on_cran()
   n <- 20000 # Increased sample size for better stability
   set.seed(123)
 
@@ -76,6 +77,7 @@ test_that("rbetagate empirical proportions match theoretical probabilities", {
 
 
 test_that("dbetagate matches rbetagate empirical distribution and integrates correctly", {
+  skip_on_cran()
   n <- 50000 # Use a larger sample size
   set.seed(456)
 

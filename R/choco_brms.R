@@ -140,8 +140,7 @@ choco_stanvars <- function() {
 #' @rdname rchoco
 #' @param link_mu,link_confright,link_precright,link_confleft,link_precleft,link_pex,link_bex,link_pmid Link functions for the parameters.
 #' @examples
-#' \dontrun{
-#' # Example usage in brm formula:
+#' # Example usage in a brms formula:
 #' # bf(y ~ x1 + (1|group),
 #' #    confright ~ x3,
 #' #    confleft ~ x3,
@@ -151,7 +150,7 @@ choco_stanvars <- function() {
 #' #    bex ~ 1,
 #' #    pmid ~ 1,
 #' #    family = choco())
-#' }
+#' choco()
 #' @export
 choco <- function(
   link_mu = "logit", link_confright = "logit", link_precright = "softplus",

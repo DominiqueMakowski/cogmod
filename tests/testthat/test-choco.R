@@ -1,6 +1,7 @@
 context("CHOCO")
 
 test_that("rchoco empirical side-probabilities match theory", {
+  skip_on_cran()
   set.seed(42)
   n <- 20000
   tol <- 0.05

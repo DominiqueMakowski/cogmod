@@ -1,9 +1,5 @@
 ---
 title: "Assessing Reliability and Interindividual Variability"
-vignette: >
-  %\VignetteIndexEntry{Assessing Reliability}
-  %\VignetteEncoding{UTF-8}
-  %\VignetteEngine{quarto::html}
 knitr:
   opts_chunk:
     collapse: true

@@ -1,5 +1,5 @@
 # =============================================================================
-# Example 5: A Clinical Illustration
+# Example 2 of the paper, clinical reanalysis section.
 #
 # Task-switching data from the UCLA Consortium for Neuropsychiatric Phenomics
 # (Poldrack et al., 2016), OpenNeuro ds000030. The data are NOT redistributed

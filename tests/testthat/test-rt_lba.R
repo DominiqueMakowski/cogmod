@@ -1,6 +1,7 @@
 context("Single-Accumulator LBA")
 
 test_that("rrt_lba produces valid reaction times and responds to parameters", {
+  skip_on_cran()
   set.seed(123)
   n <- 10000  # Large sample size for reliable means
 
@@ -75,6 +76,7 @@ test_that("rrt_lba produces valid reaction times and responds to parameters", {
 
 
 test_that("drt_lba integrates correctly and returns valid densities", {
+  skip_on_cran()
   set.seed(456)
   n_samples_for_range <- 5000
   tol_integration <- 1e-3  # Tolerance for integration

@@ -2,7 +2,7 @@ citHeader("To cite cogmod in publications use:")
 
 bibentry(
   bibtype  = "Manual",
-  title    = "{cogmod}: Cognitive Models for Subjective Scales and Decision Making Tasks in {R}",
+  title    = "{cogmod}: Cognitive Models for Subjective Scales and Decision Making Tasks",
   author   = person("Dominique", "Makowski",
                      email = "D.Makowski@sussex.ac.uk",
                      comment = c(ORCID = "0000-0001-5375-9967")),
@@ -12,7 +12,7 @@ bibentry(
   key      = "makowski2026cogmod",
   textVersion = paste0(
     "Makowski, D. (2026). cogmod: Cognitive Models for Subjective Scales and ",
-    "Decision Making Tasks in R. R package version ", meta$Version, ". ",
+    "Decision Making Tasks. R package version ", meta$Version, ". ",
     "https://github.com/DominiqueMakowski/cogmod"
   )
 )
