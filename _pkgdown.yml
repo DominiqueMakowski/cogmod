@@ -38,12 +38,13 @@ reference:
     - title: "RT-only Models"
       contents:
           - rrt_lognormal
+          - rrt_loggamma
           - rrt_invgaussian
-          - rt_gamma
-          - rt_invgamma
-          - rt_weibull
-          - rt_logweibull
-          - rt_invweibull
+          - rrt_gamma
+          - rrt_invgamma
+          - rrt_weibull
+          - rrt_logweibull
+          - rrt_invweibull
           - rt_exgaussian
           - rrt_lba
     - title: "Other"

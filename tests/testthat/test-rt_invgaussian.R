@@ -159,133 +159,116 @@ test_that("Shifted Wald model can recover parameters with brms", {
   skip_if_not_installed("cmdstanr")
 
   set.seed(555)
-  n_obs <- 200
+  n_obs <- 400
 
   # True parameters
   true_mu <- 2.5
   true_bs <- 0.8
-  true_tau <- 0.8 # Proportion of minrt
-  true_minrt <- 0.2 # Assume a fixed known minrt for simplicity here
-  true_ndt <- true_tau * true_minrt
+  true_ndt <- 0.16
+  true_poutlier <- 0.03
 
   # Simulate data
-  df <- data.frame(rt = rrt_invgaussian(n_obs, drift = true_mu, bs = true_bs, ndt = true_ndt))
+  df <- data.frame(rt = rrt_invgaussian(n_obs, drift = true_mu, bs = true_bs,
+                                        ndt = true_ndt,
+                                        poutlier = true_poutlier))
 
-  # Define brms formula - simple intercept-only model
-  # Note: We fix minrt here by passing it as data. tau is estimated.
-  f <- brms::bf(rt ~ 1,
-              mu ~ 1,
-              bs ~ 1,
-              tau ~ 1,
-              minrt = min(df$rt),
-              family = rt_invgaussian())
+  # ndt is estimated directly now, on a log link, alongside poutlier
+  f <- brms::bf(rt ~ 1, bs ~ 1, ndt ~ 1, poutlier ~ 1,
+                family = rt_invgaussian())
 
-  # Fit model using variational inference for speed
   fit <- brms::brm(f,
               data = df,
+              prior = cogmod_priors(f, df),
               stanvars = rt_invgaussian_stanvars(),
               backend = "cmdstanr",
               algorithm = "pathfinder", # VI
               refresh = 0)
 
-  # Check results
-  summary_fit <- summary(fit)
-  fixed_effects <- summary_fit$fixed
+  fixed_effects <- summary(fit)$fixed
 
-  # Check recovery (comparing posterior mean to true value)
-  # Note: Intercepts are on the softplus link
-  expect_equal(log1p(exp(fixed_effects["Intercept", "Estimate"])), true_mu, tolerance = 0.3, label = "mu recovery")
-  expect_equal(log1p(exp(fixed_effects["bs_Intercept", "Estimate"])), true_bs, tolerance = 0.5, label = "bs recovery")
-  expect_equal(plogis(fixed_effects["tau_Intercept", "Estimate"]), true_tau, tolerance = 0.05, label = "tau recovery")
+  # Intercepts are on their link scales: softplus for mu/bs, log for ndt
+  expect_equal(log1p(exp(fixed_effects["Intercept", "Estimate"])), true_mu,
+               tolerance = 0.3, label = "mu recovery")
+  expect_equal(log1p(exp(fixed_effects["bs_Intercept", "Estimate"])), true_bs,
+               tolerance = 0.5, label = "bs recovery")
+  expect_equal(exp(fixed_effects["ndt_Intercept", "Estimate"]), true_ndt,
+               tolerance = 0.1, label = "ndt recovery")
 })
 
 
 test_that("Stan rt_invgaussian_lpdf matches R drt_invgaussian function", {
   skip_if_not_installed("cmdstanr")
 
-  # Expose the Stan function
   rt_invgaussian_lpdf <- rt_invgaussian_lpdf_expose()
 
-  # --- Test multiple valid parameter combinations using nested loops ---
-  mu_values    <- c(1.0, 3.0, 5.0)
+  mu_values <- c(1.0, 3.0, 5.0)
   bs_values <- c(0.3, 0.8, 1.5)
-  tau_values   <- c(0.1, 0.5, 0.9)
-  minrt_values <- c(0.1, 0.25)
-  y_offsets  <- c(0.05, 0.2, 1.0) # Values to add to ndt to get Y
+  ndt_values <- c(0, 0.1, 0.25)
+  pout_values <- c(0, 0.03, 0.4)
+  y_offsets <- c(0.05, 0.2, 1.0)
 
   for (mu_val in mu_values) {
     for (bs in bs_values) {
-      for (tau_val in tau_values) {
-        for (minrt_val in minrt_values) {
+      for (ndt_val in ndt_values) {
+        for (pout in pout_values) {
           for (y_offset in y_offsets) {
+            y_val <- ndt_val + y_offset
 
-            ndt_val <- tau_val * minrt_val
-            y_val   <- ndt_val + y_offset # Ensure Y > ndt
+            label <- sprintf(
+              "mu=%.1f, bs=%.1f, ndt=%.2f, poutlier=%.2f, Y=%.3f",
+              mu_val, bs, ndt_val, pout, y_val)
 
-            label <- sprintf("Valid case: mu=%.1f, bs=%.1f, tau=%.1f, minrt=%.2f, Y=%.3f",
-                             mu_val, bs, tau_val, minrt_val, y_val)
-
-            # Calculate R log-likelihood
-            r_loglik <- drt_invgaussian(y_val, drift = mu_val, bs = bs, ndt = ndt_val, log = TRUE)
-
-            # Calculate Stan log-likelihood
-            stan_loglik <- rt_invgaussian_lpdf(Y = y_val, mu = mu_val, bs = bs, tau = tau_val, minrt = minrt_val)
-
-            # Compare
-            expect_equal(stan_loglik, r_loglik, tolerance = 1e-6, label = label)
+            r_loglik <- drt_invgaussian(y_val, drift = mu_val, bs = bs,
+                                        ndt = ndt_val, poutlier = pout,
+                                        log = TRUE)
+            stan_loglik <- rt_invgaussian_lpdf(Y = y_val, mu = mu_val, bs = bs,
+                                               ndt = ndt_val, poutlier = pout)
+            expect_equal(stan_loglik, r_loglik, tolerance = 1e-8, label = label)
           }
         }
       }
     }
   }
 
-  # --- Test specific edge cases and invalid inputs ---
-  # Re-use one set of valid parameters for these tests
-  mu_val <- 3.0; alpha_val <- 0.5; tau_val <- 0.5; minrt_val <- 0.4; ndt_val <- tau_val * minrt_val
-  y_val <- ndt_val + 0.1 # Base Y for invalid tests
+  mu_val <- 3.0
+  alpha_val <- 0.5
+  ndt_val <- 0.2
 
-  # Case where Y < ndt
+  # Below ndt: with no outlier component the response is impossible...
   y_below <- 0.15
-  r_loglik_below <- drt_invgaussian(y_below, drift = mu_val, bs = alpha_val, ndt = ndt_val, log = TRUE)
-  stan_loglik_below <- rt_invgaussian_lpdf(Y = y_below, mu = mu_val, bs = alpha_val, tau = tau_val, minrt = minrt_val)
-  expect_equal(stan_loglik_below, r_loglik_below, label = "Stan vs R: Y < ndt")
-  expect_true(is.infinite(stan_loglik_below) && stan_loglik_below < 0)
+  expect_equal(
+    rt_invgaussian_lpdf(Y = y_below, mu = mu_val, bs = alpha_val,
+                        ndt = ndt_val, poutlier = 0),
+    -Inf, label = "Y < ndt, poutlier = 0")
 
-  # Case where Y == ndt (edge case)
-  y_equal <- ndt_val
-  r_loglik_equal <- drt_invgaussian(y_equal, drift = mu_val, bs = alpha_val, ndt = ndt_val, log = TRUE)
-  stan_loglik_equal <- rt_invgaussian_lpdf(Y = y_equal, mu = mu_val, bs = alpha_val, tau = tau_val, minrt = minrt_val)
-  expect_equal(stan_loglik_equal, r_loglik_equal, label = "Stan vs R: Y == ndt")
-  expect_true(is.infinite(stan_loglik_equal) && stan_loglik_equal < 0)
+  # ...but with one it keeps positive density, which is the whole point
+  lp <- rt_invgaussian_lpdf(Y = y_below, mu = mu_val, bs = alpha_val,
+                            ndt = ndt_val, poutlier = 0.02)
+  expect_true(is.finite(lp))
+  expect_equal(lp, drt_invgaussian(y_below, drift = mu_val, bs = alpha_val,
+                                   ndt = ndt_val, poutlier = 0.02, log = TRUE),
+               tolerance = 1e-10, label = "Y < ndt, poutlier > 0")
 
-  # Invalid mu
-  stan_loglik_bad_mu <- rt_invgaussian_lpdf(Y = y_val, mu = -1.0, bs = alpha_val, tau = tau_val, minrt = minrt_val)
-  expect_equal(stan_loglik_bad_mu, -Inf, label = "Stan invalid mu")
+  # Y exactly at ndt behaves the same way
+  expect_equal(
+    rt_invgaussian_lpdf(Y = ndt_val, mu = mu_val, bs = alpha_val,
+                        ndt = ndt_val, poutlier = 0),
+    -Inf, label = "Y == ndt")
 
-  # Invalid bs
-  stan_loglik_bad_alpha <- rt_invgaussian_lpdf(Y = y_val, mu = mu_val, bs = 0.0, tau = tau_val, minrt = minrt_val)
-  expect_equal(stan_loglik_bad_alpha, -Inf, label = "Stan invalid bs")
+  # Invalid parameters
+  expect_equal(rt_invgaussian_lpdf(Y = 0.3, mu = -1.0, bs = alpha_val,
+                                   ndt = ndt_val, poutlier = 0.02), -Inf)
+  expect_equal(rt_invgaussian_lpdf(Y = 0.3, mu = mu_val, bs = 0.0,
+                                   ndt = ndt_val, poutlier = 0.02), -Inf)
+  expect_equal(rt_invgaussian_lpdf(Y = 0.3, mu = mu_val, bs = alpha_val,
+                                   ndt = -0.1, poutlier = 0.02), -Inf)
+  expect_equal(rt_invgaussian_lpdf(Y = 0.3, mu = mu_val, bs = alpha_val,
+                                   ndt = ndt_val, poutlier = 1.1), -Inf)
 
-  # Invalid tau (< 0)
-  stan_loglik_bad_tau1 <- rt_invgaussian_lpdf(Y = y_val, mu = mu_val, bs = alpha_val, tau = -0.1, minrt = minrt_val)
-  expect_equal(stan_loglik_bad_tau1, -Inf, label = "Stan invalid tau (<0)")
-
-  # Invalid tau (> 1)
-  stan_loglik_bad_tau2 <- rt_invgaussian_lpdf(Y = y_val, mu = mu_val, bs = alpha_val, tau = 1.1, minrt = minrt_val)
-  expect_equal(stan_loglik_bad_tau2, -Inf, label = "Stan invalid tau (>1)")
-
-  # Edge case tau = 0
-  ndt_zero <- 0.0 * minrt_val
-  y_val_tau0 <- ndt_zero + 0.1 # Need a Y > ndt=0
-  r_loglik_tau0 <- drt_invgaussian(y_val_tau0, drift = mu_val, bs = alpha_val, ndt = ndt_zero, log = TRUE)
-  stan_loglik_tau0 <- rt_invgaussian_lpdf(Y = y_val_tau0, mu = mu_val, bs = alpha_val, tau = 0.0, minrt = minrt_val)
-  expect_equal(stan_loglik_tau0, r_loglik_tau0, tolerance = 1e-6, label = "Stan vs R: tau = 0")
-
-  # Edge case tau = 1
-  ndt_one <- 1.0 * minrt_val
-  y_val_tau1 <- ndt_one + 0.1 # Need a Y > ndt
-  r_loglik_tau1 <- drt_invgaussian(y_val_tau1, drift = mu_val, bs = alpha_val, ndt = ndt_one, log = TRUE)
-  stan_loglik_tau1 <- rt_invgaussian_lpdf(Y = y_val_tau1, mu = mu_val, bs = alpha_val, tau = 1.0, minrt = minrt_val)
-  expect_equal(stan_loglik_tau1, r_loglik_tau1, tolerance = 1e-6, label = "Stan vs R: tau = 1")
-
+  # ndt = 0 is now an ordinary interior value, not a boundary
+  expect_equal(
+    rt_invgaussian_lpdf(Y = 0.1, mu = mu_val, bs = alpha_val, ndt = 0,
+                        poutlier = 0),
+    drt_invgaussian(0.1, drift = mu_val, bs = alpha_val, ndt = 0, log = TRUE),
+    tolerance = 1e-8, label = "ndt = 0")
 })

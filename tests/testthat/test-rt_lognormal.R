@@ -663,3 +663,49 @@ test_that("brms methods pick minrt up off the family", {
     mat(0.98 * (exp(-0.7 + 0.5^2 / 2) + 0.3) + 0.02 * cogmod:::.mcontam(1))
   )
 })
+
+
+# omitted dpars -----------------------------------------------------------
+
+test_that("omitting ndt/poutlier from bf() still yields proper priors", {
+  # A dpar left out of bf() becomes a plain auxiliary parameter on the natural
+  # scale, not a linear predictor on the link scale, so it needs a different
+  # prior. brms's own defaults there are uniform(0, min_Y) for ndt - the very
+  # min-RT bound this parameterization removes - and flat over [0, 1] for
+  # poutlier, which puts half its mass above 0.5.
+  set.seed(1)
+  d <- data.frame(RT = rrt_lognormal(100, ndt = 0.3, poutlier = 0.02))
+  f <- brms::bf(RT ~ 1, family = rt_lognormal())
+
+  raw <- brms::get_prior(f, data = d, family = rt_lognormal())
+  expect_match(raw$prior[raw$class == "ndt"], "min_Y")
+  expect_equal(raw$prior[raw$class == "poutlier"], "")
+
+  p <- cogmod_priors(f, d)
+  expect_equal(p$prior[p$class == "ndt"], "lognormal(-1.2, 0.2)")
+  expect_equal(p$prior[p$class == "poutlier"], "exponential(100)")
+
+  code <- brms::make_stancode(f, data = d, family = rt_lognormal(), prior = p,
+                              stanvars = rt_lognormal_stanvars())
+  expect_true(grepl("lognormal_lpdf(ndt | -1.2, 0.2)", code, fixed = TRUE))
+  expect_true(grepl("exponential_lpdf(poutlier | 100)", code, fixed = TRUE))
+  expect_false(grepl("uniform_lpdf(ndt", code, fixed = TRUE))
+})
+
+test_that("the natural-scale priors describe the same belief as the link ones", {
+  # lognormal(m, s) on ndt is exactly normal(m, s) on log(ndt)
+  set.seed(1)
+  x <- rlnorm(2e5, -1.2, 0.2)
+  expect_equal(mean(log(x)), -1.2, tolerance = 0.01)
+  expect_equal(sd(log(x)), 0.2, tolerance = 0.02)
+
+  # exponential(100) keeps the centre of logit-normal(-5, 1) but moves the mode
+  # to zero: omitting poutlier from the formula says you expect no outliers.
+  # both medians sit at about 0.7%: 0.00693 vs 0.00669, i.e. within 0.03 of a
+  # percentage point of each other (a relative check would be the wrong test
+  # here - what matters is that neither says "expect a percent or two")
+  expect_lt(abs(qexp(0.5, 100) - plogis(-5)), 5e-4)
+  expect_lt(qexp(0.95, 100), 0.05)
+  # essentially all of it lies inside the [0, 1] support, so truncation is moot
+  expect_gt(pexp(1, 100), 1 - 1e-12)
+})

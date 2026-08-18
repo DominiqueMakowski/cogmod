@@ -10,15 +10,16 @@ with_outliers(object)
 without_outliers(object)
 }
 \arguments{
-\item{object}{A \code{brmsfit} fitted with the \code{\link[=rt_lognormal]{rt_lognormal()}} family.}
+\item{object}{A \code{brmsfit} fitted with the \code{\link[=rt_lognormal]{rt_lognormal()}} or
+\code{\link[=rt_loggamma]{rt_loggamma()}} family.}
 }
 \value{
 The model, with the flag set. The fit itself is untouched - only how
 predictions are summarised changes.
 }
 \description{
-Switches the \code{predict_outliers} flag on a model fitted with \code{\link[=rt_lognormal]{rt_lognormal()}},
-controlling whether \code{posterior_predict()} and \code{posterior_epred()} describe the
+Switches the \code{predict_outliers} flag on a model fitted with \code{\link[=rt_lognormal]{rt_lognormal()}}
+or \code{\link[=rt_loggamma]{rt_loggamma()}}, controlling whether \code{posterior_predict()} and \code{posterior_epred()} describe the
 fitted mixture or the decision process alone.
 
 Predictions \strong{exclude} the outlier component by default, because for almost

@@ -1,6 +1,115 @@
 # cogmod 0.2.0
 
+## New features
+
+* New `rt_loggamma()` family: a shifted Log-Gamma model for reaction times,
+  equivalently a shifted generalized gamma. `log(RT - ndt)` follows a
+  location-scale log-gamma with location `mu`, scale `sigma` and shape `shape`,
+  and `ndt` / `poutlier` / `minrt` work exactly as in `rt_lognormal()`.
+
+  `shape` is unconstrained, with `shape = 0` in the interior: it recovers
+  `rt_lognormal()` exactly, `shape = sigma` the shifted Gamma, `shape = 1` the shifted
+  Weibull and `shape = -1` the shifted inverse Weibull. Fitting it is therefore a
+  way of testing whether the LogNormal shape is adequate - an interval for `shape`
+  covering 0 says it is. Negative `shape` gives a power-law right tail.
+
+  Note the boundary at `sigma * shape >= 1`, where the decision density becomes
+  unbounded at `ndt` and the likelihood with it; `cogmod_priors()` sets
+  `normal(0, 0.5)` on the `shape` intercept to keep well clear of it.
+
+  **Fit this family with `init = 0`.** The prior keeps the posterior clear of
+  that boundary but not the starting point: `brms` initialises from `U(-2, 2)`
+  on the unconstrained scale, so about 15% of chains start with
+  `sigma * shape >= 1`, fall into the spike at `ndt` and never finish. `init = 0`
+  starts every chain at `shape = 0`, the LogNormal, and removes the problem.
+
+* `with_outliers()`, `without_outliers()`, `p_outlier()` and `cogmod_priors()`
+  now work on `rt_loggamma()` as well as `rt_lognormal()`.
+
+## Bug fixes
+
+* `cogmod_priors()` now also covers dpars left out of `bf()` entirely. `brms`
+  declares those as plain auxiliary parameters - class `"<name>"` with an empty
+  `dpar`, on the natural scale with no link - so matching on `dpar` alone missed
+  them and they kept `brms`'s own defaults. Those defaults are actively wrong
+  here: `uniform(0, min_Y)` on `ndt` reimposes the very min-RT bound the
+  parameterization exists to remove, `gamma(0.01, 0.01)` on `shape` has support
+  only on the positives and would silently truncate away the inverse-Weibull
+  half of the family, and `poutlier` was left flat over `[0, 1]` with half its
+  mass above 0.5. All three are now replaced, with priors on the natural scale:
+  `lognormal(-1.2, 0.2)`, `normal(0, 0.5)` and `exponential(100)`.
+
+  The `poutlier` prior for the omitted case has its mode at **zero**, unlike its
+  modelled counterpart: leaving it out of the formula is taken to mean the data
+  were trimmed or no outliers are expected. Its median is unchanged.
+
 ## Breaking changes
+
+* **`rt_invgaussian()`, `rt_gamma()`, `rt_invgamma()`, `rt_weibull()`,
+  `rt_invweibull()` and `rt_logweibull()` now use the same parameterization as
+  `rt_lognormal()`**: `tau` and the `minrt` *dpar* are gone, replaced by `ndt`
+  estimated directly (log link) plus `poutlier`, with `minrt` carried on the
+  family as a constant. Every one of them gains an outlier component, and
+  `with_outliers()`, `without_outliers()`, `p_outlier()` and `cogmod_priors()`
+  now work on all eight families.
+
+  Update models as for `rt_lognormal()`: replace `tau ~ ...` with `ndt ~ ...`,
+  drop `minrt = min(df$RT)`, and add `poutlier ~ 1`. `ndt` coefficients are on
+  the log scale.
+
+  The `d*()`/`r*()` functions gain `poutlier` and `minrt` arguments, and
+  `rrt_gamma()`, `drt_gamma()`, `rrt_invgamma()`, `drt_invgamma()`,
+  `rrt_weibull()`, `drt_weibull()`, `rrt_invweibull()`, `drt_invweibull()`,
+  `rrt_logweibull()` and `drt_logweibull()` are new - those families previously
+  had no R-level density or RNG at all. `prt_invgaussian()` now returns the
+  mixture CDF.
+
+  Note that `rt_gamma()` and `rt_weibull()` have an unbounded density at `ndt`
+  whenever their shape falls below 1, which the outlier component cannot repair;
+  fit them with `init = 0`. `rt_loggamma()` nests both and lets the data choose
+  the shape instead.
+
+* **`rt_lba()`** moves to the same parameterization: `tau` and the `minrt` dpar
+  are replaced by `ndt` (log link) plus `poutlier`, with `minrt` a family
+  constant. `rrt_lba()` and `drt_lba()` gain `poutlier` and `minrt`.
+  `posterior_epred_rt_lba()` now explains *why* there is no expectation rather
+  than calling it prohibitive: the decision time is `(b - U(0, A)) / drift` with
+  a drift truncated at zero, whose density is positive at 0, so `E[1 / drift]`
+  diverges and the mean does not exist.
+
+* All nine shifted families are now generated from a single internal registry,
+  so the Stan code, the R density, the RNG, the likelihood and the predictions
+  cannot drift apart. Verified family by family: Stan agrees with R to machine
+  precision, each density integrates to 1, and each RNG reproduces its own
+  density.
+
+## Bug fixes
+
+* **`drt_lba()` was wrong for small start-point ranges.** Its density is built
+  from `drift * (Phi(z2) - Phi(z1)) + sigma * (phi(z1) - phi(z2))` divided by the
+  start-point range `A`, and both differences vanish linearly in `A` - so
+  evaluating them directly and then dividing lost every significant digit once
+  `A` was small. The old code also floored the bracket at `1e-10`, which turned
+  that underflow into a spurious density floor spread over the whole line. The
+  result: the density stopped integrating to one below about `A = 0.1` and was
+  outright divergent below `A = 0.01`.
+
+  Both differences are now computed stably - a Taylor expansion in
+  `delta = A / (sigma * t)` below `1e-4`, and tail-aware differencing above it -
+  and the floor is gone. The density integrates to 1 from `A = 2` down to
+  `A = 1e-8`, and converges to the recinormal (LATER) limit at the expected
+  first-order rate. The same fix is in the Stan code, which matches the R
+  density across 960 parameter combinations.
+
+## Bug fixes (parameterization)
+
+* `posterior_epred_rt_logweibull()` returned `exp(mu + sigma * 0.5772)`, which is
+  the *geometric* mean of the decision time - the exponential of `E[log(RT)]` -
+  rather than its mean. It now returns `exp(mu) * gamma(1 - sigma)`, and `Inf`
+  where `sigma >= 1` and no mean exists.
+
+* `posterior_epred_rt_invweibull()` now returns `Inf` where the Frechet shape is
+  `<= 1` and the mean does not exist, instead of a finite but meaningless value.
 
 * `rt_lognormal()` no longer uses `tau` and `minrt`. Non-decision time is now
   estimated directly as `ndt`, in seconds, through a log link, and the family

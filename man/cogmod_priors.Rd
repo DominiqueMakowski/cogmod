@@ -48,7 +48,7 @@ interactions, group-level terms and smooths are all handled because none of
 them are guessed at.
 
 The return value is a \code{brmsprior} object: the same class returned by
-\code{brms::get_prior()} and \code{brms::prior()}. It prints as a table, including the
+\code{\link[brms:default_prior]{brms::get_prior()}} and \code{\link[brms:set_prior]{brms::prior()}}. It prints as a table, including the
 defaults that \code{brms} will use, but can be combined with \code{c()} like any other
 \code{brms} prior specification.
 
@@ -56,7 +56,7 @@ Passing it through \code{brms::validate_prior()} means a malformed specification
 errors here, with the offending row in view, rather than deep inside \code{brm()}.
 }
 \section{Setting your own priors}{
-Combine it with \code{\link[brms:prior]{brms::prior()}} entries. Set \code{replace = TRUE} to replace one
+Combine it with \code{\link[brms:set_prior]{brms::prior()}} entries. Set \code{replace = TRUE} to replace one
 of these defaults, or omit it to add a prior for a different slot:
 
 \if{html}{\out{<div class="sourceCode r">}}\preformatted{priors <- c(
@@ -69,25 +69,71 @@ of these defaults, or omit it to add a prior for a different slot:
 
 \section{Supported families}{
 The family is read off \code{formula}, so build it with
-\code{brms::bf(..., family = rt_lognormal())}. Only \code{\link[=rt_lognormal]{rt_lognormal()}} is edited.
-Any other family, or a formula carrying none, is passed through: you get a
-message and \code{brms}'s own defaults, unchanged, so the call is always safe to
-leave in a script.
+\code{brms::bf(..., family = rt_lognormal())}. Every family built on the direct
+\code{ndt} + \code{poutlier} parameterization is edited: \code{\link[=rt_lognormal]{rt_lognormal()}},
+\code{\link[=rt_loggamma]{rt_loggamma()}}, \code{\link[=rt_invgaussian]{rt_invgaussian()}}, \code{\link[=rt_gamma]{rt_gamma()}}, \code{\link[=rt_invgamma]{rt_invgamma()}},
+\code{\link[=rt_weibull]{rt_weibull()}}, \code{\link[=rt_invweibull]{rt_invweibull()}} and \code{\link[=rt_logweibull]{rt_logweibull()}}. Any other family, or
+a formula carrying none, is passed through: you get a message and \code{brms}'s own
+defaults, unchanged, so the call is always safe to leave in a script.
 
-What gets set for \code{rt_lognormal()}, on the link scale (\code{log} for \code{ndt},
-\code{logit} for \code{poutlier}):\tabular{lll}{
-   class \tab \code{ndt} \tab \code{poutlier} \cr
-   \code{Intercept}, or \code{b} on a coefficient named \code{Intercept} \tab \code{normal(-1.5 + log(minrt / 0.3), 0.15)} \tab \code{normal(-5, 1)} \cr
-   \code{b} (slopes) \tab \code{normal(0, 1)} \tab \code{normal(0, 1)} \cr
-   \code{sd}, \code{sds} \tab \code{exponential(1)} \tab \code{exponential(1)} \cr
+What gets set, on the link scale (\code{log} for \code{ndt}, \code{logit} for \code{poutlier},
+\code{identity} for \code{shape}):\tabular{llll}{
+   class \tab \code{ndt} \tab \code{poutlier} \tab \code{shape} \cr
+   \code{Intercept}, or \code{b} on a coefficient named \code{Intercept} \tab \code{normal(-1.2 + log(minrt / 0.3), 0.2)} \tab \code{normal(-5, 1)} \tab \code{normal(0, 0.5)} \cr
+   \code{b} (slopes) \tab \code{normal(0, 0.2)} \tab \code{normal(0, 0.2)} \tab \code{normal(0, 0.2)} \cr
+   \code{sd}, \code{sds} \tab \code{exponential(1)} \tab \code{exponential(1)} \tab \code{exponential(1)} \cr
 }
 
 
 The \code{ndt} location moves with \code{minrt}, so the priors stay equivariant to the
 unit of measurement in the same way the likelihood does; at the default it is
-\code{normal(-1.5, 0.15)}, roughly 170 to 300 ms. \code{poutlier} is a proportion and
+\code{normal(-1.2, 0.2)}, roughly 170 to 300 ms. \code{poutlier} is a proportion and
 does not move: \code{normal(-5, 1)} is centred at about 0.7\% and puts roughly 95\%
 of its mass between 0.1\% and 5\%.
+
+\code{shape} exists only for \code{\link[=rt_loggamma]{rt_loggamma()}}. \code{normal(0, 0.5)} is centred on the
+LogNormal shape and keeps the sampler clear of \code{sigma * shape >= 1}, where the
+decision density becomes unbounded at the shift and the likelihood with it.
+}
+
+\section{Parameters left out of the formula}{
+Writing \code{ndt ~ 1} and omitting \code{ndt} entirely are not the same thing to
+\code{brms}, and the difference matters here. A dpar that appears in \code{bf()} - even
+as \code{~ 1} - gets a linear predictor, so it is estimated on the \strong{link} scale
+and reported under \emph{Regression Coefficients} as \code{ndt_Intercept}. A dpar left
+out is declared as a plain auxiliary parameter instead, the same mechanism as
+\code{sigma} for \code{gaussian()}, estimated on the \strong{natural} scale with no link and
+reported under \emph{Further Distributional Parameters}.
+
+Both forms are filled, with priors on whichever scale the parameter actually
+lives on:\tabular{lll}{
+   dpar \tab in \code{bf()} (link scale) \tab omitted (natural scale) \cr
+   \code{ndt} \tab \code{normal(-1.2 + log(minrt / 0.3), 0.2)} \tab \code{lognormal(-1.2 + log(minrt / 0.3), 0.2)} \cr
+   \code{poutlier} \tab \code{normal(-5, 1)} \tab \code{exponential(100)} \cr
+   \code{shape} \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \cr
+}
+
+
+The \code{ndt} pair describes the same belief twice: \code{lognormal} is just \code{normal}
+on the log scale, written for the untransformed parameter.
+
+\code{poutlier} is deliberately \emph{not} the same belief twice. Leaving it out of the
+formula is itself information - you either trimmed the data already or do not
+expect outliers - so the omitted form puts its \strong{mode at zero}, which a
+logit-scale prior cannot do at any location. The centre is unchanged:
+\code{exponential(100)} has median 0.0069 against \code{plogis(-5) = 0.0067}. It is
+still a prior rather than a constraint, so a genuine spike of fast responses
+will still pull the rate up; to switch the parameter off entirely, trim the
+data and it will simply sit near zero.
+
+The omitted-\code{ndt} row is the one case where a \strong{non-empty} \code{brms} default is
+overridden rather than filled. \code{brms} recognises the name \code{ndt} from its own
+shifted families and supplies \code{uniform(0, min_Y)} - precisely the min-RT
+bound that \code{\link[=rt_lognormal]{rt_lognormal()}}'s parameterization exists to remove, reimposed
+silently and with a warning about an upper bound on an unbounded parameter.
+An omitted \code{poutlier} is left flat over \verb{[0, 1]} by \code{brms}, which is proper
+but puts half its mass above 0.5, and an omitted \code{shape} is flat over the whole
+real line, which is not proper at all.
 
 Slope and group-level priors are deliberately narrow. On a log or a logit
 link a flat slope prior is not as harmless as it looks, and a group-level SD
@@ -98,7 +144,8 @@ regions above even when the population intercept is well behaved.
 \examples{
 d <- data.frame(RT = rrt_lognormal(50, ndt = 0.3, poutlier = 0.02))
 f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
-              family = rt_lognormal())
+  family = rt_lognormal()
+)
 cogmod_priors(f, d)
 
 # Replace a default, or append a prior for another parameter.

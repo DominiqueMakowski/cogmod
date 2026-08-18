@@ -53,25 +53,71 @@
 #' # Supported families
 #'
 #' The family is read off `formula`, so build it with
-#' `brms::bf(..., family = rt_lognormal())`. Only [rt_lognormal()] is edited.
-#' Any other family, or a formula carrying none, is passed through: you get a
-#' message and `brms`'s own defaults, unchanged, so the call is always safe to
-#' leave in a script.
+#' `brms::bf(..., family = rt_lognormal())`. Every family built on the direct
+#' `ndt` + `poutlier` parameterization is edited: [rt_lognormal()],
+#' [rt_loggamma()], [rt_invgaussian()], [rt_gamma()], [rt_invgamma()],
+#' [rt_weibull()], [rt_invweibull()] and [rt_logweibull()]. Any other family, or
+#' a formula carrying none, is passed through: you get a message and `brms`'s own
+#' defaults, unchanged, so the call is always safe to leave in a script.
 #'
-#' What gets set for `rt_lognormal()`, on the link scale (`log` for `ndt`,
-#' `logit` for `poutlier`):
+#' What gets set, on the link scale (`log` for `ndt`, `logit` for `poutlier`,
+#' `identity` for `shape`):
 #'
-#' | class | `ndt` | `poutlier` |
-#' | --- | --- | --- |
-#' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2 + log(minrt / 0.3), 0.2)` | `normal(-5, 1)` |
-#' | `b` (slopes) | `normal(0, 1)` | `normal(0, 1)` |
-#' | `sd`, `sds` | `exponential(1)` | `exponential(1)` |
+#' | class | `ndt` | `poutlier` | `shape` |
+#' | --- | --- | --- | --- |
+#' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2 + log(minrt / 0.3), 0.2)` | `normal(-5, 1)` | `normal(0, 0.5)` |
+#' | `b` (slopes) | `normal(0, 0.2)` | `normal(0, 0.2)` | `normal(0, 0.2)` |
+#' | `sd`, `sds` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
 #'
 #' The `ndt` location moves with `minrt`, so the priors stay equivariant to the
 #' unit of measurement in the same way the likelihood does; at the default it is
 #' `normal(-1.2, 0.2)`, roughly 170 to 300 ms. `poutlier` is a proportion and
 #' does not move: `normal(-5, 1)` is centred at about 0.7% and puts roughly 95%
 #' of its mass between 0.1% and 5%.
+#'
+#' `shape` exists only for [rt_loggamma()]. `normal(0, 0.5)` is centred on the
+#' LogNormal shape and keeps the sampler clear of `sigma * shape >= 1`, where the
+#' decision density becomes unbounded at the shift and the likelihood with it.
+#'
+#' # Parameters left out of the formula
+#'
+#' Writing `ndt ~ 1` and omitting `ndt` entirely are not the same thing to
+#' `brms`, and the difference matters here. A dpar that appears in `bf()` - even
+#' as `~ 1` - gets a linear predictor, so it is estimated on the **link** scale
+#' and reported under *Regression Coefficients* as `ndt_Intercept`. A dpar left
+#' out is declared as a plain auxiliary parameter instead, the same mechanism as
+#' `sigma` for `gaussian()`, estimated on the **natural** scale with no link and
+#' reported under *Further Distributional Parameters*.
+#'
+#' Both forms are filled, with priors on whichever scale the parameter actually
+#' lives on:
+#'
+#' | dpar | in `bf()` (link scale) | omitted (natural scale) |
+#' | --- | --- | --- |
+#' | `ndt` | `normal(-1.2 + log(minrt / 0.3), 0.2)` | `lognormal(-1.2 + log(minrt / 0.3), 0.2)` |
+#' | `poutlier` | `normal(-5, 1)` | `exponential(100)` |
+#' | `shape` | `normal(0, 0.5)` | `normal(0, 0.5)` |
+#'
+#' The `ndt` pair describes the same belief twice: `lognormal` is just `normal`
+#' on the log scale, written for the untransformed parameter.
+#'
+#' `poutlier` is deliberately *not* the same belief twice. Leaving it out of the
+#' formula is itself information - you either trimmed the data already or do not
+#' expect outliers - so the omitted form puts its **mode at zero**, which a
+#' logit-scale prior cannot do at any location. The centre is unchanged:
+#' `exponential(100)` has median 0.0069 against `plogis(-5) = 0.0067`. It is
+#' still a prior rather than a constraint, so a genuine spike of fast responses
+#' will still pull the rate up; to switch the parameter off entirely, trim the
+#' data and it will simply sit near zero.
+#'
+#' The omitted-`ndt` row is the one case where a **non-empty** `brms` default is
+#' overridden rather than filled. `brms` recognises the name `ndt` from its own
+#' shifted families and supplies `uniform(0, min_Y)` - precisely the min-RT
+#' bound that [rt_lognormal()]'s parameterization exists to remove, reimposed
+#' silently and with a warning about an upper bound on an unbounded parameter.
+#' An omitted `poutlier` is left flat over `[0, 1]` by `brms`, which is proper
+#' but puts half its mass above 0.5, and an omitted `shape` is flat over the whole
+#' real line, which is not proper at all.
 #'
 #' Slope and group-level priors are deliberately narrow. On a log or a logit
 #' link a flat slope prior is not as harmless as it looks, and a group-level SD
@@ -107,12 +153,12 @@ cogmod_priors <- function(formula, data, ...) {
   fam <- if (is.character(family)) family else family[["name"]]
   if (is.null(fam) && !is.null(family)) fam <- family[["family"]]
 
-  if (!identical(fam, "rt_lognormal")) {
+  if (!isTRUE(fam %in% .OUTLIER_FAMILIES)) {
     message(
       "cogmod_priors() has nothing to add for family '",
       if (is.null(fam)) "<none found on the formula>" else fam,
       "'; returning the brms defaults unchanged. ",
-      "Currently supported: rt_lognormal. ",
+      "Currently supported: ", paste(.OUTLIER_FAMILIES, collapse = ", "), ". ",
       "The family is read off the formula, so build it with ",
       "bf(..., family = rt_lognormal())."
     )
@@ -121,23 +167,59 @@ cogmod_priors <- function(formula, data, ...) {
     return(do.call(brms::validate_prior, args))
   }
 
-  out <- .priors_rt_lognormal(formula, data, family, ...)
+  out <- .priors_rt_shifted(formula, data, family, ...)
   brms::validate_prior(out, formula, data, family = family, ...)
 }
 
 
-# Priors for the shifted LogNormal. Reads get_prior() and fills only the rows
-# brms left flat, so the result cannot contain a prior matching no parameter.
+# Priors for the shifted families built on `ndt` + `poutlier`. Reads get_prior()
+# and fills only the rows brms left flat, so the result cannot contain a prior
+# matching no parameter.
 #' @keywords internal
-.priors_rt_lognormal <- function(formula, data, family, ...) {
+.priors_rt_shifted <- function(formula, data, family, ...) {
   p <- brms::get_prior(formula, data = data, family = family, ...)
 
-  fill <- p$dpar %in% c("ndt", "poutlier") & !nzchar(p$prior)
+  # `shape` only exists for rt_loggamma(); brms leaves it flat like the others, and
+  # a flat prior there lets the sampler wander into sigma * shape >= 1, where the
+  # decision density is unbounded at the shift.
+  dpars <- c("ndt", "poutlier", "shape")
+
+  # A dpar reaches get_prior() in one of two forms, depending on whether it
+  # appears in the formula at all.
+  #
+  #  - *Modelled*, even as `~ 1`: brms builds a linear predictor for it and
+  #    reports class "Intercept" / "b" / "sd" with dpar = "<name>". The
+  #    parameter lives on the LINK scale (log for ndt, logit for poutlier).
+  #
+  #  - *Omitted*: brms declares it as a plain auxiliary parameter - the same
+  #    mechanism as `sigma` for gaussian() when you do not write `sigma ~ .` -
+  #    and reports class = "<name>" with dpar = "". It is declared with the
+  #    family's own bounds and NO link applied, so it lives on the NATURAL
+  #    scale and needs a different prior, not the same one.
+  #
+  # Matching on `dpar` alone caught only the first kind, which left an omitted
+  # `poutlier` on brms's flat prior over [0, 1] and an omitted `shape` genuinely
+  # improper.
+  aux <- p$class %in% dpars & !nzchar(p$dpar)
+
+  link <- p$dpar %in% dpars & !nzchar(p$prior)
   # ...unless a proper blanket row already covers them, as brms gives smooths.
-  fill <- fill & !vapply(seq_len(nrow(p)), .covered_by_blanket, logical(1), p = p)
+  link <- link & !vapply(seq_len(nrow(p)), .covered_by_blanket, logical(1), p = p)
+
+  # brms recognises the name `shape` from its own gamma/weibull families and
+  # supplies gamma(0.01, 0.01) - a prior with support only on the positives, for
+  # a parameter that has to be free to go negative (that is the whole inverse
+  # Weibull half of the family). Stan would reject every negative proposal,
+  # silently truncating `shape` at 0. That row arrives non-empty, so it has to be
+  # overridden rather than filled. Same story as the `uniform(0, min_Y)` that
+  # brms puts on an omitted `ndt`, handled through `aux` above.
+  link <- link | (p$dpar == "shape" & p$class == "Intercept")
+
+  fill <- aux | link
   if (!any(fill)) {
     return(brms::empty_prior())
   }
+  aux <- aux[fill]
   p <- p[fill, , drop = FALSE]
 
   # ndt is a location in time and moves with the timescale; poutlier is a
@@ -149,13 +231,42 @@ cogmod_priors <- function(formula, data, ...) {
     seq_len(nrow(p)),
     function(i) {
       cls <- p$class[i]
+      if (aux[i]) {
+        # Natural scale: no link is applied to an auxiliary parameter.
+        return(switch(
+          cls,
+          # The same distribution as normal(loc, 0.2) on log(ndt), written for
+          # the untransformed parameter. This deliberately *overrides* a
+          # non-empty brms default: brms recognises the name `ndt` from its own
+          # shifted families and supplies uniform(0, min_Y), which is exactly
+          # the min-RT bound this parameterization exists to remove.
+          ndt = sprintf("lognormal(%s, 0.2)", loc_ndt),
+          # Leaving `poutlier` out of the formula is itself information: the
+          # user either trimmed the data already or does not expect outliers.
+          # So the mode sits at zero rather than at a positive rate, unlike the
+          # link-scale prior, which cannot put mass at 0 at all. The median
+          # matches it regardless - exponential(100) has median 0.0069 against
+          # plogis(-5) = 0.0067 - so the centre is unchanged, only the shape.
+          # Truncation at 1 is negligible: exp(-100) of the mass is above it.
+          # brms's own default here is flat over [0, 1] - proper, but it puts
+          # half its mass above 0.5.
+          poutlier = "exponential(100)",
+          # identity link, so the link-scale prior carries over unchanged
+          shape = "normal(0, 0.5)",
+          ""
+        ))
+      }
       intercept <- cls == "Intercept" || (cls == "b" && p$coef[i] == "Intercept")
       if (intercept) {
-        if (p$dpar[i] == "ndt") {
-          sprintf("normal(%s, 0.2)", loc_ndt)
-        } else {
+        switch(
+          p$dpar[i],
+          ndt = sprintf("normal(%s, 0.2)", loc_ndt),
+          # Centred on the LogNormal, and tight enough that sigma * shape = 1 -
+          # where the density blows up at the shift - is several SDs away for
+          # any realistic sigma.
+          shape = "normal(0, 0.5)",
           "normal(-5, 1)"
-        }
+        )
       } else if (cls == "b") {
         "normal(0, 0.2)"
       } else if (cls %in% c("sd", "sds")) {

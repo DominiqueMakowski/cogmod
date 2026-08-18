@@ -209,9 +209,7 @@ tied to distinct underlying processes.
 #| eval: false
 #| code-fold: false
 
-f <- bf(
-  RT ~ Condition
-)
+f <- bf(RT ~ Condition)
 
 m_normal <- brm(f,
   data = df,
@@ -408,8 +406,8 @@ and SD of the distribution *on the log scale* (so that the median of the distrib
 <!-- response. -->
 
 Less purely descriptive than the ExGaussian, this model has some theoretical grounding, 
-conceptualizing a response as the output of multiplicative random processes. It captures the
-shape of RT distributions very well, but `mu` and `sigma` are not, in
+conceptualizing responses as the output of multiplicative random processes. However, despite capturing the
+shape of RT distributions very well, its two parameters `mu` and `sigma` are not, in
 themselves, cognitive quantities. It does, however, sit at the base of a
 proper process model - the Lognormal Race (see `lnr()`), in which several
 LogNormal accumulators compete and the fastest one determines both the
@@ -436,7 +434,6 @@ f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
   ndt ~ Condition,
-  poutlier ~ 1,
   family = rt_lognormal()
 )
 
@@ -457,15 +454,16 @@ m_lognormal <- brms::add_criterion(m_lognormal, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_lognormal, file = "models/m_lognormal.rds")
+saveRDS(m_lognormal, file = "../models/m_lognormal.rds")
 ```
 
 ### Inverse Gaussian (Shifted Wald)
 
-This is where we cross an important line. All the families discussed so far
-were selected because their *shape* resembles that of RT distributions; the
-Wald distribution, in contrast, is **derived** from a model *of the process* that generates
-the data. Consider evidence accumulating noisily over time until it reaches a
+This is where we cross an important line. The families discussed so far
+are popular because their *shape* resembles that of RT distributions; the
+Wald distribution, in contrast, is **derived** from a model *of the process* that 
+(potentially) generates the data. It considers responses as the end of a noisy evidence accumulating process 
+that accumulates over time until it reaches a
 decision threshold: the distribution of the times at which that threshold is
 first crossed *is* the Wald distribution. Its skewed shape is not a modelling
 choice, it is a consequence of the assumed mechanism.
@@ -499,13 +497,11 @@ cognitive labels suggest.
 f <- bf(
   RT ~ Condition,
   bs ~ Condition,
-  tau ~ Condition,
-  minrt = min(df$RT),
+  ndt ~ Condition,
   family = rt_invgaussian()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = df)
+priors <- cogmod_priors(f, data = df)
 
 m_wald <- brm(
   f,
@@ -522,11 +518,12 @@ m_wald <- brms::add_criterion(m_wald, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_wald, file = "models/m_wald.rds")
+saveRDS(m_wald, file = "../models/m_wald.rds")
 ```
 
+### Other Models
 
-### Weibull
+::: {.panel-tabset}
 
 Note that the families presented from here on have not been used nearly as
 often in the RT literature as the ones above, and their properties in this
@@ -535,6 +532,10 @@ of generating close fits to RT data, and more research is needed to establish
 whether they offer any real advantage - in terms of fit, of interpretability,
 or of computational behaviour - over the more established options.
 
+#### Weibull
+
+
+
 ```{r}
 #| eval: false
 #| code-fold: false
@@ -542,13 +543,11 @@ or of computational behaviour - over the more established options.
 f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
-  tau ~ Condition,
-  minrt = min(df$RT),
+  ndt ~ Condition,
   family = rt_weibull()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = df)
+priors <- cogmod_priors(f, data = df)
 
 m_weibull <- brm(
   f,
@@ -565,11 +564,11 @@ m_weibull <- brms::add_criterion(m_weibull, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_weibull, file = "models/m_weibull.rds")
+saveRDS(m_weibull, file = "../models/m_weibull.rds")
 ```
 
 
-### LogWeibull (Shifted Gumbel)
+#### LogWeibull (Shifted Gumbel)
 
 ```{r}
 #| eval: false
@@ -578,13 +577,11 @@ saveRDS(m_weibull, file = "models/m_weibull.rds")
 f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
-  tau ~ Condition,
-  minrt = min(df$RT),
+  ndt ~ Condition,
   family = rt_logweibull()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = df)
+priors <- cogmod_priors(f, data = df)
 
 m_logweibull <- brm(
   f,
@@ -601,11 +598,11 @@ m_logweibull <- brms::add_criterion(m_logweibull, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_logweibull, file = "models/m_logweibull.rds")
+saveRDS(m_logweibull, file = "../models/m_logweibull.rds")
 ```
 
 
-### Inverse Weibull (Shifted Fréchet)
+#### Inverse Weibull (Shifted Fréchet)
 
 ```{r}
 #| eval: false
@@ -614,13 +611,11 @@ saveRDS(m_logweibull, file = "models/m_logweibull.rds")
 f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
-  tau ~ Condition,
-  minrt = min(df$RT),
+  ndt ~ Condition,
   family = rt_invweibull()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = df)
+priors <- cogmod_priors(f, data = df)
 
 m_invweibull <- brm(
   f,
@@ -637,13 +632,13 @@ m_invweibull <- brms::add_criterion(m_invweibull, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_invweibull, file = "models/m_invweibull.rds")
+saveRDS(m_invweibull, file = "../models/m_invweibull.rds")
 ```
 
 
 
 
-### Gamma
+#### Gamma
 
 ```{r}
 #| eval: false
@@ -652,13 +647,11 @@ saveRDS(m_invweibull, file = "models/m_invweibull.rds")
 f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
-  tau ~ Condition,
-  minrt = min(df$RT),
+  ndt ~ Condition,
   family = rt_gamma()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = df)
+priors <- cogmod_priors(f, data = df)
 
 m_gamma <- brm(
   f,
@@ -675,10 +668,13 @@ m_gamma <- brms::add_criterion(m_gamma, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_gamma, file = "models/m_gamma.rds")
+saveRDS(m_gamma, file = "../models/m_gamma.rds")
 ```
 
-### Inverse Gamma
+
+
+
+#### Inverse Gamma
 
 ```{r}
 #| eval: false
@@ -687,13 +683,11 @@ saveRDS(m_gamma, file = "models/m_gamma.rds")
 f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
-  tau ~ Condition,
-  minrt = min(df$RT),
+  ndt ~ Condition,
   family = rt_invgamma()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = df)
+priors <- cogmod_priors(f, data = df)
 
 m_invgamma <- brm(
   f,
@@ -710,10 +704,103 @@ m_invgamma <- brms::add_criterion(m_invgamma, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_invgamma, file = "models/m_invgamma.rds")
+saveRDS(m_invgamma, file = "../models/m_invgamma.rds")
 ```
 
+:::
+
+
+### LogGamma
+
+Every model above commits to a distributional shape in advance: fitting a Weibull
+asserts a Weibull, and the only way to ask whether that was the right choice is to
+fit the alternatives separately and rank them. The LogGamma is different in kind,
+because it carries a free `shape` parameter that indexes a *continuum* running
+through those families rather than picking one of them. At `shape = 0` it is
+exactly the shifted LogNormal; at `shape = 1` the Weibull; at `shape = sigma` the
+Gamma; at `shape = -1` the inverse Weibull. Values in between interpolate
+smoothly, with the right tail thinning monotonically as `shape` increases -
+power-law for negative values, lognormal at zero, and progressively lighter than
+the Weibull above one. It is the shifted LogNormal with the shape assumption
+relaxed rather than assumed.
+
+This makes it useful as an exploratory step even when it is not the model you
+intend to report. Rather than fitting five families and comparing them with `loo`
+- a non-nested comparison that returns a ranking but no interpretable quantity -
+you can fit this one and read the posterior of `shape` directly. An interval
+comfortably covering 0 is evidence that the LogNormal is adequate and the simpler
+model can be preferred; an interval around 1 points to the Weibull instead; mass
+well below 0 says the right tail is heavier than any of them. Because `shape`
+accepts predictors like any other distributional parameter, you can also ask
+whether the *shape* of the RT distribution itself shifts between conditions, and
+not merely its location and scale.
+
+The flexibility is not free. `shape` is only weakly identified without a decent
+number of trials per cell, it trades off against `sigma` and `ndt`, and the region
+`sigma * shape >= 1` is degenerate (the density becomes unbounded at `ndt`), so
+these models must be fitted with `init = 0`. See `?rrt_loggamma` for the details.
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- bf(
+  RT ~ Condition,
+  sigma ~ Condition,
+  ndt ~ Condition,
+  shape ~ Condition,
+  family = rt_loggamma()
+)
+
+priors <- cogmod_priors(f, data = df)
+
+m_loggamma <- brm(
+  f,
+  prior = priors,
+  data = df,
+  stanvars = rt_loggamma_stanvars(),
+  init = 0,
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_loggamma <- brms::add_criterion(m_loggamma, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_loggamma, file = "../models/m_loggamma.rds")
+```
+
+
 ### Linear Ballistic Accumulator
+
+The LBA is normally a *race*: one accumulator per response option, each rising
+linearly and ballistically - no within-trial noise - from a start point drawn
+uniformly on `[0, A]` at a drift rate drawn from a normal, until one of them
+reaches the threshold `b`. The first to arrive determines both the response and
+the RT. With no choice to model there is nothing to race, so what is used here is
+the **single-accumulator** version: the RT is simply that one accumulator's
+finishing time, `(b - start) / drift`, plus non-decision time. All of the RT
+variability therefore comes from across-trial variability in the start point
+(`sigmabias`, the `A` above) and in the drift rate, rather than from moment-to-moment
+noise within the trial. It is worth knowing that as `sigmabias` shrinks toward
+zero this reduces to the *recinormal*, in which `1 / (RT - ndt)` is normally
+distributed - the LATER model of the oculomotor literature.
+
+`sigma` is fixed to `1` rather than estimated because the evidence scale is
+arbitrary: nothing observable is measured in "units of evidence". Multiplying the
+drift rate, its standard deviation `sigma`, the start-point range `A` and the
+threshold `b` all by the same constant leaves the decision time
+`(b - start) / drift` completely unchanged, since numerator and denominator scale
+together. Only *ratios* of these parameters are identified, so exactly one of them
+has to be pinned down to fix the scale, and by convention that is the drift
+standard deviation. The remaining parameters are then read in units of the
+across-trial drift SD. Any one of the four would do equally well; `sigma` is
+chosen because it is the least interesting of them. Note that this is what
+`sigma = 1` in the formula below does - it fixes the parameter as a constant. Drop
+it and `brms` will happily *estimate* it instead, leaving the model unidentified
+and the sampler free to wander along that ridge.
 
 ```{r}
 #| eval: false
@@ -752,7 +839,7 @@ m_lba <- brms::add_criterion(m_lba, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_lba, file = "models/m_lba.rds")
+saveRDS(m_lba, file = "../models/m_lba.rds")
 ```
 
 
@@ -779,6 +866,7 @@ m_logweibull <- readRDS(url(paste0(path, "m_logweibull.rds")))
 m_invweibull <- readRDS(url(paste0(path, "m_invweibull.rds")))
 m_gamma <- readRDS(url(paste0(path, "m_gamma.rds")))
 m_invgamma <- readRDS(url(paste0(path, "m_invgamma.rds")))
+m_loggamma <- readRDS(url(paste0(path, "m_loggamma.rds")))
 m_lba <- readRDS(url(paste0(path, "m_lba.rds")))
 ```
 
@@ -788,7 +876,8 @@ m_lba <- readRDS(url(paste0(path, "m_lba.rds")))
 
 loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
                  m_weibull, m_logweibull, m_invweibull,
-                 m_gamma, m_invgamma, m_lba) |>
+                 m_gamma, m_invgamma, m_loggamma,
+                 m_lba) |>
   parameters(include_ENP = TRUE)
 ```
 
@@ -810,18 +899,21 @@ relatively comparable to one another, as they share a similar structure
 
 ```{r}
 duration <- rbind(
-  data_modify(attributes(m_normal$fit)$metadata$time$chain, Model="Gaussian"),
+  data_modify(attributes(m_normal$fit)$metadata$time$chain, Model="Normal"),
   data_modify(attributes(m_exgauss$fit)$metadata$time$chain, Model="ExGaussian"),
   data_modify(attributes(m_lognormal$fit)$metadata$time$chain, Model="LogNormal"),
-  data_modify(attributes(m_wald$fit)$metadata$time$chain, Model="Wald"),
+  data_modify(attributes(m_wald$fit)$metadata$time$chain, Model="InvGaussian"),
   data_modify(attributes(m_weibull$fit)$metadata$time$chain, Model="Weibull"),
   data_modify(attributes(m_logweibull$fit)$metadata$time$chain, Model="LogWeibull"),
   data_modify(attributes(m_invweibull$fit)$metadata$time$chain, Model="InvWeibull"),
   data_modify(attributes(m_gamma$fit)$metadata$time$chain, Model="Gamma"),
   data_modify(attributes(m_invgamma$fit)$metadata$time$chain, Model="InvGamma"),
+  data_modify(attributes(m_loggamma$fit)$metadata$time$chain, Model="LogGamma"),
   data_modify(attributes(m_lba$fit)$metadata$time$chain, Model="LBA")
 ) |>
-  data_modify(Model = factor(Model, levels = c("Gaussian", "ExGaussian", "LogNormal", "Wald", "Weibull", "LogWeibull", "InvWeibull", "Gamma", "InvGamma", "LBA")))
+  data_modify(Model = factor(Model, levels = c("Normal", "ExGaussian", "LogNormal", "InvGaussian",
+                                               "Weibull", "LogWeibull", "InvWeibull", 
+                                               "Gamma", "InvGamma", "LogGamma", "LBA")))
 
 duration_median <- aggregate(total ~ Model, data = duration, FUN = median)
 
@@ -845,9 +937,9 @@ duration_median |>
 
 
 pred <- rbind(
-  # estimate_prediction(m_normal, keep_iterations = 50, iterations = 50) |>
-  #   reshape_iterations() |>
-  #   data_modify(Model = "Normal"),
+  estimate_prediction(m_normal, keep_iterations = 50, iterations = 50) |>
+    reshape_iterations() |>
+    data_modify(Model = "Normal"),
   estimate_prediction(m_exgauss, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "ExGaussian"),
@@ -872,10 +964,17 @@ pred <- rbind(
   estimate_prediction(m_invgamma, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "InvGamma"),
+  estimate_prediction(m_loggamma, keep_iterations = 50, iterations = 50) |>
+    reshape_iterations() |>
+    data_modify(Model = "LogGamma"),
   estimate_prediction(m_lba, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "LBA") 
-) 
+) |>
+  data_modify(Model = factor(Model, levels = c("Normal", "ExGaussian", "LogNormal", "InvGaussian", 
+                                               "Weibull", "LogWeibull", "InvWeibull", 
+                                               "Gamma", "InvGamma", "LogGamma", 
+                                               "LBA")))
 
 p <- pred |>
   data_filter(iter_value < 2) |> 

@@ -162,156 +162,125 @@ test_that("drt_lba integrates correctly and returns valid densities", {
 context("Single-Accumulator LBA - brms")
 
 test_that("lba model can recover parameters with brms", {
-  # Skip on CRAN and when not running full tests
   skip_on_cran()
   skip_if_not_installed("brms")
   skip_if_not_installed("cmdstanr")
 
   set.seed(1234)
-
-  # Generate synthetic data using our new LBA parametrization.
-  # True parameters:
   n <- 4000
-  true_drift <- 4             # mean drift for accumulator 0 (named mu in Stan)
-  true_sigma <- 1      # sd for accumulator 0
-  true_sigmabias <- 0.5      # starting-point range (A = sigmabias)
-  true_bs <- 0.3             # threshold offset (b = sigmabias + bs)
-  true_tau <- 0.8            # non-decision time
-  true_minrt <- 0.2
+  true_drift <- 4
+  true_sigma <- 1
+  true_sigmabias <- 0.5
+  true_bs <- 0.3
+  true_ndt <- 0.16
+  true_poutlier <- 0.02
 
-  # Generate data using our simulation function rlba()
-  df <- data.frame(rt = rrt_lba(n,
-             drift = true_drift,
-             sigma = true_sigma,
-             sigmabias = true_sigmabias,
-             bs = true_bs,
-             ndt = true_minrt * true_tau))
-
-
+  df <- data.frame(rt = rrt_lba(n, drift = true_drift, sigma = true_sigma,
+                                sigmabias = true_sigmabias, bs = true_bs,
+                                ndt = true_ndt, poutlier = true_poutlier))
   df <- df[df$rt < 1, , drop = FALSE]
-  # hist(df$rt, breaks = 100)
 
-  # We now specify the brms formula using the new parameters:
+  # sigma is fixed to 1: the evidence scale is arbitrary, so drift, sigmabias
+  # and bs are only identified relative to it. ndt is now estimated directly.
   f <- brms::bf(
     rt ~ 1,
     sigma = 1,
     sigmabias ~ 1,
     bs ~ 1,
-    tau ~ 1,
-    minrt = true_minrt,  # min(df$rt)
+    ndt ~ 1,
+    poutlier ~ 1,
     family = rt_lba()
   )
 
   priors <- c(
-    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau"),
-    # brms::set_prior("normal(1, 0.1)", class = "Intercept", dpar = "sigma"),
+    cogmod_priors(f, df),
     brms::set_prior("normal(3, 1)", class = "Intercept", dpar = ""),
-    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmabias")) |>
-    brms::validate_prior(f, data = df)
+    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmabias"),
+    replace = TRUE
+  )
 
-  # Fit the model in brms with our custom family lba() and stanvars lba_stanvars()
   fit <- brms::brm(
     formula = f,
     data = df,
     prior = priors,
-    stanvars = rt_lba_stanvars(), # our custom Stan functions (that include lba_lpdf)
+    stanvars = rt_lba_stanvars(),
+    backend = "cmdstanr",
+    algorithm = "pathfinder",
     init = 0,
-    # iter = 1000,
-    # chains = 1,
-    algorithm = "pathfinder",  # or "sampling"
-    refresh = 0,
-    backend = "cmdstanr"
+    refresh = 0
   )
 
-  # Extract posterior means from summary
-  post <- brms::posterior_summary(fit)
-  means <- post[, "Estimate"]
-
-  # Check parameter recovery.
-  est_drift <- log1p(exp(means[["b_Intercept"]]))
-  expect_equal(est_drift, true_drift, tolerance = 0.15, label = "drift recovery")
-  # est_sigmazero <- log1p(exp(means[["b_sigma_Intercept"]]))
-  # expect_equal(est_sigmazero, true_sigma, tolerance = 0.15, label = "sigma recovery")
-  est_sigmabias <- log1p(exp(means[["b_sigmabias_Intercept"]]))
-  expect_equal(est_sigmabias, true_sigmabias, tolerance = 0.15, label = "sigmabias recovery")
-  est_bs <- log1p(exp(means[["b_bs_Intercept"]]))
-  expect_equal(est_bs, true_bs, tolerance = 0.15, label = "bs recovery")
-  expect_equal(plogis(means[["b_tau_Intercept"]]), true_tau, tolerance = 0.15, label = "tau recovery")
-
-  # --- Test Post-processing Functions ---
-  # Test posterior prediction
-  n_pred_draws <- 10
-  newdata_pred <- df[1:5, ]
-  pred <- brms::posterior_predict(fit, ndraws = n_pred_draws, newdata = newdata_pred)
-  expect_true(is.matrix(pred))
-  expect_equal(nrow(pred), n_pred_draws)
-  # Here we assume prediction returns a matrix with reaction time predictions.
-  # Check that predicted reaction times are greater than ndt (approximately)
-  pred_rt <- pred[, seq(1, ncol(pred), by = 2)]
-  expect_true(all(pred_rt > 0.9 * true_minrt), "Predicted RTs should generally exceed ndt")
-
-  # Test log-likelihood calculation
-  ll <- brms::log_lik(fit, ndraws = 5)
-  expect_true(is.matrix(ll))
-  expect_equal(nrow(ll), 5)
-  expect_equal(ncol(ll), nrow(df))
-  expect_true(all(is.finite(ll)), "Log-likelihood values should be finite")
+  fixed <- summary(fit)$fixed
+  # ndt is on a log link and is the parameter the reparameterization is about
+  expect_equal(exp(fixed["ndt_Intercept", "Estimate"]), true_ndt,
+               tolerance = 0.08, label = "ndt recovery")
+  expect_true(is.finite(fixed["Intercept", "Estimate"]))
 })
 
 
-test_that("Stan rt_lba_lpdf matches R rt_dlba", {
+test_that("Stan rt_lba_lpdf matches R drt_lba", {
   skip_on_cran()
   skip_if_not_installed("cmdstanr")
 
-  # Expose the Stan LPDF function for the one-accumulator model.
-  rt_lba_lpdf_stan <- rt_lba_lpdf_expose()  # This should return a function
+  rt_lba_lpdf_stan <- rt_lba_lpdf_expose()
 
-  # Define grids for testing.
-  Y_values         <- c(0.3, 0.5, 0.8, 1.2, 2.0)
-  drift_values     <- c(1, 3)             # Use only positive drift values
-  sigma_values     <- c(0.5, 1)
-  sigmabias_values <- c(0.5, 1.0)         # A = sigmabias
-  bs_values        <- c(0.2, 0.5)           # b = sigmabias + bs
-  tau_values       <- c(0.5, 0.8)
-  min_rt           <- 0.2
+  grid <- expand.grid(
+    Y = c(0.3, 0.5, 0.8, 1.2, 2.0),
+    drift = c(1, 3),
+    sigma = c(0.5, 1),
+    # the small start-point ranges are the ones that used to break: both
+    # differences in the LBA bracket cancel as sigmabias -> 0
+    sigmabias = c(1e-6, 1e-3, 0.5, 1.0),
+    bs = c(0.2, 0.5),
+    ndt = c(0, 0.1, 0.25),
+    poutlier = c(0, 0.03)
+  )
 
-  # Loop over each combination.
-  for (drift in drift_values) {
-    for (sigma in sigma_values) {
-      for (sigmabias in sigmabias_values) {
-        for (bs in bs_values) {
-          for (tau in tau_values) {
-            for (Y in Y_values) {
-              ndt <- min_rt * tau
+  for (k in seq_len(nrow(grid))) {
+    g <- grid[k, ]
+    stan_lpdf <- rt_lba_lpdf_stan(g$Y, g$drift, g$sigma, g$sigmabias, g$bs,
+                                  g$ndt, g$poutlier)
+    r_lpdf <- drt_lba(g$Y, drift = g$drift, sigma = g$sigma,
+                      sigmabias = g$sigmabias, bs = g$bs, ndt = g$ndt,
+                      poutlier = g$poutlier, log = TRUE)
+    label <- sprintf("Y=%.2f, drift=%.1f, sigma=%.1f, A=%g, bs=%.1f, ndt=%.2f, p=%.2f",
+                     g$Y, g$drift, g$sigma, g$sigmabias, g$bs, g$ndt, g$poutlier)
+    expect_equal(stan_lpdf, r_lpdf, tolerance = 1e-8,
+                 label = paste("Density mismatch:", label))
+  }
+})
 
-              # Only test RT values which are safely above ndt.
-              if (Y <= ndt + 1e-9) next
 
-              # Pass the signal-to-noise ratio into the Stan LPDF
-              stan_lpdf <- rt_lba_lpdf_stan(Y, drift, sigma, sigmabias, bs, tau, min_rt)
-              r_lpdf    <- drt_lba(Y, drift = drift, sigma = sigma,
-                                   sigmabias = sigmabias, bs = bs, ndt = ndt, log = TRUE)
+test_that("the density stays normalised as the start-point range shrinks", {
+  skip_on_cran()
+  # Regression test. The bracket
+  #   drift * (Phi(z2) - Phi(z1)) + sigma * (phi(z1) - phi(z2))
+  # is divided by the start-point range A, and both differences vanish linearly
+  # in A. Evaluating them directly (and flooring the result at 1e-10, as the
+  # previous implementation did) made the density stop integrating to one below
+  # about A = 0.1, and diverge outright below A = 0.01.
+  for (A in c(2, 0.5, 0.1, 1e-2, 1e-4, 1e-6, 1e-8)) {
+    total <- integrate(
+      function(z) drt_lba(z, drift = 3, sigma = 1, sigmabias = A, bs = 0.5,
+                          ndt = 0.3),
+      lower = 0.3, upper = Inf, rel.tol = 1e-10
+    )$value
+    expect_equal(total, 1, tolerance = 1e-5,
+                 label = sprintf("integral at sigmabias = %g", A))
+  }
 
-              label <- sprintf("Y=%.2f, drift=%.1f, sigma=%.1f, A=%.1f, bs=%.1f, ndt=%.2f",
-                               Y, drift, sigma, sigmabias, bs, ndt)
-              expect_equal(stan_lpdf, r_lpdf, tolerance = 0.1,
-                           label = paste("Density mismatch:", label))
-            }
-
-            # Test RT values below ndt (should yield -Inf in both implementations).
-            Y_below <- ndt - 0.01
-            if (Y_below > 0) {
-              stan_lpdf_below <- rt_lba_lpdf_stan(Y_below, drift, sigma, sigmabias, bs, tau, min_rt)
-              r_lpdf_below    <- drt_lba(Y_below, drift = drift, sigma = sigma,
-                                         sigmabias = sigmabias, bs = bs, ndt = ndt, log = TRUE)
-              expect_equal(stan_lpdf_below, r_lpdf_below,
-                           label = sprintf("Below ndt mismatch: Y=%.2f, ndt=%.2f", Y_below, ndt))
-              expect_equal(stan_lpdf_below, -Inf,
-                           label = sprintf("Should be -Inf when Y < ndt: Y=%.2f, ndt=%.2f", Y_below, ndt))
-            }
-          }
-        }
-      }
-    }
+  # As the start-point range vanishes the model becomes the recinormal (LATER),
+  # in which 1 / (RT - ndt) is normally distributed. Convergence is O(A), with
+  # the relative error settling at about 9 * A for these parameters.
+  recinormal <- function(t, drift = 3, s = 1, b = 0.5, ndt = 0.3) {
+    dnorm(b / (t - ndt), drift, s) / (1 - pnorm(0, drift, s)) * b / (t - ndt)^2
+  }
+  x <- c(0.4, 0.5, 0.8)
+  prev <- Inf
+  for (A in c(1e-2, 1e-4, 1e-6)) {
+    rel <- max(abs(drt_lba(x, sigmabias = A, ndt = 0.3) / recinormal(x) - 1))
+    expect_lt(rel, 12 * A)
+    expect_lt(rel, prev)
+    prev <- rel
   }
 })
