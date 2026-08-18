@@ -83,13 +83,22 @@ condition), which can be problematic for accurate estimations.
 ## Models
 
 All five models below use `dec(Error)` to indicate the two-choice
-outcome (`0` = Correct, `1` = Error), and a fixed `minrt` (the minimum
-observed RT) to scale the non-decision time parameter `tau`.
+outcome (`0` = Correct, `1` = Error). Four of them - the DDM, DDM-5, LBA and
+RDM - express the non-decision time as `tau`, a proportion of a fixed `minrt`
+(the minimum observed RT), so `ndt = tau * minrt`.
+
+The LNR has already moved to the newer parameterization shared with the
+RT-only families (see `vignette("outliers")`): `ndt` is estimated directly, in
+seconds, and a `poutlier` parameter mixes in an outlier process so that `ndt`
+is not capped at the fastest observed response. `minrt` still appears there,
+but as a fixed constant on the family - the scale of the outlier component -
+rather than something `tau` is multiplied by. The other three families will
+move to the same parameterization in a future release.
 
 ### Drift Diffusion Model (DDM)
 
 The DDM assumes that evidence accumulates towards one of two boundaries at
-a rate `mu` (drift rate). `bs` is the boundary separation (higher = more
+a rate `mu` (drift rate). `boundary` is the boundary separation (higher = more
 cautious), `bias` is the starting point between the two boundaries
 (`0.5` = unbiased), and `tau` is the non-decision time (as a proportion of
 `minrt`).
@@ -110,20 +119,20 @@ Note that we use the "simple" 4-parameter DDM here, which does not include betwe
 
 f <- bf(
   RT | dec(Error) ~ Condition,
-  bs ~ Condition,
+  boundary ~ Condition,
   bias ~ 1,
   tau ~ 1,
   minrt = min(df$RT),
   sigmadrift = 0,
   sigmabias = 0,
   sigmatau = 0,
-  family = ddm()
+  family = cogmod_ddm()
 )
 
 m_ddm <- brm(f,
   data = df,
   init = 0,
-  stanvars = ddm_stanvars(),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -163,14 +172,14 @@ zero would pay the full cost of the 7-parameter form without buying anything.
 
 f <- bf(
   RT | dec(Error) ~ Condition,
-  bs ~ Condition,
+  boundary ~ Condition,
   bias ~ 1,
   tau ~ 1,
   sigmadrift ~ 1,
   minrt = min(df$RT),
   sigmabias = 0,
   sigmatau = 0,
-  family = ddm()
+  family = cogmod_ddm()
 )
 
 priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmadrift") |>
@@ -180,7 +189,7 @@ m_ddm5 <- brm(f,
   data = df,
   prior = priors,
   init = 0,
-  stanvars = ddm_stanvars(),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -202,6 +211,15 @@ accumulation process. `mu` (`nuzero`) and `nuone` are the (inverse
 log-space mean) processing speeds for the "Error" and "Correct"
 accumulators, and `sigmazero`/`sigmaone` their log-space SDs.
 
+Unlike the other four models here, the LNR is fit with `ndt` and `poutlier`
+directly rather than `tau` and `minrt`: `ndt` is estimated in seconds, with no
+upper bound tied to the fastest observed response, and `poutlier` is the
+proportion of trials attributed to a contaminant guessing process (see
+`vignette("outliers")`). `cogmod_priors()` and `cogmod_inits()` both read the
+family off `f`, so they need no `tau`-specific setup - and `init = 0` is
+actively harmful here: on the log link it starts `ndt` at `exp(0) = 1` second,
+above nearly every observed RT.
+
 ```{r}
 #| eval: false
 #| code-fold: false
@@ -211,19 +229,16 @@ f <- bf(
   nuone ~ Condition,
   sigmazero ~ 1,
   sigmaone ~ 1,
-  tau ~ 1,
-  minrt = min(df$RT),
-  family = lnr()
+  ndt ~ 1,
+  poutlier ~ 1,
+  family = cogmod_lnr()
 )
-
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = df)
 
 m_lnr <- brm(f,
   data = df,
-  # prior = priors,
-  init = 0,
-  stanvars = lnr_stanvars(),
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -241,8 +256,8 @@ saveRDS(m_lnr, file = "models/m_lnr.rds")
 ### Linear Ballistic Accumulator (LBA)
 
 The LBA assumes two independent accumulators (one per choice) that race
-towards a common threshold `b` (`sigmabias` = start-point range `A`, `bs` =
-extra distance so that `b = A + bs`). `mu` and `driftone` are the mean
+towards a common threshold `b` (`sigmabias` = start-point range `A`, `boundary` =
+extra distance so that `b = A + boundary`). `mu` and `driftone` are the mean
 drift rates for the "Correct" and "Error" accumulators, and `sigmazero`/
 `sigmaone` their between-trial drift variability.
 
@@ -256,10 +271,10 @@ f <- bf(
   sigmazero ~ 1,
   sigmaone ~ 1,
   sigmabias ~ 1,
-  bs ~ 1,
+  boundary ~ 1,
   tau ~ 1,
   minrt = min(df$RT),
-  family = lba()
+  family = cogmod_lba2()
 )
 
 priors <- c(
@@ -268,7 +283,7 @@ priors <- c(
   brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmazero"),
   brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmaone"),
   brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmabias"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "bs"),
+  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "boundary"),
   brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau")
 ) |>
   brms::validate_prior(f, data = df)
@@ -277,7 +292,7 @@ m_lba <- brm(f,
   data = df,
   prior = priors,
   init = 0.5,
-  stanvars = lba_stanvars(),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -319,10 +334,10 @@ f <- bf(
   RT | dec(Error) ~ Condition,
   driftone ~ Condition,
   sigmabias ~ 1,
-  bs ~ 1,
+  boundary ~ 1,
   tau ~ 1,
   minrt = min(df$RT),
-  family = rdm()
+  family = cogmod_rdm()
 )
 
 priors <- c(
@@ -330,7 +345,7 @@ priors <- c(
   brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "driftone"),
   # See the note below: sigmabias needs a prior to stay identified.
   brms::set_prior("normal(-1, 1)", class = "Intercept", dpar = "sigmabias"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "bs"),
+  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "boundary"),
   brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau")
 ) |>
   brms::validate_prior(f, data = df)
@@ -339,7 +354,7 @@ m_rdm <- brm(f,
   data = df,
   prior = priors,
   init = 0.5,
-  stanvars = rdm_stanvars(),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -352,13 +367,13 @@ m_rdm <- brms::add_criterion(m_rdm, "loo")  # Add model performance criterion
 saveRDS(m_rdm, file = "models/m_rdm.rds")
 ```
 
-### Identifiability of `sigmabias` and `bs`
+### Identifiability of `sigmabias` and `boundary`
 
 This concerns the LBA as much as the RDM, since both are parameterized the
 same way. The two parameters enter the model only through the threshold
-`b = bs + sigmabias`, so they trade off almost freely: on simulated data
+`b = boundary + sigmabias`, so they trade off almost freely: on simulated data
 with 4,000 trials, the profile log-likelihood moves by about 3 units as
-`sigmabias` sweeps from 0 to half the threshold, while `bs` slides to
+`sigmabias` sweeps from 0 to half the threshold, while `boundary` slides to
 compensate. Under flat priors the sampler drifts down the
 `sigmabias -> 0` ridge (which is just a race of two plain Wald
 accumulators) and produces divergent transitions - several hundred of
@@ -372,7 +387,7 @@ was centred at `0.31`, the posterior still came back at `0.21` - the
 likelihood pulls it down the ridge and the prior only partly resists. The
 *sum* recovered accurately over the same fit (1.08 against a true 1.10).
 
-So prefer `bs + sigmabias` whenever you interpret a threshold or compare
+So prefer `boundary + sigmabias` whenever you interpret a threshold or compare
 one across conditions, and treat the split between the two as
 weakly-determined.
 
@@ -408,7 +423,7 @@ loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
 One feature of that ranking is worth a comment, because it shows what a
 comparison like this is actually good for. The simple DDM comes last, even
 though it is the only model here allowed to move its threshold across
-conditions (`bs ~ Condition`) - the mechanism speed instructions are
+conditions (`boundary ~ Condition`) - the mechanism speed instructions are
 believed to act on. Its deficit lies on a different axis: it predicts
 errors 0.110 s *faster* than correct responses (95% CI `[-0.135, -0.086]`)
 against an observed `+0.039` s, while the three races, each carrying a

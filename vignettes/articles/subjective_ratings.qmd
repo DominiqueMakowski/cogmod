@@ -38,7 +38,7 @@ set.seed(33)
 
 df <- data.frame()
 for(x in seq(0.1, 0.9, by = 0.1)) {
-  score <- rchoco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3, 
+  score <- rcogmod_choco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3, 
                   confleft = 1-x, pex = 0.03, bex = 0.6, pmid = 0)
   df <- rbind(df, data.frame(x = x, score = score))
 }
@@ -106,7 +106,7 @@ saveRDS(m_xbx, file = "models/m_xbx.rds")
 
 #### Beta-Gate Model
 
-The [**Beta-Gate model**](https://dominiquemakowski.github.io/cogmod/reference/rbetagate.html) corresponds to a reparametrized Ordered Beta model ([Kubinec, 2023](https://doi.org/10.1017/pan.2022.20)). In this model, observed 0s and 1s represent instances where the underlying continuous response tendency fell beyond lower or upper boundary points ('gates').
+The [**Beta-Gate model**](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.html) corresponds to a reparametrized Ordered Beta model ([Kubinec, 2023](https://doi.org/10.1017/pan.2022.20)). In this model, observed 0s and 1s represent instances where the underlying continuous response tendency fell beyond lower or upper boundary points ('gates').
 
 ```{r}
 #| eval: false
@@ -116,11 +116,11 @@ f <- bf(
   phi ~ x,
   pex ~ x,
   bex ~ x, 
-  family = betagate()
+  family = cogmod_betagate()
 )
 
 m_betagate <- brm(f,
-  data = df, family = betagate(), stanvars = betagate_stanvars(), init = 0,
+  data = df, stanvars = cogmod_stanvars(f), init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -131,7 +131,7 @@ saveRDS(m_betagate, file = "models/m_betagate.rds")
 
 #### CHOCO Model
 
-See the [**documentation**](https://dominiquemakowski.github.io/cogmod/reference/rchoco.html) of the Choice-Confidence (CHOCO).
+See the [**documentation**](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.html) of the Choice-Confidence (CHOCO).
 
 ```{r}
 #| eval: false
@@ -145,11 +145,11 @@ f <- bf(
   pex ~ x,
   bex ~ x,
   pmid = 0, 
-  family = choco()
+  family = cogmod_choco()
 )
 
 m_choco <- brm(f,
-  data = df, family = choco(), stanvars = choco_stanvars(), init = 0,
+  data = df, stanvars = cogmod_stanvars(f), init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -335,7 +335,7 @@ set.seed(33)
 
 df <- data.frame()
 for(x in seq(0.2, 0.8, by = 0.1)) {
-  rating <- rbetadiscrete(n=200, mu = x, phi = 3, k = 6)
+  rating <- rcogmod_betadiscrete(n=200, mu = x, phi = 3, k = 6)
   df <- rbind(df, data.frame(x = x, rating = rating))
 }
 
@@ -391,11 +391,11 @@ f <- bf(
   rating | vint(6) ~ x,
   phi ~ x,
   pzero = 0,  # No zero-inflation
-  family = betadiscrete()
+  family = cogmod_betadiscrete()
 )
 
 m_betadiscrete <- brm(f,
-  data = df, family = betadiscrete(), stanvars = betadiscrete_stanvars(), init = 0,
+  data = df, stanvars = cogmod_stanvars(f), init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 

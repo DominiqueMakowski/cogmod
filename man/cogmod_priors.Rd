@@ -8,7 +8,7 @@ cogmod_priors(formula, data, ...)
 }
 \arguments{
 \item{formula}{The model formula, as passed to \code{brms::brm()}. Must carry the
-family, i.e. be built with \code{brms::bf(..., family = rt_lognormal())}.}
+family, i.e. be built with \code{brms::bf(..., family = cogmod_lognormal())}.}
 
 \item{data}{The data, as passed to \code{brms::brm()}.}
 
@@ -22,7 +22,7 @@ A \code{brmsprior} object, to pass to \code{brms::brm(prior = )}.
 Fills in weakly informative priors for the parameters \code{brms} would otherwise
 leave flat, for the model you are actually fitting.
 
-\strong{For \code{\link[=rt_lognormal]{rt_lognormal()}} this is not a convenience.} \code{brms} assigns a flat,
+\strong{For \code{\link[=cogmod_lognormal]{cogmod_lognormal()}} this is not a convenience.} \code{brms} assigns a flat,
 improper prior to the intercept of any custom-family parameter it does not
 recognise, which there means both \code{ndt} and \code{poutlier}. The likelihood has
 two directions in which it is exactly flat: \code{poutlier} toward 1, where every
@@ -69,10 +69,11 @@ of these defaults, or omit it to add a prior for a different slot:
 
 \section{Supported families}{
 The family is read off \code{formula}, so build it with
-\code{brms::bf(..., family = rt_lognormal())}. Every family built on the direct
-\code{ndt} + \code{poutlier} parameterization is edited: \code{\link[=rt_lognormal]{rt_lognormal()}},
-\code{\link[=rt_loggamma]{rt_loggamma()}}, \code{\link[=rt_invgaussian]{rt_invgaussian()}}, \code{\link[=rt_gamma]{rt_gamma()}}, \code{\link[=rt_invgamma]{rt_invgamma()}},
-\code{\link[=rt_weibull]{rt_weibull()}}, \code{\link[=rt_invweibull]{rt_invweibull()}} and \code{\link[=rt_logweibull]{rt_logweibull()}}. Any other family, or
+\code{brms::bf(..., family = cogmod_lognormal())}. Every family built on the direct
+\code{ndt} + \code{poutlier} parameterization is edited: \code{\link[=cogmod_lognormal]{cogmod_lognormal()}},
+\code{\link[=cogmod_loggamma]{cogmod_loggamma()}}, \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}, \code{\link[=cogmod_gamma]{cogmod_gamma()}}, \code{\link[=cogmod_invgamma]{cogmod_invgamma()}},
+\code{\link[=cogmod_weibull]{cogmod_weibull()}}, \code{\link[=cogmod_invweibull]{cogmod_invweibull()}}, \code{\link[=cogmod_logweibull]{cogmod_logweibull()}} and, for the
+choice-and-RT models, \code{\link[=cogmod_lnr]{cogmod_lnr()}}. Any other family, or
 a formula carrying none, is passed through: you get a message and \code{brms}'s own
 defaults, unchanged, so the call is always safe to leave in a script.
 
@@ -91,7 +92,7 @@ unit of measurement in the same way the likelihood does; at the default it is
 does not move: \code{normal(-5, 1)} is centred at about 0.7\% and puts roughly 95\%
 of its mass between 0.1\% and 5\%.
 
-\code{shape} exists only for \code{\link[=rt_loggamma]{rt_loggamma()}}. \code{normal(0, 0.5)} is centred on the
+\code{shape} exists only for \code{\link[=cogmod_loggamma]{cogmod_loggamma()}}. \code{normal(0, 0.5)} is centred on the
 LogNormal shape and keeps the sampler clear of \code{sigma * shape >= 1}, where the
 decision density becomes unbounded at the shift and the likelihood with it.
 }
@@ -117,6 +118,12 @@ lives on:\tabular{lll}{
 The \code{ndt} pair describes the same belief twice: \code{lognormal} is just \code{normal}
 on the log scale, written for the untransformed parameter.
 
+If the data were trimmed before fitting, tighten this rather than removing
+it: \code{normal(-7, 0.5)} asserts essentially no contamination while keeping the
+density positive below \code{ndt}. Fixing \code{poutlier = 0} outright reinstates the
+hard min-RT boundary that the component exists to remove. See the \emph{Trimmed
+data} section of \code{\link[=cogmod_lognormal]{cogmod_lognormal()}}.
+
 \code{poutlier} is deliberately \emph{not} the same belief twice. Leaving it out of the
 formula is itself information - you either trimmed the data already or do not
 expect outliers - so the omitted form puts its \strong{mode at zero}, which a
@@ -129,7 +136,7 @@ data and it will simply sit near zero.
 The omitted-\code{ndt} row is the one case where a \strong{non-empty} \code{brms} default is
 overridden rather than filled. \code{brms} recognises the name \code{ndt} from its own
 shifted families and supplies \code{uniform(0, min_Y)} - precisely the min-RT
-bound that \code{\link[=rt_lognormal]{rt_lognormal()}}'s parameterization exists to remove, reimposed
+bound that \code{\link[=cogmod_lognormal]{cogmod_lognormal()}}'s parameterization exists to remove, reimposed
 silently and with a warning about an upper bound on an unbounded parameter.
 An omitted \code{poutlier} is left flat over \verb{[0, 1]} by \code{brms}, which is proper
 but puts half its mass above 0.5, and an omitted \code{shape} is flat over the whole
@@ -142,9 +149,9 @@ regions above even when the population intercept is well behaved.
 }
 
 \examples{
-d <- data.frame(RT = rrt_lognormal(50, ndt = 0.3, poutlier = 0.02))
+d <- data.frame(RT = rcogmod_lognormal(50, ndt = 0.3, poutlier = 0.02))
 f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
-  family = rt_lognormal()
+  family = cogmod_lognormal()
 )
 cogmod_priors(f, d)
 
@@ -155,4 +162,7 @@ priors <- c(
   replace = TRUE
 )
 
+}
+\seealso{
+\code{\link[=cogmod_inits]{cogmod_inits()}}, \code{\link[=cogmod_stanvars]{cogmod_stanvars()}}
 }

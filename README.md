@@ -64,13 +64,13 @@ tutorials**](https://dominiquemakowski.github.io/CognitiveModels/).
     2020](https://doi.org/10.3758/s13423-020-01719-6))
 
 ![Response formats covered by cogmod, and the main families available
-for each. Every family comes with a `_stanvars()` function supplying its
-Stan code, and with `d*()` and `r*()` functions for density evaluation
-and simulation.](man/figures/fig_overview.png)
+for each. `cogmod_stanvars()` supplies the Stan code for whichever family
+a formula names, and every family has `d*()` and `r*()` functions for
+density evaluation and simulation.](man/figures/fig_overview.png)
 
 ## Roadmap
 
-Candidate additions for RT-only data. Now that `rt_loggamma()` nests the
+Candidate additions for RT-only data. Now that `cogmod_loggamma()` nests the
 LogNormal, Weibull, Gamma and inverse Weibull as interior points of a
 single shape parameter, the families worth adding are the ones it
 *cannot* reach.
@@ -79,7 +79,7 @@ single shape parameter, the families worth adding are the ones it
   heavy tails absorb slow contaminants rather than a mixture doing it,
   which is the one kind of outlier `poutlier` deliberately does not
   model. Recovers the LogNormal as `nu -> Inf`, so it varies kurtosis
-  where `rt_loggamma()` varies skew.
+  where `cogmod_loggamma()` varies skew.
 - [ ] **Log-logistic** - `log(RT - ndt) ~ Logistic`. The motivation is
   the *hazard function*: Weibull and Gamma hazards are monotone, whereas
   the log-logistic rises then falls, a shape none of the current
@@ -92,15 +92,15 @@ single shape parameter, the families worth adding are the ones it
 - [ ] **LATER / recinormal** ([Carpenter & Williams,
   1995](https://doi.org/10.1038/377059a0)) - `1 / (RT - ndt)` normally
   distributed. Standard in the oculomotor literature, and the limit of
-  the single-accumulator `rt_lba()` as its start-point range goes to
+  the single-accumulator `cogmod_lba1()` as its start-point range goes to
   zero.
 - [ ] **Wald with across-trial drift variability** - an extension of
-  `rt_invgaussian()` rather than a new family, and what makes the Wald
+  `cogmod_invgaussian()` rather than a new family, and what makes the Wald
   fit empirical right tails.
 - [ ] **Shifted sinh-arcsinh (log-SHASH)** ([Jones & Pewsey,
   2009](https://doi.org/10.1093/biomet/asp053)) - location, scale,
   skewness and tail weight as four separate parameters. Where
-  `rt_loggamma()` ties skew and tail weight together through one
+  `cogmod_loggamma()` ties skew and tail weight together through one
   `shape`, SHASH decouples them.
 - [ ] **Birnbaum-Saunders (fatigue life)** - a first-passage-time
   distribution neighbouring the inverse Gaussian, with the tidy property
@@ -156,14 +156,13 @@ remotes::install_github("DominiqueMakowski/cogmod")
 ## Usage
 
 For each model implemented, `cogmod` provides a **`brms`-compatible
-custom family** (e.g., `choco()`) together with a **`stanvars` object**
-(e.g., `choco_stanvars()`) that injects the Stan code required to
-evaluate it. Both simply need to be passed to `brms::brm()` via the
-`family` and `stanvars` arguments - everything else (formula syntax,
-post-processing, predictions…) works like any other `brms` model.
+custom family** (e.g., `cogmod_choco()`) together with the **Stan code**
+needed to evaluate it. `cogmod_stanvars()` reads the family off the formula
+and returns that code, so the family is named once. Everything else (formula
+syntax, post-processing, predictions…) works like any other `brms` model.
 
 Below, we simulate some data from the [**Choice-Confidence (CHOCO)
-model**](https://dominiquemakowski.github.io/cogmod/reference/rchoco.html),
+model**](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.html),
 a distribution useful to describe bimodal ratings (e.g., confidence or
 slider scales) as a mixture of a discrete choice (left vs. right side of
 the scale) and a continuous Beta-distributed evaluation.
@@ -178,14 +177,14 @@ set.seed(33)
 
 df <- data.frame()
 for (x in seq(0.1, 0.9, by = 0.1)) {
-  score <- rchoco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3,
+  score <- rcogmod_choco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3,
                   confleft = 1 - x, pex = 0.03, bex = 0.6, pmid = 0)
   df <- rbind(df, data.frame(x = x, score = score))
 }
 ```
 
-A `brms` model can then be specified by adding `family = choco()` to the
-formula, and passing `stanvars = choco_stanvars()` to `brm()`:
+A `brms` model can then be specified by adding `family = cogmod_choco()` to the
+formula, and passing `stanvars = cogmod_stanvars(f)` to `brm()`:
 
 ``` r
 f <- bf(
@@ -197,11 +196,11 @@ f <- bf(
   pex ~ x,
   bex ~ x,
   pmid = 0,
-  family = choco()
+  family = cogmod_choco()
 )
 
 m_choco <- brm(f,
-  data = df, family = choco(), stanvars = choco_stanvars(),
+  data = df, stanvars = cogmod_stanvars(f),
   chains = 4, backend = "cmdstanr"
 )
 ```

@@ -168,28 +168,29 @@ differs only by the factor.
 `minrt` is a constant, never estimated. It is not a dpar, because `brms` has no
 notion of a default for one - a dpar left out of the formula is *estimated*, not
 defaulted - so it rides on the family instead, and the matching Stan constant
-comes from `rt_lognormal_stanvars()`:
+comes from `cogmod_stanvars()`, which reads it off the family:
 
 ```{r}
 #| eval: false
 #| code-fold: false
 
 f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1, 
-              family =  rt_lognormal(minrt = 0.3)) # 300 for millisecond data)
+              family =  cogmod_lognormal(minrt = 0.3)) # 300 for millisecond data)
 
 brms::brm(
   f,
   data = df,
   prior = cogmod_priors(f, df),        # not optional - see below
-  stanvars = rt_lognormal_stanvars(minrt = 0.3),
+  stanvars = cogmod_stanvars(f),
   backend = "cmdstanr"
 )
 ```
 
-Put the family on the formula with `bf(..., family = fam)`: `minrt` has to reach
-the Stan code, the prediction methods **and** the priors, and carrying it in one
-place is what stops them drifting apart. `cogmod_priors()` reads the family off
-the formula, and `rt_lognormal_stanvars()` accepts the family object directly.
+Put the family on the formula with `bf(..., family = fam)` and name it only
+there: `minrt` has to reach the Stan code, the prediction methods **and** the
+priors, and carrying it in one place is what stops them drifting apart.
+`cogmod_priors()`, `cogmod_stanvars()` and `cogmod_inits()` all read it off the
+formula, so there is no second place for it to disagree with itself.
 
 The default of 0.3 s rarely needs touching. It is where the conditional accuracy
 functions below show responses sitting at chance across three very different
@@ -569,11 +570,11 @@ leave flat, for the model you are actually fitting:
 #| code-fold: false
 
 f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1 + (1 | Participant),
-              family = rt_lognormal())
+              family = cogmod_lognormal())
 
 brms::brm(f, data = df,
           prior = cogmod_priors(f, df),
-          stanvars = rt_lognormal_stanvars())
+          stanvars = cogmod_stanvars(f))
 ```
 
 It reads `brms::get_prior()` rather than guessing, so it cannot produce a prior
@@ -599,7 +600,7 @@ priors <- c(
 ```
 
 The values regularize both flat directions while keeping the prior mass in
-plausible regions. Slopes get `normal(0, 1)` and group-level SDs
+plausible regions. Slopes get `normal(0, 0.2)` and group-level SDs
 `exponential(1)`: on a log or a logit link a flat slope prior is not as harmless
 as it looks, and an unconstrained group-level SD lets individual participants
 reach the flat regions even when the population intercept is well behaved.
@@ -655,10 +656,10 @@ reason worth finding.
 
 ::: {.callout-note}
 Two of these are location priors on **intercepts**, so they describe the
-reference level only. Slopes are left at the `brms` default, which is flat; on a
-log or logit link a flat slope prior is not as harmless as it looks, and
-`normal(0, 1)` on `class = "b"` is a reasonable default for `ndt` and `poutlier`
-in particular.
+reference level only. `cogmod_priors()` also fills in slopes, with
+`normal(0, 0.2)` on `class = "b"` for `ndt` and `poutlier` - tighter than the
+intercept prior, since on a log or logit link a slope of that size already
+moves the parameter across most of its plausible range.
 :::
 
 ## Does the Choice of the Outlier Distribution Matter?
@@ -746,7 +747,7 @@ set.seed(7)
 
 nll_rec <- function(p, x) {
   mu <- p[1]; sigma <- exp(p[2]); ndt <- exp(p[3]); poutlier <- plogis(p[4])
-  d <- -sum(drt_lognormal(x, mu, sigma, ndt, poutlier, log = TRUE))
+  d <- -sum(dcogmod_lognormal(x, mu, sigma, ndt, poutlier, log = TRUE))
   if (is.finite(d)) d else 1e10
 }
 
@@ -759,7 +760,7 @@ fit_one <- function(x) {
 
 rec <- do.call(rbind, lapply(c(0.12, 0.35), function(true_ndt) {
   v <- replicate(25, fit_one(
-    rrt_lognormal(600, mu = -0.7, sigma = 0.5, ndt = true_ndt, poutlier = 0.02)
+    rcogmod_lognormal(600, mu = -0.7, sigma = 0.5, ndt = true_ndt, poutlier = 0.02)
   ))
   data.frame(truth = true_ndt,
              ndt = sprintf("%.4f (%.4f)", mean(v["ndt", ]), sd(v["ndt", ])),
@@ -786,9 +787,9 @@ returned by `p_outlier()`:
 #| code-fold: false
 
 f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
-              family = rt_lognormal())
+              family = cogmod_lognormal())
 
-m <- brms::brm(f, data = df, stanvars = rt_lognormal_stanvars())
+m <- brms::brm(f, data = df, stanvars = cogmod_stanvars(f))
 
 head(p_outlier(m))
 ```
@@ -882,7 +883,7 @@ this, and it carries through the packages built on `brms`, like `modelbased` or 
 
 In the case where one wants the full mixture, for instance for posterior predictive checks,
 cogmod implements the `with_outliers()` function to restore it (and `without_outliers()` to reverse it). 
-The same flag can be set up front with `rt_lognormal(predict_outliers = TRUE)` during
+The same flag can be set up front with `cogmod_lognormal(predict_outliers = TRUE)` during
 model fitting.
 
 ```{r}

@@ -23,7 +23,7 @@ Each model comes in two halves. The first is a set of plain R functions -
 library(cogmod)
 
 set.seed(3)
-x <- rbetagate(5000, mu = 0.6, phi = 4, pex = 0.15, bex = 0.4)
+x <- rcogmod_betagate(5000, mu = 0.6, phi = 4, pex = 0.15, bex = 0.4)
 hist(x, breaks = 50, col = "#2196F3", border = NA,
      main = "Beta-Gate ratings", xlab = "Rating")
 ```
@@ -40,17 +40,22 @@ normally would. Fitting requires a Stan backend
 #| eval: false
 library(brms)
 
+f <- bf(rating ~ condition + (1 | participant), phi ~ 1, pex ~ 1, bex ~ 1,
+        family = cogmod_betagate())
+
 m <- brm(
-  bf(rating ~ condition + (1 | participant), phi ~ 1, pex ~ 1, bex ~ 1),
+  f,
   data = df,
-  family = betagate(),
-  stanvars = betagate_stanvars(),
+  stanvars = cogmod_stanvars(f),
   backend = "cmdstanr"
 )
 ```
 
-The pattern is the same for every model: `family = <model>()` paired with
-`stanvars = <model>_stanvars()`.
+The pattern is the same for every model: name the family in `bf()`, then let
+`cogmod_stanvars()` supply the Stan code that goes with it. Two companions
+follow the same shape - `cogmod_priors(f, df)` for the priors `brms` would
+otherwise leave flat, and `cogmod_inits(f, df)` for starting values on the
+families whose default start is a bad one.
 
 ## Where to go next
 

@@ -24,33 +24,40 @@ reference:
     - title: "Subjective Scales Data"
     - subtitle: "Unimodal Distributions"
       contents:
-          - rbetadiscrete
-          - rbetagate
+          - rcogmod_betadiscrete
+          - rcogmod_betagate
     - subtitle: "Multiprocess Models"
       contents:
-          - rchoco
+          - rcogmod_choco
     - title: "Decision Making Data (Choice and RT)"
       contents:
-          - rlnr
-          - rlba
-          - rddm
-          - rrdm
+          - rcogmod_lnr
+          - rcogmod_lba2
+          - rcogmod_ddm
+          - rcogmod_rdm
     - title: "RT-only Models"
       contents:
-          - rrt_lognormal
-          - rrt_loggamma
-          - rrt_invgaussian
-          - rrt_gamma
-          - rrt_invgamma
-          - rrt_weibull
-          - rrt_logweibull
-          - rrt_invweibull
-          - rt_exgaussian
-          - rrt_lba
+          - rcogmod_lognormal
+          - rcogmod_loggamma
+          - rcogmod_invgaussian
+          - rcogmod_gamma
+          - rcogmod_invgamma
+          - rcogmod_weibull
+          - rcogmod_logweibull
+          - rcogmod_invweibull
+          - rcogmod_exgaussian
+          - rcogmod_lba1
     - title: "Other"
       contents:
           - cogmod_priors
+          - cogmod_inits
+          - cogmod_stanvars
           - p_outlier
           - with_outliers
           # - conf_sdt  # commented out until the confidence SDT model is ready
           - badlm
+    - title: "Deprecated"
+      desc: >
+          The pre-`cogmod_*` names, kept as exact synonyms for now.
+      contents:
+          - cogmod-deprecated

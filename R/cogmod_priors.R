@@ -4,7 +4,7 @@
 #' Fills in weakly informative priors for the parameters `brms` would otherwise
 #' leave flat, for the model you are actually fitting.
 #'
-#' **For [rt_lognormal()] this is not a convenience.** `brms` assigns a flat,
+#' **For [cogmod_lognormal()] this is not a convenience.** `brms` assigns a flat,
 #' improper prior to the intercept of any custom-family parameter it does not
 #' recognise, which there means both `ndt` and `poutlier`. The likelihood has
 #' two directions in which it is exactly flat: `poutlier` toward 1, where every
@@ -53,10 +53,11 @@
 #' # Supported families
 #'
 #' The family is read off `formula`, so build it with
-#' `brms::bf(..., family = rt_lognormal())`. Every family built on the direct
-#' `ndt` + `poutlier` parameterization is edited: [rt_lognormal()],
-#' [rt_loggamma()], [rt_invgaussian()], [rt_gamma()], [rt_invgamma()],
-#' [rt_weibull()], [rt_invweibull()] and [rt_logweibull()]. Any other family, or
+#' `brms::bf(..., family = cogmod_lognormal())`. Every family built on the direct
+#' `ndt` + `poutlier` parameterization is edited: [cogmod_lognormal()],
+#' [cogmod_loggamma()], [cogmod_invgaussian()], [cogmod_gamma()], [cogmod_invgamma()],
+#' [cogmod_weibull()], [cogmod_invweibull()], [cogmod_logweibull()] and, for the
+#' choice-and-RT models, [cogmod_lnr()]. Any other family, or
 #' a formula carrying none, is passed through: you get a message and `brms`'s own
 #' defaults, unchanged, so the call is always safe to leave in a script.
 #'
@@ -75,7 +76,7 @@
 #' does not move: `normal(-5, 1)` is centred at about 0.7% and puts roughly 95%
 #' of its mass between 0.1% and 5%.
 #'
-#' `shape` exists only for [rt_loggamma()]. `normal(0, 0.5)` is centred on the
+#' `shape` exists only for [cogmod_loggamma()]. `normal(0, 0.5)` is centred on the
 #' LogNormal shape and keeps the sampler clear of `sigma * shape >= 1`, where the
 #' decision density becomes unbounded at the shift and the likelihood with it.
 #'
@@ -101,6 +102,12 @@
 #' The `ndt` pair describes the same belief twice: `lognormal` is just `normal`
 #' on the log scale, written for the untransformed parameter.
 #'
+#' If the data were trimmed before fitting, tighten this rather than removing
+#' it: `normal(-7, 0.5)` asserts essentially no contamination while keeping the
+#' density positive below `ndt`. Fixing `poutlier = 0` outright reinstates the
+#' hard min-RT boundary that the component exists to remove. See the *Trimmed
+#' data* section of [cogmod_lognormal()].
+#'
 #' `poutlier` is deliberately *not* the same belief twice. Leaving it out of the
 #' formula is itself information - you either trimmed the data already or do not
 #' expect outliers - so the omitted form puts its **mode at zero**, which a
@@ -113,7 +120,7 @@
 #' The omitted-`ndt` row is the one case where a **non-empty** `brms` default is
 #' overridden rather than filled. `brms` recognises the name `ndt` from its own
 #' shifted families and supplies `uniform(0, min_Y)` - precisely the min-RT
-#' bound that [rt_lognormal()]'s parameterization exists to remove, reimposed
+#' bound that [cogmod_lognormal()]'s parameterization exists to remove, reimposed
 #' silently and with a warning about an upper bound on an unbounded parameter.
 #' An omitted `poutlier` is left flat over `[0, 1]` by `brms`, which is proper
 #' but puts half its mass above 0.5, and an omitted `shape` is flat over the whole
@@ -125,17 +132,19 @@
 #' regions above even when the population intercept is well behaved.
 #'
 #' @param formula The model formula, as passed to `brms::brm()`. Must carry the
-#'   family, i.e. be built with `brms::bf(..., family = rt_lognormal())`.
+#'   family, i.e. be built with `brms::bf(..., family = cogmod_lognormal())`.
 #' @param data The data, as passed to `brms::brm()`.
 #' @param ... Passed to `brms::get_prior()` and `brms::validate_prior()`, for
 #'   arguments such as `data2` or `knots`.
 #'
 #' @return A `brmsprior` object, to pass to `brms::brm(prior = )`.
 #'
+#' @seealso [cogmod_inits()], [cogmod_stanvars()]
+#'
 #' @examples
-#' d <- data.frame(RT = rrt_lognormal(50, ndt = 0.3, poutlier = 0.02))
+#' d <- data.frame(RT = rcogmod_lognormal(50, ndt = 0.3, poutlier = 0.02))
 #' f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
-#'   family = rt_lognormal()
+#'   family = cogmod_lognormal()
 #' )
 #' cogmod_priors(f, d)
 #'
@@ -148,10 +157,8 @@
 #'
 #' @export
 cogmod_priors <- function(formula, data, ...) {
-  family <- formula[["family"]]
-  # brms families carry $name; stats families only $family.
-  fam <- if (is.character(family)) family else family[["name"]]
-  if (is.null(fam) && !is.null(family)) fam <- family[["family"]]
+  family <- .cogmod_family(formula)
+  fam <- .family_name(family)
 
   if (!isTRUE(fam %in% .OUTLIER_FAMILIES)) {
     message(
@@ -160,14 +167,14 @@ cogmod_priors <- function(formula, data, ...) {
       "'; returning the brms defaults unchanged. ",
       "Currently supported: ", paste(.OUTLIER_FAMILIES, collapse = ", "), ". ",
       "The family is read off the formula, so build it with ",
-      "bf(..., family = rt_lognormal())."
+      "bf(..., family = cogmod_lognormal())."
     )
     args <- list(brms::empty_prior(), formula, data, ...)
     if (!is.null(family)) args$family <- family
     return(do.call(brms::validate_prior, args))
   }
 
-  out <- .priors_rt_shifted(formula, data, family, ...)
+  out <- .priors_shifted(formula, data, family, ...)
   brms::validate_prior(out, formula, data, family = family, ...)
 }
 
@@ -176,10 +183,14 @@ cogmod_priors <- function(formula, data, ...) {
 # and fills only the rows brms left flat, so the result cannot contain a prior
 # matching no parameter.
 #' @keywords internal
-.priors_rt_shifted <- function(formula, data, family, ...) {
+.priors_shifted <- function(formula, data, family, ...) {
   p <- brms::get_prior(formula, data = data, family = family, ...)
+  # Kept whole: once `p` has been filtered down to the rows being set, there is
+  # no way left to tell "this blanket row covers a coefficient we left alone"
+  # from "this blanket row covers nothing at all".
+  all_rows <- p
 
-  # `shape` only exists for rt_loggamma(); brms leaves it flat like the others, and
+  # `shape` only exists for cogmod_loggamma(); brms leaves it flat like the others, and
   # a flat prior there lets the sampler wander into sigma * shape >= 1, where the
   # decision density is unbounded at the shift.
   dpars <- c("ndt", "poutlier", "shape")
@@ -286,7 +297,15 @@ cogmod_priors <- function(formula, data, ...) {
   # carries a different location from the slopes.
   drop <- vapply(seq_len(nrow(p)), .covered_by_blanket, logical(1), p = p)
   drop <- drop & !(p$class == "b" & p$coef == "Intercept")
-  p[!drop, , drop = FALSE]
+  kept <- p[!drop, , drop = FALSE]
+
+  # The exception can empty the blanket row out. `ndt ~ 0 + Intercept` has one
+  # coefficient, that coefficient is the intercept, and it has just been given a
+  # location of its own - leaving the blanket row covering nothing, which brms
+  # warns about in turn. So the pair is checked in both directions.
+  gone <- vapply(seq_len(nrow(kept)), .blanket_now_unused, logical(1),
+                 p = kept, all_rows = all_rows)
+  kept[!gone, , drop = FALSE]
 }
 
 
@@ -302,4 +321,24 @@ cogmod_priors <- function(formula, data, ...) {
     !nzchar(p$coef) & nzchar(p$prior) & p$class == p$class[i] &
       p$dpar == p$dpar[i] & p$group == p$group[i] & p$resp == p$resp[i]
   )
+}
+
+
+# The mirror image: is blanket row i of the *final* table left with nothing to
+# cover, because every coefficient it applies to kept an individual prior?
+# `all_rows` is the unfiltered get_prior() table, which is the only place the
+# full coefficient list still exists.
+#' @keywords internal
+.blanket_now_unused <- function(i, p, all_rows) {
+  if (nzchar(p$coef[i])) {
+    return(FALSE)
+  }
+  same <- function(d) {
+    d$class == p$class[i] & d$dpar == p$dpar[i] & d$group == p$group[i] &
+      d$resp == p$resp[i]
+  }
+  coefs <- all_rows$coef[nzchar(all_rows$coef) & same(all_rows)]
+  # No coefficients to cover means this is a blanket over something else
+  # entirely (a group-level SD, say), which brms is happy to use as it stands.
+  length(coefs) > 0 && all(coefs %in% p$coef[nzchar(p$coef) & same(p)])
 }

@@ -213,7 +213,6 @@ f <- bf(RT ~ Condition)
 
 m_normal <- brm(f,
   data = df,
-  init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -289,7 +288,7 @@ exg <- do.call(rbind, lapply(taus, function(tau) {
   data.frame(
     RT = x,
     Tau = factor(tau, levels = taus),
-    Density = drt_exgaussian(x, mu = 0.7, sigma = 0.2, tau = tau)
+    Density = dcogmod_exgaussian(x, mu = 0.7, sigma = 0.2, tau = tau)
   )
 }))
 
@@ -321,8 +320,7 @@ overall mean, so effects estimated on `brms`'s default `mu` can lead to
 different (and potentially incorrect) inferences about the underlying
 process than effects estimated on the classical `mu`.
 
-For this reason, `cogmod` provides its own `rt_exgaussian()` custom family
-(internally relying on Stan's `exp_mod_normal` distribution), in which `mu`
+For this reason, `cogmod` provides its own `cogmod_exgaussian()` custom family, in which `mu`
 and `sigma` are the mean and SD of the Gaussian component and `tau` is the
 mean of the exponential tail - directly matching the classical
 parameterization.
@@ -335,13 +333,13 @@ f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
   tau ~ Condition,
-  family = rt_exgaussian()
+  family = cogmod_exgaussian()
 )
 
 m_exgauss <- brm(f,
   data = df,
-  stanvars = rt_exgaussian_stanvars(),
-  init = 0,
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -353,6 +351,16 @@ m_exgauss <- brms::add_criterion(m_exgauss, "loo")
 
 saveRDS(m_exgauss, file = "../models/m_exgauss.rds")
 ```
+
+Note that every model below is fitted with `init = cogmod_inits(f, df)`.
+`brms` initialises on the *unconstrained* scale, so the usual `init = 0` starts
+`ndt` at `exp(0) = 1` second - above most sub-second reaction times, which
+leaves every response attributed to the outlier component and the decision
+parameters with no gradient to move on. For `cogmod_gamma()` and `cogmod_weibull()` that
+is fatal (the chain never moves at all); for the others it merely wastes warmup
+walking `ndt` back down, which on a 1500-trial LogNormal cost about 3x the
+sampling time. `cogmod_inits()` sets each parameter separately and leaves
+everything it does not recognise to Stan. See `?cogmod_inits`.
 
 ### Shifted LogNormal
 
@@ -388,28 +396,24 @@ than adding to, the duration of the previous ones. Note that this is a
 LogNormal a well-motivated default, but it does not turn `mu` and `sigma` into
 cognitive parameters.
 
-Similarly to most implementations, `rt_lognormal()` parametrizes `mu` and `sigma` as the mean
+Similarly to most implementations, `cogmod_lognormal()` parametrizes `mu` and `sigma` as the mean
 and SD of the distribution *on the log scale* (so that the median of the distribution is
-`ndt + exp(mu)`).
+`ndt + exp(mu)`). The **shifted** version adds a third ingredient: a non-decision time (`ndt`)
+before which no response can physically occur, corresponding to the time taken
+by stimulus encoding and motor execution. Without it, the distribution is
+forced to start at zero, and the model has to distort the shape of the whole
+distribution to accommodate the empty space between 0 and the first responses.
+`ndt` is estimated directly, in seconds, rather than as a proportion of the
+fastest observed response - which is only possible because the density is
+mixed with a small outlier component (`poutlier`) that keeps it positive below
+`ndt` instead of assigning it exactly zero density. See `vignette("outliers")`
+for why that mixture is necessary and how its priors are set.
 
-<!-- TODO: Remove and rewrite the following paragraph based on new parametrization -->
-
-<!-- The **shifted** version adds a third ingredient: a non-decision time (`ndt`) -->
-<!-- before which no response can physically occur, corresponding to the time taken -->
-<!-- by stimulus encoding and motor execution. Without it, the distribution is -->
-<!-- forced to start at zero, and the model has to distort the shape of the whole -->
-<!-- distribution to accommodate the empty space between 0 and the first responses. -->
-<!--  and the shift is expressed as `tau`, the *proportion* of the -->
-<!-- minimum RT that is taken up by non-decision time (`ndt = tau * minrt`). This -->
-<!-- reparameterization keeps `tau` bounded between 0 and 1, which is both easier -->
-<!-- to sample and guarantees that the shift never exceeds the fastest observed -->
-<!-- response. -->
-
-Less purely descriptive than the ExGaussian, this model has some theoretical grounding, 
+Less purely descriptive than the ExGaussian, this model has some theoretical grounding,
 conceptualizing responses as the output of multiplicative random processes. However, despite capturing the
 shape of RT distributions very well, its two parameters `mu` and `sigma` are not, in
 themselves, cognitive quantities. It does, however, sit at the base of a
-proper process model - the Lognormal Race (see `lnr()`), in which several
+proper process model - the Lognormal Race (see `cogmod_lnr()`), in which several
 LogNormal accumulators compete and the fastest one determines both the
 response and the RT.
 
@@ -434,17 +438,15 @@ f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
   ndt ~ Condition,
-  family = rt_lognormal()
+  family = cogmod_lognormal()
 )
-
-priors <- cogmod_priors(f, data = df)
 
 m_lognormal <- brm(
   f,
-  prior = priors,
   data = df,
-  stanvars = rt_lognormal_stanvars(),
-  init = 0,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -473,10 +475,10 @@ The Shifted Wald model (also known as the Inverse Gaussian distribution) is actu
 This changes what the parameters mean. Instead of a location and a width, we
 now estimate quantities that refer to distinct components of the decision: `mu`
 is the **drift rate** (the speed at which evidence accumulates, often read as
-task difficulty or processing efficiency), `bs` is the **boundary separation**
+task difficulty or processing efficiency), `boundary` is the **decision threshold**
 (how much evidence is required before responding, i.e., response caution), and
-`tau` is again the **non-decision time** (encoding and motor execution). This
-is why the formula below regresses `Condition` on `bs` rather than on `sigma`:
+`ndt` is again the **non-decision time** (encoding and motor execution). This
+is why the formula below regresses `Condition` on `boundary` rather than on `sigma`:
 the natural hypothesis for a speed-vs-accuracy manipulation is that
 instructions move the *threshold*, not the quality of the evidence.
 
@@ -496,19 +498,17 @@ cognitive labels suggest.
 
 f <- bf(
   RT ~ Condition,
-  bs ~ Condition,
+  boundary ~ Condition,
   ndt ~ Condition,
-  family = rt_invgaussian()
+  family = cogmod_invgaussian()
 )
-
-priors <- cogmod_priors(f, data = df)
 
 m_wald <- brm(
   f,
-  prior = priors,
   data = df,
-  stanvars = rt_invgaussian_stanvars(),
-  init = 0,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -523,14 +523,14 @@ saveRDS(m_wald, file = "../models/m_wald.rds")
 
 ### Other Models
 
-::: {.panel-tabset}
-
-Note that the families presented from here on have not been used nearly as
+Note that the families presented below have not been used nearly as
 often in the RT literature as the ones above, and their properties in this
 context are correspondingly less well documented. They are nonetheless capable
 of generating close fits to RT data, and more research is needed to establish
 whether they offer any real advantage - in terms of fit, of interpretability,
 or of computational behaviour - over the more established options.
+
+::: {.panel-tabset}
 
 #### Weibull
 
@@ -544,17 +544,15 @@ f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
   ndt ~ Condition,
-  family = rt_weibull()
+  family = cogmod_weibull()
 )
-
-priors <- cogmod_priors(f, data = df)
 
 m_weibull <- brm(
   f,
-  prior = priors,
   data = df,
-  stanvars = rt_weibull_stanvars(),
-  init = 0,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -578,17 +576,15 @@ f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
   ndt ~ Condition,
-  family = rt_logweibull()
+  family = cogmod_logweibull()
 )
-
-priors <- cogmod_priors(f, data = df)
 
 m_logweibull <- brm(
   f,
-  prior = priors,
   data = df,
-  stanvars = rt_logweibull_stanvars(),
-  init = 0,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -612,17 +608,15 @@ f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
   ndt ~ Condition,
-  family = rt_invweibull()
+  family = cogmod_invweibull()
 )
-
-priors <- cogmod_priors(f, data = df)
 
 m_invweibull <- brm(
   f,
-  prior = priors,
   data = df,
-  stanvars = rt_invweibull_stanvars(),
-  init = 0,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -648,17 +642,15 @@ f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
   ndt ~ Condition,
-  family = rt_gamma()
+  family = cogmod_gamma()
 )
-
-priors <- cogmod_priors(f, data = df)
 
 m_gamma <- brm(
   f,
-  prior = priors,
   data = df,
-  stanvars = rt_gamma_stanvars(),
-  init = 0,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -684,17 +676,15 @@ f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
   ndt ~ Condition,
-  family = rt_invgamma()
+  family = cogmod_invgamma()
 )
-
-priors <- cogmod_priors(f, data = df)
 
 m_invgamma <- brm(
   f,
-  prior = priors,
   data = df,
-  stanvars = rt_invgamma_stanvars(),
-  init = 0,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -738,7 +728,7 @@ not merely its location and scale.
 The flexibility is not free. `shape` is only weakly identified without a decent
 number of trials per cell, it trades off against `sigma` and `ndt`, and the region
 `sigma * shape >= 1` is degenerate (the density becomes unbounded at `ndt`), so
-these models must be fitted with `init = 0`. See `?rrt_loggamma` for the details.
+starting values matter here. See `?rcogmod_loggamma` for the details.
 
 ```{r}
 #| eval: false
@@ -749,17 +739,15 @@ f <- bf(
   sigma ~ Condition,
   ndt ~ Condition,
   shape ~ Condition,
-  family = rt_loggamma()
+  family = cogmod_loggamma()
 )
-
-priors <- cogmod_priors(f, data = df)
 
 m_loggamma <- brm(
   f,
-  prior = priors,
   data = df,
-  stanvars = rt_loggamma_stanvars(),
-  init = 0,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -784,9 +772,7 @@ the **single-accumulator** version: the RT is simply that one accumulator's
 finishing time, `(b - start) / drift`, plus non-decision time. All of the RT
 variability therefore comes from across-trial variability in the start point
 (`sigmabias`, the `A` above) and in the drift rate, rather than from moment-to-moment
-noise within the trial. It is worth knowing that as `sigmabias` shrinks toward
-zero this reduces to the *recinormal*, in which `1 / (RT - ndt)` is normally
-distributed - the LATER model of the oculomotor literature.
+noise within the trial.
 
 `sigma` is fixed to `1` rather than estimated because the evidence scale is
 arbitrary: nothing observable is measured in "units of evidence". Multiplying the
@@ -810,26 +796,17 @@ f <- bf(
   RT ~ Condition,
   sigma = 1,
   sigmabias ~ Condition,
-  bs ~ Condition,
-  tau ~ Condition,
-  minrt = min(df$RT),
-  family = rt_lba()
+  boundary ~ Condition,
+  ndt ~ Condition,
+  family = cogmod_lba1()
 )
-
-priors <- c(
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "mu"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmabias"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "bs"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau")
-  )|>
-  brms::validate_prior(f, data = df)
 
 m_lba <- brm(
   f,
-  prior = priors,
   data = df,
-  stanvars = rt_lba_stanvars(),
-  init = 0.5,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -927,6 +904,8 @@ duration_median |>
   theme_minimal()
 ```
 
+
+<!-- TODO: Replace the figure above by a 2D plot with fit duration on the x-axis (perhaps a point range going from min to max from the 4 chains?) and fit quality on the y-axis with labelled points (perhaps also a vertical point range if we can have some sort index of precision) -->
 
 ### Posterior Predictive Check
 

@@ -1,3 +1,47 @@
+# Reading the family off what the user passed
+# ===========================================
+#
+# cogmod_priors(), cogmod_inits() and cogmod_stanvars() all take the model
+# rather than the family, so the family is named once - in bf() - and cannot
+# drift out of step with the rest of the call. These pull it back out.
+
+# A brmsformula, a brmsfit and a family object are all lists carrying the
+# family under `$family`; a family object is its own answer. A plain formula
+# carries nothing, and gives NULL so the caller can say so.
+#' @keywords internal
+.cogmod_family <- function(x) {
+  if (inherits(x, c("customfamily", "brmsfamily", "family"))) return(x)
+  if (is.list(x)) return(x[["family"]])
+  NULL
+}
+
+# brms families carry $name; stats families only $family.
+#' @keywords internal
+.family_name <- function(family) {
+  if (is.null(family)) return(NULL)
+  if (is.character(family)) return(family)
+  nm <- family[["name"]]
+  if (is.null(nm)) nm <- family[["family"]]
+  nm
+}
+
+# The link of every dpar, named. brms stores the first dpar's link as `$link`
+# and the rest as `$link_<dpar>`, so the two forms are folded back together
+# here. Reading them off the family rather than the registry is what makes
+# cogmod_gamma(link_mu = "log") behave.
+#' @keywords internal
+.family_links <- function(family) {
+  dpars <- family[["dpars"]]
+  if (is.null(dpars)) return(stats::setNames(character(0), character(0)))
+  out <- vapply(seq_along(dpars), function(i) {
+    v <- family[[paste0("link_", dpars[i])]]
+    if (is.null(v) && i == 1L) v <- family[["link"]]
+    if (is.null(v)) NA_character_ else as.character(v)[1]
+  }, character(1))
+  stats::setNames(out, dpars)
+}
+
+
 # Stable computation of log(1 - exp(x))
 # A stable version of log1m_exp (assumes x is scalar or vector)
 #' @keywords internal

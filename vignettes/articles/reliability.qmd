@@ -54,7 +54,7 @@ reaction times.
 #| code-fold: true
 
 # The data are generated from a **shifted LogNormal** process (see cogmod's
-# rt_lognormal() family): a non-decision time `ndt` - the incompressible
+# cogmod_lognormal() family): a non-decision time `ndt` - the incompressible
 # encoding + motor delay - to which a LogNormal-distributed decision time is
 # added.
 #
@@ -263,14 +263,15 @@ generated: the effect of `Condition` is estimated at the population level
 (fixed effects) *and* allowed to vary across participants (random slopes).
 
 Because the family has more than one parameter, we can do the same for the
-other two: `sigma` (how variable a participant's decision times are) and `tau`
-(their non-decision time, as a proportion of the minimum RT). Giving each of
-them the same `Condition + (Condition | Participant)` structure means that
-every participant gets their own dispersion and their own shift - and their own
-condition effects on both - rather than being forced to share the group's. This
-costs a fair number of parameters, but it is the only way to find out whether
-these quantities carry individual differences of their own, and, as we will see
-below, whether they are reliable enough to be used as scores.
+other two that carry individual differences here: `sigma` (how variable a
+participant's decision times are) and `ndt` (their non-decision time, estimated
+directly in seconds). Giving each of them the same `Condition + (Condition |
+Participant)` structure means that every participant gets their own dispersion
+and their own shift - and their own condition effects on both - rather than
+being forced to share the group's. This costs a fair number of parameters, but it is the only
+way to find out whether these quantities carry individual differences of their
+own, and, as we will see below, whether they are reliable enough to be used as
+scores.
 
 ```{r}
 #| eval: false
@@ -279,19 +280,15 @@ below, whether they are reliable enough to be used as scores.
 f <- bf(
   RT ~ Condition + (Condition | Participant),
   sigma ~ Condition + (Condition | Participant),
-  tau ~ Condition + (Condition | Participant),
-  minrt = min(sim$RT),
-  family = rt_lognormal()
+  ndt ~ Condition + (Condition | Participant),
+  family = cogmod_lognormal(minrt = min(sim$RT))
 )
-
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = sim)
 
 m <- brm(f,
   data = sim,
-  prior = priors,
-  stanvars = rt_lognormal_stanvars(),
-  init = 0,
+  prior = cogmod_priors(f, sim),
+  init = cogmod_inits(f, sim),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 1000, backend = "cmdstanr"
 )
 ```
@@ -313,9 +310,9 @@ m <- readRDS(url(paste0(path, "m_reliability.rds")))
 
 The random-effects parts are the key ingredient: they tell the model that each
 participant has their own intercept *and* their own condition effects, their
-own `sigma` and their own `tau`, and they estimate how much each of these
+own `sigma` and their own `ndt`, and they estimate how much each of these
 varies. Note also that we do not need to transform the RTs:
-`family = rt_lognormal()` handles the skew directly - and, through `tau`, the
+`family = cogmod_lognormal()` handles the skew directly - and, through `ndt`, the
 non-decision time - so the coefficients are simply expressed on the log scale
 of the decision time.
 
@@ -331,7 +328,7 @@ parameters(m, effects = "fixed")
 This reproduces the classic conclusion: an effect of condition B
 (0.10 on the log scale, 95% CI [0.00, 0.21], *pd* = 97%), and nothing at all
 for condition C (-0.04, 95% CI [-0.23, 0.14], *pd* = 65%), whose credible
-interval is comfortably centered on zero. The `sigma` and `tau` blocks tell a
+interval is comfortably centered on zero. The `sigma` and `ndt` blocks tell a
 similar story for the other two parameters: no condition effect on the
 dispersion or on the non-decision time comes close to being convincing (all
 *pd* < 75%), which is as it should be, since we simulated both as constant.
@@ -355,8 +352,8 @@ effect (~0.01) rather than the inflated ~31 ms spread of the raw empirical
 differences: the measurement noise has been correctly assigned to the residual
 term instead of being mistaken for interindividual variability.
 
-The `sigma` and `tau` blocks also report non-zero SDs (around 0.03-0.04 for
-`sigma`, and 0.10-0.34 for `tau`). Resist the temptation to read these as
+The `sigma` and `ndt` blocks also report non-zero SDs (around 0.03-0.04 for
+`sigma`, and 0.10-0.34 for `ndt`). Resist the temptation to read these as
 evidence of individual differences. A random-effect SD is a variance, not a
 ratio: it is expressed on the scale of its own parameter, it is bounded below
 by zero (so its posterior can never be centered on zero, and its *pd* is
@@ -389,7 +386,7 @@ hand lets us give each parameter its own color:
 #| fig-height: 10
 
 as.data.frame(random) |>
-  # `Component` distinguishes mu (conditional) from sigma and tau
+  # `Component` distinguishes mu (conditional) from sigma and ndt
   mutate(Parameter = paste0(Parameter, " (", Component, ")")) |>
   ggplot(aes(x = Median, y = Level, color = Parameter)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
@@ -415,7 +412,7 @@ the 30 clearly exclude zero - these are genuine, statistically supported
 individual differences. The same is true of the `Intercept`, which captures how
 fast each participant is overall.
 
-The `sigma` and `tau` panels look different again: their point estimates are
+The `sigma` and `ndt` panels look different again: their point estimates are
 all bunched up around zero while their intervals are wide. That combination -
 no spread, much uncertainty - is the visual signature of a parameter about
 which the data carry no individual-level information, and it is worth learning
@@ -491,13 +488,13 @@ This is the usual situation rather than an accident of our simulation, and it
 is worth keeping in mind before building a clinical index out of a difference
 score.
 
-Because we gave `sigma` and `tau` their own predictors and random effects, the
+Because we gave `sigma` and `ndt` their own predictors and random effects, the
 output also contains one row per parameter *per component*, and each gets its
 own reliability verdict. This is worth doing systematically: nothing guarantees
 that the parameters carrying the individual differences are the ones we
 manipulated. Here, we know they are not, because we generated every
 participant's decision times with the same `sdlog = 0.22` and the same
-non-decision time of 150 ms - and indeed all six `sigma` and `tau` rows land
+non-decision time of 150 ms - and indeed all six `sigma` and `ndt` rows land
 below 0.12, the index correctly reporting that whatever spread we saw in their
 group-level estimates is uncertainty rather than genuine differences. Treat
 this as a **negative control**: it is the behaviour we want the index to have,
@@ -509,7 +506,7 @@ is often *more* discriminating between individuals than the mean - it is one of
 the central points of [Williams et al. (2021)](https://pubmed.ncbi.nlm.nih.gov/32437184/) -
 and non-decision time is a natural candidate for a stable, person-specific
 quantity. Had these been the reliable components in our data, the sensible
-clinical index would have been `sigma` or `tau`, not a condition contrast at
+clinical index would have been `sigma` or `ndt`, not a condition contrast at
 all.
 
 As for any such index, the thresholds are conventions rather than laws. 
@@ -552,7 +549,7 @@ D-vour is one member of a family of ideas that all revolve around separating
 - The hierarchical-modelling perspective it rests on is developed in
   [Williams et al. (2021)](https://pubmed.ncbi.nlm.nih.gov/32437184/), whose
   mixed-effects location-scale framework is the reason we gave `sigma` and
-  `tau` their own random effects above: in `cogmod`'s families, the dispersion,
+  `ndt` their own random effects above: in `cogmod`'s families, the dispersion,
   the shift or the drift rate can each carry their own reliability, and each
   deserves to be checked separately.
 
