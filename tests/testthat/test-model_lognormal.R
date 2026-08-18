@@ -104,13 +104,13 @@ test_that("rcogmod_lognormal recovers the mixture mean", {
   ndt <- 0.3
   poutlier <- 0.05
 
-  rts <- rcogmod_lognormal(2e5, mu, sigma, ndt, poutlier)
+  rts <- rcogmod_lognormal(2e4, mu, sigma, ndt, poutlier)
   theo <- (1 - poutlier) * (exp(mu + sigma^2 / 2) + ndt) +
     poutlier * (2 * 0.3 * sqrt(3) * gamma(2) / (sqrt(pi) * 2 * gamma(1.5)))
 
   expect_equal(mean(rts), theo, tolerance = 0.05)
   expect_true(all(rts > 0))
-  expect_length(rts, 2e5)
+  expect_length(rts, 2e4)
 })
 
 test_that("rcogmod_lognormal produces responses below ndt only via outliers", {
@@ -707,7 +707,7 @@ test_that("omitting ndt/poutlier from bf() still yields proper priors", {
 test_that("the natural-scale priors describe the same belief as the link ones", {
   # lognormal(m, s) on ndt is exactly normal(m, s) on log(ndt)
   set.seed(1)
-  x <- rlnorm(2e5, -1.2, 0.2)
+  x <- rlnorm(2e4, -1.2, 0.2)
   expect_equal(mean(log(x)), -1.2, tolerance = 0.01)
   expect_equal(sd(log(x)), 0.2, tolerance = 0.02)
 

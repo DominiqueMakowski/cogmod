@@ -111,8 +111,12 @@ observed response, what the half Student-t outlier component is for, and why
 Note that the Gamma density is \strong{unbounded at \code{ndt}} whenever the shape
 \code{mu < 1}, which makes the likelihood unbounded as \code{ndt} approaches the
 fastest response. The outlier component cannot repair that, since it adds
-density rather than capping it. \code{\link[=cogmod_loggamma]{cogmod_loggamma()}} nests this family at
-\code{shape = sigma} and lets the data choose the shape instead of fixing it.
+density rather than capping it. Less obviously, a shape anywhere \strong{below 2}
+leaves the derivative of the log-likelihood with respect to \code{ndt} unbounded
+at every observation, which costs sampling time rather than correctness - see
+the shape section of \code{?rcogmod_weibull}, where the same three regimes are set
+out and measured. \code{\link[=cogmod_loggamma]{cogmod_loggamma()}} nests this family at \code{shape = sigma} and
+lets the data choose the shape instead of fixing it.
 
 Do \strong{not} fit this with \code{init = 0}, for two reasons at once: it puts \code{ndt} at
 \code{exp(0) = 1} second, above most sub-second responses, and the shape at

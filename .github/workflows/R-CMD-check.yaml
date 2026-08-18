@@ -29,6 +29,11 @@ jobs:
       R_KEEP_PKG_SOURCE: yes
       # Run the full test suite here, including the parts skipped on CRAN.
       NOT_CRAN: true
+      # ...and the model-fitting tests, which are opt-in because each compiles
+      # its own Stan program. They still need cmdstanr, which the step below
+      # removes, so on this workflow they skip either way; the variable is set
+      # so that a job which does provide CmdStan runs them unchanged.
+      COGMOD_TEST_SLOW: true
       # cmdstanr is deliberately absent (see below), and R CMD check otherwise
       # errors out on a suggested package it cannot find.
       _R_CHECK_FORCE_SUGGESTS_: false

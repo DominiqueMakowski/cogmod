@@ -98,6 +98,35 @@
 #' nearly every sub-second RT, which leaves every response attributed to the
 #' outlier component and the race parameters with no gradient at all.
 #'
+#' [cogmod_priors()] is not a convenience here either. Beyond `ndt` and
+#' `poutlier`, a race has a flat direction of its own: push an accumulator's
+#' rate far enough down and it stops finishing first *ever*, so the density
+#' depends on it only through the loser's survival term, which has already
+#' saturated at 1. Past about `nuone = -6` the log-likelihood is **exactly**
+#' constant, and that accumulator's `sigma` is unidentified along with it -
+#' nothing is left for it to act on. On the identity link `nuone` uses, that is
+#' an unbounded flat region under a flat prior: an improper posterior, the same
+#' failure as `poutlier` running to 1.
+#'
+#' The outlier component makes this reachable rather than hypothetical. Without
+#' it, an accumulator that never wins would still have to explain the trials on
+#' which the *other* one lost, and the likelihood would object. With it, those
+#' trials are floored by the contaminant instead, so the plateau is there even
+#' when both responses are well represented. [cogmod_priors()] fences off
+#' `nuone`, `sigmazero` and `sigmaone` for this reason.
+#'
+#' `mu` is `nuzero` and has the mirror-image plateau, but it is the response's
+#' own intercept, so `brms` already gives it a proper `student_t` default and
+#' [cogmod_priors()] leaves it alone. If one option is chosen only rarely, the
+#' accumulator that loses is the one at risk, and it is worth putting the same
+#' prior on both by hand:
+#'
+#' ```r
+#' priors <- c(cogmod_priors(f, df),
+#'             brms::prior(normal(0.7, 1.5), class = "Intercept"),
+#'             replace = TRUE)
+#' ```
+#'
 #' # Predictions exclude the outlier component
 #'
 #' `posterior_predict()` describes the **race alone** by default, as if

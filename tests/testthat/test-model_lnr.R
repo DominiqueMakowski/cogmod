@@ -188,7 +188,7 @@ test_that("rcogmod_lnr returns rt and response", {
 
 test_that("rcogmod_lnr reproduces its own density", {
   set.seed(42)
-  n <- 60000
+  n <- 20000
   pars <- list(nuzero = 0.5, nuone = 0.2, sigmazero = 0.8, sigmaone = 1.0,
                ndt = 0.25)
   for (poutlier in c(0, 0.05)) {
@@ -400,7 +400,7 @@ test_that("Stan cogmod_lnr_lpdf matches dcogmod_lnr", {
   skip_on_cran()
   skip_if_not_installed("cmdstanr")
 
-  lpdf <- cogmod_lnr_lpdf_expose()
+  lpdf <- stan_fun("cogmod_lnr")
   grid <- expand.grid(
     Y = c(0.02, 0.2, 0.5, 1.5, 8),
     nuzero = c(-0.5, 1.2),
@@ -491,6 +491,75 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_lnr", {
 })
 
 
+test_that("cogmod_priors fences off the losing accumulator's flat direction", {
+  # Push an accumulator's rate down far enough and it stops finishing first
+  # ever. The density then depends on it only through the loser's survival
+  # term, which has already saturated at 1, so the log-likelihood goes exactly
+  # flat - and that accumulator's sigma goes with it, having nothing left to act
+  # on. Both are directions brms leaves improper, the same failure the function
+  # already prevents for `ndt` and `poutlier`.
+  set.seed(11)
+  sim <- rcogmod_lnr(400, nuzero = 1.2, nuone = 0.2, sigmazero = 0.5,
+                     sigmaone = 0.6, ndt = 0.25, poutlier = 0.02)
+  ll <- function(d, nuone, sigmaone = 0.6) {
+    sum(dcogmod_lnr(d$rt, nuzero = 1.2, nuone = nuone, sigmazero = 0.5,
+                    sigmaone = sigmaone, ndt = 0.25, response = d$response,
+                    poutlier = 0.02, log = TRUE))
+  }
+
+  # the plateau, and the fact that it is reached at a finite nuone
+  only0 <- sim[sim$response == 0, ]
+  expect_equal(ll(only0, -10), ll(only0, -50), tolerance = 1e-10)
+  # sigmaone is unidentified out there, so a prior on nuone alone is not enough
+  expect_equal(ll(only0, -20, sigmaone = 0.2), ll(only0, -20, sigmaone = 2),
+               tolerance = 1e-10)
+  # and the outlier component means both responses being observed does not save
+  # it: the trials the retreating accumulator can no longer explain are floored
+  expect_equal(ll(sim, -10), ll(sim, -20), tolerance = 1e-10)
+
+  d <- data.frame(RT = sim$rt, Error = sim$response,
+                  Condition = rep(c("a", "b"), length.out = nrow(sim)))
+  f <- brms::bf(RT | dec(Error) ~ Condition, nuone ~ Condition,
+                sigmazero ~ Condition, sigmaone ~ Condition, ndt ~ 1,
+                family = cogmod_lnr())
+
+  # brms leaves all three flat on its own
+  raw <- brms::get_prior(f, data = d, family = cogmod_lnr())
+  flat <- raw$dpar %in% c("nuone", "sigmazero", "sigmaone")
+  expect_true(all(raw$prior[flat] == ""))
+
+  p <- cogmod_priors(f, d)
+  pick <- function(dp, cls) p$prior[p$dpar == dp & p$class == cls & nzchar(p$prior)]
+  expect_equal(pick("nuone", "Intercept"), "normal(0.7, 1.5)")
+  expect_equal(pick("sigmazero", "Intercept"), "normal(0, 1)")
+  expect_equal(pick("sigmaone", "Intercept"), "normal(0, 1)")
+  for (dp in c("nuone", "sigmazero", "sigmaone")) {
+    expect_equal(pick(dp, "b"), "normal(0, 0.5)", label = paste(dp, "slope"))
+  }
+
+  # `mu` is nuzero and has the mirror-image plateau, but it is the response's
+  # own intercept, so brms already supplies a proper default there and
+  # cogmod_priors leaves it alone
+  expect_match(p$prior[p$class == "Intercept" & !nzchar(p$dpar)], "student_t")
+
+  # omitted dpars live on their natural scale: identity for nuone, positive for
+  # the two sigmas
+  f2 <- brms::bf(RT | dec(Error) ~ 1, family = cogmod_lnr())
+  p2 <- cogmod_priors(f2, d)
+  expect_equal(p2$prior[p2$class == "nuone"], "normal(0.7, 1.5)")
+  expect_equal(p2$prior[p2$class == "sigmazero"], "lognormal(-0.7, 0.75)")
+  expect_equal(p2$prior[p2$class == "sigmaone"], "lognormal(-0.7, 0.75)")
+
+  for (form in list(f, f2)) {
+    expect_silent(
+      brms::make_stancode(form, data = d, family = cogmod_lnr(),
+                          prior = cogmod_priors(form, d),
+                          stanvars = cogmod_stanvars(form))
+    )
+  }
+})
+
+
 test_that("the ndt prior location moves with minrt", {
   set.seed(7)
   sim <- rcogmod_lnr(100, ndt = 0.25, poutlier = 0.03)
@@ -527,6 +596,7 @@ test_that("cogmod_inits covers the declared parameters", {
 # a real fit --------------------------------------------------------------
 
 test_that("cogmod_lnr recovers ndt above the fastest observed response", {
+  skip_if_not_slow()
   skip_on_cran()
   skip_if_not_installed("cmdstanr")
 

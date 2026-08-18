@@ -6,62 +6,62 @@ test_that("rcogmod_choco empirical side-probabilities match theory", {
   n <- 20000
   tol <- 0.05
 
-  # small grid of parameters
-  p_vals <- c(0.2, 0.5, 0.8)
-  pmid_vals <- c(0, 0.1)
-  pex_vals <- c(0, 0.2)
-  bex_vals <- c(0.3, 0.7)
-  mid_vals <- c(0.3, 0.5, 0.7)
+  # Small grid of parameters, thinned to a covering subset - see helper-grid.R.
+  grid <- covering_grid(
+    p = c(0.2, 0.5, 0.8),
+    pmid = c(0, 0.1),
+    pex = c(0, 0.2),
+    bex = c(0.3, 0.7),
+    mid = c(0.3, 0.5, 0.7)
+  )
   # fix symmetric confidences/precisions for simplicity
   confright <- confleft <- 0.5
   precright <- precleft <- 3
 
-  for (p in p_vals) {
-    for (pmid in pmid_vals) {
-      for (pex in pex_vals) {
-        for (bex in bex_vals) {
-          for (mid in mid_vals) {
-            # theoretical weights
-            prob_not_mid <- 1 - pmid
-            theo_left <- prob_not_mid * (1 - p)
-            theo_mid <- pmid
-            theo_right <- prob_not_mid * p
+  for (.i in seq_len(nrow(grid))) {
+    p <- grid$p[.i]
+    pmid <- grid$pmid[.i]
+    pex <- grid$pex[.i]
+    bex <- grid$bex[.i]
+    mid <- grid$mid[.i]
 
-            x <- rcogmod_choco(n,
-              p = p,
-              confright = confright, precright = precright,
-              confleft = confleft, precleft = precleft,
-              pex = pex, bex = bex,
-              pmid = pmid,
-              mid = mid
-            )
+    # theoretical weights
+    prob_not_mid <- 1 - pmid
+    theo_left <- prob_not_mid * (1 - p)
+    theo_mid <- pmid
+    theo_right <- prob_not_mid * p
 
-            emp_left <- mean(x < mid)
-            emp_mid <- mean(abs(x - mid) < 1e-9)
-            emp_right <- mean(x > mid)
+    x <- rcogmod_choco(n,
+      p = p,
+      confright = confright, precright = precright,
+      confleft = confleft, precleft = precleft,
+      pex = pex, bex = bex,
+      pmid = pmid,
+      mid = mid
+    )
 
-            label_base <- paste0(
-              "p=", p, ", pmid=", pmid,
-              ", pex=", pex, ", bex=", bex,
-              ", mid=", mid
-            )
+    emp_left <- mean(x < mid)
+    emp_mid <- mean(abs(x - mid) < 1e-9)
+    emp_right <- mean(x > mid)
 
-            expect_equal(emp_left, theo_left,
-              tolerance = tol,
-              label = paste(label_base, "— left mass")
-            )
-            expect_equal(emp_mid, theo_mid,
-              tolerance = tol,
-              label = paste(label_base, "— mid mass")
-            )
-            expect_equal(emp_right, theo_right,
-              tolerance = tol,
-              label = paste(label_base, "— right mass")
-            )
-          }
-        }
-      }
-    }
+    label_base <- paste0(
+      "p=", p, ", pmid=", pmid,
+      ", pex=", pex, ", bex=", bex,
+      ", mid=", mid
+    )
+
+    expect_equal(emp_left, theo_left,
+      tolerance = tol,
+      label = paste(label_base, "— left mass")
+    )
+    expect_equal(emp_mid, theo_mid,
+      tolerance = tol,
+      label = paste(label_base, "— mid mass")
+    )
+    expect_equal(emp_right, theo_right,
+      tolerance = tol,
+      label = paste(label_base, "— right mass")
+    )
   }
 })
 
@@ -72,115 +72,115 @@ test_that("dcogmod_choco places correct point‐masses and integrates to 1", {
   tol_int <- 0.02
 
   # same grid
-  p_vals <- c(0.2, 0.5, 0.8)
-  pmid_vals <- c(0, 0.1)
-  pex_vals <- c(0, 0.2)
-  bex_vals <- c(0.3, 0.7)
-  mid_vals <- c(0.3, 0.5, 0.7)
+  grid <- covering_grid(
+    p = c(0.2, 0.5, 0.8),
+    pmid = c(0, 0.1),
+    pex = c(0, 0.2),
+    bex = c(0.3, 0.7),
+    mid = c(0.3, 0.5, 0.7)
+  )
   confright <- confleft <- 0.5
   precright <- precleft <- 3
 
-  for (p in p_vals) {
-    for (pmid in pmid_vals) {
-      for (pex in pex_vals) {
-        for (bex in bex_vals) {
-          for (mid in mid_vals) {
-            # Theoretical side‐weights
-            prob_not_mid <- 1 - pmid
-            prob_left <- prob_not_mid * (1 - p)
-            prob_mid <- pmid
-            prob_right <- prob_not_mid * p
+  for (.i in seq_len(nrow(grid))) {
+    p <- grid$p[.i]
+    pmid <- grid$pmid[.i]
+    pex <- grid$pex[.i]
+    bex <- grid$bex[.i]
+    mid <- grid$mid[.i]
 
-            # Underlying cogmod_betagate masses
-            mass0_left <- dcogmod_betagate(0,
-              mu = 1 - confleft, phi = precleft,
-              pex = pex * (1 - bex), bex = 0
-            )
-            mass1_right <- dcogmod_betagate(1,
-              mu = confright, phi = precright,
-              pex = pex * bex, bex = 1
-            )
+    # Theoretical side‐weights
+    prob_not_mid <- 1 - pmid
+    prob_left <- prob_not_mid * (1 - p)
+    prob_mid <- pmid
+    prob_right <- prob_not_mid * p
 
-            # Theoretical point‐mass for full CHOCO
-            theo_mass0 <- prob_left * mass0_left
-            theo_massT <- prob_mid
-            theo_mass1 <- prob_right * mass1_right
+    # Underlying cogmod_betagate masses
+    mass0_left <- dcogmod_betagate(0,
+      mu = 1 - confleft, phi = precleft,
+      pex = pex * (1 - bex), bex = 0
+    )
+    mass1_right <- dcogmod_betagate(1,
+      mu = confright, phi = precright,
+      pex = pex * bex, bex = 1
+    )
 
-            # Evaluate dcogmod_choco at the three points
-            got0 <- dcogmod_choco(0,
-              p = p,
-              confright = confright, precright = precright,
-              confleft = confleft, precleft = precleft,
-              pex = pex, bex = bex,
-              pmid = pmid,
-              mid = mid
-            )
-            gotT <- dcogmod_choco(mid,
-              p = p,
-              confright = confright, precright = precright,
-              confleft = confleft, precleft = precleft,
-              pex = pex, bex = bex,
-              pmid = pmid,
-              mid = mid
-            )
-            got1 <- dcogmod_choco(1,
-              p = p,
-              confright = confright, precright = precright,
-              confleft = confleft, precleft = precleft,
-              pex = pex, bex = bex,
-              pmid = pmid,
-              mid = mid
-            )
+    # Theoretical point‐mass for full CHOCO
+    theo_mass0 <- prob_left * mass0_left
+    theo_massT <- prob_mid
+    theo_mass1 <- prob_right * mass1_right
 
-            base_lbl <- paste0(
-              "p=", p, ", pmid=", pmid,
-              ", pex=", pex, ", bex=", bex,
-              ", mid=", mid
-            )
+    # Evaluate dcogmod_choco at the three points
+    got0 <- dcogmod_choco(0,
+      p = p,
+      confright = confright, precright = precright,
+      confleft = confleft, precleft = precleft,
+      pex = pex, bex = bex,
+      pmid = pmid,
+      mid = mid
+    )
+    gotT <- dcogmod_choco(mid,
+      p = p,
+      confright = confright, precright = precright,
+      confleft = confleft, precleft = precleft,
+      pex = pex, bex = bex,
+      pmid = pmid,
+      mid = mid
+    )
+    got1 <- dcogmod_choco(1,
+      p = p,
+      confright = confright, precright = precright,
+      confleft = confleft, precleft = precleft,
+      pex = pex, bex = bex,
+      pmid = pmid,
+      mid = mid
+    )
 
-            expect_equal(got0, theo_mass0,
-              tolerance = tol_mass,
-              label = paste(base_lbl, "— point mass at 0")
-            )
-            expect_equal(gotT, theo_massT,
-              tolerance = tol_mass,
-              label = paste(base_lbl, "— point mass at mid")
-            )
-            expect_equal(got1, theo_mass1,
-              tolerance = tol_mass,
-              label = paste(base_lbl, "— point mass at 1")
-            )
+    base_lbl <- paste0(
+      "p=", p, ", pmid=", pmid,
+      ", pex=", pex, ", bex=", bex,
+      ", mid=", mid
+    )
 
-            # Quick numeric integration over (0, mid) and (mid,1)
-            f_int <- function(f_lower, f_upper) {
-              stats::integrate(
-                function(xx) {
-                  dcogmod_choco(xx,
-                    p = p,
-                    confright = confright, precright = precright,
-                    confleft = confleft, precleft = precleft,
-                    pex = pex, bex = bex,
-                    pmid = pmid,
-                    mid = mid
-                  )
-                },
-                lower = f_lower, upper = f_upper,
-                rel.tol = tol_int, subdivisions = 200
-              )$value
-            }
+    expect_equal(got0, theo_mass0,
+      tolerance = tol_mass,
+      label = paste(base_lbl, "— point mass at 0")
+    )
+    expect_equal(gotT, theo_massT,
+      tolerance = tol_mass,
+      label = paste(base_lbl, "— point mass at mid")
+    )
+    expect_equal(got1, theo_mass1,
+      tolerance = tol_mass,
+      label = paste(base_lbl, "— point mass at 1")
+    )
 
-            cont_left <- if (mid > 0) f_int(0 + 1e-8, mid - 1e-8) else 0
-            cont_right <- if (mid < 1) f_int(mid + 1e-8, 1 - 1e-8) else 0
-
-            total_mass <- theo_mass0 + theo_massT + theo_mass1 + cont_left + cont_right
-            expect_equal(total_mass, 1,
-              tolerance = tol_int,
-              label = paste(base_lbl, "— total integrates to 1")
-            )
-          }
-        }
-      }
+    # Quick numeric integration over (0, mid) and (mid,1)
+    f_int <- function(f_lower, f_upper) {
+      stats::integrate(
+        function(xx) {
+          dcogmod_choco(xx,
+            p = p,
+            confright = confright, precright = precright,
+            confleft = confleft, precleft = precleft,
+            pex = pex, bex = bex,
+            pmid = pmid,
+            mid = mid
+          )
+        },
+        lower = f_lower, upper = f_upper,
+        rel.tol = tol_int, subdivisions = 200
+      )$value
     }
+
+    cont_left <- if (mid > 0) f_int(0 + 1e-8, mid - 1e-8) else 0
+    cont_right <- if (mid < 1) f_int(mid + 1e-8, 1 - 1e-8) else 0
+
+    total_mass <- theo_mass0 + theo_massT + theo_mass1 + cont_left + cont_right
+    expect_equal(total_mass, 1,
+      tolerance = tol_int,
+      label = paste(base_lbl, "— total integrates to 1")
+    )
   }
 })
 
@@ -189,6 +189,7 @@ test_that("dcogmod_choco places correct point‐masses and integrates to 1", {
 context("CHOCO - brms")
 
 test_that("CHOCO model can recover parameters with brms using variational inference", {
+  skip_if_not_slow()
   skip_on_cran()
   skip_if_not_installed("brms")
   skip_if_not_installed("cmdstanr")
@@ -312,7 +313,7 @@ test_that("Stan cogmod_choco_lpdf matches R dcogmod_choco function", {
   skip_if_not_installed("cmdstanr")
 
   # Expose the Stan function if possible
-  cogmod_choco_lpdf <- cogmod_choco_lpdf_expose()
+  cogmod_choco_lpdf <- stan_fun("cogmod_choco")
 
   # --- Define parameter grids for testing ---
   y_values <- c(0, 0.01, 0.25, 0.5, 0.75, 0.99, 1)

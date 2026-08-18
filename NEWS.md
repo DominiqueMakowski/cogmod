@@ -86,6 +86,109 @@
 
 ## Bug fixes
 
+* The test suite runs in a third of the time (2472 s to 968 s on Windows).
+  Every family's Stan `lpdf` now goes into **one** model, compiled once per
+  session, instead of nine separate `*_lpdf_expose()` compilations; the
+  factorial parameter sweeps are thinned to subsets that still cover every level
+  of every factor; and the six `brms::brm()` model fits are behind
+  `COGMOD_TEST_SLOW`, which the CI workflow sets. Setting it locally runs them:
+
+  ```r
+  Sys.setenv(COGMOD_TEST_SLOW = "true"); devtools::test()
+  ```
+
+  The shared model also removes a trap the RDM tests had worked around with a
+  cache of their own: `expose_functions()` fails on a model `cmdstan_model()`
+  returns pre-compiled, so a second call in the same session errors rather than
+  reusing the first.
+
+* `cogmod_priors()` now covers `cogmod_lnr()`'s `nuone`, `sigmazero` and
+  `sigmaone`, which it previously left flat. Push an accumulator's rate down far
+  enough and it stops finishing first ever; the density then depends on it only
+  through the loser's survival term, which has already saturated at 1. Past
+  about `nuone = -6` the log-likelihood is *exactly* constant, and that
+  accumulator's `sigma` is unidentified along with it. The outlier component
+  makes this reachable rather than hypothetical: it floors the trials the
+  retreating accumulator can no longer explain, so the plateau is there even
+  when both responses are observed.
+
+  `nuone` gets `normal(0.7, 1.5)` on its identity link, the two sigmas
+  `normal(0, 1)` on softplus (`lognormal(-0.7, 0.75)` when omitted from `bf()`
+  and so on the natural scale), and all three `normal(0, 0.5)` on slopes. `mu` -
+  which is `nuzero` - has the mirror-image plateau, but it is the response's own
+  intercept and `brms` already gives it a proper `student_t` default, so it is
+  left alone; if you model a rarely-chosen option it is worth mirroring the
+  `nuone` prior onto it by hand.
+
+  `cogmod_inits()` already covered this family and is unchanged.
+
+* `cogmod_priors()` now covers `cogmod_lba1()`'s `sigmabias` and `boundary`,
+  which it previously left on `brms`'s flat default. As the start-point range
+  approaches zero the LBA converges smoothly to the recinormal, so the
+  likelihood stops depending on `sigmabias` altogether - and a `softplus` link
+  reaches zero only at minus infinity. That is a flat prior over an infinite
+  flat region, the same improper posterior the function already exists to
+  prevent for `ndt` and `poutlier`, and it failed just as quietly: on the
+  4285-trial fit in `vignette("rt_models")`, `sigmabias` for one condition ran
+  off to `softplus(-10.4) = 3e-05` with `Rhat` 1.69 and an effective sample size
+  of 6, while every other parameter looked healthy. With the priors in place the
+  same fit gives `Rhat` 1.02, an effective sample size of 387, no
+  maximum-treedepth hits, and a finite estimate. `boundary` is covered too,
+  since `b = sigmabias + boundary` puts the two on the same ridge.
+
+  Both get `normal(0, 1)` on the link scale, `lognormal(-0.7, 0.75)` when the
+  dpar is omitted from `bf()` and so lives on the natural scale, and
+  `normal(0, 0.5)` on slopes - wider than the blanket `normal(0, 0.2)` the other
+  dpars take, because the point is to fence off zero rather than to shrink
+  effects. Families can now declare such rows in the registry, so the next one
+  that needs them does not need a special case.
+
+* The `?rcogmod_weibull` and `?rcogmod_gamma` notes about the shape were
+  understated. They said the density is unbounded at `ndt` for a shape below 1,
+  which is true, but the threshold that matters in practice is **2**: below it
+  the derivative of the log-likelihood with respect to `ndt` is unbounded at
+  every observation, so the posterior stays proper while the sampler grinds. On
+  the data in `vignette("rt_models")` the Weibull shape comes out at 1.4, `ndt`
+  lands inside the dense left edge of the data, the step size collapses to 0.005
+  against 0.19 for `cogmod_lognormal()`, and mean treedepth goes from 3.9 to
+  8.1 - 19x the gradient evaluations and 19x the wall time, with `Rhat` 1.18 on
+  `ndt`. The density is cheap; all of the cost is geometry. Both help pages now
+  set out the three regimes and say to prefer `cogmod_loggamma()`, which nests
+  the Weibull at `shape = 1`, when the shape comes out below 2.
+
+  No prior is set on those shapes, deliberately, and none is set on `ndt`
+  either. Every obvious remedy was tried on that fit and measured:
+
+  - `normal(2.4, 0.4)` on the shape (softplus scale, 95% of its mass above a
+    shape of 1.9) moved the posterior shape by 0.01. The likelihood prefers the
+    low-shape corner by around 100 log units; the prior contributes 5.
+  - `normal(-1.25, 0.05)` on `ndt`, centred below the fastest bulk response,
+    left the posterior 6.5 prior SDs away at essentially its unconstrained
+    value. The `ndt` likelihood has a posterior SD of 0.003, some fifteen times
+    sharper than that prior. The attempt cost 4% divergent transitions against
+    0.5%, 16% of iterations at maximum treedepth against 7%, `Rhat` 1.43 against
+    1.18, and a slightly worse `loo`.
+  - Fixing `ndt` at the fastest observed response does remove the problem, by
+    removing the parameter - and reinstates the min-RT bound this
+    parameterization exists to remove. On these data the fastest response is
+    71 ms, which is not a decision.
+
+  Note what is *not* wrong: `ndt` and the shape are jointly identified, sharply
+  (posterior SD on `ndt` of 3 ms), so this is not two parameters trading off
+  with nothing to separate them and pinning one is not the missing ingredient.
+
+  The slow sampling and a poor fit turn out to be the same fact. Across the ten
+  families fitted in `vignette("rt_models")` the Weibull comes **last** by
+  `loo` - 196 elpd (SE 21) behind `cogmod_loggamma()`, and 95 behind the next
+  worst. What the sampler struggles with is the model contorting itself to
+  represent a left edge it cannot otherwise reach. Where the shape comes out
+  above 2 the family is fine, as `cogmod_gamma()` is on these same data at 2.2;
+  a shape below 2 is best read as the model asking for a different one.
+
+  Under the older `ndt = tau * min(RT)` parameterization the same singularity
+  was damped by the logit Jacobian vanishing as `tau` approached 1, which is why
+  it only became visible once `ndt` was estimated directly.
+
 * `cogmod_priors()` no longer leaves `brms` warning that a global `b` prior
   "will not be used in the model as all related coefficients have individual
   priors already". It set both the blanket row and the row for the coefficient

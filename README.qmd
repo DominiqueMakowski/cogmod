@@ -55,37 +55,7 @@ If you have suggestions for improvement, please [get in touch](https://github.co
 
 ![Response formats covered by cogmod, and the main families available for each. Every family comes with a `_stanvars()` function supplying its Stan code, and with `d*()` and `r*()` functions for density evaluation and simulation.](man/figures/fig_overview.png)
 
-## Roadmap
 
-Candidate additions for RT-only data. Now that `rt_loggamma()` nests the
-LogNormal, Weibull, Gamma and inverse Weibull as interior points of a single
-shape parameter, the families worth adding are the ones it *cannot* reach.
-
-- [ ] **Log-Student-t** - `log(RT - ndt) ~ t(nu)`. A robust LogNormal: heavy tails
-  absorb slow contaminants rather than a mixture doing it, which is the one kind
-  of outlier `poutlier` deliberately does not model. Recovers the LogNormal as
-  `nu -> Inf`, so it varies kurtosis where `rt_loggamma()` varies skew.
-- [ ] **Log-logistic** - `log(RT - ndt) ~ Logistic`. The motivation is the *hazard
-  function*: Weibull and Gamma hazards are monotone, whereas the log-logistic
-  rises then falls, a shape none of the current families can produce.
-- [ ] **Ex-Wald** ([Schwarz, 2001](https://doi.org/10.3758/BF03195423)) - a Wald
-  convolved with an exponential. The mechanistic counterpart of the Ex-Gaussian:
-  a diffusive decision stage plus an exponential residual stage, rather than a
-  descriptive Gaussian one.
-- [ ] **LATER / recinormal** ([Carpenter & Williams,
-  1995](https://doi.org/10.1038/377059a0)) - `1 / (RT - ndt)` normally
-  distributed. Standard in the oculomotor literature, and the limit of the
-  single-accumulator `rt_lba()` as its start-point range goes to zero.
-- [ ] **Wald with across-trial drift variability** - an extension of
-  `rt_invgaussian()` rather than a new family, and what makes the Wald fit
-  empirical right tails.
-- [ ] **Shifted sinh-arcsinh (log-SHASH)** ([Jones & Pewsey,
-  2009](https://doi.org/10.1093/biomet/asp053)) - location, scale, skewness and
-  tail weight as four separate parameters. Where `rt_loggamma()` ties skew and
-  tail weight together through one `shape`, SHASH decouples them.
-- [ ] **Birnbaum-Saunders (fatigue life)** - a first-passage-time distribution
-  neighbouring the inverse Gaussian, with the tidy property that
-  `(1/a) * (sqrt(T/b) - sqrt(b/T))` is exactly standard normal.
 
 ## What are Computational Cognitive Models?
 
@@ -197,3 +167,31 @@ See the [Subjective Ratings](https://dominiquemakowski.github.io/cogmod/articles
 
 
 ![](man/figures/decision_making1.png)
+
+## Roadmap
+
+Candidate additions for RT-only data. Now that `rt_loggamma()` nests the
+LogNormal, Weibull, Gamma and inverse Weibull as interior points of a single
+shape parameter, the families worth adding are the ones it *cannot* reach.
+
+- [ ] **Wald with across-trial drift variability** - an extension of
+  `rt_invgaussian()` rather than a new family, and what makes the Wald fit
+  empirical right tails.
+- [ ] **Log-Student-t** - `log(RT - ndt) ~ t(nu)`. A robust LogNormal: heavy tails
+  absorb slow contaminants rather than a mixture doing it, which is the one kind
+  of outlier `poutlier` deliberately does not model. Recovers the LogNormal as
+  `nu -> Inf`, so it varies kurtosis where `rt_loggamma()` varies skew.
+- [ ] **Log-logistic** - `log(RT - ndt) ~ Logistic`. The motivation is the *hazard function*: Weibull and Gamma hazards are monotone, whereas the log-logistic
+  rises then falls, a shape none of the current families can produce.
+- [ ] **Ex-Wald** ([Schwarz, 2001](https://doi.org/10.3758/BF03195423)) - a Wald
+  convolved with an exponential. The mechanistic counterpart of the Ex-Gaussian:
+  a diffusive decision stage plus an exponential residual stage, rather than a
+  descriptive Gaussian one.
+- [ ] **LATER / recinormal** ([Carpenter & Williams, 1995](https://doi.org/10.1038/377059a0)) - `1 / (RT - ndt)` normally
+  distributed. Standard in the oculomotor literature, and the limit of the
+  single-accumulator `rt_lba()` as its start-point range goes to zero.
+- [ ] **Shifted sinh-arcsinh (log-SHASH)** ([Jones & Pewsey, 2009](https://doi.org/10.1093/biomet/asp053)) - location, scale, skewness and tail weight as four separate parameters. Where `rt_loggamma()` ties skew and
+  tail weight together through one `shape`, SHASH decouples them.
+- [ ] **Birnbaum-Saunders (fatigue life)** - a first-passage-time distribution
+  neighbouring the inverse Gaussian, with the tidy property that
+  `(1/a) * (sqrt(T/b) - sqrt(b/T))` is exactly standard normal. Corresponds to an equal mixture between an inverse Gaussian and a reciprocal inverse Gaussian distribution.

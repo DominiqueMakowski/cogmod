@@ -46,6 +46,9 @@
 #                      the response index `k`
 #  rng               : R sampler; returns data.frame(rt, response), unshifted
 #  init              : natural-scale starting values, for cogmod_inits()
+#  prior             : optional, per-dpar priors for cogmod_priors() to fill,
+#                      where the likelihood has a flat direction brms would
+#                      otherwise leave improper. Same shape as in .SHIFTED
 #  label             : human-readable name, used in the generated Stan comments
 #' @keywords internal
 .CHOICE <- list(
@@ -82,6 +85,30 @@
       data.frame(rt = pmin(d0, d1), response = as.numeric(d0 >= d1))
     },
     init = list(mu = 0.7, nuone = 0.7, sigmazero = 0.5, sigmaone = 0.5),
+    # Push an accumulator's rate down far enough and it stops finishing first
+    # ever; the density then depends on it only through the loser's survival
+    # term, which has already saturated at 1. Beyond about nuone = -6 the
+    # log-likelihood is *exactly* constant - and so is that accumulator's sigma,
+    # which has nothing left to act on. Both links reach that plateau at a
+    # finite distance (identity) or at minus infinity (softplus), so a flat
+    # prior over it is an improper posterior, exactly as for `ndt` and
+    # `poutlier`. The outlier component makes it worse rather than better: it
+    # floors the trials the retreating accumulator can no longer explain, so the
+    # plateau is reached even when both responses are observed. See
+    # ?rcogmod_lnr.
+    #
+    # `mu` - nuzero - has the mirror-image plateau, but it is the response's own
+    # intercept, so brms already gives it a proper student_t default and it is
+    # left alone. Model a rarely-chosen option and it is worth mirroring the
+    # `nuone` prior onto it by hand.
+    prior = list(
+      nuone = c(link = "normal(0.7, 1.5)", nat = "normal(0.7, 1.5)",
+                slope = "normal(0, 0.5)"),
+      sigmazero = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
+                    slope = "normal(0, 0.5)"),
+      sigmaone = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
+                   slope = "normal(0, 0.5)")
+    ),
     dpar_doc = c(
       "dec: the observed choice, 0 or 1.",
       paste("mu: nuzero, the processing speed of accumulator 0",

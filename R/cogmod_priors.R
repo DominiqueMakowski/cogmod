@@ -80,6 +80,33 @@
 #' LogNormal shape and keeps the sampler clear of `sigma * shape >= 1`, where the
 #' decision density becomes unbounded at the shift and the likelihood with it.
 #'
+#' A family may add rows of its own where its likelihood has a flat direction
+#' that `brms` would leave improper. Two do:
+#'
+#' - [cogmod_lba1()]: `sigmabias` and `boundary`. As the start-point range
+#'   approaches zero the LBA converges to the recinormal and the likelihood
+#'   stops depending on it, and a `softplus` link reaches zero only at minus
+#'   infinity. Without those rows `sigmabias` runs off - `softplus(-10.4)`,
+#'   `Rhat` 1.69.
+#' - [cogmod_lnr()]: `nuone`, `sigmazero` and `sigmaone`. Push an accumulator's
+#'   rate far enough down and it never finishes first, so the density depends on
+#'   it only through a survival term that has already saturated at 1; past about
+#'   `nuone = -6` the log-likelihood is exactly constant, and that accumulator's
+#'   `sigma` is unidentified along with it. `mu` - which is `nuzero` - has the
+#'   mirror-image plateau, but it is the response's own intercept and `brms`
+#'   already gives it a proper `student_t` default, so it is left alone. Model a
+#'   rarely-chosen option and it is worth mirroring the `nuone` prior onto it.
+#'
+#' Both are the same failure as `ndt` and `poutlier`: an infinite flat region
+#' under a flat prior. See [cogmod_lba1()] and [cogmod_lnr()].
+#'
+#' Note that no prior is set on the shape of [cogmod_weibull()] or
+#' [cogmod_gamma()], although a shape below 2 makes their `ndt` gradient
+#' unbounded. That region is reached because the *likelihood* prefers it, by
+#' around 100 log units on the data in `vignette("rt_models")`, so a prior weak
+#' enough to be a sensible default cannot move the posterior out of it - only
+#' bias it. `?rcogmod_weibull` sets out what to do instead.
+#'
 #' # Parameters left out of the formula
 #'
 #' Writing `ndt ~ 1` and omitting `ndt` entirely are not the same thing to
@@ -98,6 +125,9 @@
 #' | `ndt` | `normal(-1.2 + log(minrt / 0.3), 0.2)` | `lognormal(-1.2 + log(minrt / 0.3), 0.2)` |
 #' | `poutlier` | `normal(-5, 1)` | `exponential(100)` |
 #' | `shape` | `normal(0, 0.5)` | `normal(0, 0.5)` |
+#' | `sigmabias`, `boundary` ([cogmod_lba1()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
+#' | `nuone` ([cogmod_lnr()]) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` |
+#' | `sigmazero`, `sigmaone` ([cogmod_lnr()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 #'
 #' The `ndt` pair describes the same belief twice: `lognormal` is just `normal`
 #' on the log scale, written for the untransformed parameter.
@@ -193,7 +223,13 @@ cogmod_priors <- function(formula, data, ...) {
   # `shape` only exists for cogmod_loggamma(); brms leaves it flat like the others, and
   # a flat prior there lets the sampler wander into sigma * shape >= 1, where the
   # decision density is unbounded at the shift.
-  dpars <- c("ndt", "poutlier", "shape")
+  #
+  # A family may name further decision dpars of its own in the registry's
+  # `prior` slot, for the same reason: a direction the likelihood is flat or
+  # near-flat in, which brms would otherwise leave improper. cogmod_lba1() is
+  # the case in hand - see the note on its registry entry.
+  own <- .mixture_spec(.family_name(family))$prior
+  dpars <- unique(c("ndt", "poutlier", "shape", names(own)))
 
   # A dpar reaches get_prior() in one of two forms, depending on whether it
   # appears in the formula at all.
@@ -264,7 +300,8 @@ cogmod_priors <- function(formula, data, ...) {
           poutlier = "exponential(100)",
           # identity link, so the link-scale prior carries over unchanged
           shape = "normal(0, 0.5)",
-          ""
+          # anything the family named for itself
+          .own_prior(own, cls, "nat")
         ))
       }
       intercept <- cls == "Intercept" || (cls == "b" && p$coef[i] == "Intercept")
@@ -276,10 +313,14 @@ cogmod_priors <- function(formula, data, ...) {
           # where the density blows up at the shift - is several SDs away for
           # any realistic sigma.
           shape = "normal(0, 0.5)",
-          "normal(-5, 1)"
+          poutlier = "normal(-5, 1)",
+          # anything the family named for itself
+          .own_prior(own, p$dpar[i], "link")
         )
       } else if (cls == "b") {
-        "normal(0, 0.2)"
+        # a family may widen the blanket slope prior for a dpar of its own
+        slope <- .own_prior(own, p$dpar[i], "slope")
+        if (nzchar(slope)) slope else "normal(0, 0.2)"
       } else if (cls %in% c("sd", "sds")) {
         "exponential(1)"
       } else {
@@ -306,6 +347,19 @@ cogmod_priors <- function(formula, data, ...) {
   gone <- vapply(seq_len(nrow(kept)), .blanket_now_unused, logical(1),
                  p = kept, all_rows = all_rows)
   kept[!gone, , drop = FALSE]
+}
+
+
+# One entry from a family's own `prior` slot in the registry, or "" if the
+# family named no prior for that dpar, or named one but not on that scale. The
+# slot holds named character vectors, and `[[` on one of those errors rather
+# than returning NULL when the name is absent, so both lookups are guarded.
+#' @keywords internal
+.own_prior <- function(own, dpar, what) {
+  if (is.null(own) || !dpar %in% names(own)) return("")
+  v <- own[[dpar]]
+  if (!what %in% names(v)) return("")
+  unname(v[[what]])
 }
 
 

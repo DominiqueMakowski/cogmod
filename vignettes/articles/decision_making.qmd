@@ -19,6 +19,7 @@ editor_options:
 library(cogmod)
 library(easystats)
 library(ggplot2)
+library(dplyr)
 library(brms)
 library(cmdstanr)
 
@@ -46,34 +47,35 @@ the models below can be fit in a reasonable amount of time for demonstration pur
 
 set.seed(123)  # For reproducibility
 
-# Experiment 1 of Wagenmakers et al. (2008), from rtdists. `censor` flags the
-# trials the authors excluded (uninterpretable, RT < 180 ms, RT > 3 s).
+# Experiment 1 of Wagenmakers et al. (2008), from rtdists. 
 data(speed_acc, package = "rtdists")
-d <- speed_acc[!speed_acc$censor & speed_acc$response != "error" &
-                 speed_acc$rt <= 2, ]
 
 df <- data.frame(
-  Participant = as.integer(as.character(d$id)),
+  Participant = as.integer(as.character(speed_acc$id)),
   Condition = unname(c(accuracy = "Accuracy", speed = "Speed")[
-    as.character(d$condition)]),
-  RT = d$rt,
-  Error = as.integer(as.character(d$response) != as.character(d$stim_cat)),
+    as.character(speed_acc$condition)]),
+  RT = speed_acc$rt,
+  Error = as.integer(as.character(speed_acc$response) != as.character(speed_acc$stim_cat)),
   Frequency = unname(c(high = "High", low = "Low", very_low = "Very Low")[
-    sub("^nw_", "", as.character(d$frequency))])
-)
+    sub("^nw_", "", as.character(speed_acc$frequency))])
+) 
 
-df <- df[df$Participant == 1, ]
+
+df <- df[df$Participant %in% c(1, 2) & df$RT <= 2, ]
 
 # Show 10 first rows
-head(df[c("Participant", "Condition", "RT", "Error")], 10)
+head(df, 10)
 ```
 
 ```{r}
-ggplot(df, aes(x = RT, fill = factor(Error))) +
-  geom_histogram(bins = 100, alpha = 0.8, position = "identity") +
-  facet_wrap(~Condition) +
-  labs(x = "RT (s)", fill = "Response") +
-  scale_fill_manual(values = c("darkgreen", "darkred"), labels = c("Correct", "Error")) +
+ggplot(df, aes(x = RT, fill = Condition)) +
+  geom_histogram(data = df[df$Error == 0, ], aes(y = after_stat(count) / (nrow(df) * 0.02)),
+                 binwidth = 0.02, alpha = 0.6, position = "identity") +
+  geom_histogram(data = df[df$Error == 1, ], aes(y = -after_stat(count) / (nrow(df) * 0.02)),
+                 binwidth = 0.02, alpha = 0.6, position = "identity") +
+  geom_hline(yintercept = 0, color = "black", linewidth = 0.3) +
+  labs(x = "RT (s)", y = "Distribution (Error - Correct)", fill = "Response") +
+  scale_fill_manual(values = c("Accuracy"="#3F51B5", "Speed"="#F4511E")) +
   theme_minimal()
 ```
 
@@ -229,8 +231,7 @@ f <- bf(
   nuone ~ Condition,
   sigmazero ~ 1,
   sigmaone ~ 1,
-  ndt ~ 1,
-  poutlier ~ 1,
+  ndt ~ Condition,
   family = cogmod_lnr()
 )
 
@@ -248,7 +249,7 @@ m_lnr <- brms::add_criterion(m_lnr, "loo")  # Add model performance criterion
 #| eval: false
 #| echo: false
 
-saveRDS(m_lnr, file = "models/m_lnr.rds")
+saveRDS(m_lnr, file = "../models/m_lnr.rds")
 ```
 
 
@@ -471,7 +472,8 @@ duration <- rbind(
 ) |>
   data_modify(Model = factor(Model, levels = c("LNR", "DDM", "DDM-5", "RDM", "LBA")))
 
-duration_median <- aggregate(total ~ Model, data = duration, FUN = median)
+duration_median <- duration |>
+  summarize(total = median(total), .by = Model)
 
 duration_median |>
   ggplot(aes(x = Model, y = total, fill = Model)) +
@@ -503,21 +505,21 @@ distributions right.
 #| code-fold: true
 
 pred <- rbind(
-  estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |>
-    reshape_iterations() |>
-    data_modify(Model = "DDM"),
-  estimate_prediction(m_ddm5, data = df, iterations = 50, keep_iterations = TRUE) |>
-    reshape_iterations() |>
-    data_modify(Model = "DDM-5"),
-  estimate_prediction(m_lba, data = df, iterations = 50, keep_iterations = TRUE) |>
-    reshape_iterations() |>
-    data_modify(Model = "LBA"),
-  estimate_prediction(m_lnr, data = df, iterations = 50, keep_iterations = TRUE) |>
+  # estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |>
+  #   reshape_iterations() |>
+  #   data_modify(Model = "DDM"),
+  # estimate_prediction(m_ddm5, data = df, iterations = 50, keep_iterations = TRUE) |>
+  #   reshape_iterations() |>
+  #   data_modify(Model = "DDM-5"),
+  estimate_prediction(m_lnr, data = df, keep_iterations = 50, iterations = 50, ci = NULL) |>
     reshape_iterations() |>
     data_modify(Model = "LNR"),
-  estimate_prediction(m_rdm, data = df, iterations = 50, keep_iterations = TRUE) |>
-    reshape_iterations() |>
-    data_modify(Model = "RDM")
+  # estimate_prediction(m_lba, data = df, iterations = 50, keep_iterations = TRUE) |>
+  #   reshape_iterations() |>
+  #   data_modify(Model = "LBA"),
+  # estimate_prediction(m_rdm, data = df, iterations = 50, keep_iterations = TRUE) |>
+  #   reshape_iterations() |>
+  #   data_modify(Model = "RDM")
 ) |>
   datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index", "Model")) |>
   datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model"), values_from = "iter_value", names_from = "Component")

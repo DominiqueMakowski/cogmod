@@ -23,14 +23,92 @@
 #' observed response, what the half Student-t outlier component is for, and why
 #' `minrt` is a constant on the family rather than a `dpar`.
 #'
-#' Note that the Weibull density is **unbounded at `ndt`** whenever the shape
-#' `mu < 1`, which makes the likelihood unbounded as `ndt` approaches the fastest
-#' response; the outlier component adds density rather than capping it, so it
-#' cannot repair that. [cogmod_loggamma()] nests this family at `shape = 1` and lets
-#' the data choose the shape instead of fixing it.
+#' # The shape governs how well this samples
+#'
+#' Near the shift the Weibull density behaves like `(y - ndt)^(mu - 1)`, and
+#' that exponent decides how the mixture behaves as `ndt` passes an observation.
+#' Three regimes, in order of severity:
+#'
+#' - `mu < 1`: the density is **unbounded at `ndt`**, so the likelihood is
+#'   unbounded as `ndt` approaches the fastest response. The outlier component
+#'   adds density rather than capping it, so it cannot repair that.
+#' - `mu < 2`: the density is bounded, but the derivative of the log-likelihood
+#'   with respect to `ndt` behaves like `(y - ndt)^(mu - 2)` and so is
+#'   **unbounded at every observation**. The posterior is proper - `poutlier`
+#'   keeps it so - but the gradient spikes wherever `ndt` sits close to a
+#'   response, which is exactly where the data put it.
+#' - `mu > 2`: bounded gradient. `mu > 3` additionally bounds the curvature.
+#'
+#' The middle regime is the one to watch, because nothing warns about it. On the
+#' 4285-trial lexical-decision data in `vignette("rt_models")` the shape comes
+#' out at 1.4, `ndt` lands at 0.40 s inside the dense left edge of the data, and
+#' the sampler's step size collapses to 0.005 against 0.19 for
+#' [cogmod_lognormal()] on the same data: mean treedepth 8.1 against 3.9, which
+#' is 19x the gradient evaluations and 19x the wall time, with `Rhat` 1.18 on
+#' `ndt`. The density itself is cheap; **all** of the cost is geometry.
+#'
+#' ## What does not help
+#'
+#' All of the obvious remedies were tried on that fit and measured. None of them
+#' works, and two make it worse, so they are recorded here rather than left for
+#' the next person to rediscover.
+#'
+#' **A prior on the shape.** `normal(2.4, 0.4)` on the softplus scale puts 95%
+#' of its mass above `mu = 1.9`. It moved the posterior shape by 0.01, because
+#' the likelihood prefers the low-shape corner by around 100 log units and the
+#' prior contributes 5.
+#'
+#' **A narrow prior on `ndt`.** This looks like the obvious fix - keep the shift
+#' below the data and the singular region is never visited - and it fails for an
+#' instructive reason. `normal(-1.25, 0.05)`, centred at 0.287 s with 95% of its
+#' mass below the fastest bulk response, left the posterior at 0.396 s: **6.5
+#' prior SDs away**, essentially where it was without any prior at all. The
+#' `ndt` likelihood has a posterior SD of 0.003, so it is some fifteen times
+#' sharper than that prior; nothing weaker than fixing `ndt` outright competes
+#' with it. What the attempt did achieve was 4% divergent transitions against
+#' 0.5%, 16% of iterations at maximum treedepth against 7%, `Rhat` 1.43 against
+#' 1.18, and a slightly worse `loo`.
+#'
+#' **Fixing `ndt` at the fastest observed response.** This does remove the
+#' problem, by removing the parameter - but it reinstates exactly the min-RT
+#' bound this parameterization exists to get rid of, and it is unsound wherever
+#' the outlier component is doing its job. On the data above the fastest
+#' response is 71 ms, which is not a decision; the mixture is there precisely so
+#' that an order statistic of the sample is not treated as a bound. See
+#' [cogmod_lognormal()].
+#'
+#' Note also what is *not* wrong: `ndt` and the shape are jointly identified,
+#' and sharply so - the posterior SD on `ndt` is 3 ms. This is not a case of two
+#' parameters trading off with nothing to separate them, so pinning one of them
+#' is not the missing ingredient. The sharpness simply sits on a ridge that is
+#' not smooth.
+#'
+#' ## What to do instead
+#'
+#' Treat a fitted shape below 2 as the diagnostic it is, and use
+#' [cogmod_loggamma()], which nests this family at `shape = 1` and lets the data
+#' choose the shape rather than having the family fix it. On the data above it
+#' samples in a third of the time with no divergences.
+#'
+#' The slow sampling and the poor fit are the same fact, not two problems.
+#' Across the ten families fitted in `vignette("rt_models")` the Weibull comes
+#' **last** by `loo`, 196 elpd (SE 21) behind [cogmod_loggamma()] and 95 behind
+#' the next worst. What the sampler struggles with is the model contorting
+#' itself - pushing the shift up into the data, pulling the shape toward 1 - to
+#' represent a left edge it cannot otherwise reach. That does not make the
+#' Weibull useless for reaction times in general; where the shape comes out
+#' above 2 the family is perfectly well behaved, as [cogmod_gamma()] is on these
+#' same data at a shape of 2.2. It does mean a shape below 2 should be read as
+#' the model telling you to use a different one.
+#'
+#' Under the older `ndt = tau * min(RT)` parameterization the problem was hidden
+#' rather than absent: the logit Jacobian vanished as `tau` approached 1, which
+#' damped exactly this gradient.
+#'
+#' # Starting values
 #'
 #' Do **not** fit this with `init = 0`: it puts `ndt` at `exp(0) = 1` second and
-#' the shape at `softplus(0) = 0.69`, inside the unbounded region above, and no
+#' the shape at `softplus(0) = 0.69`, inside the `mu < 1` regime above, and no
 #' single scalar avoids both. Use [cogmod_inits()], which sets them separately:
 #'
 #' ```r

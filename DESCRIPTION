@@ -40,6 +40,7 @@ Suggests:
     loo,
     dplyr,
     ggplot2,
+    ggrepel,
     easystats,
     datawizard,
     bayestestR,

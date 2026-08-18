@@ -154,6 +154,7 @@ context("Inv-Gaussian (Shifted Wald) - brms")
 
 
 test_that("Shifted Wald model can recover parameters with brms", {
+  skip_if_not_slow()
 
   skip_if_not_installed("brms")
   skip_if_not_installed("cmdstanr")
@@ -199,7 +200,7 @@ test_that("Shifted Wald model can recover parameters with brms", {
 test_that("Stan cogmod_invgaussian_lpdf matches R dcogmod_invgaussian function", {
   skip_if_not_installed("cmdstanr")
 
-  cogmod_invgaussian_lpdf <- cogmod_invgaussian_lpdf_expose()
+  cogmod_invgaussian_lpdf <- stan_fun("cogmod_invgaussian")
 
   mu_values <- c(1.0, 3.0, 5.0)
   boundary_values <- c(0.3, 0.8, 1.5)

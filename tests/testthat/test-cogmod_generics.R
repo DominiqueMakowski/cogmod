@@ -377,3 +377,29 @@ test_that("the R parameter checks reject exactly what Stan rejects", {
   expect_warning(d <- dcogmod_lognormal(0.5, sigma = -1), "must be greater")
   expect_equal(d, 0)
 })
+
+
+# The shared Stan model ---------------------------------------------------
+
+test_that("the suite's shared Stan model stands in for *_lpdf_expose()", {
+  # helper-stan.R compiles every family's lpdf into one model, because nine
+  # separate compilations cost far more than the tests they serve. That is only
+  # legitimate if the shared model returns what the per-family exposer returns,
+  # so the substitution is checked here - once, against the one family whose
+  # own compilation is being paid for anyway.
+  skip_on_cran()
+  skip_if_not_installed("cmdstanr")
+
+  shared <- stan_fun("cogmod_lognormal")
+  own <- cogmod_lognormal_lpdf_expose()
+  args <- list(0.9, -0.7, 0.5, 0.3, 0.02)
+  expect_equal(do.call(shared, args), do.call(own, args), tolerance = 1e-12)
+
+  # and every family the helper claims to carry is actually in there, so a new
+  # family added to the package without a line in .STAN_LPDF_FAMILIES fails
+  # here rather than in whichever test happens to ask for it first
+  for (nm in .STAN_LPDF_FAMILIES) {
+    suffix <- if (identical(nm, "cogmod_betadiscrete")) "_lpmf" else "_lpdf"
+    expect_true(is.function(stan_fun(nm, suffix)), label = nm)
+  }
+})

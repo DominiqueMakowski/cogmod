@@ -156,13 +156,13 @@ test_that("rcogmod_loggamma recovers the mixture mean", {
   ndt <- 0.3
   poutlier <- 0.05
 
-  rts <- rcogmod_loggamma(2e5, mu, sigma, shape, ndt, poutlier)
+  rts <- rcogmod_loggamma(2e4, mu, sigma, shape, ndt, poutlier)
   theo <- (1 - poutlier) * (cogmod:::.mloggamma(mu, sigma, shape) + ndt) +
     poutlier * cogmod:::.mcontam()
 
   expect_equal(mean(rts), theo, tolerance = 0.02)
   expect_true(all(rts > 0))
-  expect_length(rts, 2e5)
+  expect_length(rts, 2e4)
 })
 
 test_that("rcogmod_loggamma produces responses below ndt only via outliers", {

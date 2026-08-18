@@ -95,6 +95,34 @@ of its mass between 0.1\% and 5\%.
 \code{shape} exists only for \code{\link[=cogmod_loggamma]{cogmod_loggamma()}}. \code{normal(0, 0.5)} is centred on the
 LogNormal shape and keeps the sampler clear of \code{sigma * shape >= 1}, where the
 decision density becomes unbounded at the shift and the likelihood with it.
+
+A family may add rows of its own where its likelihood has a flat direction
+that \code{brms} would leave improper. Two do:
+\itemize{
+\item \code{\link[=cogmod_lba1]{cogmod_lba1()}}: \code{sigmabias} and \code{boundary}. As the start-point range
+approaches zero the LBA converges to the recinormal and the likelihood
+stops depending on it, and a \code{softplus} link reaches zero only at minus
+infinity. Without those rows \code{sigmabias} runs off - \code{softplus(-10.4)},
+\code{Rhat} 1.69.
+\item \code{\link[=cogmod_lnr]{cogmod_lnr()}}: \code{nuone}, \code{sigmazero} and \code{sigmaone}. Push an accumulator's
+rate far enough down and it never finishes first, so the density depends on
+it only through a survival term that has already saturated at 1; past about
+\code{nuone = -6} the log-likelihood is exactly constant, and that accumulator's
+\code{sigma} is unidentified along with it. \code{mu} - which is \code{nuzero} - has the
+mirror-image plateau, but it is the response's own intercept and \code{brms}
+already gives it a proper \code{student_t} default, so it is left alone. Model a
+rarely-chosen option and it is worth mirroring the \code{nuone} prior onto it.
+}
+
+Both are the same failure as \code{ndt} and \code{poutlier}: an infinite flat region
+under a flat prior. See \code{\link[=cogmod_lba1]{cogmod_lba1()}} and \code{\link[=cogmod_lnr]{cogmod_lnr()}}.
+
+Note that no prior is set on the shape of \code{\link[=cogmod_weibull]{cogmod_weibull()}} or
+\code{\link[=cogmod_gamma]{cogmod_gamma()}}, although a shape below 2 makes their \code{ndt} gradient
+unbounded. That region is reached because the \emph{likelihood} prefers it, by
+around 100 log units on the data in \code{vignette("rt_models")}, so a prior weak
+enough to be a sensible default cannot move the posterior out of it - only
+bias it. \code{?rcogmod_weibull} sets out what to do instead.
 }
 
 \section{Parameters left out of the formula}{
@@ -112,6 +140,9 @@ lives on:\tabular{lll}{
    \code{ndt} \tab \code{normal(-1.2 + log(minrt / 0.3), 0.2)} \tab \code{lognormal(-1.2 + log(minrt / 0.3), 0.2)} \cr
    \code{poutlier} \tab \code{normal(-5, 1)} \tab \code{exponential(100)} \cr
    \code{shape} \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \cr
+   \code{sigmabias}, \code{boundary} (\code{\link[=cogmod_lba1]{cogmod_lba1()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
+   \code{nuone} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}) \tab \code{normal(0.7, 1.5)} \tab \code{normal(0.7, 1.5)} \cr
+   \code{sigmazero}, \code{sigmaone} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
 }
 
 

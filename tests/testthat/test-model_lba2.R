@@ -5,182 +5,186 @@ test_that("rcogmod_lba2 generates consistent data across various parameter setti
   set.seed(456) # For reproducibility
   n_samples_loop <- 10000 # Use a reasonably large sample for stable averages
 
-  # Define parameter ranges to test.
-  # Here we directly specify independent drifts.
-  driftzero_vals <- c(2.0, 3.0)
-  driftone_vals <- c(0, 2.0, 3.0) # Include a case with mean = 0
-  sigmazero_vals <- c(0.5, 1.0)
-  sigmaone_vals <- c(0.5, 1.0)
-  sigmabias_vals <- c(0.5, 1.0) # formerly A
-  boundary_vals <- c(0.2, 0.5) # formerly k
-  ndt_vals <- c(0.2, 0.4)
+  # Parameter ranges to test, with independent drifts specified directly.
+  # Thinned to a covering subset of the full factorial - see helper-grid.R. The
+  # drift of exactly zero is pinned in, being the one level with an assertion of
+  # its own further down.
+  grid <- covering_grid(
+    driftzero = c(2.0, 3.0),
+    driftone = c(0, 2.0, 3.0), # Include a case with mean = 0
+    sigmazero = c(0.5, 1.0),
+    sigmaone = c(0.5, 1.0),
+    sigmabias = c(0.5, 1.0), # formerly A
+    boundary = c(0.2, 0.5), # formerly k
+    ndt = c(0.2, 0.4),
+    always = function(g) {
+      g$driftone == 0 & g$sigmazero == 0.5 & g$sigmaone == 0.5 &
+        g$sigmabias == 0.5 & g$boundary == 0.2 & g$ndt == 0.2
+    }
+  )
 
-  for (driftzero in driftzero_vals) {
-    for (driftone in driftone_vals) {
-      for (sigmazero in sigmazero_vals) {
-        for (sigmaone in sigmaone_vals) {
-          for (sigmabias in sigmabias_vals) {
-            for (boundary in boundary_vals) {
-              for (ndt in ndt_vals) {
-                # Skip invalid combinations where both drift means are <= 0.
-                if (driftzero <= 0 && driftone <= 0) {
-                  next
-                }
+  for (.i in seq_len(nrow(grid))) {
+    driftzero <- grid$driftzero[.i]
+    driftone <- grid$driftone[.i]
+    sigmazero <- grid$sigmazero[.i]
+    sigmaone <- grid$sigmaone[.i]
+    sigmabias <- grid$sigmabias[.i]
+    boundary <- grid$boundary[.i]
+    ndt <- grid$ndt[.i]
 
-                # Construct a parameter label for more informative error messages.
-                param_label <- sprintf(
-                  "driftzero=%.1f, driftone=%.1f, sigmazero=%.1f, sigmaone=%.1f, sigmabias=%.1f, boundary=%.1f, ndt=%.1f",
-                  driftzero,
-                  driftone,
-                  sigmazero,
-                  sigmaone,
-                  sigmabias,
-                  boundary,
-                  ndt
-                )
+    # Skip invalid combinations where both drift means are <= 0.
+    if (driftzero <= 0 && driftone <= 0) {
+      next
+    }
 
-                # Simulate data.
-                lba_data <- rcogmod_lba2(
-                  n = n_samples_loop,
-                  driftzero = driftzero,
-                  driftone = driftone,
-                  sigmazero = sigmazero,
-                  sigmaone = sigmaone,
-                  sigmabias = sigmabias,
-                  boundary = boundary,
-                  ndt = ndt
-                )
+    # Construct a parameter label for more informative error messages.
+    param_label <- sprintf(
+      "driftzero=%.1f, driftone=%.1f, sigmazero=%.1f, sigmaone=%.1f, sigmabias=%.1f, boundary=%.1f, ndt=%.1f",
+      driftzero,
+      driftone,
+      sigmazero,
+      sigmaone,
+      sigmabias,
+      boundary,
+      ndt
+    )
 
-                # --- Basic Structural Checks ---
-                expect_named(
-                  lba_data,
-                  c("rt", "response"),
-                  label = paste("Column names mismatch for:", param_label)
-                )
-                expect_equal(
-                  nrow(lba_data),
-                  n_samples_loop,
-                  label = paste("Row count mismatch for:", param_label)
-                )
+    # Simulate data.
+    lba_data <- rcogmod_lba2(
+      n = n_samples_loop,
+      driftzero = driftzero,
+      driftone = driftone,
+      sigmazero = sigmazero,
+      sigmaone = sigmaone,
+      sigmabias = sigmabias,
+      boundary = boundary,
+      ndt = ndt
+    )
 
-                # --- RT Checks ---
-                expect_true(
-                  all(lba_data$rt > ndt),
-                  label = paste("Not all RT > ndt for:", param_label)
-                )
-                expect_false(
-                  any(is.na(lba_data$rt)),
-                  label = paste("NA values in RT for:", param_label)
-                )
-                expect_false(
-                  any(is.infinite(lba_data$rt)),
-                  label = paste("Infinite RT values for:", param_label)
-                )
+    # --- Basic Structural Checks ---
+    expect_named(
+      lba_data,
+      c("rt", "response"),
+      label = paste("Column names mismatch for:", param_label)
+    )
+    expect_equal(
+      nrow(lba_data),
+      n_samples_loop,
+      label = paste("Row count mismatch for:", param_label)
+    )
 
-                # --- Response Coding Check ---
-                expect_true(
-                  all(lba_data$response %in% c(0, 1)),
-                  label = paste(
-                    "Invalid response codes found for:",
-                    param_label
-                  )
-                )
+    # --- RT Checks ---
+    expect_true(
+      all(lba_data$rt > ndt),
+      label = paste("Not all RT > ndt for:", param_label)
+    )
+    expect_false(
+      any(is.na(lba_data$rt)),
+      label = paste("NA values in RT for:", param_label)
+    )
+    expect_false(
+      any(is.infinite(lba_data$rt)),
+      label = paste("Infinite RT values for:", param_label)
+    )
 
-                # --- Approximate Mean RT Checks ---
-                b <- sigmabias + boundary
-                emp_mean_rt_0 <- mean(
-                  lba_data$rt[lba_data$response == 0],
-                  na.rm = TRUE
-                )
-                emp_mean_rt_1 <- mean(
-                  lba_data$rt[lba_data$response == 1],
-                  na.rm = TRUE
-                )
+    # --- Response Coding Check ---
+    expect_true(
+      all(lba_data$response %in% c(0, 1)),
+      label = paste(
+        "Invalid response codes found for:",
+        param_label
+      )
+    )
 
-                # For accumulator 0: if its mean drift is positive, compute a rough theoretical mean.
-                if (driftzero > 0 && !is.nan(emp_mean_rt_0)) {
-                  theo_mean_rt_0 <- ndt + (b - sigmabias / 2) / driftzero # adjusted approximation
-                  # For edge cases when driftone is zero, we relax the tolerance.
-                  if (driftone == 0) {
-                    tol_rt_0 <- 1.0
-                  } else {
-                    tol_rt_0 <- 0.5 + ((b - sigmabias / 2) / driftzero * 0.5)
-                  }
-                  expect_lt(
-                    abs(emp_mean_rt_0 - theo_mean_rt_0),
-                    tol_rt_0,
-                    label = paste("Mean RT (Resp 0) mismatch for:", param_label)
-                  )
-                }
+    # --- Approximate Mean RT Checks ---
+    b <- sigmabias + boundary
+    emp_mean_rt_0 <- mean(
+      lba_data$rt[lba_data$response == 0],
+      na.rm = TRUE
+    )
+    emp_mean_rt_1 <- mean(
+      lba_data$rt[lba_data$response == 1],
+      na.rm = TRUE
+    )
 
-                # For accumulator 1:
-                if (driftone > 0 && !is.nan(emp_mean_rt_1)) {
-                  theo_mean_rt_1 <- ndt + (b - sigmabias / 2) / driftone # adjusted approximation
-                  tol_rt_1 <- 0.5 + ((b - sigmabias / 2) / driftone * 0.5)
-                  expect_lt(
-                    abs(emp_mean_rt_1 - theo_mean_rt_1),
-                    tol_rt_1,
-                    label = paste("Mean RT (Resp 1) mismatch for:", param_label)
-                  )
-                }
+    # For accumulator 0: if its mean drift is positive, compute a rough theoretical mean.
+    if (driftzero > 0 && !is.nan(emp_mean_rt_0)) {
+      theo_mean_rt_0 <- ndt + (b - sigmabias / 2) / driftzero # adjusted approximation
+      # For edge cases when driftone is zero, we relax the tolerance.
+      if (driftone == 0) {
+        tol_rt_0 <- 1.0
+      } else {
+        tol_rt_0 <- 0.5 + ((b - sigmabias / 2) / driftzero * 0.5)
+      }
+      expect_lt(
+        abs(emp_mean_rt_0 - theo_mean_rt_0),
+        tol_rt_0,
+        label = paste("Mean RT (Resp 0) mismatch for:", param_label)
+      )
+    }
 
-                # --- Approximate Choice Proportion Checks ---
-                emp_choice_0 <- mean(lba_data$response == 0)
+    # For accumulator 1:
+    if (driftone > 0 && !is.nan(emp_mean_rt_1)) {
+      theo_mean_rt_1 <- ndt + (b - sigmabias / 2) / driftone # adjusted approximation
+      tol_rt_1 <- 0.5 + ((b - sigmabias / 2) / driftone * 0.5)
+      expect_lt(
+        abs(emp_mean_rt_1 - theo_mean_rt_1),
+        tol_rt_1,
+        label = paste("Mean RT (Resp 1) mismatch for:", param_label)
+      )
+    }
 
-                if (driftzero > 0 && driftone > 0) {
-                  # Use a nonlinear approximation with an exponent of 3:
-                  theo_prop_0 <- 1 / (1 + (driftone / driftzero)^3)
-                  expect_equal(
-                    emp_choice_0,
-                    theo_prop_0,
-                    tolerance = 0.15,
-                    label = paste(
-                      "Choice Prop (Resp 0) mismatch for:",
-                      param_label
-                    )
-                  )
-                } else if (driftzero > 0 && driftone <= 0) {
-                  # Expect nearly all responses to be 0
-                  expect_gt(
-                    emp_choice_0,
-                    0.85,
-                    label = paste("Expected mostly Resp 0 for:", param_label)
-                  )
-                } else if (driftzero <= 0 && driftone > 0) {
-                  # Expect nearly all responses to be 1 (emp_choice_0 close to 0)
-                  expect_lt(
-                    emp_choice_0,
-                    0.15,
-                    label = paste("Expected mostly Resp 1 for:", param_label)
-                  )
-                }
+    # --- Approximate Choice Proportion Checks ---
+    emp_choice_0 <- mean(lba_data$response == 0)
 
-                # --- Special Case: Handle -Inf Drift Values ---
-                if (driftzero == -Inf && driftone != -Inf) {
-                  expect_true(
-                    all(lba_data$response == 1),
-                    label = paste(
-                      "Driftzero = -Inf, expected all Resp = 1 for:",
-                      param_label
-                    )
-                  )
-                }
-                if (driftone == -Inf && driftzero != -Inf) {
-                  expect_true(
-                    all(lba_data$response == 0),
-                    label = paste(
-                      "Driftone = -Inf, expected all Resp = 0 for:",
-                      param_label
-                    )
-                  )
-                }
-              } # end ndt loop
-            } # end boundary loop
-          } # end sigmabias loop
-        } # end sigmaone loop
-      } # end sigmazero loop
-    } # end driftone loop
-  } # end driftzero loop
+    if (driftzero > 0 && driftone > 0) {
+      # Use a nonlinear approximation with an exponent of 3:
+      theo_prop_0 <- 1 / (1 + (driftone / driftzero)^3)
+      expect_equal(
+        emp_choice_0,
+        theo_prop_0,
+        tolerance = 0.15,
+        label = paste(
+          "Choice Prop (Resp 0) mismatch for:",
+          param_label
+        )
+      )
+    } else if (driftzero > 0 && driftone <= 0) {
+      # Expect nearly all responses to be 0
+      expect_gt(
+        emp_choice_0,
+        0.85,
+        label = paste("Expected mostly Resp 0 for:", param_label)
+      )
+    } else if (driftzero <= 0 && driftone > 0) {
+      # Expect nearly all responses to be 1 (emp_choice_0 close to 0)
+      expect_lt(
+        emp_choice_0,
+        0.15,
+        label = paste("Expected mostly Resp 1 for:", param_label)
+      )
+    }
+
+    # --- Special Case: Handle -Inf Drift Values ---
+    if (driftzero == -Inf && driftone != -Inf) {
+      expect_true(
+        all(lba_data$response == 1),
+        label = paste(
+          "Driftzero = -Inf, expected all Resp = 1 for:",
+          param_label
+        )
+      )
+    }
+    if (driftone == -Inf && driftzero != -Inf) {
+      expect_true(
+        all(lba_data$response == 0),
+        label = paste(
+          "Driftone = -Inf, expected all Resp = 0 for:",
+          param_label
+        )
+      )
+    }
+  }
 })
 
 
@@ -227,141 +231,142 @@ test_that("dcogmod_lba2 integrates correctly and matches rcogmod_lba2 empirical 
   tol_prob <- 0.03 # Tolerance for empirical probability comparison
   tol_integration <- 0.03 # Tolerance for total probability integration
 
-  # Parameter grid (using our new parametrization):
-  driftzero_vals <- c(1.5, 3.0) # Mean drift for accumulator 0
-  driftone_vals <- c(0.5, 2.0, 3.0) # Mean drift for accumulator 1
-  sigmazero_vals <- c(0.5, 1.0) # Std. dev. for accumulator 0
-  sigmaone_vals <- c(0.5, 1.0) # Std. dev. for accumulator 1
-  sigmabias_vals <- c(0.5, 1.0) # Starting‐point range (A)
-  boundary_vals <- c(0.2, 0.5) # Additive threshold (b = A + k)
-  ndt_vals <- c(0.1, 0.3) # Non-decision time (direct)
+  # Thinned to a covering subset - see helper-grid.R. Each combination costs two
+  # numerical integrations of a scalar-at-a-time density on top of the draws,
+  # which is what made the full factorial the slowest block in the suite.
+  grid <- covering_grid(
+    driftzero = c(1.5, 3.0), # Mean drift for accumulator 0
+    driftone = c(0.5, 2.0, 3.0), # Mean drift for accumulator 1
+    sigmazero = c(0.5, 1.0), # Std. dev. for accumulator 0
+    sigmaone = c(0.5, 1.0), # Std. dev. for accumulator 1
+    sigmabias = c(0.5, 1.0), # Starting‐point range (A)
+    boundary = c(0.2, 0.5), # Additive threshold (b = A + k)
+    ndt = c(0.1, 0.3), # Non-decision time (direct)
+    seed = 2
+  )
 
-  for (driftzero in driftzero_vals) {
-    for (driftone in driftone_vals) {
-      for (sigmazero in sigmazero_vals) {
-        for (sigmaone in sigmaone_vals) {
-          for (sigmabias in sigmabias_vals) {
-            for (boundary in boundary_vals) {
-              for (ndt in ndt_vals) {
-                # Skip cases where both drift means are non-positive.
-                if (driftzero <= 0 && driftone <= 0) {
-                  next
-                }
+  for (.i in seq_len(nrow(grid))) {
+    driftzero <- grid$driftzero[.i]
+    driftone <- grid$driftone[.i]
+    sigmazero <- grid$sigmazero[.i]
+    sigmaone <- grid$sigmaone[.i]
+    sigmabias <- grid$sigmabias[.i]
+    boundary <- grid$boundary[.i]
+    ndt <- grid$ndt[.i]
 
-                label <- sprintf(
-                  "params(driftzero=%.1f, driftone=%.1f, sigmazero=%.1f, sigmaone=%.1f, sigmabias=%.1f, boundary=%.1f, ndt=%.1f)",
-                  driftzero,
-                  driftone,
-                  sigmazero,
-                  sigmaone,
-                  sigmabias,
-                  boundary,
-                  ndt
-                )
+    # Skip cases where both drift means are non-positive.
+    if (driftzero <= 0 && driftone <= 0) {
+      next
+    }
 
-                # Generate sample data from rcogmod_lba2()
-                data <- rcogmod_lba2(
-                  n_samples,
-                  driftzero = driftzero,
-                  driftone = driftone,
-                  sigmazero = sigmazero,
-                  sigmaone = sigmaone,
-                  sigmabias = sigmabias,
-                  boundary = boundary,
-                  ndt = ndt
-                )
-                rt_0 <- data$rt[data$response == 0]
-                rt_1 <- data$rt[data$response == 1]
-                emp_p0 <- length(rt_0) / n_samples
-                emp_p1 <- length(rt_1) / n_samples
+    label <- sprintf(
+      "params(driftzero=%.1f, driftone=%.1f, sigmazero=%.1f, sigmaone=%.1f, sigmabias=%.1f, boundary=%.1f, ndt=%.1f)",
+      driftzero,
+      driftone,
+      sigmazero,
+      sigmaone,
+      sigmabias,
+      boundary,
+      ndt
+    )
 
-                # --- Integration Check ---
-                # Define the joint density integrand using dcogmod_lba2()
-                # Wrap in Vectorize() so the integrand properly accepts scalar input.
-                integrand <- Vectorize(function(x_int, resp) {
-                  dcogmod_lba2(
-                    x_int,
-                    response = resp,
-                    driftzero = driftzero,
-                    driftone = driftone,
-                    sigmazero = sigmazero,
-                    sigmaone = sigmaone,
-                    sigmabias = sigmabias,
-                    boundary = boundary,
-                    ndt = ndt
-                  )
-                })
+    # Generate sample data from rcogmod_lba2()
+    data <- rcogmod_lba2(
+      n_samples,
+      driftzero = driftzero,
+      driftone = driftone,
+      sigmazero = sigmazero,
+      sigmaone = sigmaone,
+      sigmabias = sigmabias,
+      boundary = boundary,
+      ndt = ndt
+    )
+    rt_0 <- data$rt[data$response == 0]
+    rt_1 <- data$rt[data$response == 1]
+    emp_p0 <- length(rt_0) / n_samples
+    emp_p1 <- length(rt_1) / n_samples
 
-                # Determine an upper integration limit using the 99.9th quantile.
-                q999 <- tryCatch(
-                  quantile(data$rt, 0.999, na.rm = TRUE),
-                  error = function(e) NA
-                )
-                if (is.na(q999) || !is.finite(q999)) {
-                  upper_limit <- ndt + 50 # Fallback upper limit
-                } else {
-                  upper_limit <- max(q999, ndt + 10)
-                }
-                # Use a slightly raised lower limit to avoid dt near zero.
-                lower_limit <- ndt + 1e-3 # increased from 1e-6 for stability
+    # --- Integration Check ---
+    # Define the joint density integrand using dcogmod_lba2()
+    # Wrap in Vectorize() so the integrand properly accepts scalar input.
+    integrand <- Vectorize(function(x_int, resp) {
+      dcogmod_lba2(
+        x_int,
+        response = resp,
+        driftzero = driftzero,
+        driftone = driftone,
+        sigmazero = sigmazero,
+        sigmaone = sigmaone,
+        sigmabias = sigmabias,
+        boundary = boundary,
+        ndt = ndt
+      )
+    })
 
-                integral_0 <- tryCatch(
-                  stats::integrate(
-                    integrand,
-                    lower = lower_limit,
-                    upper = upper_limit,
-                    resp = 0,
-                    subdivisions = 300,
-                    stop.on.error = FALSE
-                  )$value,
-                  error = function(e) NA
-                )
-                integral_1 <- tryCatch(
-                  stats::integrate(
-                    integrand,
-                    lower = lower_limit,
-                    upper = upper_limit,
-                    resp = 1,
-                    subdivisions = 300,
-                    stop.on.error = FALSE
-                  )$value,
-                  error = function(e) NA
-                )
+    # Determine an upper integration limit using the 99.9th quantile.
+    q999 <- tryCatch(
+      quantile(data$rt, 0.999, na.rm = TRUE),
+      error = function(e) NA
+    )
+    if (is.na(q999) || !is.finite(q999)) {
+      upper_limit <- ndt + 50 # Fallback upper limit
+    } else {
+      upper_limit <- max(q999, ndt + 10)
+    }
+    # Use a slightly raised lower limit to avoid dt near zero.
+    lower_limit <- ndt + 1e-3 # increased from 1e-6 for stability
 
-                if (!is.na(integral_0) && !is.na(integral_1)) {
-                  total_prob <- integral_0 + integral_1
-                  expect_equal(
-                    total_prob,
-                    1,
-                    tolerance = tol_integration,
-                    label = paste(label, "- Total Probability Integration")
-                  )
-                  if (emp_p0 > 0.01 && emp_p0 < 0.99) {
-                    expect_equal(
-                      emp_p0,
-                      integral_0,
-                      tolerance = tol_prob,
-                      label = paste(label, "- P(0): Empirical vs Integrated")
-                    )
-                  }
-                  if (emp_p1 > 0.01 && emp_p1 < 0.99) {
-                    expect_equal(
-                      emp_p1,
-                      integral_1,
-                      tolerance = tol_prob,
-                      label = paste(label, "- P(1): Empirical vs Integrated")
-                    )
-                  }
-                } else {
-                  warning("Integration failed for parameters: ", label)
-                }
-              } # ndt
-            } # boundary
-          } # sigmabias
-        } # sigmaone
-      } # sigmazero
-    } # driftone
-  } # driftzero
+    integral_0 <- tryCatch(
+      stats::integrate(
+        integrand,
+        lower = lower_limit,
+        upper = upper_limit,
+        resp = 0,
+        subdivisions = 300,
+        stop.on.error = FALSE
+      )$value,
+      error = function(e) NA
+    )
+    integral_1 <- tryCatch(
+      stats::integrate(
+        integrand,
+        lower = lower_limit,
+        upper = upper_limit,
+        resp = 1,
+        subdivisions = 300,
+        stop.on.error = FALSE
+      )$value,
+      error = function(e) NA
+    )
+
+    if (!is.na(integral_0) && !is.na(integral_1)) {
+      total_prob <- integral_0 + integral_1
+      expect_equal(
+        total_prob,
+        1,
+        tolerance = tol_integration,
+        label = paste(label, "- Total Probability Integration")
+      )
+      if (emp_p0 > 0.01 && emp_p0 < 0.99) {
+        expect_equal(
+          emp_p0,
+          integral_0,
+          tolerance = tol_prob,
+          label = paste(label, "- P(0): Empirical vs Integrated")
+        )
+      }
+      if (emp_p1 > 0.01 && emp_p1 < 0.99) {
+        expect_equal(
+          emp_p1,
+          integral_1,
+          tolerance = tol_prob,
+          label = paste(label, "- P(1): Empirical vs Integrated")
+        )
+      }
+    } else {
+      warning("Integration failed for parameters: ", label)
+    }
+  }
 })
 
 

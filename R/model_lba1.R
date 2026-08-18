@@ -30,7 +30,22 @@
 #' scale. Fix it in the formula with `sigma = 1`.
 #'
 #' As `sigmabias` shrinks toward zero the model reduces to the *recinormal*, in
-#' which `1 / (RT - ndt)` is normally distributed - the LATER model.
+#' which `1 / (RT - ndt)` is normally distributed - the LATER model. That limit
+#' is reached smoothly, which means the likelihood becomes **flat** in
+#' `sigmabias` as it approaches zero: once the start-point range is small enough,
+#' making it smaller stops changing the density. On a `softplus` link zero is at
+#' minus infinity, so a flat prior there leaves the posterior improper, and the
+#' symptom is a chain that wanders off rather than one that fails. Fitted without
+#' priors on the 4285-trial data in `vignette("rt_models")`, `sigmabias` for one
+#' condition ran to `softplus(-10.4) = 3e-05` with `Rhat` 1.69 and an effective
+#' sample size of 6.
+#'
+#' [cogmod_priors()] fences both `sigmabias` and `boundary` off for this reason -
+#' the threshold is `b = sigmabias + boundary`, so the two share the ridge - in
+#' the same way and for the same reason it fences off `ndt` and `poutlier`. Pass
+#' `prior = cogmod_priors(f, df)`; the defaults are weak (`normal(0, 1)` on the
+#' softplus scale, so a start-point range of roughly 0.3 to 1.3) and are meant to
+#' be replaced rather than relied on if you know more.
 #'
 #' `ndt`, `poutlier` and `minrt` mean exactly what they do in [cogmod_lognormal()],
 #' and [with_outliers()], [without_outliers()] and [cogmod_priors()] work here

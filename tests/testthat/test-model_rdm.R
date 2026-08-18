@@ -211,21 +211,11 @@ test_that("dcogmod_rdm edge-cases x<=ndt give zero density", {
 
 context("RDM - brms")
 
-# Compiling the Stan model takes far longer than the tests themselves, so do it
-# once and share it across the blocks below.
-.rdm_stan_cache <- new.env(parent = emptyenv())
-cogmod_rdm_lpdf_cached <- function() {
-  if (is.null(.rdm_stan_cache$fun)) {
-    .rdm_stan_cache$fun <- cogmod_rdm_lpdf_expose()
-  }
-  .rdm_stan_cache$fun
-}
-
 test_that("Stan cogmod_rdm_lpdf matches R dcogmod_rdm", {
   skip_on_cran()
   skip_if_not_installed("cmdstanr")
 
-  cogmod_rdm_lpdf_stan <- cogmod_rdm_lpdf_cached()
+  cogmod_rdm_lpdf_stan <- stan_fun("cogmod_rdm")
 
   grid <- expand.grid(
     Y = c(0.25, 0.4, 0.8, 1.5, 3.0, 8.0),
@@ -264,7 +254,7 @@ test_that("Stan cogmod_rdm_lpdf is finite in the tails and for fast responses", 
   skip_on_cran()
   skip_if_not_installed("cmdstanr")
 
-  cogmod_rdm_lpdf_stan <- cogmod_rdm_lpdf_cached()
+  cogmod_rdm_lpdf_stan <- stan_fun("cogmod_rdm")
 
   # Slow responses with a fast losing accumulator: the survival term is what
   # collapses here if it is computed as 1 - CDF.

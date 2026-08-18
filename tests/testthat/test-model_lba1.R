@@ -162,6 +162,7 @@ test_that("dcogmod_lba1 integrates correctly and returns valid densities", {
 context("Single-Accumulator LBA - brms")
 
 test_that("cogmod_lba2 model can recover parameters with brms", {
+  skip_if_not_slow()
   skip_on_cran()
   skip_if_not_installed("brms")
   skip_if_not_installed("cmdstanr")
@@ -192,10 +193,11 @@ test_that("cogmod_lba2 model can recover parameters with brms", {
     family = cogmod_lba1()
   )
 
+  # Only the drift is helped along here; cogmod_priors() now supplies the
+  # sigmabias and boundary rows itself, which is what the block below pins.
   priors <- c(
     cogmod_priors(f, df),
     brms::set_prior("normal(3, 1)", class = "Intercept", dpar = ""),
-    brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmabias"),
     replace = TRUE
   )
 
@@ -222,7 +224,7 @@ test_that("Stan cogmod_lba1_lpdf matches R dcogmod_lba1", {
   skip_on_cran()
   skip_if_not_installed("cmdstanr")
 
-  cogmod_lba1_lpdf_stan <- cogmod_lba1_lpdf_expose()
+  cogmod_lba1_lpdf_stan <- stan_fun("cogmod_lba1")
 
   grid <- expand.grid(
     Y = c(0.3, 0.5, 0.8, 1.2, 2.0),
@@ -282,5 +284,58 @@ test_that("the density stays normalised as the start-point range shrinks", {
     expect_lt(rel, 12 * A)
     expect_lt(rel, prev)
     prev <- rel
+  }
+})
+
+
+test_that("cogmod_priors fences off the sigmabias = 0 flat direction", {
+  # As the start-point range approaches zero the LBA converges to the
+  # recinormal, so the likelihood stops depending on `sigmabias` altogether -
+  # and softplus reaches zero only at minus infinity. Left flat, that is an
+  # improper posterior of exactly the kind cogmod_priors() exists to prevent for
+  # `ndt` and `poutlier`; fitted without it on the 4285-trial data in
+  # vignette("rt_models"), `sigmabias` ran to softplus(-10.4) with Rhat 1.69 and
+  # an effective sample size of 6.
+  set.seed(3)
+  d <- data.frame(
+    rt = rcogmod_lba1(200, ndt = 0.25, poutlier = 0.02),
+    Condition = rep(c("a", "b"), 100)
+  )
+  f <- brms::bf(rt ~ Condition, sigma = 1, sigmabias ~ Condition,
+                boundary ~ Condition, ndt ~ 1, family = cogmod_lba1())
+
+  # brms leaves both flat on its own
+  raw <- brms::get_prior(f, data = d, family = cogmod_lba1())
+  expect_true(all(raw$prior[raw$dpar %in% c("sigmabias", "boundary")] == ""))
+
+  p <- cogmod_priors(f, d)
+  for (dp in c("sigmabias", "boundary")) {
+    # brms reports a blanket row plus one per coefficient; cogmod_priors fills
+    # the blanket and leaves the per-coefficient row to inherit from it, so it
+    # is the rows carrying a prior that are the ones to check
+    rows <- p[p$dpar == dp & nzchar(p$prior), ]
+    expect_equal(rows$prior[rows$class == "Intercept"], "normal(0, 1)",
+                 label = paste(dp, "intercept"))
+    # slopes get a wider prior than the blanket normal(0, 0.2) the other dpars
+    # take: a condition difference in the start-point range is a real effect of
+    # ordinary size, and the job here is to fence off zero, not to shrink it
+    expect_equal(rows$prior[rows$class == "b"], "normal(0, 0.5)",
+                 label = paste(dp, "slope"))
+  }
+
+  # a dpar omitted from bf() is declared on the natural scale instead, and needs
+  # a prior that lives there
+  f2 <- brms::bf(rt ~ 1, family = cogmod_lba1())
+  p2 <- cogmod_priors(f2, d)
+  expect_equal(p2$prior[p2$class == "sigmabias"], "lognormal(-0.7, 0.75)")
+  expect_equal(p2$prior[p2$class == "boundary"], "lognormal(-0.7, 0.75)")
+
+  # and brms accepts both without complaining that a row goes unused
+  for (form in list(f, f2)) {
+    expect_silent(
+      brms::make_stancode(form, data = d, family = cogmod_lba1(),
+                          prior = cogmod_priors(form, d),
+                          stanvars = cogmod_lba1_stanvars())
+    )
   }
 })

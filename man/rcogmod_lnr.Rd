@@ -209,6 +209,34 @@ Use \code{\link[=cogmod_inits]{cogmod_inits()}} rather than \code{init = 0}. \co
 unconstrained scale, so \code{init = 0} puts \code{ndt} at \code{exp(0) = 1} second - above
 nearly every sub-second RT, which leaves every response attributed to the
 outlier component and the race parameters with no gradient at all.
+
+\code{\link[=cogmod_priors]{cogmod_priors()}} is not a convenience here either. Beyond \code{ndt} and
+\code{poutlier}, a race has a flat direction of its own: push an accumulator's
+rate far enough down and it stops finishing first \emph{ever}, so the density
+depends on it only through the loser's survival term, which has already
+saturated at 1. Past about \code{nuone = -6} the log-likelihood is \strong{exactly}
+constant, and that accumulator's \code{sigma} is unidentified along with it -
+nothing is left for it to act on. On the identity link \code{nuone} uses, that is
+an unbounded flat region under a flat prior: an improper posterior, the same
+failure as \code{poutlier} running to 1.
+
+The outlier component makes this reachable rather than hypothetical. Without
+it, an accumulator that never wins would still have to explain the trials on
+which the \emph{other} one lost, and the likelihood would object. With it, those
+trials are floored by the contaminant instead, so the plateau is there even
+when both responses are well represented. \code{\link[=cogmod_priors]{cogmod_priors()}} fences off
+\code{nuone}, \code{sigmazero} and \code{sigmaone} for this reason.
+
+\code{mu} is \code{nuzero} and has the mirror-image plateau, but it is the response's
+own intercept, so \code{brms} already gives it a proper \code{student_t} default and
+\code{\link[=cogmod_priors]{cogmod_priors()}} leaves it alone. If one option is chosen only rarely, the
+accumulator that loses is the one at risk, and it is worth putting the same
+prior on both by hand:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{priors <- c(cogmod_priors(f, df),
+            brms::prior(normal(0.7, 1.5), class = "Intercept"),
+            replace = TRUE)
+}\if{html}{\out{</div>}}
 }
 
 \section{Predictions exclude the outlier component}{

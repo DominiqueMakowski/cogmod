@@ -25,6 +25,12 @@
 #  ldens             : R log-density of the decision component, at t > 0
 #  rng               : R sampler for the decision component
 #  mean              : E[decision time]; Inf where it does not exist
+#  prior             : optional, per-dpar priors for cogmod_priors() to fill,
+#                      where the likelihood has a flat direction brms would
+#                      otherwise leave improper. Each entry is a named character
+#                      vector with any of `link` (modelled intercept, on the
+#                      dpar's link scale), `nat` (dpar omitted from bf(), so on
+#                      the natural scale) and `slope`.
 #  label             : human-readable name, used in the generated Stan comments
 #' @keywords internal
 .SHIFTED <- list(
@@ -167,6 +173,32 @@
     # therefore has nothing to return - see posterior_epred_cogmod_lba1().
     mean = NULL,
     init = list(mu = 3, sigma = 1, sigmabias = 0.5, boundary = 0.5),
+    # As the start-point range shrinks the LBA converges to the recinormal, so
+    # the likelihood becomes *flat* in `sigmabias` as it approaches zero - and a
+    # softplus link reaches zero only at minus infinity. Flat prior plus
+    # infinite flat region is the improper posterior cogmod_priors() exists to
+    # prevent; without these rows `sigmabias` runs off to -11 with Rhat near 1.7.
+    # `boundary` is fenced for the same reason: b = sigmabias + boundary, so the
+    # two share the ridge. See ?rcogmod_lba1.
+    #
+    # `link` is the intercept prior when the dpar is modelled in bf() (softplus
+    # scale here), `nat` the one for a dpar omitted from bf(), which brms
+    # declares as a plain auxiliary parameter on the natural scale instead.
+    # Both say the same thing: a start-point range and a threshold offset of
+    # order 0.5, and neither of them zero.
+    #
+    # `slope` widens the blanket normal(0, 0.2) the other dpars get. A condition
+    # difference in the start-point range is a real effect of ordinary size -
+    # 0.74 on the softplus scale between speed and accuracy instructions on the
+    # data in vignette("rt_models") - which normal(0, 0.2) would shrink most of
+    # the way to zero. The job here is to fence off the flat direction at
+    # sigmabias = 0, not to shrink effects.
+    prior = list(
+      sigmabias = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
+                    slope = "normal(0, 0.5)"),
+      boundary = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
+                   slope = "normal(0, 0.5)")
+    ),
     label = "single-accumulator LBA"
   ),
   cogmod_logweibull = list(

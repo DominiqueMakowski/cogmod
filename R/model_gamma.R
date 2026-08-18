@@ -27,8 +27,12 @@
 #' Note that the Gamma density is **unbounded at `ndt`** whenever the shape
 #' `mu < 1`, which makes the likelihood unbounded as `ndt` approaches the
 #' fastest response. The outlier component cannot repair that, since it adds
-#' density rather than capping it. [cogmod_loggamma()] nests this family at
-#' `shape = sigma` and lets the data choose the shape instead of fixing it.
+#' density rather than capping it. Less obviously, a shape anywhere **below 2**
+#' leaves the derivative of the log-likelihood with respect to `ndt` unbounded
+#' at every observation, which costs sampling time rather than correctness - see
+#' the shape section of `?rcogmod_weibull`, where the same three regimes are set
+#' out and measured. [cogmod_loggamma()] nests this family at `shape = sigma` and
+#' lets the data choose the shape instead of fixing it.
 #'
 #' Do **not** fit this with `init = 0`, for two reasons at once: it puts `ndt` at
 #' `exp(0) = 1` second, above most sub-second responses, and the shape at

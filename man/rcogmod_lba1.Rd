@@ -131,7 +131,22 @@ so only ratios are identified and one parameter must be pinned to fix the
 scale. Fix it in the formula with \code{sigma = 1}.
 
 As \code{sigmabias} shrinks toward zero the model reduces to the \emph{recinormal}, in
-which \code{1 / (RT - ndt)} is normally distributed - the LATER model.
+which \code{1 / (RT - ndt)} is normally distributed - the LATER model. That limit
+is reached smoothly, which means the likelihood becomes \strong{flat} in
+\code{sigmabias} as it approaches zero: once the start-point range is small enough,
+making it smaller stops changing the density. On a \code{softplus} link zero is at
+minus infinity, so a flat prior there leaves the posterior improper, and the
+symptom is a chain that wanders off rather than one that fails. Fitted without
+priors on the 4285-trial data in \code{vignette("rt_models")}, \code{sigmabias} for one
+condition ran to \code{softplus(-10.4) = 3e-05} with \code{Rhat} 1.69 and an effective
+sample size of 6.
+
+\code{\link[=cogmod_priors]{cogmod_priors()}} fences both \code{sigmabias} and \code{boundary} off for this reason -
+the threshold is \code{b = sigmabias + boundary}, so the two share the ridge - in
+the same way and for the same reason it fences off \code{ndt} and \code{poutlier}. Pass
+\code{prior = cogmod_priors(f, df)}; the defaults are weak (\code{normal(0, 1)} on the
+softplus scale, so a start-point range of roughly 0.3 to 1.3) and are meant to
+be replaced rather than relied on if you know more.
 
 \code{ndt}, \code{poutlier} and \code{minrt} mean exactly what they do in \code{\link[=cogmod_lognormal]{cogmod_lognormal()}},
 and \code{\link[=with_outliers]{with_outliers()}}, \code{\link[=without_outliers]{without_outliers()}} and \code{\link[=cogmod_priors]{cogmod_priors()}} work here

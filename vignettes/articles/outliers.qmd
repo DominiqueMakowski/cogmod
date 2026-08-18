@@ -18,6 +18,7 @@ editor_options:
 
 library(cogmod)
 library(ggplot2)
+library(dplyr)
 ```
 
 Every object used below is built by code shown in the article. Because the data
@@ -275,11 +276,11 @@ them.
 
 caf_of <- function(rt, err, brk, series) {
   b <- cut(rt, brk, include.lowest = TRUE)
-  ag <- aggregate(e ~ b, data.frame(e = err, b = b),
-                  function(x) c(n = length(x), m = mean(x)))
+  ag <- data.frame(e = err, b = b) |>
+    summarize(n = length(e), m = mean(e), .by = b)
   i <- match(ag$b, levels(b))
-  data.frame(lo = brk[i], hi = brk[i + 1], n = ag$e[, "n"],
-             err = ag$e[, "m"], series = series)
+  data.frame(lo = brk[i], hi = brk[i + 1], n = ag$n,
+             err = ag$m, series = series)
 }
 
 # Illusion Game: dense fast tail, so fine bins are affordable

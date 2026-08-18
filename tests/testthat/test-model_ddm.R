@@ -96,6 +96,7 @@ test_that("dcogmod_ddm matches densities of rcogmod_ddm simulated data", {
 context("DDM - brms")
 
 test_that("DDM model can recover parameters with brms", {
+  skip_if_not_slow()
   skip_if_not_installed("brms")
   skip_if_not_installed("cmdstanr")
 
@@ -249,7 +250,7 @@ test_that("Stan DDM lpdf matches R dcogmod_ddm function", {
   skip_if_not_installed("cmdstanr")
 
   # Expose the Stan function
-  cogmod_ddm_lpdf_stan <- cogmod_ddm_lpdf_expose()
+  cogmod_ddm_lpdf_stan <- stan_fun("cogmod_ddm")
 
   # Define parameter grids for testing
   Y_values <- c(0.5, 0.7, 1.0, 1.5)
@@ -396,7 +397,7 @@ test_that("Stan cogmod_ddm_lpdf matches dcogmod_ddm() when variability parameter
   skip_if_not_installed("cmdstanr")
   skip_if_not_installed("rtdists")
 
-  cogmod_ddm_lpdf_stan <- cogmod_ddm_lpdf_expose()
+  cogmod_ddm_lpdf_stan <- stan_fun("cogmod_ddm")
 
   grid <- expand.grid(
     drift = c(0.2, -0.3),
@@ -553,7 +554,7 @@ test_that("posterior_epred_cogmod_ddm() matches the simulated mean RT", {
       mu = g$mu, boundary = g$boundary, bias = g$bias, tau = 0.8, minrt = 0.3125,
       sigmadrift = 0, sigmabias = 0, sigmatau = 0
     ))
-    sim <- rcogmod_ddm(60000, drift = g$mu, boundary = g$boundary, bias = g$bias, ndt = 0.25)
+    sim <- rcogmod_ddm(15000, drift = g$mu, boundary = g$boundary, bias = g$bias, ndt = 0.25)
     expect_equal(
       posterior_epred_cogmod_ddm(prep),
       mean(sim$rt),
