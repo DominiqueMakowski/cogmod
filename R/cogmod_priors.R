@@ -57,7 +57,8 @@
 #' `ndt` + `poutlier` parameterization is edited: [cogmod_lognormal()],
 #' [cogmod_loggamma()], [cogmod_invgaussian()], [cogmod_gamma()], [cogmod_invgamma()],
 #' [cogmod_weibull()], [cogmod_invweibull()], [cogmod_logweibull()] and, for the
-#' choice-and-RT models, [cogmod_lnr()]. Any other family, or
+#' choice-and-RT models, [cogmod_lnr()], [cogmod_rdm()], [cogmod_lba2()] and
+#' [cogmod_ddm()]. Any other family, or
 #' a formula carrying none, is passed through: you get a message and `brms`'s own
 #' defaults, unchanged, so the call is always safe to leave in a script.
 #'
@@ -66,13 +67,13 @@
 #'
 #' | class | `ndt` | `poutlier` | `shape` |
 #' | --- | --- | --- | --- |
-#' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2 + log(minrt / 0.3), 0.2)` | `normal(-5, 1)` | `normal(0, 0.5)` |
+#' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2, 0.2)` | `normal(-5, 1)` | `normal(0, 0.5)` |
 #' | `b` (slopes) | `normal(0, 0.2)` | `normal(0, 0.2)` | `normal(0, 0.2)` |
 #' | `sd`, `sds` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
 #'
-#' The `ndt` location moves with `minrt`, so the priors stay equivariant to the
-#' unit of measurement in the same way the likelihood does; at the default it is
-#' `normal(-1.2, 0.2)`, roughly 170 to 300 ms. `poutlier` is a proportion and
+#' `normal(-1.2, 0.2)` puts `ndt` at roughly 170 to 300 ms. Like everything
+#' else in these families it is stated in **seconds**, which is the unit the
+#' package expects throughout. `poutlier` is a proportion and
 #' does not move: `normal(-5, 1)` is centred at about 0.7% and puts roughly 95%
 #' of its mass between 0.1% and 5%.
 #'
@@ -81,13 +82,34 @@
 #' decision density becomes unbounded at the shift and the likelihood with it.
 #'
 #' A family may add rows of its own where its likelihood has a flat direction
-#' that `brms` would leave improper. Two do:
+#' that `brms` would leave improper. Five do:
 #'
 #' - [cogmod_lba1()]: `sigmabias` and `boundary`. As the start-point range
 #'   approaches zero the LBA converges to the recinormal and the likelihood
 #'   stops depending on it, and a `softplus` link reaches zero only at minus
 #'   infinity. Without those rows `sigmabias` runs off - `softplus(-10.4)`,
 #'   `Rhat` 1.69.
+#' - [cogmod_rdm()]: `sigmabias` and `boundary`, for exactly the reason
+#'   [cogmod_lba1()] needs them - the two enter the threshold only through the
+#'   sum `b = boundary + sigmabias` and trade off along a ridge worth a handful
+#'   of log units, and the `softplus` link reaches zero only at minus infinity.
+#'   The drift rates are left alone: a zero-drift accumulator still finishes,
+#'   and still wins sometimes, so there is no plateau at the bottom of that
+#'   direction the way there is for [cogmod_lnr()]'s `nuone`.
+#' - [cogmod_lba2()]: `sigmazero`, `sigmaone`, `sigmabias` and `boundary`. The
+#'   last two share the threshold ridge above; the two drift SDs are worse. The
+#'   evidence scale of an LBA is arbitrary - multiply the drifts, their SDs, the
+#'   start-point range and the threshold by any `c > 0` and every finishing time
+#'   is unchanged - so the likelihood is *exactly* constant along that ray. These
+#'   priors make the posterior proper; only fixing one SD in the formula
+#'   (`sigmazero = 1`) identifies the scale. See [cogmod_lba2()].
+#' - [cogmod_ddm()]: `sigmadrift`, `sigmabias` and `sigmandt`, the three
+#'   between-trial variability parameters. Each has a floor at zero that its link
+#'   reaches only at minus infinity, and the likelihood stops changing well
+#'   before then. They are also the parameters a DDM is least able to recover, so
+#'   these priors are deliberately tighter than the rest. Fixing the ones a
+#'   design cannot identify (`sigmadrift = 0` in `bf()`) is usually better than
+#'   estimating them behind a prior.
 #' - [cogmod_lnr()]: `nuone`, `sigmazero` and `sigmaone`. Push an accumulator's
 #'   rate far enough down and it never finishes first, so the density depends on
 #'   it only through a survival term that has already saturated at 1; past about
@@ -97,8 +119,9 @@
 #'   already gives it a proper `student_t` default, so it is left alone. Model a
 #'   rarely-chosen option and it is worth mirroring the `nuone` prior onto it.
 #'
-#' Both are the same failure as `ndt` and `poutlier`: an infinite flat region
-#' under a flat prior. See [cogmod_lba1()] and [cogmod_lnr()].
+#' All of them are the same failure as `ndt` and `poutlier`: an infinite flat
+#' region under a flat prior. See [cogmod_lba1()], [cogmod_rdm()],
+#' [cogmod_lba2()], [cogmod_ddm()] and [cogmod_lnr()].
 #'
 #' Note that no prior is set on the shape of [cogmod_weibull()] or
 #' [cogmod_gamma()], although a shape below 2 makes their `ndt` gradient
@@ -122,10 +145,14 @@
 #'
 #' | dpar | in `bf()` (link scale) | omitted (natural scale) |
 #' | --- | --- | --- |
-#' | `ndt` | `normal(-1.2 + log(minrt / 0.3), 0.2)` | `lognormal(-1.2 + log(minrt / 0.3), 0.2)` |
+#' | `ndt` | `normal(-1.2, 0.2)` | `lognormal(-1.2, 0.2)` |
 #' | `poutlier` | `normal(-5, 1)` | `exponential(100)` |
 #' | `shape` | `normal(0, 0.5)` | `normal(0, 0.5)` |
-#' | `sigmabias`, `boundary` ([cogmod_lba1()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
+#' | `sigmabias`, `boundary` ([cogmod_lba1()], [cogmod_rdm()], [cogmod_lba2()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
+#' | `sigmazero`, `sigmaone` ([cogmod_lba2()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
+#' | `sigmadrift` ([cogmod_ddm()]) | `normal(0, 1)` | `lognormal(-1, 0.75)` |
+#' | `sigmabias` ([cogmod_ddm()]) | `normal(-2, 1)` | `beta(1, 5)` |
+#' | `sigmandt` ([cogmod_ddm()]) | `normal(-3, 1)` | `lognormal(-3, 1)` |
 #' | `nuone` ([cogmod_lnr()]) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` |
 #' | `sigmazero`, `sigmaone` ([cogmod_lnr()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 #'
@@ -269,10 +296,10 @@ cogmod_priors <- function(formula, data, ...) {
   aux <- aux[fill]
   p <- p[fill, , drop = FALSE]
 
-  # ndt is a location in time and moves with the timescale; poutlier is a
-  # proportion and does not.
-  shift <- log(.validate_minrt(.as_minrt(family)) / eval(formals(.validate_minrt)$minrt))
-  loc_ndt <- formatC(-1.2 + shift, format = "g", digits = 4, width = 1)
+  # ndt is a location in time, in SECONDS: exp(-1.2) = 0.30 s. Nothing in this
+  # family is equivariant to the unit of measurement any more - see
+  # .POUTLIER_SCALE in core_shifted.R - so the location is a constant.
+  loc_ndt <- "-1.2"
 
   p$prior <- vapply(
     seq_len(nrow(p)),

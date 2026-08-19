@@ -144,15 +144,7 @@
 \alias{rbetadiscrete}
 \title{Deprecated family and function names}
 \usage{
-drt_lognormal(
-  x,
-  mu = -0.7,
-  sigma = 0.5,
-  ndt = 0.2,
-  poutlier = 0,
-  minrt = 0.3,
-  log = FALSE
-)
+drt_lognormal(x, mu = -0.7, sigma = 0.5, ndt = 0.2, poutlier = 0, log = FALSE)
 
 log_lik_rt_lognormal(i, prep)
 
@@ -160,20 +152,19 @@ posterior_epred_rt_lognormal(prep, predict_outliers = NULL)
 
 posterior_predict_rt_lognormal(i, prep, predict_outliers = NULL, ...)
 
-rrt_lognormal(n, mu = -0.7, sigma = 0.5, ndt = 0.2, poutlier = 0, minrt = 0.3)
+rrt_lognormal(n, mu = -0.7, sigma = 0.5, ndt = 0.2, poutlier = 0)
 
 rt_lognormal(
   link_mu = "identity",
   link_sigma = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 )
 
-rt_lognormal_lpdf_expose(minrt = 0.3)
+rt_lognormal_lpdf_expose()
 
-rt_lognormal_stanvars(minrt = 0.3)
+rt_lognormal_stanvars()
 
 drt_loggamma(
   x,
@@ -182,7 +173,6 @@ drt_loggamma(
   shape = 0,
   ndt = 0.2,
   poutlier = 0,
-  minrt = 0.3,
   log = FALSE
 )
 
@@ -192,15 +182,7 @@ posterior_epred_rt_loggamma(prep, predict_outliers = NULL)
 
 posterior_predict_rt_loggamma(i, prep, predict_outliers = NULL, ...)
 
-rrt_loggamma(
-  n,
-  mu = -0.7,
-  sigma = 0.5,
-  shape = 0,
-  ndt = 0.2,
-  poutlier = 0,
-  minrt = 0.3
-)
+rrt_loggamma(n, mu = -0.7, sigma = 0.5, shape = 0, ndt = 0.2, poutlier = 0)
 
 rt_loggamma(
   link_mu = "identity",
@@ -208,21 +190,20 @@ rt_loggamma(
   link_shape = "identity",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 )
 
-rt_loggamma_lpdf_expose(minrt = 0.3)
+rt_loggamma_lpdf_expose()
 
-rt_loggamma_stanvars(minrt = 0.3)
+rt_loggamma_stanvars()
 
 drt_invgaussian(
   x,
   drift = 3,
   boundary = 0.5,
   ndt = 0.2,
+  sigmadrift = 0,
   poutlier = 0,
-  minrt = 0.3,
   log = FALSE
 )
 
@@ -237,8 +218,8 @@ prt_invgaussian(
   drift = 3,
   boundary = 0.5,
   ndt = 0.2,
+  sigmadrift = 0,
   poutlier = 0,
-  minrt = 0.3,
   lower.tail = TRUE,
   log.p = FALSE
 )
@@ -248,32 +229,24 @@ rrt_invgaussian(
   drift = 3,
   boundary = 0.5,
   ndt = 0.2,
-  poutlier = 0,
-  minrt = 0.3
+  sigmadrift = 0,
+  poutlier = 0
 )
 
 rt_invgaussian(
   link_mu = "softplus",
   link_boundary = "softplus",
+  link_sigmadrift = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 )
 
-rt_invgaussian_lpdf_expose(minrt = 0.3)
+rt_invgaussian_lpdf_expose()
 
-rt_invgaussian_stanvars(minrt = 0.3)
+rt_invgaussian_stanvars()
 
-drt_gamma(
-  x,
-  mu = 3,
-  sigma = 0.15,
-  ndt = 0.2,
-  poutlier = 0,
-  minrt = 0.3,
-  log = FALSE
-)
+drt_gamma(x, mu = 3, sigma = 0.15, ndt = 0.2, poutlier = 0, log = FALSE)
 
 log_lik_rt_gamma(i, prep)
 
@@ -281,30 +254,21 @@ posterior_epred_rt_gamma(prep, predict_outliers = NULL)
 
 posterior_predict_rt_gamma(i, prep, predict_outliers = NULL, ...)
 
-rrt_gamma(n, mu = 3, sigma = 0.15, ndt = 0.2, poutlier = 0, minrt = 0.3)
+rrt_gamma(n, mu = 3, sigma = 0.15, ndt = 0.2, poutlier = 0)
 
 rt_gamma(
   link_mu = "softplus",
   link_sigma = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 )
 
-rt_gamma_lpdf_expose(minrt = 0.3)
+rt_gamma_lpdf_expose()
 
-rt_gamma_stanvars(minrt = 0.3)
+rt_gamma_stanvars()
 
-drt_invgamma(
-  x,
-  mu = 4,
-  sigma = 1.5,
-  ndt = 0.2,
-  poutlier = 0,
-  minrt = 0.3,
-  log = FALSE
-)
+drt_invgamma(x, mu = 4, sigma = 1.5, ndt = 0.2, poutlier = 0, log = FALSE)
 
 log_lik_rt_invgamma(i, prep)
 
@@ -312,30 +276,21 @@ posterior_epred_rt_invgamma(prep, predict_outliers = NULL)
 
 posterior_predict_rt_invgamma(i, prep, predict_outliers = NULL, ...)
 
-rrt_invgamma(n, mu = 4, sigma = 1.5, ndt = 0.2, poutlier = 0, minrt = 0.3)
+rrt_invgamma(n, mu = 4, sigma = 1.5, ndt = 0.2, poutlier = 0)
 
 rt_invgamma(
   link_mu = "softplus",
   link_sigma = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 )
 
-rt_invgamma_lpdf_expose(minrt = 0.3)
+rt_invgamma_lpdf_expose()
 
-rt_invgamma_stanvars(minrt = 0.3)
+rt_invgamma_stanvars()
 
-drt_weibull(
-  x,
-  mu = 2,
-  sigma = 0.5,
-  ndt = 0.2,
-  poutlier = 0,
-  minrt = 0.3,
-  log = FALSE
-)
+drt_weibull(x, mu = 2, sigma = 0.5, ndt = 0.2, poutlier = 0, log = FALSE)
 
 log_lik_rt_weibull(i, prep)
 
@@ -343,30 +298,21 @@ posterior_epred_rt_weibull(prep, predict_outliers = NULL)
 
 posterior_predict_rt_weibull(i, prep, predict_outliers = NULL, ...)
 
-rrt_weibull(n, mu = 2, sigma = 0.5, ndt = 0.2, poutlier = 0, minrt = 0.3)
+rrt_weibull(n, mu = 2, sigma = 0.5, ndt = 0.2, poutlier = 0)
 
 rt_weibull(
   link_mu = "softplus",
   link_sigma = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 )
 
-rt_weibull_lpdf_expose(minrt = 0.3)
+rt_weibull_lpdf_expose()
 
-rt_weibull_stanvars(minrt = 0.3)
+rt_weibull_stanvars()
 
-drt_invweibull(
-  x,
-  mu = 3,
-  sigma = 0.4,
-  ndt = 0.2,
-  poutlier = 0,
-  minrt = 0.3,
-  log = FALSE
-)
+drt_invweibull(x, mu = 3, sigma = 0.4, ndt = 0.2, poutlier = 0, log = FALSE)
 
 log_lik_rt_invweibull(i, prep)
 
@@ -374,30 +320,21 @@ posterior_epred_rt_invweibull(prep, predict_outliers = NULL)
 
 posterior_predict_rt_invweibull(i, prep, predict_outliers = NULL, ...)
 
-rrt_invweibull(n, mu = 3, sigma = 0.4, ndt = 0.2, poutlier = 0, minrt = 0.3)
+rrt_invweibull(n, mu = 3, sigma = 0.4, ndt = 0.2, poutlier = 0)
 
 rt_invweibull(
   link_mu = "softplus",
   link_sigma = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 )
 
-rt_invweibull_lpdf_expose(minrt = 0.3)
+rt_invweibull_lpdf_expose()
 
-rt_invweibull_stanvars(minrt = 0.3)
+rt_invweibull_stanvars()
 
-drt_logweibull(
-  x,
-  mu = -0.8,
-  sigma = 0.3,
-  ndt = 0.2,
-  poutlier = 0,
-  minrt = 0.3,
-  log = FALSE
-)
+drt_logweibull(x, mu = -0.8, sigma = 0.3, ndt = 0.2, poutlier = 0, log = FALSE)
 
 log_lik_rt_logweibull(i, prep)
 
@@ -405,20 +342,19 @@ posterior_epred_rt_logweibull(prep, predict_outliers = NULL)
 
 posterior_predict_rt_logweibull(i, prep, predict_outliers = NULL, ...)
 
-rrt_logweibull(n, mu = -0.8, sigma = 0.3, ndt = 0.2, poutlier = 0, minrt = 0.3)
+rrt_logweibull(n, mu = -0.8, sigma = 0.3, ndt = 0.2, poutlier = 0)
 
 rt_logweibull(
   link_mu = "identity",
   link_sigma = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 )
 
-rt_logweibull_lpdf_expose(minrt = 0.3)
+rt_logweibull_lpdf_expose()
 
-rt_logweibull_stanvars(minrt = 0.3)
+rt_logweibull_stanvars()
 
 drt_exgaussian(x, mu = 0.5, sigma = 0.1, tau = 0.2, log = FALSE)
 
@@ -448,7 +384,6 @@ drt_lba(
   boundary = 0.5,
   ndt = 0.3,
   poutlier = 0,
-  minrt = 0.3,
   log = FALSE
 )
 
@@ -465,8 +400,7 @@ rrt_lba(
   sigmabias = 0.5,
   boundary = 0.5,
   ndt = 0.3,
-  poutlier = 0,
-  minrt = 0.3
+  poutlier = 0
 )
 
 rt_lba(
@@ -476,13 +410,12 @@ rt_lba(
   link_boundary = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 )
 
-rt_lba_lpdf_expose(minrt = 0.3)
+rt_lba_lpdf_expose()
 
-rt_lba_stanvars(minrt = 0.3)
+rt_lba_stanvars()
 
 dlba(
   x,
@@ -492,8 +425,9 @@ dlba(
   sigmaone = 1,
   sigmabias = 0.5,
   boundary = 0.5,
-  ndt = 0.3,
+  ndt = 0.2,
   response,
+  poutlier = 0,
   log = FALSE
 )
 
@@ -504,8 +438,9 @@ lba(
   link_sigmaone = "softplus",
   link_sigmabias = "softplus",
   link_boundary = "softplus",
-  link_tau = "logit",
-  link_minrt = "identity"
+  link_ndt = "log",
+  link_poutlier = "logit",
+  predict_outliers = FALSE
 )
 
 lba_lpdf_expose()
@@ -516,7 +451,7 @@ log_lik_lba(i, prep)
 
 posterior_epred_lba(prep)
 
-posterior_predict_lba(i, prep, ...)
+posterior_predict_lba(i, prep, predict_outliers = NULL, ...)
 
 rlba(
   n,
@@ -526,8 +461,8 @@ rlba(
   sigmaone = 1,
   sigmabias = 0.5,
   boundary = 0.5,
-  ndt = 0.3,
-  max_iter = 100
+  ndt = 0.2,
+  poutlier = 0
 )
 
 dlnr(
@@ -539,7 +474,6 @@ dlnr(
   ndt = 0.2,
   response,
   poutlier = 0,
-  minrt = 0.3,
   log = FALSE
 )
 
@@ -550,13 +484,12 @@ lnr(
   link_sigmaone = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 )
 
-lnr_lpdf_expose(minrt = 0.3)
+lnr_lpdf_expose()
 
-lnr_stanvars(minrt = 0.3)
+lnr_stanvars()
 
 log_lik_lnr(i, prep)
 
@@ -571,82 +504,109 @@ rlnr(
   sigmazero = 1,
   sigmaone = 1,
   ndt = 0.2,
-  poutlier = 0,
-  minrt = 0.3
+  poutlier = 0
 )
 
-drdm(x, response = NULL, vzero, vone, boundary, bias, ndt, log = FALSE)
+drdm(
+  x,
+  vzero = 3,
+  vone = 2,
+  boundary = 0.5,
+  bias = 0.2,
+  ndt = 0.2,
+  response = NULL,
+  poutlier = 0,
+  log = FALSE
+)
 
-log_lik_rdm(i, prep, ...)
+log_lik_rdm(i, prep)
 
 posterior_epred_rdm(prep)
 
-posterior_predict_rdm(i, prep, ...)
+posterior_predict_rdm(i, prep, predict_outliers = NULL, ...)
 
-prdm(q, vzero, vone, boundary, bias, ndt, lower.tail = TRUE, log.p = FALSE)
+prdm(
+  q,
+  vzero = 3,
+  vone = 2,
+  boundary = 0.5,
+  bias = 0.2,
+  ndt = 0.2,
+  poutlier = 0,
+  lower.tail = TRUE,
+  log.p = FALSE
+)
 
 rdm(
   link_mu = "softplus",
   link_driftone = "softplus",
   link_sigmabias = "softplus",
   link_boundary = "softplus",
-  link_tau = "logit",
-  link_minrt = "identity"
+  link_ndt = "log",
+  link_poutlier = "logit",
+  predict_outliers = FALSE
 )
 
 rdm_lpdf_expose()
 
 rdm_stanvars()
 
-rrdm(n, vzero, vone, boundary, bias, ndt)
+rrdm(
+  n,
+  vzero = 3,
+  vone = 2,
+  boundary = 0.5,
+  bias = 0.2,
+  ndt = 0.2,
+  poutlier = 0
+)
 
 dddm(
   x,
-  drift,
-  boundary,
-  bias,
-  ndt,
+  drift = 0,
+  boundary = 1,
+  bias = 0.5,
+  ndt = 0.2,
   response,
-  log = FALSE,
   sigmadrift = 0,
   sigmabias = 0,
-  sigmatau = 0,
-  minrt = NULL,
-  ...
+  sigmandt = 0,
+  poutlier = 0,
+  log = FALSE
 )
 
 ddm(
   link_mu = "identity",
   link_boundary = "softplus",
   link_bias = "logit",
-  link_tau = "logit",
-  link_minrt = "identity",
   link_sigmadrift = "softplus",
   link_sigmabias = "logit",
-  link_sigmatau = "logit"
+  link_sigmandt = "log",
+  link_ndt = "log",
+  link_poutlier = "logit",
+  predict_outliers = FALSE
 )
 
 ddm_lpdf_expose()
 
 ddm_stanvars()
 
-log_lik_ddm(i, prep, ...)
+log_lik_ddm(i, prep)
 
-posterior_epred_ddm(prep)
+posterior_epred_ddm(prep, predict_outliers = NULL)
 
-posterior_predict_ddm(i, prep, ...)
+posterior_predict_ddm(i, prep, predict_outliers = NULL, ...)
 
 rddm(
   n,
-  drift,
-  boundary,
-  bias,
-  ndt,
+  drift = 0,
+  boundary = 1,
+  bias = 0.5,
+  ndt = 0.2,
   sigmadrift = 0,
   sigmabias = 0,
-  sigmatau = 0,
-  minrt = NULL,
-  ...
+  sigmandt = 0,
+  poutlier = 0
 )
 
 choco(

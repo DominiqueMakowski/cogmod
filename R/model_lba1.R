@@ -23,6 +23,15 @@
 #' across-trial variability in the start point and the drift rate, rather than
 #' from moment-to-moment noise within the trial.
 #'
+#' The threshold is written as an *offset*, `b = sigmabias + boundary`, which is
+#' the `B` parameterization of `DMC` and `EMC2` (`b = B + A`) rather than the
+#' absolute threshold `rtdists` estimates. The threshold has to sit above the
+#' highest possible starting point, and the offset makes `b > sigmabias` hold
+#' automatically for any positive value instead of needing an order constraint
+#' between two estimated parameters. See [cogmod_lba2()] for the full note. The
+#' cost is that `boundary` alone is not the quantity to read off a fitted model;
+#' `boundary + sigmabias` is.
+#'
 #' `sigma` is conventionally **fixed to 1** rather than estimated, because the
 #' evidence scale is arbitrary: multiplying `mu`, `sigma`, `sigmabias` and `boundary`
 #' by a common constant leaves the decision time `(b - start) / drift` unchanged,
@@ -47,7 +56,7 @@
 #' softplus scale, so a start-point range of roughly 0.3 to 1.3) and are meant to
 #' be replaced rather than relied on if you know more.
 #'
-#' `ndt`, `poutlier` and `minrt` mean exactly what they do in [cogmod_lognormal()],
+#' `ndt` and `poutlier` mean exactly what they do in [cogmod_lognormal()],
 #' and [with_outliers()], [without_outliers()] and [cogmod_priors()] work here
 #' too. See `?rcogmod_lognormal` for the full account.
 #'
@@ -73,9 +82,8 @@
 #'
 #' @export
 rcogmod_lba1 <- function(n, drift = 3, sigma = 1, sigmabias = 0.5, boundary = 0.5,
-                    ndt = 0.3, poutlier = 0, minrt = 0.3) {
-  .rshifted("cogmod_lba1", n = n, ndt = ndt, poutlier = poutlier, minrt = minrt,
-               mu = drift, sigma = sigma, sigmabias = sigmabias, boundary = boundary)
+                    ndt = 0.3, poutlier = 0) {
+  .rshifted("cogmod_lba1", n = n, ndt = ndt, poutlier = poutlier, mu = drift, sigma = sigma, sigmabias = sigmabias, boundary = boundary)
 }
 
 
@@ -84,71 +92,9 @@ rcogmod_lba1 <- function(n, drift = 3, sigma = 1, sigmabias = 0.5, boundary = 0.
 #' @param log Logical; if TRUE, probabilities p are given as log(p).
 #' @export
 dcogmod_lba1 <- function(x, drift = 3, sigma = 1, sigmabias = 0.5, boundary = 0.5,
-                    ndt = 0.3, poutlier = 0, minrt = 0.3, log = FALSE) {
-  .dshifted("cogmod_lba1", x = x, ndt = ndt, poutlier = poutlier, minrt = minrt,
-               log = log, mu = drift, sigma = sigma, sigmabias = sigmabias,
+                    ndt = 0.3, poutlier = 0, log = FALSE) {
+  .dshifted("cogmod_lba1", x = x, ndt = ndt, poutlier = poutlier, log = log, mu = drift, sigma = sigma, sigmabias = sigmabias,
                boundary = boundary)
-}
-
-
-# Internal helpers --------------------------------------------------
-
-# The LBA defective density divided by the start-point range A, i.e.
-#
-#   [ drift * (Phi(z2) - Phi(z1)) + sigma * (phi(z1) - phi(z2)) ] / A
-#
-# with z2 = z1 + delta and delta = A / (sigma * t).
-#
-# Both differences vanish linearly in delta, so evaluating them directly and
-# then dividing by A loses every significant digit once the start-point range is
-# small: at A = 1e-2 the density is already wrong, and by A = 1e-4 it no longer
-# integrates to one. (The previous implementation also floored the bracket at
-# 1e-10, which turned that underflow into a spurious density floor spread over
-# the whole line, so the "density" integrated to far more than one.)
-#
-# Below delta = 1e-4 the Taylor expansion in delta is used instead. Its
-# truncation error there is ~1e-12 relative, while the direct form still has
-# ~12 good digits, so the two agree across the switch. Above it, the two
-# differences are taken tail-aware: Phi(z2) - Phi(z1) from the upper tail when
-# both are positive, and phi(z1) - phi(z2) as phi(z1) * -expm1(...), which stays
-# accurate however close the two arguments are.
-#' @keywords internal
-.lba1_dens_over_A <- function(drift, sigma, st, z1, delta) {
-  n <- max(length(drift), length(sigma), length(st), length(z1), length(delta))
-  drift <- rep_len(drift, n)
-  sigma <- rep_len(sigma, n)
-  st <- rep_len(st, n)
-  z1 <- rep_len(z1, n)
-  delta <- rep_len(delta, n)
-
-  phi1 <- stats::dnorm(z1)
-  out <- numeric(n)
-
-  small <- delta < 1e-4
-  if (any(small)) {
-    i <- small
-    d <- delta[i]
-    z <- z1[i]
-    v <- drift[i]
-    sg <- sigma[i]
-    series <- (v + sg * z) -
-      (d / 2) * (v * z + sg * (z^2 - 1)) +
-      (d^2 / 6) * (v * (z^2 - 1) + sg * (z^3 - 3 * z))
-    out[i] <- phi1[i] * series / st[i]
-  }
-  if (any(!small)) {
-    i <- !small
-    z2 <- z1[i] + delta[i]
-    dPhi <- ifelse(
-      z1[i] > 0,
-      stats::pnorm(z1[i], lower.tail = FALSE) -
-        stats::pnorm(z2, lower.tail = FALSE),
-      stats::pnorm(z2) - stats::pnorm(z1[i])
-    )
-    dphi <- phi1[i] * -expm1(-delta[i] * (z1[i] + z2) / 2)
-    out[i] <- (drift[i] * dPhi + sigma[i] * dphi) / (delta[i] * st[i])
-  }
-  out
 }
 
 
@@ -168,35 +114,33 @@ cogmod_lba1 <- function(
   link_boundary = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 ) {
   .shifted_family(
     "cogmod_lba1",
     links = c(link_mu, link_sigma, link_sigmabias, link_boundary),
-    predict_outliers = predict_outliers,
-    minrt = minrt
+    predict_outliers = predict_outliers
   )
 }
 
 
 #' @keywords internal
-.cogmod_lba1_lpdf <- function(minrt = 0.3) {
-  .shifted_lpdf("cogmod_lba1", minrt = minrt)
+.cogmod_lba1_lpdf <- function() {
+  .shifted_lpdf("cogmod_lba1")
 }
 
 
 #' @rdname rcogmod_lba1
 #' @export
-cogmod_lba1_lpdf_expose <- function(minrt = 0.3) {
-  .shifted_expose("cogmod_lba1", minrt)
+cogmod_lba1_lpdf_expose <- function() {
+  .shifted_expose("cogmod_lba1")
 }
 
 
 #' @rdname rcogmod_lba1
 #' @export
-cogmod_lba1_stanvars <- function(minrt = 0.3) {
-  brms::stanvar(scode = .cogmod_lba1_lpdf(.as_minrt(minrt)), block = "functions")
+cogmod_lba1_stanvars <- function() {
+  brms::stanvar(scode = .cogmod_lba1_lpdf(), block = "functions")
 }
 
 

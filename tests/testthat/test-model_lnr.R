@@ -4,8 +4,8 @@ context("LNR - shifted Log-Normal Race with outliers")
 # outlier component is what keeps the density summing to one over the response
 # options; without it the total comes to 1 + poutlier.
 ref_dens <- function(y, nuzero, nuone, sigmazero, sigmaone, ndt, response,
-                     poutlier, minrt = 0.3) {
-  d_out <- 2 * stats::dt(y / minrt, df = 3) / minrt / 2
+                     poutlier) {
+  d_out <- 2 * stats::dnorm(y, 0, 0.2) / 2
   ml_win <- if (response == 0) -nuzero else -nuone
   sd_win <- if (response == 0) sigmazero else sigmaone
   ml_los <- if (response == 0) -nuone else -nuzero
@@ -101,7 +101,7 @@ test_that("responses faster than ndt keep positive density (the whole point)", {
                        poutlier = poutlier)
       expect_true(all(d > 0))
       # exactly the outlier component, thinned by the two response options
-      expect_equal(d, poutlier * 0.5 * 2 * stats::dt(y / 0.3, df = 3) / 0.3,
+      expect_equal(d, poutlier * 0.5 * 2 * stats::dnorm(y, 0, 0.2),
                    tolerance = 1e-12)
     }
   }
@@ -159,16 +159,6 @@ test_that("dcogmod_lnr returns 0 density for invalid parameters", {
   # `response` is checked against the K options the family declares
   expect_warning(d <- do.call(dcogmod_lnr, modifyList(args, list(response = 2))))
   expect_equal(d, 0)
-})
-
-
-test_that("minrt makes the density equivariant to the unit of measurement", {
-  in_s <- dcogmod_lnr(1, 0.5, 0.2, 0.8, 1.0, ndt = 0.2, response = 1,
-                      poutlier = 0.02)
-  in_ms <- 1000 * dcogmod_lnr(1000, 0.5 - log(1000), 0.2 - log(1000), 0.8, 1.0,
-                              ndt = 200, response = 1, poutlier = 0.02,
-                              minrt = 300)
-  expect_equal(in_s, in_ms, tolerance = 1e-9)
 })
 
 
@@ -325,7 +315,6 @@ test_that("cogmod_lnr() builds a valid brms custom family", {
                c("identity", "identity", "softplus", "softplus", "log",
                  "logit"))
   expect_equal(fam$vars, "dec[n]")
-  expect_equal(fam$minrt, 0.3)
   expect_false(fam$predict_outliers)
   # no tau / minrt dpars survive the migration
   expect_false(any(c("tau", "minrt") %in% fam$dpars))
@@ -340,17 +329,9 @@ test_that("cogmod_lnr is one of the outlier-mixture families", {
 })
 
 
-test_that("minrt and predict_outliers survive the validation brm() performs", {
-  fam <- brms:::validate_family(cogmod_lnr(predict_outliers = TRUE,
-                                           minrt = 0.25))
+test_that("predict_outliers survives the validation brm() performs", {
+  fam <- brms:::validate_family(cogmod_lnr(predict_outliers = TRUE))
   expect_true(fam$predict_outliers)
-  expect_equal(fam$minrt, 0.25)
-})
-
-
-test_that("cogmod_lnr() rejects a bad minrt", {
-  expect_error(cogmod_lnr(minrt = 0), "minrt")
-  expect_error(cogmod_lnr(minrt = c(0.2, 0.3)), "minrt")
 })
 
 
@@ -361,36 +342,30 @@ test_that("stanvars carry the likelihood with the outlier component", {
   expect_true(grepl("real cogmod_lnr_lpdf", code))
   expect_true(grepl("int dec", code))
   expect_true(grepl("log_mix\\(poutlier", code))
-  expect_true(grepl("0.3 \\(= minrt\\)", code))
+  expect_true(grepl("half Normal with scale 0.2", code))
   # the old parameterization is gone
   expect_false(grepl("real tau", code))
   expect_false(grepl("real minrt", code))
 })
 
 
-test_that("cogmod_stanvars reads minrt off the family", {
-  f <- brms::bf(RT | dec(Error) ~ 1, family = cogmod_lnr(minrt = 0.25))
-  expect_true(grepl("0.25 \\(= minrt\\)", cogmod_stanvars(f)[[1]]$scode))
-})
-
-
 test_that("the 1/K is folded into the generated outlier constant", {
-  # The constant is log(2 * dt(0 / minrt, 3) / minrt / K): the outlier
+  # The constant is log(2 * dnorm(0, 0, 0.2) / K): the outlier
   # log-density at Y = 0, thinned by the K response options. Getting the 1/K
   # wrong is the silent failure this whole file exists to catch. (It is written
   # as a limit rather than via .dcontam(), which is -Inf at 0 exactly - the
-  # half-t's support is open there, and Stan rejects Y <= 0 anyway.)
+  # component's support is open there, and Stan rejects Y <= 0 anyway.)
   code <- cogmod_lnr_stanvars()[[1]]$scode
   const <- as.numeric(sub(
     ".*real lp_out = ([-0-9.e+]+) -.*", "\\1",
     gsub("\n", " ", code)
   ))
-  expect_equal(const, log(2 * stats::dt(0, df = 3) / 0.3 / 2),
+  expect_equal(const, log(2 * stats::dnorm(0, 0, 0.2) / 2),
                tolerance = 1e-12)
   # and it agrees with .dcontam() just inside the support
   expect_equal(
-    const - 2 * log1p((1e-8 / 0.3)^2 / 3),
-    log(cogmod:::.dcontam(1e-8, 0.3) / 2),
+    const - 12.5 * (1e-8)^2,
+    log(cogmod:::.dcontam(1e-8) / 2),
     tolerance = 1e-12
   )
 })
@@ -557,19 +532,6 @@ test_that("cogmod_priors fences off the losing accumulator's flat direction", {
                           stanvars = cogmod_stanvars(form))
     )
   }
-})
-
-
-test_that("the ndt prior location moves with minrt", {
-  set.seed(7)
-  sim <- rcogmod_lnr(100, ndt = 0.25, poutlier = 0.03)
-  d <- data.frame(RT = sim$rt, Error = sim$response)
-  f <- brms::bf(RT | dec(Error) ~ 1, ndt ~ 1, poutlier ~ 1,
-                family = cogmod_lnr(minrt = 0.25))
-  p <- cogmod_priors(f, d)
-  loc <- formatC(-1.2 + log(0.25 / 0.3), format = "g", digits = 4, width = 1)
-  expect_true(any(p$dpar == "ndt" & p$class == "Intercept" &
-                    p$prior == sprintf("normal(%s, 0.2)", loc)))
 })
 
 

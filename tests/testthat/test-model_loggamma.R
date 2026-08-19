@@ -12,8 +12,8 @@ ref_dec <- function(t, mu, sigma, shape) {
     k * (shape * w - exp(shape * w)))
 }
 
-ref_dens <- function(y, mu, sigma, shape, ndt, poutlier, minrt = 0.3) {
-  d_out <- 2 * dt(y / minrt, df = 3) / minrt
+ref_dens <- function(y, mu, sigma, shape, ndt, poutlier) {
+  d_out <- 2 * dnorm(y, 0, 0.2)
   poutlier * d_out + (1 - poutlier) * ref_dec(y - ndt, mu, sigma, shape)
 }
 
@@ -91,7 +91,7 @@ test_that("dcogmod_loggamma integrates to one across the shape range", {
 test_that("responses faster than ndt keep positive density", {
   d <- dcogmod_loggamma(0.1, shape = 0.5, ndt = 0.4, poutlier = 0.02)
   expect_gt(d, 0)
-  expect_equal(d, 0.02 * 2 * dt(0.1 / 0.3, df = 3) / 0.3, tolerance = 1e-12)
+  expect_equal(d, 0.02 * 2 * dnorm(0.1, 0, 0.2), tolerance = 1e-12)
 
   expect_equal(dcogmod_loggamma(0.1, shape = 0.5, ndt = 0.4, poutlier = 0), 0)
   expect_true(
@@ -119,17 +119,6 @@ test_that("dcogmod_loggamma returns 0 density for invalid parameters", {
   expect_warning(d <- dcogmod_loggamma(0.5, poutlier = 1.5))
   expect_equal(d, 0)
 })
-
-test_that("minrt makes the density equivariant to the unit of measurement", {
-  s <- dcogmod_loggamma(1, mu = -0.7, sigma = 0.5, shape = 0.5, ndt = 0.3,
-                    poutlier = 0.02)
-  ms <- 1000 * dcogmod_loggamma(1000,
-    mu = -0.7 + log(1000), sigma = 0.5, shape = 0.5, ndt = 300,
-    poutlier = 0.02, minrt = 300
-  )
-  expect_equal(s, ms, tolerance = 1e-10)
-})
-
 
 # rcogmod_loggamma ------------------------------------------------------------
 
@@ -368,29 +357,6 @@ test_that("the family flag drives predictions when no argument is given", {
   ))
 })
 
-test_that("brms methods pick minrt up off the family", {
-  n_draws <- 8
-  prep <- structure(
-    list(
-      data = list(Y = 1000),
-      dpars = list(
-        mu = rep(-0.7 + log(1000), n_draws), sigma = rep(0.5, n_draws),
-        shape = rep(0.5, n_draws), ndt = rep(300, n_draws),
-        poutlier = rep(0.02, n_draws)
-      ),
-      family = list(name = "cogmod_loggamma", minrt = 300)
-    ),
-    class = "brmsprep"
-  )
-  expect_equal(
-    log_lik_cogmod_loggamma(1, prep),
-    rep(log(dcogmod_loggamma(1000, -0.7 + log(1000), 0.5, 0.5, 300, 0.02,
-                         minrt = 300)), n_draws),
-    tolerance = 1e-10
-  )
-})
-
-
 # family ------------------------------------------------------------------
 
 test_that("cogmod_loggamma() builds a valid brms custom family", {
@@ -407,23 +373,18 @@ test_that("cogmod_loggamma() builds a valid brms custom family", {
   expect_true(is.na(fam$lb[["shape"]]))
   expect_true(is.na(fam$ub[["shape"]]))
   expect_false("minrt" %in% fam$dpars)
-  expect_equal(fam$minrt, 0.3)
   expect_false(fam$predict_outliers)
   expect_true(cogmod_loggamma(predict_outliers = TRUE)$predict_outliers)
-
-  expect_error(cogmod_loggamma(minrt = -1), "positive")
 })
 
 test_that("the family survives the validation brm() performs", {
-  fam <- cogmod_loggamma(predict_outliers = TRUE, minrt = 300)
+  fam <- cogmod_loggamma(predict_outliers = TRUE)
   expect_true(brms:::validate_family(fam)$predict_outliers)
-  expect_equal(brms:::validate_family(fam)$minrt, 300)
 
-  d <- data.frame(RT = c(400, 500, 600, 900, 1200))
+  d <- data.frame(RT = c(0.4, 0.5, 0.6, 0.9, 1.2))
   f <- brms::bf(RT ~ 1, sigma ~ 1, shape ~ 1, ndt ~ 1, poutlier ~ 1, family = fam)
   vf <- brms:::validate_formula(f, data = d)
   expect_true(vf$family$predict_outliers)
-  expect_equal(vf$family$minrt, 300)
 })
 
 test_that("stanvars carry the likelihood, and brms builds Stan code with it", {
@@ -434,15 +395,9 @@ test_that("stanvars carry the likelihood, and brms builds Stan code with it", {
   expect_true(grepl("cogmod_loggamma_lconst", code, fixed = TRUE))
   expect_true(grepl("cogmod_loggamma_lkernel", code, fixed = TRUE))
   expect_true(grepl("log_mix", code, fixed = TRUE))
-  expect_true(grepl("log1p(square(Y / 0.3) / 3)", code, fixed = TRUE))
-
-  # minrt reaches the Stan code, from a number or from the family
-  expect_true(grepl("log1p(square(Y / 300) / 3)",
-                    cogmod_loggamma_stanvars(minrt = 300)[[1]]$scode, fixed = TRUE))
-  expect_identical(
-    cogmod_loggamma_stanvars(cogmod_loggamma(minrt = 300))[[1]]$scode,
-    cogmod_loggamma_stanvars(minrt = 300)[[1]]$scode
-  )
+  # the outlier component is the half Normal, folded into a literal
+  expect_true(grepl("12.5 * square(Y)", code, fixed = TRUE))
+  expect_true(grepl("half Normal with scale 0.2", code, fixed = TRUE))
 
   # the dpar order in the Stan signature must match the family's
   expect_true(grepl(
@@ -473,9 +428,6 @@ test_that("with_outliers works on cogmod_loggamma fits", {
   expect_true(m$formula$family$predict_outliers)
   expect_true(m$family$predict_outliers)
   expect_false(without_outliers(m)$formula$family$predict_outliers)
-
-  wrong <- structure(list(family = list(name = "cogmod_ddm")), class = "brmsfit")
-  expect_error(with_outliers(wrong), "cogmod_lognormal")
 })
 
 test_that("p_outlier uses the log-gamma decision density", {
@@ -499,7 +451,7 @@ test_that("p_outlier uses the log-gamma decision density", {
   )
 
   ref <- vapply(y, function(v) {
-    g <- 2 * dt(v / 0.3, df = 3) / 0.3
+    g <- 2 * dnorm(v, 0, 0.2)
     f <- ref_dec(v - 0.25, -0.9, 0.5, 0.5)
     0.02 * g / (0.02 * g + 0.98 * f)
   }, numeric(1))
@@ -597,17 +549,6 @@ test_that("brms's own gamma(0.01, 0.01) default for `shape` is overridden", {
     expect_true(grepl("normal_lpdf(shape | 0, 0.5)", code, fixed = TRUE) ||
                   grepl("normal_lpdf(Intercept_shape | 0, 0.5)", code, fixed = TRUE))
   }
-})
-
-test_that("the natural-scale ndt prior moves with minrt too", {
-  d <- data.frame(RT = c(400, 500, 600, 900, 1200))
-  f <- brms::bf(RT ~ 1, family = cogmod_loggamma(minrt = 300))
-  p <- cogmod_priors(f, d)
-  expect_equal(
-    p$prior[p$class == "ndt" & !nzchar(p$dpar)],
-    sprintf("lognormal(%s, 0.2)",
-            formatC(-1.2 + log(1000), format = "g", digits = 4, width = 1))
-  )
 })
 
 test_that("modelled and omitted dpars can be mixed in one formula", {

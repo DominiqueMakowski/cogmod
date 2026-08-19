@@ -64,7 +64,8 @@
 #' land outside its own bounds, and the chains still start dispersed enough for
 #' `Rhat` to mean something.
 #'
-#' `ndt` starts deliberately **small** (a third of `minrt`). The two errors are
+#' `ndt` starts deliberately **small** (0.1 s, a third of its prior median).
+#' The two errors are
 #' not symmetric: too small merely means the shift has to grow, which the
 #' gradient will do, whereas too large removes the gradient altogether.
 #'
@@ -74,7 +75,9 @@
 #' `brms::bf(..., family = cogmod_gamma())`. Every family built on the direct
 #' `ndt` + `poutlier` parameterization is covered - [cogmod_lognormal()],
 #' [cogmod_loggamma()], [cogmod_invgaussian()], [cogmod_gamma()], [cogmod_invgamma()],
-#' [cogmod_weibull()], [cogmod_invweibull()], [cogmod_logweibull()] and [cogmod_lba1()] - plus
+#' [cogmod_weibull()], [cogmod_invweibull()], [cogmod_logweibull()], [cogmod_lba1()] and,
+#' for the choice-and-RT models, [cogmod_lnr()], [cogmod_rdm()],
+#' [cogmod_lba2()] and [cogmod_ddm()] - plus
 #' [cogmod_exgaussian()], whose three parameters are all on the RT scale behind a
 #' `softplus` link and so are equally badly served by starting at `log(2)`.
 #'
@@ -168,15 +171,13 @@ cogmod_inits <- function(formula, data, jitter = 0.25, ...) {
     if (is.character(family)) {
       stop(
         "cogmod_inits() needs the family object rather than its name, ",
-        "because `minrt` and the links ride on it. Build the formula with ",
+        "because the links ride on it. Build the formula with ",
         "bf(..., family = ", fam, "()).",
         call. = FALSE
       )
     }
-    minrt <- .validate_minrt(.as_minrt(family))
-    # `ndt` scales with the unit of measurement, like its prior; `poutlier` is
-    # a proportion and does not.
-    return(c(.mixture_spec(fam)$init, list(ndt = minrt / 3, poutlier = 0.02)))
+    # In seconds, like the `ndt` prior: a third of its 0.30 s median.
+    return(c(.mixture_spec(fam)$init, list(ndt = 0.1, poutlier = 0.02)))
   }
   switch(
     fam,

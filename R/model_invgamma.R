@@ -16,12 +16,13 @@
 #' `mu` is the **shape** and `sigma` the **scale** of the inverse Gamma
 #' decision time, whose mean is `sigma / (mu - 1)` and exists only for `mu > 1`.
 #'
-#' `ndt`, `poutlier` and `minrt` mean exactly what they do in [cogmod_lognormal()],
+#' `ndt` and `poutlier` mean exactly what they do in [cogmod_lognormal()],
 #' and [with_outliers()], [without_outliers()], [p_outlier()] and
 #' [cogmod_priors()] all work here too. See `?rcogmod_lognormal` for why `ndt` is
 #' expressed directly in seconds rather than as a fraction of the fastest
 #' observed response, what the half Student-t outlier component is for, and why
-#' `minrt` is a constant on the family rather than a `dpar`.
+#' the outlier component's scale is a constant rather than a `dpar`, and why
+#' reaction times have to be in seconds.
 #'
 #' `posterior_epred()` returns `Inf` where `mu <= 1`, because the inverse Gamma
 #' has no mean there. The right tail is a power law, so this family is the one to
@@ -42,10 +43,9 @@
 #' dcogmod_invgamma(0.1, ndt = 0.3, poutlier = 0)
 #'
 #' @export
-rcogmod_invgamma <- function(n, mu = 4, sigma = 1.5, ndt = 0.2, poutlier = 0,
-                      minrt = 0.3) {
+rcogmod_invgamma <- function(n, mu = 4, sigma = 1.5, ndt = 0.2, poutlier = 0) {
   .rshifted("cogmod_invgamma", n = n, ndt = ndt, poutlier = poutlier,
-               minrt = minrt, mu = mu, sigma = sigma)
+               mu = mu, sigma = sigma)
 }
 
 
@@ -54,9 +54,9 @@ rcogmod_invgamma <- function(n, mu = 4, sigma = 1.5, ndt = 0.2, poutlier = 0,
 #' @param log Logical; if TRUE, probabilities p are given as log(p).
 #' @export
 dcogmod_invgamma <- function(x, mu = 4, sigma = 1.5, ndt = 0.2, poutlier = 0,
-                      minrt = 0.3, log = FALSE) {
+                      log = FALSE) {
   .dshifted("cogmod_invgamma", x = x, ndt = ndt, poutlier = poutlier,
-               minrt = minrt, log = log, mu = mu, sigma = sigma)
+               log = log, mu = mu, sigma = sigma)
 }
 
 
@@ -71,29 +71,29 @@ dcogmod_invgamma <- function(x, mu = 4, sigma = 1.5, ndt = 0.2, poutlier = 0,
 #' @export
 cogmod_invgamma <- function(link_mu = "softplus", link_sigma = "softplus",
                      link_ndt = "log", link_poutlier = "logit",
-                     predict_outliers = FALSE, minrt = 0.3) {
+                     predict_outliers = FALSE) {
   .shifted_family("cogmod_invgamma", links = c(link_mu, link_sigma),
-                     predict_outliers = predict_outliers, minrt = minrt)
+                     predict_outliers = predict_outliers)
 }
 
 
 #' @keywords internal
-.cogmod_invgamma_lpdf <- function(minrt = 0.3) {
-  .shifted_lpdf("cogmod_invgamma", minrt = minrt)
+.cogmod_invgamma_lpdf <- function() {
+  .shifted_lpdf("cogmod_invgamma")
 }
 
 
 #' @rdname rcogmod_invgamma
 #' @export
-cogmod_invgamma_lpdf_expose <- function(minrt = 0.3) {
-  .shifted_expose("cogmod_invgamma", minrt)
+cogmod_invgamma_lpdf_expose <- function() {
+  .shifted_expose("cogmod_invgamma")
 }
 
 
 #' @rdname rcogmod_invgamma
 #' @export
-cogmod_invgamma_stanvars <- function(minrt = 0.3) {
-  brms::stanvar(scode = .cogmod_invgamma_lpdf(.as_minrt(minrt)), block = "functions")
+cogmod_invgamma_stanvars <- function() {
+  brms::stanvar(scode = .cogmod_invgamma_lpdf(), block = "functions")
 }
 
 

@@ -17,12 +17,13 @@
 #' so the mean decision time is `mu * sigma` and the median reaction time is
 #' `ndt` plus the Gamma median.
 #'
-#' `ndt`, `poutlier` and `minrt` mean exactly what they do in [cogmod_lognormal()],
+#' `ndt` and `poutlier` mean exactly what they do in [cogmod_lognormal()],
 #' and [with_outliers()], [without_outliers()], [p_outlier()] and
 #' [cogmod_priors()] all work here too. See `?rcogmod_lognormal` for why `ndt` is
 #' expressed directly in seconds rather than as a fraction of the fastest
 #' observed response, what the half Student-t outlier component is for, and why
-#' `minrt` is a constant on the family rather than a `dpar`.
+#' the outlier component's scale is a constant rather than a `dpar`, and why
+#' reaction times have to be in seconds.
 #'
 #' Note that the Gamma density is **unbounded at `ndt`** whenever the shape
 #' `mu < 1`, which makes the likelihood unbounded as `ndt` approaches the
@@ -67,10 +68,9 @@
 #' dcogmod_gamma(0.1, ndt = 0.3, poutlier = 0)
 #'
 #' @export
-rcogmod_gamma <- function(n, mu = 3, sigma = 0.15, ndt = 0.2, poutlier = 0,
-                      minrt = 0.3) {
+rcogmod_gamma <- function(n, mu = 3, sigma = 0.15, ndt = 0.2, poutlier = 0) {
   .rshifted("cogmod_gamma", n = n, ndt = ndt, poutlier = poutlier,
-               minrt = minrt, mu = mu, sigma = sigma)
+               mu = mu, sigma = sigma)
 }
 
 #' @rdname rcogmod_gamma
@@ -78,9 +78,9 @@ rcogmod_gamma <- function(n, mu = 3, sigma = 0.15, ndt = 0.2, poutlier = 0,
 #' @param log Logical; if TRUE, probabilities p are given as log(p).
 #' @export
 dcogmod_gamma <- function(x, mu = 3, sigma = 0.15, ndt = 0.2, poutlier = 0,
-                      minrt = 0.3, log = FALSE) {
+                      log = FALSE) {
   .dshifted("cogmod_gamma", x = x, ndt = ndt, poutlier = poutlier,
-               minrt = minrt, log = log, mu = mu, sigma = sigma)
+               log = log, mu = mu, sigma = sigma)
 }
 
 
@@ -95,26 +95,26 @@ dcogmod_gamma <- function(x, mu = 3, sigma = 0.15, ndt = 0.2, poutlier = 0,
 #' @export
 cogmod_gamma <- function(link_mu = "softplus", link_sigma = "softplus",
                      link_ndt = "log", link_poutlier = "logit",
-                     predict_outliers = FALSE, minrt = 0.3) {
+                     predict_outliers = FALSE) {
   .shifted_family("cogmod_gamma", links = c(link_mu, link_sigma),
-                     predict_outliers = predict_outliers, minrt = minrt)
+                     predict_outliers = predict_outliers)
 }
 
 #' @keywords internal
-.cogmod_gamma_lpdf <- function(minrt = 0.3) {
-  .shifted_lpdf("cogmod_gamma", minrt = minrt)
+.cogmod_gamma_lpdf <- function() {
+  .shifted_lpdf("cogmod_gamma")
 }
 
 #' @rdname rcogmod_gamma
 #' @export
-cogmod_gamma_lpdf_expose <- function(minrt = 0.3) {
-  .shifted_expose("cogmod_gamma", minrt)
+cogmod_gamma_lpdf_expose <- function() {
+  .shifted_expose("cogmod_gamma")
 }
 
 #' @rdname rcogmod_gamma
 #' @export
-cogmod_gamma_stanvars <- function(minrt = 0.3) {
-  brms::stanvar(scode = .cogmod_gamma_lpdf(.as_minrt(minrt)), block = "functions")
+cogmod_gamma_stanvars <- function() {
+  brms::stanvar(scode = .cogmod_gamma_lpdf(), block = "functions")
 }
 
 

@@ -1,4 +1,4 @@
-# Example 3 of the paper: bounded ratings with betagate().
+# Example 3 of the paper: bounded ratings with cogmod_betagate().
 # Run from the `paper/` directory. Reproduces @tbl-betagate.
 # The CHOCO (Choice-Confidence) family is deliberately not covered by the
 # paper - it is the subject of a separate paper of its own - so nothing here
@@ -25,7 +25,7 @@ df <- do.call(rbind, lapply(names(true), function(k) {
   p <- true[[k]]
   data.frame(
     Condition = k,
-    score = rbetagate(n, mu = p$mu, phi = p$phi, pex = p$pex, bex = p$bex)
+    score = rcogmod_betagate(n, mu = p$mu, phi = p$phi, pex = p$pex, bex = p$bex)
   )
 }))
 df$Condition <- factor(df$Condition)
@@ -41,13 +41,13 @@ f <- bf(
   phi ~ Condition,
   pex ~ Condition,
   bex ~ Condition,
-  family = betagate()
+  family = cogmod_betagate()
 )
 
 m <- brm(
   f,
   data = df,
-  stanvars = betagate_stanvars(),
+  stanvars = cogmod_betagate_stanvars(),
   init = 0,
   chains = 4, cores = 4, iter = 2000, seed = 1,
   control = list(adapt_delta = 0.95),

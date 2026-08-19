@@ -42,6 +42,51 @@
 }
 
 
+# Warning when the evidence scale is left free
+# ===========================================
+#
+# The LBA families have a likelihood that is EXACTLY constant along a ray:
+# multiply every parameter named in the registry's `scale_ray` slot by any
+# c > 0 and every finishing time `(b - z) / v` is unchanged. Nothing in the
+# data can distinguish a point on that ray from any other, so unless one of
+# them is pinned in `bf()`, what comes back for the individual parameters is
+# whatever the priors happen to say about that direction. The RT distribution
+# they jointly generate is perfectly well identified either way, which is
+# exactly what makes this quiet: the fit converges, `pp_check()` looks right,
+# and only the parameter estimates are meaningless.
+#
+# Fixing any ONE member of the ray pins it - `sigmazero = 1` conventionally,
+# but `boundary = 1` or `sigmabias = 0.5` do the job just as well. Omitting a
+# dpar from `bf()` does NOT: brms then declares it as a free auxiliary
+# parameter, which leaves the ray exactly as free as before. That distinction
+# is the whole reason this looks at `$pfix` rather than at `$pforms`.
+#
+# `.warn_scale_ray()` is called from cogmod_stanvars(), which is the one of the
+# three generics a fit cannot skip.
+#' @keywords internal
+.warn_scale_ray <- function(formula) {
+  if (!inherits(formula, "brmsformula")) return(invisible(NULL))
+  fam <- .family_name(.cogmod_family(formula))
+  if (is.null(fam)) return(invisible(NULL))
+  spec <- if (is.null(.SHIFTED[[fam]])) .CHOICE[[fam]] else .SHIFTED[[fam]]
+  ray <- spec[["scale_ray"]]
+  if (is.null(ray)) return(invisible(NULL))
+  # `mu` is the response's own formula, so it is never in $pfix and cannot be
+  # the one the user pinned. It stays in `ray` because it is genuinely on the
+  # ray - it just is not a way out of it.
+  if (length(intersect(names(formula$pfix), ray))) return(invisible(NULL))
+
+  sd <- if (identical(fam, "cogmod_lba1")) "sigma" else "sigmazero"
+  warning(
+    fam, "(): the evidence scale is arbitrary, so either `", sd,
+    "` (conventional) or `boundary` has to be fixed. Add `", sd,
+    " = 1` to the formula. See ?", sub("^cogmod_", "rcogmod_", fam), ".",
+    call. = FALSE
+  )
+  invisible(NULL)
+}
+
+
 # Stable computation of log(1 - exp(x))
 # A stable version of log1m_exp (assumes x is scalar or vector)
 #' @keywords internal

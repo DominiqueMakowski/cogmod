@@ -35,60 +35,48 @@
 #' smooth and differentiable. That is what makes the direct parameterization of
 #' `ndt` workable without taking a bound from the data.
 #'
-#' The outlier component is a **half Student-t** with `3` degrees of freedom and
-#' scale `minrt`, i.e. `2 * dt(x / 0.3, df = 3) / 0.3` on `[0, Inf)` at the
-#' default. Two properties motivate the shape. It is **flat at the origin**
-#' (zero derivative), so the very fastest responses - the ones least plausibly
-#' decisions - are not starved of density; a LogNormal or Gamma vanishes at zero
-#' and an Exponential peaks there with maximal slope, and all three get this
-#' backwards. And its tails are heavy, so it keeps positive density across the
-#' whole plausible RT range rather than only in the fast region. Plot it with
-#' `curve(2 * dt(x / 0.3, 3) / 0.3, 0, 3)`.
+#' The outlier component is a **half Normal** with scale `0.2` seconds, i.e.
+#' `2 * dnorm(x, 0, 0.2)` on `[0, Inf)`. Two properties motivate the shape. It
+#' is **flat at the origin** (zero derivative), so the very fastest responses -
+#' the ones least plausibly decisions - are not starved of density; a LogNormal
+#' or Gamma vanishes at zero and an Exponential peaks there with maximal slope,
+#' and all three get this backwards. And it stays close to flat across the
+#' whole range `ndt` plausibly occupies - 76% of its peak at 0.15 s and 46% at
+#' 0.25 s - while dying fast enough above that to leave the slow tail alone.
+#' Plot it with `curve(2 * dnorm(x, 0, 0.2), 0, 3)`.
 #'
-#' # `minrt`
+#' Up to version 0.2.0 this was a half Student-t with 3 degrees of freedom and
+#' a user-supplied scale. That tail was heavier than every decision density in
+#' the package, so far-out slow responses were eventually better explained by
+#' the outlier component than by the model: at `poutlier = 0.02` a 5 s response
+#' was attributed to it with probability 0.86, and `ndt` was pulled up behind
+#' it. The slow tail now belongs to the decision family, which is what
+#' [cogmod_loggamma()]'s `shape` and [cogmod_invgaussian()]'s `sigmadrift` are
+#' for.
 #'
-#' `minrt` is the **fastest reaction time that could plausibly be a real
-#' decision** - a conceptual floor for the task, not an observed statistic. It
-#' is used directly as the scale of the outlier component, so it fixes what
-#' "too fast to be a decision" means.
+#' # Reaction times must be in seconds
 #'
-#' It is a judgement about the task, not a statistic: nothing is read off the
-#' sample, and `ndt` is not bounded by it. `minrt` only sets where the outlier
-#' component has its mass.
+#' The outlier component's scale is a **constant in seconds**, and so are the
+#' priors [cogmod_priors()] supplies - `ndt` at roughly 0.17 to 0.30 s,
+#' `sigmandt` in [cogmod_ddm()] at 0.05 s, and so on. There is no argument for
+#' changing the unit, and no unit conversion anywhere in the package.
 #'
-#' Because it is the scale itself, the component's shape relative to it is
-#' fixed whatever value you choose: **61%** of the outlier mass falls below
-#' `minrt`, and the density there is still 66% of its peak. The default of
-#' `0.3` seconds suits keypress paradigms - the conditional accuracy functions
-#' in the *Outliers* article show responses at chance below about 0.30 s across
-#' three very different tasks.
+#' Feeding it milliseconds fails **silently**, which is worth knowing about.
+#' The outlier component's log-density at `RT = 400` is about `-2e6`, so it
+#' contributes nothing anywhere in the data and the mixture collapses to the
+#' unmixed shifted family: `poutlier` goes to zero and `ndt` is pinned by the
+#' fastest observed response again - exactly the min-RT boundary this
+#' parameterization exists to remove. Nothing errors, and the chains still
+#' initialise, because the decision density itself stays finite.
 #'
-#' It is **not estimated**: it is a constant that fixes the timescale, in the
-#' same way that the number of response options is a constant in an ordinal
-#' model. It rarely needs touching, except when reaction times are not in
-#' seconds:
+#' This failure was already reachable before 0.2.1 by leaving `minrt` at its
+#' default with millisecond data. Removing the argument makes it unconditional
+#' rather than optional, which is the trade: the equivariance `minrt` bought in
+#' the likelihood was already lost in the priors, and [cogmod_priors()] is not
+#' optional.
 #'
-#' ```r
-#' f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
-#'               family = cogmod_lognormal(minrt = 300)) # milliseconds
-#' brms::brm(f, data = df,
-#'           prior = cogmod_priors(f, df),
-#'           stanvars = cogmod_stanvars(f),
-#'           init = cogmod_inits(f, df))
-#' ```
-#'
-#' Put the family on the formula and name it only there: `minrt` has to reach
-#' the Stan code, the prediction methods and the priors, and carrying it in one
-#' place is what stops them drifting apart. [cogmod_priors()],
-#' [cogmod_stanvars()] and [cogmod_inits()] all read it off the formula.
-#'
-#' Leaving it at `0.3` with millisecond data is a silent failure rather than a
-#' loud one: the component ends up many orders of magnitude below the decision
-#' density everywhere in the data, `poutlier` collapses toward zero, and `ndt`
-#' reverts to being pinned by the fastest observed response. Setting `minrt` in
-#' the unit of the data makes the likelihood exactly equivariant to that unit,
-#' so `ndt` comes back in whatever unit was supplied and `poutlier` is
-#' unchanged.
+#' Divide by 1000 before fitting, and multiply `ndt` back afterwards if you
+#' want the answer in milliseconds.
 #'
 #' `poutlier` is a *rate*, not a classification: the model never labels
 #' individual trials, it estimates what share of them came from elsewhere. Use
@@ -197,13 +185,6 @@
 #' @param poutlier Proportion of responses generated by the outlier process
 #'   rather than by the decision process. Range: `[0, 1]`. At `poutlier = 0` the
 #'   distribution reduces to the plain shifted LogNormal.
-#' @param minrt Fastest reaction time that could plausibly be a real decision,
-#'   in the same unit as the data. Used directly as the scale of the outlier
-#'   component. A judgement about the task rather than a statistic: it is a
-#'   constant, never estimated, is not read off the sample, and does not bound
-#'   `ndt`. Defaults to `0.3`; change it for data that are not in seconds. See
-#'   Details.
-#'
 #' @examples
 #' # Simulate 1000 RTs with 2% outliers
 #' rts <- rcogmod_lognormal(1000, mu = -0.7, sigma = 0.5, ndt = 0.3, poutlier = 0.02)
@@ -213,21 +194,14 @@
 #' dcogmod_lognormal(0.1, ndt = 0.3, poutlier = 0.02)
 #' dcogmod_lognormal(0.1, ndt = 0.3, poutlier = 0)
 #'
-#' # Setting minrt in the unit of the data makes the density equivariant to it
-#' dcogmod_lognormal(1, mu = -0.7, sigma = 0.5, ndt = 0.3, poutlier = 0.02)
-#' 1000 * dcogmod_lognormal(1000,
-#'   mu = -0.7 + log(1000), sigma = 0.5, ndt = 300,
-#'   poutlier = 0.02, minrt = 300
-#' )
-#'
 #' # Density of the outlier component alone
-#' # curve(2 * dt(x / 0.3, df = 3) / 0.3, from = 0, to = 3, n = 1000)
+#' # curve(2 * dnorm(x, 0, 0.2), from = 0, to = 3, n = 1000)
 #'
 #' @export
 rcogmod_lognormal <- function(n, mu = -0.7, sigma = 0.5, ndt = 0.2,
-                              poutlier = 0, minrt = 0.3) {
+                              poutlier = 0) {
   .rshifted("cogmod_lognormal", n = n, ndt = ndt, poutlier = poutlier,
-            minrt = minrt, mu = mu, sigma = sigma)
+            mu = mu, sigma = sigma)
 }
 
 
@@ -236,9 +210,9 @@ rcogmod_lognormal <- function(n, mu = -0.7, sigma = 0.5, ndt = 0.2,
 #' @param log Logical; if TRUE, probabilities p are given as log(p).
 #' @export
 dcogmod_lognormal <- function(x, mu = -0.7, sigma = 0.5, ndt = 0.2,
-                              poutlier = 0, minrt = 0.3, log = FALSE) {
+                              poutlier = 0, log = FALSE) {
   .dshifted("cogmod_lognormal", x = x, ndt = ndt, poutlier = poutlier,
-            minrt = minrt, log = log, mu = mu, sigma = sigma)
+            log = log, mu = mu, sigma = sigma)
 }
 
 
@@ -258,8 +232,7 @@ cogmod_lognormal <- function(
   link_sigma = "softplus",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 ) {
   fam <- brms::custom_family(
     name = "cogmod_lognormal",
@@ -269,40 +242,32 @@ cogmod_lognormal <- function(
     ub = c(NA, NA, NA, 1), # poutlier <= 1
     type = "real" # Continuous outcome variable (RT)
   )
-  # Both ride on the family because that is the only thing brms carries down to
+  # It rides on the family because that is the only thing brms carries down to
   # a custom family's prediction methods. See the Details section of
   # ?rcogmod_lognormal, and with_outliers() for flipping the flag after fitting.
-  #
-  # `minrt` is deliberately not a dpar. brms has no notion of a default for
-  # one: a dpar left out of the formula is *estimated*, not defaulted, so
-  # `minrt` would silently become a free parameter for every user who did not
-  # write `minrt = 0.3` into their bf(). Carrying it on the family gives it a
-  # real default; the matching Stan constant comes from cogmod_lognormal_stanvars().
   fam$predict_outliers <- isTRUE(predict_outliers)
-  invisible(.validate_minrt(minrt)) # validate before storing
-  fam$minrt <- minrt
   fam
 }
 
 
 #' @keywords internal
-.cogmod_lognormal_lpdf <- function(minrt = 0.3) {
-  .shifted_lpdf("cogmod_lognormal", minrt = minrt)
+.cogmod_lognormal_lpdf <- function() {
+  .shifted_lpdf("cogmod_lognormal")
 }
 
 
 #' @rdname rcogmod_lognormal
 #' @export
-cogmod_lognormal_lpdf_expose <- function(minrt = 0.3) {
-  .shifted_expose("cogmod_lognormal", minrt)
+cogmod_lognormal_lpdf_expose <- function() {
+  .shifted_expose("cogmod_lognormal")
 }
 
 
 #' @rdname rcogmod_lognormal
 #' @export
-cogmod_lognormal_stanvars <- function(minrt = 0.3) {
+cogmod_lognormal_stanvars <- function() {
   brms::stanvar(
-    scode = .cogmod_lognormal_lpdf(.as_minrt(minrt)),
+    scode = .cogmod_lognormal_lpdf(),
     block = "functions"
   )
 }

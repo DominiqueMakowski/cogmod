@@ -60,7 +60,7 @@ f_eg <- bf(
   RT ~ Condition + (1 | Participant),
   sigma ~ Condition,
   tau ~ Condition,
-  family = rt_exgaussian()
+  family = cogmod_exgaussian()
 )
 
 # Condition B has essentially no exponential component, so `tau` sits at the
@@ -72,7 +72,7 @@ f_eg <- bf(
 m_eg <- brm(
   f_eg,
   data = sim,
-  stanvars = rt_exgaussian_stanvars(),
+  stanvars = cogmod_exgaussian_stanvars(),
   init = 0,
   chains = 4, cores = 4, iter = 2000, seed = 1,
   control = list(adapt_delta = 0.999, max_treedepth = 12),

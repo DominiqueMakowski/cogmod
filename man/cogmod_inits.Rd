@@ -86,7 +86,8 @@ on the logit scale for a doubly bounded one - so a jittered value can never
 land outside its own bounds, and the chains still start dispersed enough for
 \code{Rhat} to mean something.
 
-\code{ndt} starts deliberately \strong{small} (a third of \code{minrt}). The two errors are
+\code{ndt} starts deliberately \strong{small} (0.1 s, a third of its prior median).
+The two errors are
 not symmetric: too small merely means the shift has to grow, which the
 gradient will do, whereas too large removes the gradient altogether.
 }
@@ -96,7 +97,9 @@ The family is read off \code{formula}, so build it with
 \code{brms::bf(..., family = cogmod_gamma())}. Every family built on the direct
 \code{ndt} + \code{poutlier} parameterization is covered - \code{\link[=cogmod_lognormal]{cogmod_lognormal()}},
 \code{\link[=cogmod_loggamma]{cogmod_loggamma()}}, \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}, \code{\link[=cogmod_gamma]{cogmod_gamma()}}, \code{\link[=cogmod_invgamma]{cogmod_invgamma()}},
-\code{\link[=cogmod_weibull]{cogmod_weibull()}}, \code{\link[=cogmod_invweibull]{cogmod_invweibull()}}, \code{\link[=cogmod_logweibull]{cogmod_logweibull()}} and \code{\link[=cogmod_lba1]{cogmod_lba1()}} - plus
+\code{\link[=cogmod_weibull]{cogmod_weibull()}}, \code{\link[=cogmod_invweibull]{cogmod_invweibull()}}, \code{\link[=cogmod_logweibull]{cogmod_logweibull()}}, \code{\link[=cogmod_lba1]{cogmod_lba1()}} and,
+for the choice-and-RT models, \code{\link[=cogmod_lnr]{cogmod_lnr()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}},
+\code{\link[=cogmod_lba2]{cogmod_lba2()}} and \code{\link[=cogmod_ddm]{cogmod_ddm()}} - plus
 \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}, whose three parameters are all on the RT scale behind a
 \code{softplus} link and so are equally badly served by starting at \code{log(2)}.
 }

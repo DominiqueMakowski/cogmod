@@ -26,7 +26,7 @@ fitted mixture or the decision process alone.
 
 Predictions \strong{exclude} the outlier component by default, because for almost
 every downstream use it is a nuisance: it pulls expected values toward its own
-mean (0.331 s at the default \code{minrt}, and proportional to it) and adds a
+mean (0.16 s) and adds a
 spike of implausibly fast draws to posterior predictive samples. It is also a deliberately fixed regularizer rather than a
 claim about how guesses are distributed, so simulating from it means
 simulating from something the model does not assert.

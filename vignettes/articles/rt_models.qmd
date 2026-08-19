@@ -471,9 +471,7 @@ decision threshold: the distribution of the times at which that threshold is
 first crossed *is* the Wald distribution. Its skewed shape is not a modelling
 choice, it is a consequence of the assumed mechanism.
 
-The Shifted Wald model (also known as the Inverse Gaussian distribution) is actually equivalent to a one-response version of the Drift Diffusion Model (DDM) with no between-trial variability in drift rate, starting point, or non-decision time.
-
-This changes what the parameters mean. Instead of a location and a width, we
+The Shifted Wald model (also known as the Inverse Gaussian distribution) is actually equivalent to a one-response version of the Drift Diffusion Model (DDM) with no between-trial variability in drift rate (which is what `sigmadrift = 0` does), starting point, or non-decision time. This changes what the parameters mean. Instead of a location and a width, we
 now estimate quantities that refer to distinct components of the decision: `mu`
 is the **drift rate** (the speed at which evidence accumulates, often read as
 task difficulty or processing efficiency), `boundary` is the **decision threshold**
@@ -501,6 +499,7 @@ f <- bf(
   RT ~ Condition,
   boundary ~ Condition,
   ndt ~ Condition,
+  sigmadrift = 0,
   family = cogmod_invgaussian()
 )
 
@@ -535,63 +534,26 @@ or of computational behaviour - over the more established options.
 
 #### Weibull
 
-Fit this one and you will notice it is by some way the slowest model here -
-about 600 s per chain against 40 s for the LogNormal on the same data, with
-`Rhat` around 1.2 on `ndt`. That is worth understanding, because the cause is
-geometry rather than an expensive density, and it applies to the Gamma too.
-
+This one is really slow, with bad convergence on our data, which is caused by the
+geometry of that model rather than an expensive density, and it applies to the Gamma too.
 Near the shift the Weibull density behaves like `(RT - ndt)^(mu - 1)`, where
 `mu` is the shape. Differentiating the outlier mixture with respect to `ndt`
-therefore leaves a term in `(RT - ndt)^(mu - 2)`, which is **unbounded at every
-observation whenever the shape is below 2**. The posterior is still proper - the
+therefore leaves a term in `(RT - ndt)^(mu - 2)`, which is 
+**unbounded at every observation whenever mu (the shape) is below 2**. The posterior is still proper - the
 outlier component sees to that - but the gradient spikes wherever `ndt` sits
 close to a response, and on these data it sits at 0.40 s, right inside the dense
-left edge where consecutive responses are a millisecond or two apart. The
-sampler's step size collapses to 0.005 against 0.19 for the LogNormal, and mean
-treedepth rises from 3.9 to 8.1. That is 2^8.1 / 2^3.9 = 19 times the gradient
-evaluations, and it is 19 times slower: **all** of the extra cost is the step
-size, none of it the density.
-
-So check the shape before reading anything else into a Weibull or Gamma fit:
-below 1 the density is outright unbounded at the shift, below 2 the sampling is
-what you see here, and above 2 it behaves.
+left edge where consecutive responses are a millisecond or two apart. 
 
 The obvious remedies do not work, and it is worth knowing why before reaching
-for them. A prior on the shape cannot compete: the likelihood prefers the
-low-shape corner by around 100 log units, against the 5 a `normal(2.4, 0.4)`
-contributes, and it moved the posterior shape by 0.01. A narrow prior on `ndt` -
-keep the shift below the data and the singular region is never visited - fails
-for a more interesting reason: `normal(-1.25, 0.05)`, centred at 0.287 s, left
-the posterior at 0.396 s, **6.5 prior SDs away**. The `ndt` likelihood has a
-posterior SD of 0.003, about fifteen times sharper than that prior, so nothing
-short of fixing `ndt` outright competes with it - and the attempt bought 4%
-divergences instead of 0.5% and `Rhat` 1.43 instead of 1.18. Fixing `ndt` at the
-fastest observed response would work by removing the parameter, but it
-reinstates precisely the min-RT bound this parameterization exists to remove;
-here the fastest response is 71 ms, which is not a decision.
+for them. A prior on `mu` (the shape) or `ndt` don't help. Fixing `ndt` at the
+fastest observed response would work by removing the parameter, but it introduces
+a false rigid assumption about one fo the key parameters.
 
-Nor is this a failure of identification. `ndt` and the shape are pinned down
-sharply - the posterior SD on `ndt` is 3 ms - so it is not a case of two
-parameters trading off with nothing to separate them. The sharpness just sits on
-a ridge that is not smooth.
-
-The useful conclusion is that the slow sampling and a poor fit are the same
-fact. Look at the `loo` table further down: of the ten families fitted here the
-Weibull comes **last**, 196 elpd (SE 21) behind the Log-Gamma and 95 behind the
-next worst. What the sampler is struggling with is the model contorting itself -
-shift up into the data, shape down toward 1 - to represent a left edge it cannot
+The slow sampling and bad convergence is here a sign of a bad fit (as shown below). 
+What the sampler is struggling with is the model contorting itself to represent a left edge it cannot
 otherwise reach. That is not a reason to write the Weibull off for reaction
-times in general: where the shape comes out above 2 it is perfectly well
-behaved, as the Gamma is on these same data at a shape of 2.2. It is a reason to
-treat a shape below 2 as the model asking for a different one - and the
-Log-Gamma below is that one, since it nests the Weibull at `shape = 1`, lets the
-data choose the shape rather than having the family fix it, and samples here in
-a third of the time with no divergences.
-
-Under the older `ndt = tau * min(RT)` parameterization this was hidden rather
-than absent - the logit Jacobian vanished as `tau` approached 1, damping exactly
-this gradient - which is why it only became visible once `ndt` was estimated
-directly.
+times in general: there can be cases where it is perfectly well
+behaved, just not in our data.
 
 ```{r}
 #| eval: false
@@ -754,6 +716,41 @@ m_invgamma <- brms::add_criterion(m_invgamma, "loo")
 saveRDS(m_invgamma, file = "../models/m_invgamma.rds")
 ```
 
+
+#### Wald-4
+
+This mode corresponds to the Shifted Wald model with an extra parameter corresponding to the .
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- bf(
+  RT ~ Condition,
+  boundary ~ Condition,
+  ndt ~ Condition,
+  sigmadrift ~ Condition,
+  family = cogmod_invgaussian()
+)
+
+m_wald <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_wald4 <- brms::add_criterion(m_wald, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_wald4, file = "../models/m_wald4.rds")
+```
+
 :::
 
 
@@ -867,10 +864,10 @@ in `vignette("outliers")`: pass `prior = cogmod_priors(f, df)`.
 
 f <- bf(
   RT ~ Condition,
-  sigma = 1,
   sigmabias ~ Condition,
   boundary ~ Condition,
   ndt ~ Condition,
+  sigma = 1,
   family = cogmod_lba1()
 )
 
@@ -889,7 +886,7 @@ m_lba <- brms::add_criterion(m_lba, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_lba, file = "../models/m_lba.rds")
+saveRDS(m_lba, file = "../models/m_lba1.rds")
 ```
 
 
@@ -900,7 +897,7 @@ saveRDS(m_lba, file = "../models/m_lba.rds")
 ### Model Fit
 
 We can compare these models together using the `loo` package, which shows
-that CHOCO provides a significantly better fit than the other models.
+how bad the linear model performs compared to the other models.
 
 ```{r}
 #| echo: false
@@ -917,7 +914,7 @@ m_invweibull <- readRDS(url(paste0(path, "m_invweibull.rds")))
 m_gamma <- readRDS(url(paste0(path, "m_gamma.rds")))
 m_invgamma <- readRDS(url(paste0(path, "m_invgamma.rds")))
 m_loggamma <- readRDS(url(paste0(path, "m_loggamma.rds")))
-m_lba <- readRDS(url(paste0(path, "m_lba.rds")))
+m_lba <- readRDS(url(paste0(path, "m_lba1.rds")))
 ```
 
 
@@ -986,7 +983,7 @@ fit_summary <- merge(duration_range, quality, by = "Model")
 
 fit_summary |>
   ggplot(aes(x = duration_median, y = elpd, color = Model)) +
-  geom_errorbarh(aes(xmin = duration_min, xmax = duration_max), width = 0) +
+  geom_errorbar(aes(xmin = duration_min, xmax = duration_max), orientation = "y") +
   geom_errorbar(aes(ymin = elpd - elpd_se, ymax = elpd + elpd_se), width = 0) +
   geom_point(size = 2.5) +
   ggrepel::geom_text_repel(aes(label = Model), size = 3.2, show.legend = FALSE) +
@@ -1050,7 +1047,7 @@ p <- pred |>
   data_filter(iter_value < 2) |> 
   ggplot(aes(x=iter_value)) +
   geom_histogram(data = df, aes(x=RT, y = after_stat(density), fill = Condition),
-                 position = "identity", bins=120, alpha = 0.8) +
+                 position = "identity", bins=120, alpha = 0.6) +
   geom_line(aes(color=Model, group=interaction(Condition, iter_group)), stat="density", alpha=0.2) +
   theme_minimal() +
   theme(axis.text.y = element_blank()) +
@@ -1067,5 +1064,182 @@ p
 #| echo: false
 #| eval: false
 
-ggsave("../man/figures/rt_models1.png", p, width = 10, height = 8, bg = "white")
+ggsave("../../man/figures/rt_models1.png", p, width = 10, height = 8, bg = "white")
+```
+
+### Conclusions
+
+```{r}
+#| warning: false
+
+rez <- rbind(
+  parameters::parameters(m_normal, test = NULL, diagnostic = NULL)  |> 
+    data_modify(Model = "Normal"),
+  parameters::parameters(m_exgauss, test = NULL, diagnostic = NULL) |> 
+    data_modify(Model = "ExGaussian"),
+  parameters::parameters(m_lognormal, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "LogNormal"),
+  parameters::parameters(m_wald, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "InvGaussian"),
+  parameters::parameters(m_weibull, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "Weibull"),
+  parameters::parameters(m_logweibull, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "LogWeibull"),
+  parameters::parameters(m_invweibull, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "InvWeibull"),
+  parameters::parameters(m_gamma, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "Gamma"),
+  parameters::parameters(m_invgamma, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "InvGamma"),
+  parameters::parameters(m_loggamma, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "LogGamma"),
+  parameters::parameters(m_lba, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "LBA") 
+) |>
+  data_modify(Model = factor(Model, levels = c("Normal", "ExGaussian", "LogNormal", "InvGaussian", 
+                                               "Weibull", "LogWeibull", "InvWeibull", 
+                                               "Gamma", "InvGamma", "LogGamma", 
+                                               "LBA")))
+
+rez |> 
+  filter(grepl("ConditionSpeed", Parameter)) |>
+  data_modify(Significant = sign(CI_low) == sign(CI_high),
+              Component = ifelse(Component == "conditional", "mu", Component)) |>
+  as.data.frame() |> 
+  ggplot(aes(x = Median, y = Model, color = Model, alpha = Significant)) +
+  geom_pointrange(aes(xmin = CI_low, xmax = CI_high), size = 1, linewidth = 1.5) +
+  geom_vline(xintercept = 0, linetype = "dashed") + 
+  scale_alpha_manual(values = c("TRUE" = 1, "FALSE" = 0.4), guide = "none") +
+  scale_color_material_d(guide = "none") +
+  scale_y_discrete(limits = rev(levels(rez$Model))) +
+  facet_grid(~Component, scale = "free_x") +
+  labs(x = "Speed - Accuracy", y = "Parameter")  +
+  theme_minimal()
+```
+
+## Real Data
+
+```{r}
+df_srt <- read.csv("https://raw.githubusercontent.com/RealityBending/DoggoNogoValidation/refs/heads/main/data/data_simpleRT.csv") |> 
+  filter(RT > 0)
+
+head(df_srt)
+
+df_srt |> 
+  ggplot(aes(x=RT)) +
+  geom_histogram(aes(y = after_stat(density)), bins=120, alpha = 1) +
+  theme_minimal() 
+```
+
+### Model Selection
+
+
+::: {.panel-tabset}
+
+#### Normal
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- bf(RT ~ 1 + (1|Participant))
+
+m_normal <- brm(f,
+  data = df_srt,
+  chains = 4, iter = 1250, warmup = 750, thin = 2, backend = "cmdstanr"
+)
+
+m_normal <- brms::add_criterion(m_normal, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_normal, file = "../models_large/m_srt_normal.rds")
+```
+
+#### ExGaussian
+
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- bf(
+  RT ~ 1 + (1|Participant),
+  sigma ~ 1 + (1|Participant),
+  tau ~ 1 + (1|Participant),
+  family = cogmod_exgaussian()
+)
+
+m_exgauss <- brm(f,
+  data = df_srt,
+  prior = cogmod_priors(f, df_srt),
+  init = cogmod_inits(f, df_srt),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 1250, warmup = 750, thin = 2, backend = "cmdstanr"
+)
+
+m_exgauss <- brms::add_criterion(m_exgauss, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_exgauss, file = "../models_large/m_srt_exgauss.rds")
+```
+
+
+
+:::
+
+#### Model Comparison
+
+```{r}
+#| echo: false
+#| eval: false
+
+m_normal <- readRDS(url(paste0(path, "../models_large/m_srt_normal.rds")))
+m_exgauss <- readRDS(url(paste0(path, "../models_large/m_srt_exgauss.rds")))
+```
+
+```{r}
+models <- list(
+  Normal = m_normal, ExGaussian = m_exgauss
+)
+model_levels <- names(models)
+
+duration <- do.call(rbind, lapply(model_levels, function(nm) {
+  data_modify(attributes(models[[nm]]$fit)$metadata$time$chain, Model = nm)
+})) |>
+  data_modify(Model = factor(Model, levels = model_levels), Minutes = total / 60)
+
+duration_range <- duration |>
+  summarize(
+    duration_min = min(Minutes),
+    duration_median = median(Minutes),
+    duration_max = max(Minutes),
+    .by = Model
+  )
+
+quality <- do.call(rbind, lapply(model_levels, function(nm) {
+  est <- models[[nm]]$criteria$loo$estimates
+  data.frame(Model = nm, elpd = est["elpd_loo", "Estimate"], elpd_se = est["elpd_loo", "SE"])
+})) |>
+  data_modify(Model = factor(Model, levels = model_levels))
+
+fit_summary <- merge(duration_range, quality, by = "Model")
+
+fit_summary |>
+  ggplot(aes(x = duration_median, y = elpd, color = Model)) +
+  geom_errorbarh(aes(xmin = duration_min, xmax = duration_max), width = 0) +
+  geom_errorbar(aes(ymin = elpd - elpd_se, ymax = elpd + elpd_se), width = 0) +
+  geom_point(size = 2.5) +
+  ggrepel::geom_text_repel(aes(label = Model), size = 3.2, show.legend = FALSE) +
+  scale_color_material_d(guide = "none") +
+  labs(
+    x = "Sampling Duration per Chain (min) - median, range across the 4 chains",
+    y = "Fit Quality (elpd_loo ± 1 SE)"
+  ) +
+  theme_minimal()
 ```

@@ -59,3 +59,4 @@ papers/
 vignettes/*.html
 vignettes/*.R
 vignettes/*_files
+vignettes/models_large/*

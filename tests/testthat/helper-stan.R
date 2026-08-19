@@ -49,14 +49,40 @@
   stop("No Stan generator found for '", name, "'.", call. = FALSE)
 }
 
+# One family's Stan code carries its whole `prelude` with it, which is right for
+# `cogmod_<family>_stanvars()`: a model uses one family, and its code has to
+# stand alone. Concatenating every family into a single `functions {}` block, as
+# this helper does and nothing else in the package does, is the one situation
+# where that bites - cogmod_lba1() and cogmod_lba2() share `.LBA_STAN_PRELUDE`,
+# so its two kernels would be defined twice and Stan would refuse to compile.
+#
+# The shared preludes are therefore stripped from every copy after the first.
+# Their names are read off the registries rather than listed here, so a family
+# added later with a shared prelude needs no change.
+.stan_prelude_name <- function(e) if (is.null(e$prelude)) "" else e$prelude
+
+.stan_dedupe_preludes <- function(codes) {
+  named <- c(
+    vapply(cogmod:::.SHIFTED, .stan_prelude_name, character(1)),
+    vapply(cogmod:::.CHOICE, .stan_prelude_name, character(1))
+  )
+  for (nm in unique(named[nzchar(named)])) {
+    pre <- getFromNamespace(nm, "cogmod")
+    hits <- which(vapply(codes, grepl, logical(1), pattern = pre, fixed = TRUE))
+    for (i in hits[-1]) codes[i] <- sub(pre, "", codes[i], fixed = TRUE)
+  }
+  codes
+}
+
 .stan_model <- function() {
   mod <- .stan_cached()
   if (!is.null(mod)) return(mod)
 
   code <- paste0(
     "functions {\n",
-    paste(vapply(.STAN_LPDF_FAMILIES, .stan_lpdf_code, character(1)),
-          collapse = "\n"),
+    paste(.stan_dedupe_preludes(
+      vapply(.STAN_LPDF_FAMILIES, .stan_lpdf_code, character(1))
+    ), collapse = "\n"),
     "\n}"
   )
   file <- cmdstanr::write_stan_file(code)

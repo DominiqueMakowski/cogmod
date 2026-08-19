@@ -17,12 +17,13 @@
 #' (Frechet) decision time, whose mean is `sigma * gamma(1 - 1 / mu)` and exists
 #' only for `mu > 1`.
 #'
-#' `ndt`, `poutlier` and `minrt` mean exactly what they do in [cogmod_lognormal()],
+#' `ndt` and `poutlier` mean exactly what they do in [cogmod_lognormal()],
 #' and [with_outliers()], [without_outliers()], [p_outlier()] and
 #' [cogmod_priors()] all work here too. See `?rcogmod_lognormal` for why `ndt` is
 #' expressed directly in seconds rather than as a fraction of the fastest
 #' observed response, what the half Student-t outlier component is for, and why
-#' `minrt` is a constant on the family rather than a `dpar`.
+#' the outlier component's scale is a constant rather than a `dpar`, and why
+#' reaction times have to be in seconds.
 #'
 #' `posterior_epred()` returns `Inf` where `mu <= 1`, because the Frechet has no
 #' mean there. [cogmod_loggamma()] nests this family at `shape = -1`.
@@ -41,10 +42,9 @@
 #' dcogmod_invweibull(0.1, ndt = 0.3, poutlier = 0)
 #'
 #' @export
-rcogmod_invweibull <- function(n, mu = 3, sigma = 0.4, ndt = 0.2, poutlier = 0,
-                      minrt = 0.3) {
+rcogmod_invweibull <- function(n, mu = 3, sigma = 0.4, ndt = 0.2, poutlier = 0) {
   .rshifted("cogmod_invweibull", n = n, ndt = ndt, poutlier = poutlier,
-               minrt = minrt, mu = mu, sigma = sigma)
+               mu = mu, sigma = sigma)
 }
 
 
@@ -53,9 +53,9 @@ rcogmod_invweibull <- function(n, mu = 3, sigma = 0.4, ndt = 0.2, poutlier = 0,
 #' @param log Logical; if TRUE, probabilities p are given as log(p).
 #' @export
 dcogmod_invweibull <- function(x, mu = 3, sigma = 0.4, ndt = 0.2, poutlier = 0,
-                      minrt = 0.3, log = FALSE) {
+                      log = FALSE) {
   .dshifted("cogmod_invweibull", x = x, ndt = ndt, poutlier = poutlier,
-               minrt = minrt, log = log, mu = mu, sigma = sigma)
+               log = log, mu = mu, sigma = sigma)
 }
 
 
@@ -70,29 +70,29 @@ dcogmod_invweibull <- function(x, mu = 3, sigma = 0.4, ndt = 0.2, poutlier = 0,
 #' @export
 cogmod_invweibull <- function(link_mu = "softplus", link_sigma = "softplus",
                      link_ndt = "log", link_poutlier = "logit",
-                     predict_outliers = FALSE, minrt = 0.3) {
+                     predict_outliers = FALSE) {
   .shifted_family("cogmod_invweibull", links = c(link_mu, link_sigma),
-                     predict_outliers = predict_outliers, minrt = minrt)
+                     predict_outliers = predict_outliers)
 }
 
 
 #' @keywords internal
-.cogmod_invweibull_lpdf <- function(minrt = 0.3) {
-  .shifted_lpdf("cogmod_invweibull", minrt = minrt)
+.cogmod_invweibull_lpdf <- function() {
+  .shifted_lpdf("cogmod_invweibull")
 }
 
 
 #' @rdname rcogmod_invweibull
 #' @export
-cogmod_invweibull_lpdf_expose <- function(minrt = 0.3) {
-  .shifted_expose("cogmod_invweibull", minrt)
+cogmod_invweibull_lpdf_expose <- function() {
+  .shifted_expose("cogmod_invweibull")
 }
 
 
 #' @rdname rcogmod_invweibull
 #' @export
-cogmod_invweibull_stanvars <- function(minrt = 0.3) {
-  brms::stanvar(scode = .cogmod_invweibull_lpdf(.as_minrt(minrt)), block = "functions")
+cogmod_invweibull_stanvars <- function() {
+  brms::stanvar(scode = .cogmod_invweibull_lpdf(), block = "functions")
 }
 
 

@@ -10,8 +10,7 @@ cogmod_stanvars(formula, ...)
 \item{formula}{A \code{brms::bf()} formula carrying the family, a \code{cogmod} family
 object, or a fitted \code{brmsfit}.}
 
-\item{...}{Passed to the family's own \verb{<family>_stanvars()} function, for
-arguments such as \code{minrt}.}
+\item{...}{Passed to the family's own \verb{<family>_stanvars()} function.}
 }
 \value{
 A \code{stanvars} object, to pass to \code{brms::brm(stanvars = )}.
@@ -29,7 +28,7 @@ and every \code{cogmod} family ships one. Calling this instead of the family's o
 function means the family is named once, in \code{bf()}, rather than twice:
 
 \if{html}{\out{<div class="sourceCode r">}}\preformatted{f <- brms::bf(RT ~ Condition, ndt ~ Condition,
-              family = cogmod_lognormal(minrt = 0.25))
+              family = cogmod_lognormal())
 
 brms::brm(f, data = df,
           prior    = cogmod_priors(f, df),
@@ -37,17 +36,16 @@ brms::brm(f, data = df,
           stanvars = cogmod_stanvars(f))
 }\if{html}{\out{</div>}}
 }
-\section{Why this is not only tidier}{
-For the shifted families, \code{minrt} is \emph{baked into the generated Stan code as a
-literal}, because a Stan function cannot see the data block. It is therefore
-possible to fit \code{cogmod_lognormal(minrt = 0.25)} against Stan code compiled with
-the default \code{0.3} - the model runs, and quietly uses a different outlier
-component from the one the family describes, which nothing downstream will
-flag.
-
-\code{cogmod_stanvars()} takes \code{minrt} off the family, so the Stan code and the
-family cannot disagree. Passing \code{minrt} explicitly still overrides it, for
-the rare case where that is wanted.
+\section{A warning it may emit}{
+\code{\link[=cogmod_lba1]{cogmod_lba1()}} and \code{\link[=cogmod_lba2]{cogmod_lba2()}} have a likelihood that is \emph{exactly}
+constant along the ray that multiplies the drift rates, their SDs, the
+start-point range and the threshold offset by a common factor. If the
+formula pins none of them to a constant, this warns: the RT distribution is
+still identified, but the individual parameters are not, and the fit will
+converge to whatever the priors say about that direction rather than fail.
+Fixing any one member in \code{bf()} - conventionally \code{sigmazero = 1} - silences
+it. Leaving a parameter \emph{out} of \code{bf()} does not count: \code{brms} estimates it
+anyway.
 }
 
 \section{What it accepts}{
@@ -56,11 +54,11 @@ fitted \code{brmsfit} (useful for recompiling or for \code{update()}).
 }
 
 \examples{
-f <- brms::bf(RT ~ 1, ndt ~ 1, family = cogmod_lognormal(minrt = 0.25))
+f <- brms::bf(RT ~ 1, ndt ~ 1, family = cogmod_lognormal())
 cogmod_stanvars(f)
 
 # Equivalent to naming the family a second time:
-cogmod_lognormal_stanvars(minrt = 0.25)
+cogmod_lognormal_stanvars()
 
 }
 \seealso{

@@ -281,7 +281,7 @@ f <- bf(
   RT ~ Condition + (Condition | Participant),
   sigma ~ Condition + (Condition | Participant),
   ndt ~ Condition + (Condition | Participant),
-  family = cogmod_lognormal(minrt = min(sim$RT))
+  family = cogmod_lognormal()
 )
 
 m <- brm(f,

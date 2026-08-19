@@ -383,17 +383,19 @@ f <- bf(
     (Condition | Participant),
   sigma ~ Condition +
     (Condition | Participant),
-  tau ~ Condition +
+  ndt ~ Condition +
     (Condition | Participant),
-  minrt = min(df$RT),
-  family = rt_lognormal()
+  poutlier ~ 1,
+  family = cogmod_lognormal(minrt = 0.2)
 )
 
 # Fit the model
 m <- brm(
   f,
   data = df,
-  stanvars = rt_lognormal_stanvars(),
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   backend = "cmdstanr"
 )
 ```
@@ -422,7 +424,7 @@ piece of work, the set is expected to grow to track cutting-edge advances in com
 The package's documentation website contains the list of available models, with each family's distributional parameters, link
 functions and defaults, as well as hands-on tutorials.
 
-![Response formats covered by `cogmod` and the main families available for each at the time of writing; the package website carries the current list. Five further descriptive RT families are also available (`rt_weibull()`, `rt_logweibull()`, `rt_invweibull()`, `rt_gamma()` and `rt_invgamma()`) and are compared against the others in Example 2. Every family comes with a `_stanvars()` function supplying the corresponding Stan code, and with `d*()` and `r*()` functions for density evaluation and simulation.](figures/fig_overview.png){#fig-overview apa-twocolumn=true width="100%"}
+![Response formats covered by `cogmod` and the main families available for each at the time of writing; the package website carries the current list. Five further descriptive RT families are also available (`cogmod_weibull()`, `cogmod_logweibull()`, `cogmod_invweibull()`, `cogmod_gamma()` and `cogmod_invgamma()`) and are compared against the others in Example 2. Every family comes with a `_stanvars()` function supplying the corresponding Stan code, and with `d*()` and `r*()` functions for density evaluation and simulation.](figures/fig_overview.png){#fig-overview apa-twocolumn=true width="100%"}
 
 
 
@@ -456,7 +458,7 @@ letter strings as words or non-words under instructions emphasising either
 than 200 ms or slower than 2 s were excluded. This example uses a single participant
 ($n = 1{,}917$ trials, 8.4% of them errors) with no random effects for clarity.
 
-In order to fit a basic Drift Diffusion Model (DDM) in `cogmod`, one needs to specify 1) a formula for each of the parameters, 2) the model family (`ddm()`) and attach the custom family Stan code with `ddm_stanvars()`.
+In order to fit a basic Drift Diffusion Model (DDM) in `cogmod`, one needs to specify 1) a formula for each of the parameters, 2) the model family (`cogmod_ddm()`) and attach the custom family Stan code with `cogmod_stanvars()`.
 As it is common in the field, the "decision" being modelled
 is **correct vs. error**, which is added to the formula with a `dec()` term
 on the response side of the formula. Everything else is the ordinary
@@ -479,26 +481,31 @@ df <- df[df$Participant == 1, ]
 
 f <- bf(
   RT | dec(Error) ~ Condition,
-  bs ~ Condition, 
-  bias ~ 1, 
-  tau ~ 1,  
-  minrt = min(df$RT),
-  sigmadrift = 0, sigmabias = 0, sigmatau = 0,
-  family = ddm()
+  boundary ~ Condition,
+  bias ~ 1,
+  ndt ~ 1,
+  poutlier ~ 1,
+  sigmadrift = 0, sigmabias = 0, sigmandt = 0,
+  family = cogmod_ddm()
 )
 
-m_ddm <- brm(f, data = df, stanvars = ddm_stanvars(), init = 0) |>
+m_ddm <- brm(f, data = df,
+             prior = cogmod_priors(f, df),
+             init = cogmod_inits(f, df),
+             stanvars = cogmod_stanvars(f)) |>
   add_criterion("loo")
 ```
 
 The first unnamed parameter, referred to as `mu` in the Stan code as per `brms` convention, actually corresponds to the drift rate.
-The other parameters correspond to boundary separation (`bs`), starting
-point bias (`bias`), and non-decision time (`tau` and `minrt`),
-respectively. Estimating non-decision time is a common source of difficulty in fitting diffusion models, 
-known to be poorly identified and to cause convergence issues (as it is bounded on the upper side by an observed value corresponding to the minimum RT, which needs to be injected from the data into the model itself).
-`cogmod` addresses the issue by adding `minrt` as a fixed constant, and `tau` is defined as a scaling factor of that constant.
-The cost of this convenience is that `tau` is expressed relative to an order statistic of the sample, which
-we return to in the Limitations.
+The other parameters correspond to boundary separation (`boundary`), starting
+point bias (`bias`), and non-decision time (`ndt`), respectively.
+Estimating non-decision time is a common source of difficulty in fitting
+diffusion models: a shifted distribution assigns zero density to any response
+faster than `ndt`, which puts a hard wall in the likelihood at the fastest
+observed response. Every `cogmod` family therefore mixes in a small contaminant
+component, of weight `poutlier`, that keeps early responses at positive
+density. The wall becomes a finite cost, and `ndt` is estimated directly in
+seconds rather than relative to a sample statistic.
 
 The three `sigma*` arguments fix the between-trial variabilities of the
 full seven-parameter diffusion model [@ratcliff2008diffusion] at zero,
@@ -622,9 +629,9 @@ extra formulas:
 f <- bf(RT ~ Condition,
         sigma ~ Condition,
         tau ~ Condition,
-        family = rt_exgaussian())
+        family = cogmod_exgaussian())
 
-m <- brm(f, data = df, stanvars = rt_exgaussian_stanvars())
+m <- brm(f, data = df, stanvars = cogmod_exgaussian_stanvars())
 ```
 
 The three parameters reproduce the Gaussian estimate exactly
@@ -645,8 +652,8 @@ two lines with a different family, and the comparison is a single call:
 ```r
 m_exgaussian <- brm(
   bf(RT ~ Condition, sigma ~ Condition, tau ~ Condition,
-     family = rt_exgaussian()),
-  data = df, stanvars = rt_exgaussian_stanvars()
+     family = cogmod_exgaussian()),
+  data = df, stanvars = cogmod_exgaussian_stanvars()
 ) |> add_criterion("loo")
 
 # the other nine differ only in `family`, its `stanvars`, and which
@@ -668,7 +675,7 @@ loo_compare(m_gaussian, m_exgaussian, m_lognormal, m_wald, m_lba, ...)
 | Weibull | −3680.4 | 9.33 | 1840.2 | −582.4 | 39.0 | 20.2 |
 | Gaussian | −1904.2 | 7.82 | 952.1 | −1470.5 | 73.3 | 0.1 |
 
-: Leave-one-out cross-validation for ten RT families fitted to the same data ($n = 4{,}281$). The LBA here is `rt_lba()`, the single-accumulator variant that predicts a duration only, not the racing model of @tbl-eam. ENP is the effective number of parameters; Difference is the difference in expected log predictive density relative to the best model, with its standard error. Time is the median sampling duration per chain (4 chains, 500 iterations, on a consumer laptop). {#tbl-loo apa-twocolumn=true}
+: Leave-one-out cross-validation for ten RT families fitted to the same data ($n = 4{,}281$). The LBA here is `cogmod_lba1()`, the single-accumulator variant that predicts a duration only, not the racing model of @tbl-eam. ENP is the effective number of parameters; Difference is the difference in expected log predictive density relative to the best model, with its standard error. Time is the median sampling duration per chain (4 chains, 500 iterations, on a consumer laptop). {#tbl-loo apa-twocolumn=true}
 
 The ranking itself is one dataset's worth of evidence and is not the
 point. What matters is that three questions become answerable in an
@@ -746,10 +753,10 @@ f <- bf(
     (Condition | Participant),
   sigma ~ Condition +
     (Condition | Participant),
-  tau ~ Condition +
+  ndt ~ Condition +
     (Condition | Participant),
-  minrt = min(sim$RT),
-  family = rt_lognormal()
+  poutlier ~ 1,
+  family = cogmod_lognormal(minrt = 0.2)
 )
 ```
 
@@ -893,9 +900,9 @@ f <- bf(
     (Switching | Participant),
   sigma ~ Diagnosis * Switching +
     (1 | Participant),
-  tau ~ Diagnosis + (1 | Participant),
-  minrt = min(d$RT),
-  family = rt_lognormal()
+  ndt ~ Diagnosis + (1 | Participant),
+  poutlier ~ 1,
+  family = cogmod_lognormal(minrt = 0.2)
 )
 ```
 
@@ -957,7 +964,7 @@ at the endpoints, because answering "completely agree" is a different
 kind of act from answering "agree quite a lot". A mean rating cannot tell
 the two apart.
 
-`betagate()` is `cogmod`'s reparameterization of the ordered Beta model
+`cogmod_betagate()` is `cogmod`'s reparameterization of the ordered Beta model
 [@kubinec2023ordered], in which an observed 0 or 1 arises when an
 underlying continuous tendency passes a lower or upper "gate". Its four
 parameters are separately interpretable: `mu` is that underlying tendency,
@@ -970,12 +977,12 @@ f <- bf(score ~ Condition,
         phi ~ Condition,
         pex ~ Condition,
         bex ~ Condition,
-        family = betagate())
+        family = cogmod_betagate())
 
-m <- brm(f, data = df, stanvars = betagate_stanvars())
+m <- brm(f, data = df, stanvars = cogmod_betagate_stanvars())
 ```
 
-We simulated 1,000 ratings (`rbetagate()`) from two conditions in which
+We simulated 1,000 ratings (`rcogmod_betagate()`) from two conditions in which
 the manipulation raised both the underlying tendency and the inclination
 to answer at the top of the scale. The mean rating rises from 0.57 to
 0.83, and a *t*-test duly returns one number ($t = 17.5$, $p < .001$).
@@ -1120,13 +1127,6 @@ simulated data and the standard Bayesian workflow [@gelman2020bayesian]
 remain the user's responsibility; the `d*()` and `r*()` functions
 provided for every family exist to make those checks cheap.
 
-**Sample-dependent non-decision time.** Expressing `tau` as a proportion
-of `min(RT)` bounds it sensibly and makes it comparable across families,
-but `min(RT)` is itself a noisy order statistic that shrinks as trials
-accumulate and depends on the outlier criterion. The parameter is
-therefore mildly sample-dependent, and comparisons across datasets with
-very different trial counts or trimming rules should be made with that
-in mind.
 
 **Maturity.** The package is under active development, and the set of
 families reported here is a snapshot rather than a specification. Some,

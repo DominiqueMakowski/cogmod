@@ -148,11 +148,11 @@
 #' model should be fitted. The one visible symptom of getting it wrong is a
 #' chain that never finishes.
 #'
-#' # `ndt`, `poutlier` and `minrt`
+#' # `ndt` and `poutlier`
 #'
 #' Identical in meaning, parameterization and defaults to [cogmod_lognormal()] - see
 #' its Details for the full account of why `ndt` is expressed directly in
-#' seconds, what the half Student-t outlier component is for, why `minrt` is a
+#' seconds, what the half Normal outlier component is for, why its scale is a
 #' constant rather than a `dpar`, and why predictions exclude the outlier
 #' component by default. [with_outliers()], [without_outliers()], [p_outlier()]
 #' and [cogmod_priors()] all work on this family too.
@@ -196,9 +196,9 @@
 #'
 #' @export
 rcogmod_loggamma <- function(n, mu = -0.7, sigma = 0.5, shape = 0,
-                             ndt = 0.2, poutlier = 0, minrt = 0.3) {
+                             ndt = 0.2, poutlier = 0) {
   .rshifted("cogmod_loggamma", n = n, ndt = ndt, poutlier = poutlier,
-            minrt = minrt, mu = mu, sigma = sigma, shape = shape)
+            mu = mu, sigma = sigma, shape = shape)
 }
 
 
@@ -207,10 +207,9 @@ rcogmod_loggamma <- function(n, mu = -0.7, sigma = 0.5, shape = 0,
 #' @param log Logical; if TRUE, probabilities p are given as log(p).
 #' @export
 dcogmod_loggamma <- function(x, mu = -0.7, sigma = 0.5, shape = 0,
-                             ndt = 0.2, poutlier = 0, minrt = 0.3,
-                             log = FALSE) {
+                             ndt = 0.2, poutlier = 0, log = FALSE) {
   .dshifted("cogmod_loggamma", x = x, ndt = ndt, poutlier = poutlier,
-            minrt = minrt, log = log, mu = mu, sigma = sigma,
+            log = log, mu = mu, sigma = sigma,
             shape = shape)
 }
 
@@ -366,8 +365,7 @@ cogmod_loggamma <- function(
   link_shape = "identity",
   link_ndt = "log",
   link_poutlier = "logit",
-  predict_outliers = FALSE,
-  minrt = 0.3
+  predict_outliers = FALSE
 ) {
   fam <- brms::custom_family(
     name = "cogmod_loggamma",
@@ -381,30 +379,28 @@ cogmod_loggamma <- function(
   # only thing brms carries down to a custom family's prediction methods, and a
   # dpar left out of the formula would be estimated rather than defaulted.
   fam$predict_outliers <- isTRUE(predict_outliers)
-  invisible(.validate_minrt(minrt)) # validate before storing
-  fam$minrt <- minrt
   fam
 }
 
 
 #' @keywords internal
-.cogmod_loggamma_lpdf <- function(minrt = 0.3) {
-  .shifted_lpdf("cogmod_loggamma", minrt = minrt)
+.cogmod_loggamma_lpdf <- function() {
+  .shifted_lpdf("cogmod_loggamma")
 }
 
 
 #' @rdname rcogmod_loggamma
 #' @export
-cogmod_loggamma_lpdf_expose <- function(minrt = 0.3) {
-  .shifted_expose("cogmod_loggamma", minrt)
+cogmod_loggamma_lpdf_expose <- function() {
+  .shifted_expose("cogmod_loggamma")
 }
 
 
 #' @rdname rcogmod_loggamma
 #' @export
-cogmod_loggamma_stanvars <- function(minrt = 0.3) {
+cogmod_loggamma_stanvars <- function() {
   brms::stanvar(
-    scode = .cogmod_loggamma_lpdf(.as_minrt(minrt)),
+    scode = .cogmod_loggamma_lpdf(),
     block = "functions"
   )
 }

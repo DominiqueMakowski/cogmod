@@ -77,20 +77,20 @@ taken from the data.
 
 ## Choosing the Outlier Component
 
-`g` is a **half Student-t** with 3 degrees of freedom and scale `minrt`, the
-theorethical lowest reaction time that could plausibly be a real decision, which defaults to
-0.3 s, and that is what every number below uses. Three properties decide the
-shape, and most obvious candidates fail at least one.
+`g` is a **half Normal** with scale `0.2` seconds, and that is what every
+number below uses. Four properties decide the shape, and every obvious
+candidate fails at least one.
 
 ```{r}
 #| code-fold: true
 #| code-summary: "Analytic properties of each candidate"
 
+hn <- function(s) function(x) 2 * dnorm(x, 0, s)
 ht <- function(s, nu) function(x) 2 * dt(x / s, nu) / s
 
 candidates <- list(
-  "Half-t(0.3, df = 3)  [shipped]" = ht(0.3, 3),
-  "Half-Normal(0.3)"               = function(x) 2 * dnorm(x, 0, 0.3),
+  "Half-Normal(0.2)  [shipped]" = hn(0.2),
+  "Half-t(0.3, df = 3)  [<= 0.2.0]" = ht(0.3, 3),
   "Half-Cauchy(0.3)"               = ht(0.3, 1),
   "LogNormal(log 0.15, 1.5)"       = function(x) dlnorm(x, log(0.15), 1.5),
   "Exponential(mean 0.15)"         = function(x) dexp(x, 1 / 0.15),
@@ -107,13 +107,13 @@ props <- do.call(rbind, lapply(names(candidates), function(nm) {
     # density relative to its value near zero: 1.00 is perfectly flat
     flatness = sprintf("%.2f / %.2f / %.2f",
                        g(0.05) / g(1e-4), g(0.15) / g(1e-4), g(0.25) / g(1e-4)),
-    ms = if (g(400) == 0) "0 (underflow)" else format(g(400), digits = 2),
+    tail = format(g(3) / g(1e-4), digits = 2),
     mean = if (inherits(m, "try-error") || m > 10) "divergent" else sprintf("%.3f", m)
   )
 }))
 
 knitr::kable(props, col.names = c("g", "flatness at 0.05 / 0.15 / 0.25 s",
-                                  "g(400) in ms units", "mean"))
+                                  "g(3 s), relative to peak", "mean"))
 ```
 
 - **Flat at the origin.** The fastest responses are the ones least plausibly
@@ -122,86 +122,69 @@ relative to its value near zero, so `1.00` is perfectly flat. A LogNormal rises
 and collapses toward zero exactly where protection is needed most. An Exponential
 has the opposite defect, peaking at zero with maximal slope. Both encode a claim
 nobody would defend: that anticipations are far more likely at e.g., 150 ms than
-at 3 ms. The half-t, half-Normal and uniform are all genuinely flat.
-- **Positive at the wrong scale.** `minrt` is what keeps `g` on the same
-timescale as the data, but it is a constant the user supplies, so it can be
-wrong. If it is left at 0.3 while reaction times are in milliseconds, a
-light-tailed component underflows to *exactly* zero, every sub-`ndt` response
-returns `-Inf`, and chains cannot initialise. Half-Normal, Exponential and both
-uniforms fail here. Heavy tails degrade instead of dying, which turns a
-misspecified `minrt` into a bad fit rather than no fit.
+at 3 ms. The half-Normal, half-t and uniform are all genuinely flat.
+- **Dead by the time real decisions start.** This is the criterion the half-t
+fails, and it is why it was replaced in 0.2.1. Its tails are heavier than every
+decision density in the package, so far-out slow responses end up better
+explained by `g` than by the model itself: at `poutlier = 0.02`, against a
+shifted LogNormal, a 5 s response was attributed to the outlier component with
+probability 0.86, and the crossover sat at 3.86 s. `ndt` then gets pulled up
+behind it. The half-Cauchy and the wide uniform fail this worse. The slow tail
+belongs to the decision family - that is what `shape` in `cogmod_loggamma()`
+and `sigmadrift` in `cogmod_invgaussian()` are for.
+- **Strictly positive everywhere.** The whole point of mixing `g` in is that
+no response should ever have zero density; a single one that does makes the
+log-likelihood `-Inf` and puts back a cliff of exactly the kind being removed.
+That is what rules out the uniforms, which are otherwise flat, tail-free and
+well behaved: put the edge at 0.35 s and a contaminant at 0.36 s under an `ndt`
+of 0.40 s is declared impossible. A half-Normal is never zero - merely
+negligible, which is a different thing.
 - **Finite mean.** `posterior_epred()` needs `E[RT]`. A half-Cauchy has no finite
-mean, so it would return infinity. Three degrees of freedom is the smallest
-integer that keeps both the mean and the variance finite while leaving the tails
-heavy.
+mean, so it would return infinity.
 
-Only the half-t satisfies all three.
+The half-Normal is the only candidate that satisfies all four, and it does so
+without a trade: because `exp(-x^2 / 2s^2)` annihilates the far tail at *any*
+scale, flatness near zero and tail weight are not bought against each other the
+way they are for a Student-t. At 0.2 s it holds 76% of its peak density at
+0.15 s and 46% at 0.25 s - against 85% and 66% for the half-t it replaced -
+while being 16 orders of magnitude lighter at 3 s.
 
 ```{r}
 #| label: fig-component
-#| fig-cap: "*The outlier component: half-t(scale = 0.3, df = 3), flat near the origin with heavy tails.*"
+#| fig-cap: "*The outlier component: half-Normal(0, 0.2), flat near the origin and gone before real decisions begin.*"
 #| fig-height: 3
 
 ggplot() +
-  geom_function(fun = function(x) dt(x / 0.3, df = 3),
+  geom_function(fun = function(x) 2 * dnorm(x, 0, 0.2),
                 n = 1000, xlim = c(0.0001, 3), linewidth = 0.8) +
   labs(x = "RT (s)", y = "density")
 ```
 
-## Setting `minrt`
+## Reaction Times Must Be in Seconds
 
-`minrt` is a theorethical **fastest response that could plausibly be a real decision** - a
-conceptual floor for the task, not a statistic. It is used directly as the scale
-of `g`, with no conversion factor, so it fixes the component's shape relative to
-itself: whatever value you choose, **61%** of the outlier mass falls below
-`minrt` and the density there is still 66% of its peak.
+The scale is `0.2` s, a **constant**, and it is not configurable. Whatever value
+it took, the component's job is to stay flat across the range `ndt` plausibly
+occupies - the `ndt` prior puts that at 0.20 to 0.45 s - and then to disappear.
+0.2 s does that: 68% of its mass falls below 0.2 s and 92% below 0.35 s, and a
+contaminant landing just under a late `ndt` of 0.42 s still has a log-density of
+-4.6, where the half-t gave -4.0. Nothing that used to be covered is starved.
 
-It is a judgement about the task, not a statistic: nothing is read off the
-sample, and `ndt` is not bounded by it - `minrt` only says where `g` lives.
+Up to 0.2.0 the scale was a `minrt` argument in the unit of the data, which made
+the likelihood **equivariant** to that unit. That argument was removed in 0.2.1,
+because the equivariance was already fictional end to end: `cogmod_priors()`
+shifted only the `ndt` prior with it, while the `sigmandt` prior of
+`cogmod_ddm()`, the `sigmadrift` prior of `cogmod_invgaussian()` and the `mu`
+priors are all stated in seconds outright - and `cogmod_priors()` is not
+optional. The package works in seconds; the constant now says so, and one
+argument disappears from every family, every density and every `stanvars()`.
 
-Because `minrt` is in the same unit as the data, the likelihood is
-**equivariant to that unit**. The shifted LogNormal already has that property on
-its own - multiply every response by 1000 and `ndt` comes back multiplied by 1000
-- and a `g` pinned to the second would be the one thing breaking it. The same
-data in seconds and in milliseconds give the same `poutlier` and an `ndt` that
-differs only by the factor.
-
-`minrt` is a constant, never estimated. It is not a dpar, because `brms` has no
-notion of a default for one - a dpar left out of the formula is *estimated*, not
-defaulted - so it rides on the family instead, and the matching Stan constant
-comes from `cogmod_stanvars()`, which reads it off the family:
-
-```{r}
-#| eval: false
-#| code-fold: false
-
-f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1, 
-              family =  cogmod_lognormal(minrt = 0.3)) # 300 for millisecond data)
-
-brms::brm(
-  f,
-  data = df,
-  prior = cogmod_priors(f, df),        # not optional - see below
-  stanvars = cogmod_stanvars(f),
-  backend = "cmdstanr"
-)
-```
-
-Put the family on the formula with `bf(..., family = fam)` and name it only
-there: `minrt` has to reach the Stan code, the prediction methods **and** the
-priors, and carrying it in one place is what stops them drifting apart.
-`cogmod_priors()`, `cogmod_stanvars()` and `cogmod_inits()` all read it off the
-formula, so there is no second place for it to disagree with itself.
-
-The default of 0.3 s rarely needs touching. It is where the conditional accuracy
-functions below show responses sitting at chance across three very different
-paradigms, and it leaves `g` 66% of its peak density at 0.25 s - close enough to
-flat that a contaminant landing just under `ndt` is not starved. Halving it
-would trade that away: at 0.15 s the density at 0.25 s falls to 10% of peak,
-which reintroduces exactly the defect the LogNormal candidate is rejected for
-above, and `ndt` gets about twice as noisy when contamination reaches up toward
-it. `ndt` itself is insensitive to the choice across the whole usable range,
-which is why being on the right **order of magnitude** is what matters.
+Feeding it milliseconds fails **silently**, which is worth knowing about. The
+outlier component's log-density at `RT = 400` is about `-2e6`, so it contributes
+nothing anywhere in the data and the mixture collapses back to the unmixed
+shifted family: `poutlier` goes to zero and `ndt` is pinned by the fastest
+observed response again - exactly the boundary this parameterization exists to
+remove. Nothing errors, and the chains still initialise, because the decision
+density itself stays finite. Divide by 1000 before fitting.
 
 ## The Data
 
@@ -327,11 +310,11 @@ The outlier component is shaded behind, normalized so its maximum sits at chance
 
 ```{r}
 #| label: fig-caf
-#| fig-cap: "*Error rate by RT across three paradigms. Dashed red line is chance (0.5); dotted lines are each series' own error rate for unambiguously genuine decisions. Point size is proportional to trials per bin; bins with fewer than 5 trials are dropped. The grey area is the half-t outlier component, rescaled to the panel (arbitrary units).*"
+#| fig-cap: "*Error rate by RT across three paradigms. Dashed red line is chance (0.5); dotted lines are each series' own error rate for unambiguously genuine decisions. Point size is proportional to trials per bin; bins with fewer than 5 trials are dropped. The grey area is the half-Normal outlier component, rescaled to the panel (arbitrary units).*"
 #| fig-height: 4
 
 dens <- data.frame(x = seq(0.001, 2, length.out = 600))
-dens$y <- (2 * dt(dens$x / 0.3, df = 3) / 0.3) / (2 * dt(0, df = 3) / 0.3) * 0.5
+dens$y <- (2 * dnorm(dens$x, 0, 0.2)) / (2 * dnorm(0, 0, 0.2)) * 0.5
 
 ggplot(caf[caf$mid < 2 & caf$n >= 5, ], aes(x = mid, y = err, colour = series)) +
   geom_area(data = dens, aes(x = x, y = y), inherit.aes = FALSE,
@@ -546,12 +529,15 @@ shift and 2% fast contamination fails the same way. Use `cogmod_priors()`.
 The likelihood has **two flat directions**, and a flat prior turns each of them
 into an improper posterior.
 
-`poutlier` toward 1. The likelihood becomes the half-t alone, at which point
-`mu`, `sigma` and `ndt` drop out of the density entirely. On a logit link that
-region sits at infinity: past about `logit(poutlier) = 40` the gradient is
-identically zero, so the chain random-walks outward forever. It is a *bad* fit -
-several hundred log-likelihood units worse than the sensible mode - but it has
-infinite volume, and against a flat prior infinite volume wins.
+`poutlier` toward 1. The likelihood becomes `g` alone. On a logit link that
+region sits at infinity: past about `logit(poutlier) = 40` the gradient with
+respect to `poutlier` is identically zero, so the chain random-walks outward
+forever. It has infinite volume, and against a flat prior infinite volume wins.
+Since 0.2.1 it is at least a far *worse* fit than it was - thousands of
+log-likelihood units below the sensible mode rather than hundreds - because a
+half-Normal cannot explain a slow response at all, so `ndt` and the decision
+parameters no longer drop out of the density completely there. The prior is
+still required.
 
 `ndt` toward 0. On a log link this is the other infinity. Once `ndt` is
 negligible against the fastest response the model is just an unshifted LogNormal,
@@ -606,10 +592,9 @@ plausible regions. Slopes get `normal(0, 0.2)` and group-level SDs
 as it looks, and an unconstrained group-level SD lets individual participants
 reach the flat regions even when the population intercept is well behaved.
 
-`ndt` is a location in time, so its prior shifts by `log(minrt / 0.3)` and stays
-equivariant to the unit of measurement in the same way the likelihood does.
-`sigma` (an SD on the log scale) and `poutlier` (a proportion) are unitless and
-do not move.
+`ndt` is a location in time, stated in seconds like everything else in these
+families. `sigma` (an SD on the log scale) and `poutlier` (a proportion) are
+unitless.
 
 What each one means once pushed through its link:
 
@@ -811,7 +796,7 @@ values (`mu = -0.9`, `sigma = 0.5`, `ndt = 0.25`, giving a median RT of
 MU <- -0.9; SIGMA <- 0.5; NDT <- 0.25
 
 responsibility <- function(rt, poutlier, mu = MU, sigma = SIGMA, ndt = NDT) {
-  g <- 2 * dt(rt / 0.3, df = 3) / 0.3                    # outlier component
+  g <- 2 * dnorm(rt, 0, 0.2)                             # outlier component
   f <- ifelse(rt > ndt, dlnorm(pmax(rt - ndt, 1e-300), mu, sigma), 0)
   r <- poutlier * g / (poutlier * g + (1 - poutlier) * f)
   r[!is.finite(r)] <- 1   # both components vanish: attribute to the outlier
@@ -852,12 +837,13 @@ The same trial is graded differently depending on how much contamination the res
 of the dataset implies - which is the whole difference between estimating a rate
 and applying a cutoff.
 
-**It rises again in the slow tail**, because the half-t has heavier tails than
-the LogNormal, so far-out slow responses are eventually better explained by the
-outlier component. This is a warning, not a feature: it is the mechanism behind
-the section below on slow responses. Leave genuinely slow contaminants in, and
-the model will start attributing the right tail to `g` and pulling `ndt` up
-behind it.
+**It does not rise again in the slow tail.** Up to 0.2.0 it did, because the
+half-t had heavier tails than the LogNormal, so far-out slow responses were
+eventually better explained by the outlier component than by the model - and
+`ndt` got pulled up behind them. That was a defect, and replacing the component
+with a half-Normal is what removed it. The slow tail is now entirely the
+decision family's business, which also means the model will not quietly absorb
+slow contaminants for you: see the section below.
 
 The grading is driven by evidence rather than a cutoff, and it agrees with the
 conditional accuracy function without having been shown any accuracy data.
@@ -932,10 +918,12 @@ fast responses, the model cannot do it for you.
   makes the unmixed model unfittable, not merely biased.
 - Mixing in an outlier component removes the boundary, keeps the log-density
   smooth, and lets `ndt` be estimated directly in seconds.
-- `g` must be flat at the origin, heavy-tailed enough to survive a unit error,
-  and possess a finite mean. Half-t(df = 3) is the only common candidate that
-  satisfies all three. Its scale is `minrt` itself (default 0.3 s), which makes
-  the likelihood equivariant to the unit RT is measured in.
+- `g` must be flat at the origin, must have died away before real decisions
+  begin, must never be exactly zero, and must possess a finite mean.
+  Half-Normal(0, 0.2 s) is the only common candidate that satisfies all four;
+  the half-t used up to 0.2.0 failed the second, competing with the model for
+  the slow tail. The scale is a
+  constant in **seconds**, so reaction times have to be supplied in seconds.
 - Priors on `ndt` and `poutlier` are required, not advisory: `brms` leaves both
   flat and the likelihood has two flat directions, so the posterior is improper
   without them. `cogmod_priors()` fills them in.

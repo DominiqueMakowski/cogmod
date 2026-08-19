@@ -98,15 +98,17 @@ print(parameters::parameters(m_lm))
 f <- bf(
   RT ~ Diagnosis * Switching + (Switching | Participant),
   sigma ~ Diagnosis * Switching + (1 | Participant),
-  tau ~ Diagnosis + (1 | Participant),
-  minrt = min(d$RT),
-  family = rt_lognormal()
+  ndt ~ Diagnosis + (1 | Participant),
+  poutlier ~ 1,
+  family = cogmod_lognormal(minrt = 0.2)
 )
 
 m_ln <- brm(
   f,
   data = d,
-  stanvars = rt_lognormal_stanvars(),
+  prior = cogmod_priors(f, d),
+  init = cogmod_inits(f, d),
+  stanvars = cogmod_stanvars(f),
   chains = 4, cores = 4, iter = 1000, warmup = 500,
   threads = threading(3),
   backend = "cmdstanr", seed = 42

@@ -4,7 +4,7 @@
 # The counterpart of core_shifted.R for the models that produce a *choice* as
 # well as a reaction time. The structure is the same - a decision-time
 # distribution shifted by `ndt`, mixed with a half Student-t outlier component
-# of weight `poutlier` and scale `minrt` - with one genuine difference, which is
+# of weight `poutlier` and a fixed scale - with one genuine difference, which is
 # why these cannot simply be added to `.SHIFTED`.
 #
 # A choice model has a *defective* density per response option `k`, with
@@ -26,8 +26,8 @@
 #
 # See ?rcogmod_lognormal for the account of why `ndt` is expressed directly
 # rather than as a fraction of an observed minimum, what the outlier component
-# is for, and why `minrt` is a constant on the family rather than a dpar. The
-# outlier component itself (`.dcontam()`, `.validate_minrt()`, `.minrt()`,
+# is for, and why the outlier component's scale is a constant rather than a
+# dpar. The outlier component itself (`.dcontam()`, `.POUTLIER_SCALE`,
 # `.predict_outliers()`, `with_outliers()`, `p_outlier()`) is shared with the
 # RT-only families and lives in core_shifted.R.
 
@@ -37,6 +37,10 @@
 # Each entry describes the *decision* component only.
 #
 #  dpars/links/lb/ub : the distributional parameters, before ndt and poutlier
+#  lb_open           : optional, one flag per dpar - is the lower bound an open
+#                      one? Defaults to TRUE, which is what every bound in
+#                      .SHIFTED is. cogmod_rdm() is the exception: a drift of
+#                      exactly zero is a legitimate value there
 #  K                 : number of response options
 #  vars              : the brms `vars` the family needs for the response index
 #  stan_check        : Stan expression that is TRUE for invalid parameters
@@ -117,6 +121,208 @@
       "sigmazero, sigmaone: the log-scale SD of each accumulator (> 0)."
     ),
     label = "Log-Normal Race"
+  ),
+  cogmod_rdm = list(
+    # Two Wald accumulators race to a common threshold b = boundary + sigmabias,
+    # each starting from z ~ Uniform(0, sigmabias). `mu` is the drift rate of
+    # accumulator 0: brms requires the first dpar of a custom family to be
+    # called `mu`.
+    dpars = c("mu", "driftone", "sigmabias", "boundary"),
+    links = c("softplus", "softplus", "softplus", "softplus"),
+    lb = c(0, 0, 0, 0), ub = c(NA, NA, NA, NA),
+    # A drift of exactly zero is legitimate here, unlike anywhere else in either
+    # registry: driftless Brownian motion still reaches a positive level with
+    # probability one, so a zero-drift accumulator is slow rather than absent and
+    # can still win the race. The Stan check below rejects the same set.
+    lb_open = c(FALSE, FALSE, TRUE, TRUE),
+    K = 2L,
+    vars = "dec[n]",
+    stan_check = "boundary <= 0 || sigmabias <= 0 || mu < 0 || driftone < 0",
+    stan_dens = paste0(
+      "cogmod_rdm_wald_ldens(t_adj, dec == 0 ? mu : driftone,",
+      " boundary, sigmabias)\n",
+      "      + cogmod_rdm_wald_lsurv(t_adj, dec == 0 ? driftone : mu,",
+      " boundary, sigmabias)"
+    ),
+    prelude = ".RDM_STAN_PRELUDE",
+    ldens = function(t, k, p) .rdm_ldens(t, k, p),
+    rng = function(n, p) .rdm_rng(n, p),
+    init = list(mu = 3, driftone = 3, sigmabias = 0.3, boundary = 0.5),
+    # `sigmabias` and `boundary` enter the threshold only through their sum,
+    # b = boundary + sigmabias, and trade off along a very flat ridge: on
+    # simulated data with 4000 trials the profile log-likelihood moves by only
+    # about 5 units as sigmabias ranges from 0 to half the threshold, with
+    # boundary sliding from 0.59 to 0.46 to pay for it. Under flat priors the
+    # sampler wanders down the sigmabias -> 0 edge - the plain Wald race - and
+    # produces divergent transitions. Same failure, and the same fix, as
+    # cogmod_lba1(), which shares this parameterization. See ?rcogmod_rdm.
+    prior = list(
+      sigmabias = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
+                    slope = "normal(0, 0.5)"),
+      boundary = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
+                   slope = "normal(0, 0.5)")
+    ),
+    dpar_doc = c(
+      "dec: the observed choice, 0 or 1.",
+      "mu: drift rate of accumulator 0 (>= 0).",
+      "driftone: drift rate of accumulator 1 (>= 0).",
+      "sigmabias: start-point range A; the start point is z ~ Uniform(0, sigmabias).",
+      "boundary: threshold offset, so the threshold is b = boundary + sigmabias."
+    ),
+    note = c(
+      "The decision component is carried entirely in log space. That is not",
+      "stylistic: for moderate drift the loser's survival underflows to exactly",
+      "zero (at drift 6 it does so by t = 4), and log(0) hands the sampler a",
+      "zero gradient, which stalls it silently rather than erroring."
+    ),
+    label = "Racing Diffusion"
+  ),
+  cogmod_lba2 = list(
+    # Two ballistic accumulators race to a common threshold b = boundary +
+    # sigmabias from a start point z ~ Uniform(0, sigmabias), each with its own
+    # normal drift. `mu` is driftzero: brms requires the first dpar of a custom
+    # family to be called `mu`.
+    dpars = c("mu", "driftone", "sigmazero", "sigmaone", "sigmabias",
+              "boundary"),
+    links = c("identity", "identity", "softplus", "softplus", "softplus",
+              "softplus"),
+    lb = c(NA, NA, 0, 0, 0, 0), ub = c(NA, NA, NA, NA, NA, NA),
+    K = 2L,
+    vars = "dec[n]",
+    stan_check = paste("sigmazero <= 0 || sigmaone <= 0 || sigmabias <= 0",
+                       "|| boundary <= 0"),
+    stan_dens = paste0(
+      "dec == 0\n",
+      "      ? cogmod_lba2_decision_lpdf(t_adj | mu, sigmazero,",
+      " driftone, sigmaone, sigmabias, boundary)\n",
+      "      : cogmod_lba2_decision_lpdf(t_adj | driftone, sigmaone,",
+      " mu, sigmazero, sigmabias, boundary)"
+    ),
+    prelude = ".LBA2_STAN_PRELUDE",
+    ldens = function(t, k, p) .lba2_ldens(t, k, p),
+    rng = function(n, p) .lba2_rng(n, p),
+    # As for cogmod_lba1(), with two accumulators' worth of parameters on the
+    # same unitless evidence scale. Only the RATIO sigmaone / sigmazero is a
+    # real quantity, which is why the convention pins sigmazero rather than
+    # both. See .warn_scale_ray().
+    scale_ray = c("mu", "driftone", "sigmazero", "sigmaone", "sigmabias",
+                  "boundary"),
+    init = list(mu = 3, driftone = 3, sigmazero = 1, sigmaone = 1,
+                sigmabias = 0.5, boundary = 0.5),
+    # Two flat directions here, not one.
+    #
+    # `sigmabias` and `boundary` share the ridge cogmod_lba1() and cogmod_rdm()
+    # have: they enter only through the sum b = boundary + sigmabias.
+    #
+    # `sigmazero` and `sigmaone` are worse. The evidence scale of an LBA is
+    # arbitrary - multiply the drifts, their SDs, the start-point range and the
+    # threshold by any c > 0 and every finishing time (b - z) / v is unchanged -
+    # so the likelihood is *exactly* constant along that ray, which runs to
+    # infinity in both directions. Priors make the posterior proper; they do not
+    # identify the scale. Fix one SD in the formula (`sigmazero = 1` in bf(),
+    # the usual convention) if the individual parameters are to be interpreted
+    # rather than the RT distribution they generate. See ?rcogmod_lba2.
+    prior = list(
+      sigmazero = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
+                    slope = "normal(0, 0.5)"),
+      sigmaone = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
+                   slope = "normal(0, 0.5)"),
+      sigmabias = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
+                    slope = "normal(0, 0.5)"),
+      boundary = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
+                   slope = "normal(0, 0.5)")
+    ),
+    dpar_doc = c(
+      "dec: the observed choice, 0 or 1.",
+      "mu: driftzero, the mean drift rate of accumulator 0.",
+      "driftone: the same for accumulator 1.",
+      "sigmazero, sigmaone: between-trial SD of each drift rate (> 0).",
+      "sigmabias: start-point range A; the start point is z ~ Uniform(0, sigmabias).",
+      "boundary: threshold offset, so the threshold is b = boundary + sigmabias."
+    ),
+    note = c(
+      "A normal drift can come out negative, and such an accumulator never",
+      "reaches the threshold. The decision density is therefore conditioned on",
+      "at least one of the two drifts being positive - the event the process",
+      "itself is conditioned on, since a trial with neither is not a trial.",
+      "Without that normalisation the density integrates to the probability of",
+      "the event rather than to one, which at low drift rates is a long way",
+      "short: 0.83 at drifts of 0.5 and 0.2 with SDs of 1.5."
+    ),
+    label = "two-accumulator LBA"
+  ),
+  cogmod_ddm = list(
+    # A single diffusion between two absorbing boundaries. `mu` is the drift:
+    # brms requires the first dpar of a custom family to be called `mu`. The
+    # response coded 1 is the UPPER boundary and 0 the lower, following brms's
+    # own wiener() family, which is why the decision density is called with the
+    # drift and the starting point flipped for dec == 0.
+    dpars = c("mu", "boundary", "bias", "sigmadrift", "sigmabias", "sigmandt"),
+    links = c("identity", "softplus", "logit", "softplus", "logit", "log"),
+    lb = c(NA, 0, 0, 0, 0, 0), ub = c(NA, NA, 1, NA, 1, NA),
+    # The three between-trial variability parameters are legitimately zero -
+    # that is the classic 4-parameter DDM - so their lower bounds are closed.
+    lb_open = c(NA, TRUE, TRUE, FALSE, FALSE, FALSE),
+    K = 2L,
+    vars = "dec[n]",
+    stan_check = paste(
+      "boundary <= 0 || bias <= 0 || bias >= 1 || sigmadrift < 0",
+      "|| sigmabias < 0 || sigmabias >= 1 || sigmandt < 0"
+    ),
+    stan_dens = paste0(
+      "dec == 1",
+      "\n      ? cogmod_ddm_decision_lpdf(t_adj | mu, boundary, bias,",
+      " sigmadrift, sigmabias, sigmandt)",
+      "\n      : cogmod_ddm_decision_lpdf(t_adj | -mu, boundary, 1 - bias,",
+      " sigmadrift, sigmabias, sigmandt)"
+    ),
+    prelude = ".DDM_STAN_PRELUDE",
+    ldens = function(t, k, p) .ddm_ldens(t, k, p),
+    rng = function(n, p) .ddm_rng(n, p),
+    # E[RT] has a closed form for the classic 4-parameter DDM, so unlike the
+    # race families this one can offer posterior_epred() - see
+    # posterior_epred_cogmod_ddm(), which owns the formula rather than the
+    # registry, because it is a mean over a *choice* as well as a time.
+    init = list(mu = 0, boundary = 1, bias = 0.5, sigmadrift = 0.3,
+                sigmabias = 0.1, sigmandt = 0.05),
+    # All three variability parameters are flat directions of the same kind as
+    # cogmod_lba1()'s `sigmabias`: each has a floor at zero that its link only
+    # reaches at minus infinity, and the likelihood stops changing well before
+    # then. brms leaves all three flat, which is an improper posterior. They are
+    # also the parameters the DDM literature agrees are hardest to recover, so
+    # the priors are deliberately tight rather than merely proper.
+    #
+    # The natural-scale rows matter more here than elsewhere: leaving a
+    # variability parameter out of bf() is the common way to write the model,
+    # and brms then declares it as a plain auxiliary parameter. Fixing it
+    # outright (`sigmadrift = 0` in bf()) removes it instead, and needs no prior.
+    prior = list(
+      sigmadrift = c(link = "normal(0, 1)", nat = "lognormal(-1, 0.75)",
+                     slope = "normal(0, 0.5)"),
+      sigmabias = c(link = "normal(-2, 1)", nat = "beta(1, 5)",
+                    slope = "normal(0, 0.5)"),
+      sigmandt = c(link = "normal(-3, 1)", nat = "lognormal(-3, 1)",
+                   slope = "normal(0, 0.5)")
+    ),
+    dpar_doc = c(
+      "dec: the observed choice. 1 is the UPPER boundary, 0 the lower.",
+      "mu: drift rate, positive towards the boundary coded 1.",
+      "boundary: boundary separation (> 0).",
+      "bias: starting point as a proportion of `boundary`, in (0, 1).",
+      "sigmadrift: between-trial SD of the drift rate (sv, >= 0).",
+      paste("sigmabias: between-trial start-point range as a fraction in",
+            "[0, 1) of the widest"),
+      "   range that keeps the start point inside the boundaries.",
+      paste("sigmandt: between-trial range of the non-decision time (st0),",
+            "in the same unit as Y,"),
+      "   with `ndt` its lower bound."
+    ),
+    note = c(
+      "sigmandt is st0 itself, in seconds, not a fraction of anything. It used",
+      "to be a multiple of a `minrt` dpar that no longer exists, and naming it",
+      "after `tau` outlived that parameter too."
+    ),
+    label = "Drift Diffusion"
   )
 )
 
@@ -167,8 +373,7 @@
 # whatever decision dpars the registry lists. Same as .shifted_family() plus the
 # `vars` the response index arrives through.
 #' @keywords internal
-.choice_family <- function(name, links = NULL, predict_outliers = FALSE,
-                           minrt = 0.3) {
+.choice_family <- function(name, links = NULL, predict_outliers = FALSE) {
   spec <- .choice_spec(name)
   dec_links <- if (is.null(links)) spec$links else links
   if (length(dec_links) != length(spec$dpars)) {
@@ -184,12 +389,9 @@
     type = "real",
     vars = spec$vars
   )
-  # Both ride on the family because that is the only thing brms carries down to
-  # a custom family's prediction methods, and because a dpar left out of the
-  # formula would be estimated rather than defaulted. See ?rcogmod_lognormal.
+  # It rides on the family because that is the only thing brms carries down to
+  # a custom family's prediction methods. See ?rcogmod_lognormal.
   fam$predict_outliers <- isTRUE(predict_outliers)
-  invisible(.validate_minrt(minrt))
-  fam$minrt <- minrt
   fam
 }
 
@@ -197,33 +399,30 @@
 # Stan code ---------------------------------------------------------------
 
 # Generates the `<name>_lpdf` Stan function: the same mixture skeleton for every
-# choice family, with only the decision density swapped in. `minrt` is baked in
-# as a literal because Stan functions cannot see the data block, and because a
-# dpar would be estimated whenever the user left it out of the formula.
+# choice family, with only the decision density swapped in. The outlier
+# component's scale is a literal because Stan functions cannot see the data
+# block, and because a dpar would be estimated whenever the user left it out of
+# the formula.
 #
 # brms appends `vars` after the dpars, so the response index is the *last*
 # argument and is an `int`.
 #' @keywords internal
-.choice_lpdf <- function(name, minrt = 0.3, prelude = "") {
+.choice_lpdf <- function(name, prelude = "") {
   spec <- .choice_spec(name)
   if (!is.null(spec$prelude)) prelude <- get(spec$prelude)
   # width = 1 so formatC does not pad the literal out with spaces
-  scale <- formatC(.validate_minrt(minrt), format = "g", digits = 15, width = 1)
+  scale <- formatC(.POUTLIER_SCALE, format = "g", digits = 15, width = 1)
 
   # As in .shifted_lpdf(): the outlier term has no parameter in it, so its
   # normalising constant is folded into a literal rather than left for Stan to
   # recompute on every leapfrog step. The `-log(K)` that makes the guess uniform
   # over the response options goes into the same constant - at K = 2 it cancels
-  # the log(2) that folds the Student-t onto [0, Inf) exactly.
-  nu <- .POUTLIER_DF
-  lc <- log(2) + lgamma((nu + 1) / 2) - lgamma(nu / 2) -
-    0.5 * log(nu * pi) - log(.validate_minrt(minrt)) - log(spec$K)
+  # the log(2) that folds the Normal onto [0, Inf) exactly.
+  lc <- log(2) - 0.5 * log(2 * pi * .POUTLIER_SCALE^2) - log(spec$K)
   lp_out <- sprintf(
-    "%s - %s * log1p(square(Y / %s) / %s)",
+    "%s - %s * square(Y)",
     formatC(lc, format = "g", digits = 17, width = 1),
-    formatC((nu + 1) / 2, format = "g", digits = 15, width = 1),
-    scale,
-    formatC(nu, format = "g", digits = 15, width = 1)
+    formatC(1 / (2 * .POUTLIER_SCALE^2), format = "g", digits = 15, width = 1)
   )
   args <- paste(
     c(sprintf("real %s", c("Y", spec$dpars, "ndt", "poutlier")), "int dec"),
@@ -243,12 +442,13 @@
 // poutlier: proportion of responses from the outlier process, in [0, 1].
 //
 // The outlier component is a guess: the choice is uniform over the %s response
-// options and the RT is a half Student-t with 3 degrees of freedom and scale
-// %s (= minrt). It keeps the density strictly positive below `ndt`, where the
-// shifted decision component has none. That is what removes the hard min-RT
-// boundary and lets `ndt` be estimated directly rather than as a fraction of an
-// observed minimum. Because the scale is tied to `minrt`, the likelihood is
-// equivariant to the unit Y is measured in.
+// options and the RT is a half Normal with scale %s s. It keeps the density
+// strictly positive below `ndt`, where the shifted decision component has none.
+// That is what removes the hard min-RT boundary and lets `ndt` be estimated
+// directly rather than as a fraction of an observed minimum. The scale is a
+// constant in SECONDS. This family expects reaction times in seconds; give it
+// another unit and the component contributes nothing anywhere in the data,
+// which silently reinstates the min-RT boundary it exists to remove.
 //
 // The 1 / %s is what keeps the total density summing to one over the response
 // options; without it it comes to 1 + poutlier. The leading constant below
@@ -283,12 +483,12 @@
 # Shared expose helper: compiles the generated lpdf and hands it back as an R
 # function, for checking the Stan code against the R density.
 #' @keywords internal
-.choice_expose <- function(name, minrt = 0.3) {
+.choice_expose <- function(name) {
   insight::check_if_installed("cmdstanr")
   stancode <- paste0(
     "functions {
 ",
-    .choice_lpdf(name, .as_minrt(minrt)),
+    .choice_lpdf(name),
     "}"
   )
   mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(stancode))
@@ -314,12 +514,24 @@
   dec <- dec[spec$dpars]
 
   # Checked against the registry's own bounds, so the R functions reject exactly
-  # what `stan_check` rejects and the two cannot disagree. `lb` is strict
-  # throughout the registry, which is why the comparison is `<=`.
+  # what `stan_check` rejects and the two cannot disagree. Lower bounds are open
+  # unless the family says otherwise, which is why the default comparison is
+  # `<=`; cogmod_rdm() closes both of its drift bounds, a zero drift being a
+  # legitimate (if slow) accumulator there.
+  open <- if (is.null(spec$lb_open)) {
+    rep(TRUE, length(spec$dpars))
+  } else {
+    spec$lb_open
+  }
   for (j in seq_along(spec$dpars)) {
     d <- spec$dpars[j]
-    if (!is.na(spec$lb[j]) && any(dec[[d]] <= spec$lb[j], na.rm = TRUE)) {
-      stop("`", d, "` must be greater than ", spec$lb[j], ".", call. = FALSE)
+    if (!is.na(spec$lb[j])) {
+      bad <- if (open[j]) dec[[d]] <= spec$lb[j] else dec[[d]] < spec$lb[j]
+      if (any(bad, na.rm = TRUE)) {
+        stop("`", d, "` must be ",
+             if (open[j]) "greater than " else "at least ", spec$lb[j], ".",
+             call. = FALSE)
+      }
     }
     if (!is.na(spec$ub[j]) && any(dec[[d]] >= spec$ub[j], na.rm = TRUE)) {
       stop("`", d, "` must be less than ", spec$ub[j], ".", call. = FALSE)
@@ -389,14 +601,14 @@
 # Log-density of the outlier component: the half-t, thinned by the K options the
 # guess is spread over.
 #' @keywords internal
-.lout_choice <- function(x, K, minrt = 0.3) {
-  .dcontam(x, minrt = minrt, log = TRUE) - log(K)
+.lout_choice <- function(x, K) {
+  .dcontam(x, log = TRUE) - log(K)
 }
 
 
 # Mixture density, shared by every choice family's d*() function.
 #' @keywords internal
-.dchoice <- function(name, x, response, ndt, poutlier, minrt = 0.3,
+.dchoice <- function(name, x, response, ndt, poutlier,
                      log = FALSE, ...) {
   spec <- .choice_spec(name)
   params <- tryCatch(
@@ -411,7 +623,7 @@
     return(rep(ifelse(log, -Inf, 0), params$ndraws))
   }
 
-  lp_out <- .lout_choice(params$x, spec$K, minrt = minrt)
+  lp_out <- .lout_choice(params$x, spec$K)
   lp_dec <- .ldec_choice(name, params$x - params$ndt, params$response, params)
 
   ld <- .log_mix(params$poutlier, lp_out, lp_dec)
@@ -424,7 +636,7 @@
 # frame with `rt` and `response`, so an outlier draw carries a choice as well as
 # a time - drawn uniformly over the K options, matching the density.
 #' @keywords internal
-.rchoice <- function(name, n, ndt, poutlier, minrt = 0.3, ...) {
+.rchoice <- function(name, n, ndt, poutlier, ...) {
   spec <- .choice_spec(name)
   params <- .prepare_choice(name, n = n, ndt = ndt, poutlier = poutlier, ...)
   m <- params$ndraws
@@ -437,9 +649,7 @@
 
   if (any(is_out)) {
     n_out <- sum(is_out)
-    rt[is_out] <- abs(
-      .validate_minrt(minrt) * stats::rt(n_out, df = .POUTLIER_DF)
-    )
+    rt[is_out] <- abs(stats::rnorm(n_out, 0, .POUTLIER_SCALE))
     response[is_out] <- sample(seq_len(spec$K) - 1L, n_out, replace = TRUE)
   }
   if (any(!is_out)) {
@@ -496,7 +706,7 @@
   ll <- do.call(.dchoice, c(
     list(name = name, x = rep(y, length.out = n_draws),
          response = rep(response, length.out = n_draws), ndt = ndt,
-         poutlier = poutlier, minrt = .minrt(prep), log = TRUE),
+         poutlier = poutlier, log = TRUE),
     dec
   ))
   ll[is.na(ll)] <- -Inf
@@ -518,8 +728,7 @@
   n_draws <- max(vapply(c(dec, list(ndt)), length, integer(1)))
 
   out <- do.call(.rchoice, c(
-    list(name = name, n = n_draws, ndt = ndt, poutlier = poutlier,
-         minrt = .minrt(prep)),
+    list(name = name, n = n_draws, ndt = ndt, poutlier = poutlier),
     dec
   ))
   as.matrix(out)

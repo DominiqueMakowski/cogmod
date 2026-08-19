@@ -94,9 +94,9 @@ single shape parameter, the families worth adding are the ones it
   distributed. Standard in the oculomotor literature, and the limit of
   the single-accumulator `cogmod_lba1()` as its start-point range goes to
   zero.
-- [ ] **Wald with across-trial drift variability** - an extension of
-  `cogmod_invgaussian()` rather than a new family, and what makes the Wald
-  fit empirical right tails.
+- [x] **Wald with across-trial drift variability** - added as the
+  `sigmadrift` parameter of `cogmod_invgaussian()` rather than as a new
+  family. `sigmadrift = 0` in the formula is the classic Wald.
 - [ ] **Shifted sinh-arcsinh (log-SHASH)** ([Jones & Pewsey,
   2009](https://doi.org/10.1093/biomet/asp053)) - location, scale,
   skewness and tail weight as four separate parameters. Where

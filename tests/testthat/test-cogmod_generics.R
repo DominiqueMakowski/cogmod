@@ -69,9 +69,9 @@ test_that("cogmod_inits matches the declared dimensions", {
 
 test_that("cogmod_inits puts the targets on the right scale", {
   f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
-                family = cogmod_lognormal(minrt = 0.3))
+                family = cogmod_lognormal())
   vals <- cogmod_inits(f, d_ig, jitter = 0)(1)
-  # ndt starts at a third of minrt, on the log link
+  # ndt starts at 0.1 s, a third of its prior median, on the log link
   expect_equal(vals$Intercept_ndt, log(0.1))
   expect_equal(vals$Intercept_poutlier, qlogis(0.02))
   # mu has an identity link here, sigma a softplus one
@@ -81,7 +81,7 @@ test_that("cogmod_inits puts the targets on the right scale", {
 
 
 test_that("cogmod_inits leaves an omitted dpar on the natural scale", {
-  f <- brms::bf(RT ~ 1, family = cogmod_lognormal(minrt = 0.3))
+  f <- brms::bf(RT ~ 1, family = cogmod_lognormal())
   vals <- cogmod_inits(f, d_ig, jitter = 0)(1)
   # Omitted from the formula, so brms declares it as a plain auxiliary
   # parameter with no link applied.
@@ -90,10 +90,7 @@ test_that("cogmod_inits leaves an omitted dpar on the natural scale", {
 })
 
 
-test_that("cogmod_inits follows minrt and the links on the family", {
-  f <- brms::bf(RT ~ 1, ndt ~ 1, family = cogmod_invgaussian(minrt = 0.24))
-  expect_equal(cogmod_inits(f, d_ig, jitter = 0)(1)$Intercept_ndt, log(0.08))
-
+test_that("cogmod_inits follows the links on the family", {
   # mu's target is 3; softplus by default, log if asked for.
   g <- brms::bf(RT ~ 1, family = cogmod_invgaussian())
   h <- brms::bf(RT ~ 1, family = cogmod_invgaussian(link_mu = "log"))
@@ -104,7 +101,7 @@ test_that("cogmod_inits follows minrt and the links on the family", {
 
 test_that("cogmod_inits gives the target to `Intercept` under 0 + Intercept", {
   f <- brms::bf(RT ~ Condition, ndt ~ 0 + Intercept + Condition,
-                family = cogmod_lognormal(minrt = 0.3))
+                family = cogmod_lognormal())
   vals <- cogmod_inits(f, d_ig, jitter = 0)(1)
   # There is no Intercept_ndt to set: the coefficient named Intercept inside
   # b_ndt is the intercept, and the slope beside it is a slope.
@@ -177,18 +174,6 @@ test_that("cogmod_stanvars dispatches on the family", {
   expect_identical(cogmod_stanvars(cogmod_exgaussian()), cogmod_exgaussian_stanvars())
   expect_identical(cogmod_stanvars(cogmod_choco()), cogmod_choco_stanvars())
   expect_identical(cogmod_stanvars(cogmod_lnr()), cogmod_lnr_stanvars())
-})
-
-
-test_that("cogmod_stanvars takes minrt off the family", {
-  f <- brms::bf(RT ~ 1, family = cogmod_lognormal(minrt = 0.25))
-  expect_identical(cogmod_stanvars(f), cogmod_lognormal_stanvars(minrt = 0.25))
-  # ...which is the point: the family's minrt is baked into the Stan code, so
-  # the default would silently disagree with it.
-  expect_false(identical(cogmod_stanvars(f), cogmod_lognormal_stanvars()))
-  # An explicit argument still wins.
-  expect_identical(cogmod_stanvars(f, minrt = 0.4),
-                   cogmod_lognormal_stanvars(minrt = 0.4))
 })
 
 
