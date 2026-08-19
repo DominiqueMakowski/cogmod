@@ -563,7 +563,7 @@ cogmod_ddm <- function(
     alpha = pars$boundary, beta = pars$bias, delta = pars$drift,
     tau = pars$ndt
   )
-  data.frame(rt = pmax(sim$q - .DDM_TAU0, 0), response = as.numeric(sim$resp))
+  list(rt = pmax(sim$q - .DDM_TAU0, 0), response = as.numeric(sim$resp))
 }
 
 

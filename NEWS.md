@@ -51,6 +51,45 @@
   drift rate, so the Wald can produce the long right tails empirical RT
   distributions have. Described in full under 0.2.0 below.
 
+## Performance
+
+* **`cogmod_rdm()` samples about 1.5x faster.** It was the most expensive
+  likelihood in the package - roughly 5.9 us per observation per gradient,
+  against 2.6 for `cogmod_lba2()` and 0.8 for `cogmod_lnr()` - and two thirds of
+  that was avoidable. The Stan survival evaluated the normal CDF at `alpha` and
+  at `beta` twice each, once inside `log_g()` and once again for the terms that
+  follow it, and it assembled its six signed terms through a helper returning a
+  `vector[2]`, which allocates on the autodiff stack once per term per
+  observation per leapfrog step.
+
+  `log_g()` now takes `log Phi(u)` from its caller, which brings the survival
+  from six normal-CDF evaluations to four, and the six terms are grouped into
+  the two differences that are individually monotone in the threshold, so each
+  is one `log_diff_exp()` of known sign and nothing on the hot path returns a
+  vector. The maths is unchanged and the grouped form cancels *less*: against
+  the R implementation it agrees to 6e-11 where the term-by-term form reached
+  5e-9. Gradients are unchanged to the precision finite differences can resolve.
+
+* **`posterior_predict()` is about 2x faster for the choice+RT families.** brms
+  calls it once per observation, so anything done per call is paid thousands of
+  times, and for every family except `cogmod_ddm()` the sampling itself was the
+  small part: two `data.frame()` constructions and an `as.matrix()` came to
+  roughly 63% of the call, against 13% for the actual draws. The registry's
+  `rng` entries now return a bare `list(rt, response)` and `.rchoice()` can
+  return a matrix directly, so the prediction path builds no data frame at all.
+  A `cbind()` costs about a seventeenth of the `data.frame()` it replaces.
+
+  `rcogmod_lnr()`, `rcogmod_rdm()`, `rcogmod_lba2()` and `rcogmod_ddm()` still
+  return a data frame, with the same draws for the same seed - only the internal
+  path changed. Measured on the `vignette("decision_making")` models at 20
+  draws: LNR 41.5 -> 20.7 us per observation-draw, LBA 32.9.
+
+  `cogmod_ddm()` gains least (560 -> 474 us) because its cost is elsewhere:
+  `brms::rwiener()` samples one draw per call, and roughly 85% of that is
+  per-call setup which cannot amortise when every posterior draw has its own
+  parameters. Predicting from a DDM remains an order of magnitude dearer than
+  from the races.
+
 # cogmod 0.2.1
 
 ## New features

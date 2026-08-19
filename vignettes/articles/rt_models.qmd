@@ -1133,7 +1133,7 @@ fit_summary <- merge(duration_range, quality, by = "Model") |>
 fit_summary |>
   ggplot(aes(x = duration_median, y = elpd, color = Model)) +
   geom_errorbar(aes(xmin = duration_min, xmax = duration_max), orientation = "y") +
-  # geom_errorbar(aes(ymin = elpd - elpd_se, ymax = elpd + elpd_se), width = 0) +
+  geom_errorbar(aes(ymin = elpd - elpd_se, ymax = elpd + elpd_se), width = 0) +
   geom_point(size = 2.5) +
   ggrepel::geom_text_repel(aes(label = Label), size = 3.2, show.legend = FALSE) +
   scale_color_material_d(guide = "none") +

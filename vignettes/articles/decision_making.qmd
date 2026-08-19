@@ -146,13 +146,13 @@ m_ddm <- brms::add_criterion(m_ddm, "loo")  # Add model performance criterion
 #| eval: false
 #| echo: false
 
-saveRDS(m_ddm, file = "models/m_ddm.rds")
+saveRDS(m_ddm, file = "../models/m_ddm.rds")
 ```
 
 ### DDM with Drift Variability (DDM-5)
 
-The three variability parameters are not decoration: each produces a
-specific, and different, effect on the *relative* speed of correct and error
+The three variability parameters each produces a specific effect on the *relative* 
+speed of correct and error
 responses. Between-trial variability in the **drift rate** (`sigmadrift`,
 Ratcliff's $s_v$) makes errors *slower* than correct responses, because
 errors are then contributed disproportionately by the trials that happened to
@@ -164,7 +164,7 @@ a visible answer, and here the errors are slightly *slower* than the correct
 responses - so `sigmadrift` is the parameter to free.
 
 We keep `sigmabias` and `sigmandt` fixed at `0`, for two reasons. Statistically
-they are weakly identified with only ~160 error trials, and computationally
+they are weakly identified with only few error trials, and computationally
 the exact zero matters: `cogmod`'s Stan code falls back to the dedicated
 (and much cheaper) drift-variability-only density when both are exactly `0`,
 and to adaptive numerical quadrature otherwise. A prior *concentrated near*
@@ -201,7 +201,7 @@ m_ddm5 <- brms::add_criterion(m_ddm5, "loo")  # Add model performance criterion
 #| eval: false
 #| echo: false
 
-saveRDS(m_ddm5, file = "models/m_ddm5.rds")
+saveRDS(m_ddm5, file = "../models/m_ddm5.rds")
 ```
 
 
@@ -321,16 +321,8 @@ variability parameter to estimate.
 
 Because each accumulator is a Wald (shifted inverse Gaussian) process, the
 drift rates use a softplus link and are constrained to be non-negative.
-
-Like the LNR, the RDM is fit with `ndt` and `poutlier` directly rather than
-`tau` and `minrt`: `ndt` is estimated in seconds, with no upper bound tied to
-the fastest observed response, and `poutlier` is the proportion of trials
-attributed to a contaminant guessing process (see `vignette("outliers")`).
-`cogmod_priors()` and `cogmod_inits()` read the family off `f`, and here they
-do more than fill in `ndt` and `poutlier`: they also fence off the
-`sigmabias` / `boundary` ridge described below, which is what the hand-written
-`normal(-1, 1)` prior used to be for. `init = 0` is actively harmful - on the
-log link it starts `ndt` at `exp(0) = 1` second, above nearly every observed RT.
+Like the LNR, `ndt` is estimated in seconds, and `poutlier` is the proportion of trials
+attributed to a contaminant early responses (see `vignette("outliers")`).
 
 ```{r}
 #| eval: false
@@ -362,35 +354,37 @@ m_rdm <- brms::add_criterion(m_rdm, "loo")  # Add model performance criterion
 saveRDS(m_rdm, file = "models/m_rdm.rds")
 ```
 
-### Identifiability of `sigmabias` and `boundary`
-
+**Identifiability of `sigmabias` and `boundary`**: 
 This concerns the LBA as much as the RDM, since both are parameterized the
 same way. The two parameters enter the model only through the threshold
-`b = boundary + sigmabias`, so they trade off almost freely: on simulated data
-with 4,000 trials, the profile log-likelihood moves by about 3 units as
-`sigmabias` sweeps from 0 to half the threshold, while `boundary` slides to
-compensate. Under flat priors the sampler drifts down the
-`sigmabias -> 0` ridge (which is just a race of two plain Wald
-accumulators) and produces divergent transitions - several hundred of
-them, in a 4,000-trial simulation.
+`b = boundary + sigmabias`, so they trade off almost freely, potentially ruining 
+model convergence.
 
-A weakly informative prior on `sigmabias` is enough to prevent that, and for
-the RDM `cogmod_priors()` now supplies one - `normal(0, 1)` on the softplus
-scale, the same row it gives `cogmod_lba1()`. Any prior of that shape removes
-the divergences entirely. It does not make `sigmabias` itself trustworthy,
-though. In a recovery check where the true value was `0.3` and the prior
-was centred at `0.31`, the posterior still came back at `0.21` - the
-likelihood pulls it down the ridge and the prior only partly resists. The
-*sum* recovered accurately over the same fit (1.08 against a true 1.10).
+This is a different identifiability problem from the model's overall *scale*
+invariance - multiplying every drift, its SD, the start-point range and the
+threshold by a constant leaves every finishing time unchanged - which the LBA
+literature resolves by fixing one drift-rate SD to `1` (Brown & Heathcote,
+[2008](https://doi.org/10.1016/j.cogpsych.2007.12.002)), the convention
+already used for `sigmazero` above. There is no equivalent standard fix for
+the `boundary`/`sigmabias` split itself. Toolboxes that estimate by maximum
+likelihood (e.g. `rtdists`) just let both float freely and accept the
+estimation noise that comes with it; Bayesian hierarchical packages built
+around this model class (e.g. `EMC2`, the successor to `DMC`) do not fix
+either parameter outright either - they regularize the ridge with
+weakly-informative priors and partial pooling across participants and
+conditions rather than pin the split down directly. `cogmod` takes the same
+route at the level of a single fit: a weakly informative prior on
+`sigmabias` is enough to remove the divergences, and for the RDM
+`cogmod_priors()` supplies one - `normal(0, 1)` on the softplus scale.
 
-So prefer `boundary + sigmabias` whenever you interpret a threshold or compare
-one across conditions, and treat the split between the two as
-weakly-determined.
+A prior of that shape does not make `sigmabias` itself trustworthy, though, so prefer
+`boundary + sigmabias` whenever you interpret a threshold or compare one
+across conditions, and treat the split between the two as weakly-determined.
 
 
 ## Model Comparison
 
-> Everything below is fitted to one participant, with no random effects, 
+> Everything below is fitted to a subset of data, with no random effects, 
 > short chains, and predictors on only some parameters - with the goal
 > of demonstrating the workflow. The "findings" are thus not to be 
 > taken at face value.
@@ -406,76 +400,66 @@ m_ddm <- readRDS(url(paste0(path, "m_ddm.rds")))
 m_ddm5 <- readRDS(url(paste0(path, "m_ddm5.rds")))
 m_lba <- readRDS(url(paste0(path, "m_lba2.rds")))
 m_lnr <- readRDS(url(paste0(path, "m_lnr.rds")))
-m_rdm <- readRDS(url(paste0(path, "m_rdm.rds")))
+# m_rdm <- readRDS(url(paste0(path, "m_rdm.rds")))
 ```
 
 ```{r}
 #| code-fold: false
 
-loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
-  report::report()
+loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr) |>
+  parameters(include_ENP = TRUE)
 ```
 
-One feature of that ranking is worth a comment, because it shows what a
-comparison like this is actually good for. The simple DDM comes last, even
-though it is the only model here allowed to move its threshold across
-conditions (`boundary ~ Condition`) - the mechanism speed instructions are
-believed to act on. Its deficit lies on a different axis: it predicts
-errors 0.110 s *faster* than correct responses (95% CI `[-0.135, -0.086]`)
-against an observed `+0.039` s, while the three races, each carrying a
-separate drift for the error accumulator, all cover the observed value.
-Not because a DDM without variability can only produce fast errors - a
-`bias` below `0.5` produces slow ones - but because these errors have a
-heavier *tail* at an unchanged leading edge (in the `Accuracy` condition,
-90th percentile 1.081 s against 0.744 s for correct responses, but 10th
-percentile 0.458 s against 0.446 s). The start point slides the whole
-distribution, and it has to account for the error rate at the same time.
-
-**DDM-5** adds exactly the missing degree of freedom: with the errors
-contributed disproportionately by the trials that drew a low drift, drift
-variability lengthens the error tail without moving its leading edge. Same
-model, same threshold mechanism, only `sigmadrift` freed - and it is worth
-104 ELPD points, moves the DDM from last to third, and closes the
-error-timing gap (`+0.007`, `[-0.058, +0.087]`). The lesson is about
-diagnosis rather than about which family wins: a poor fit had an
-identifiable cause, the cause pointed at one parameter, and freeing it
-recovered the gap.
 
 ### Sampling Duration
 
-As with the RT-only models, we summarize each model's sampling duration by
-the median time per chain. Choice+RT models are considerably more
-expensive to sample than RT-only models (see the
-[RT-only Models](rt_models.html) vignette): the DDM relies on Stan's
-`wiener_lpdf`, which is comparatively slow, while the LBA, LNR and RDM
-likelihoods involve evaluating both a "winner" density and a "loser"
-survival function for every observation. Among the three races, the LNR is
-by far the cheapest, since its density and survival are just LogNormal
-ones, while the RDM and the LBA each need several normal CDF evaluations
-per observation and land in the same, much slower, range.
-
-Freeing `sigmadrift` is not free either: DDM-5 costs about 3.7 times the
+Choice+RT models are considerably more expensive to sample than RT-only
+models: the DDM relies on Stan's `wiener_lpdf`, which is comparatively slow,
+while the LBA, LNR and RDM likelihoods involve evaluating both a "winner"
+density and a "loser" survival function for every observation. Among the
+three races, the LNR is by far the cheapest, since its density and survival
+are just LogNormal ones, while the RDM and the LBA are much slower.
+Freeing `sigmadrift` is not free either: DDM-5 costs is significantly slower than the
 simple DDM, though it remains cheaper than either of the two slow races.
 
 ```{r}
-duration <- rbind(
-  data_modify(attributes(m_ddm$fit)$metadata$time$chain, Model = "DDM"),
-  data_modify(attributes(m_ddm5$fit)$metadata$time$chain, Model = "DDM-5"),
-  data_modify(attributes(m_lba$fit)$metadata$time$chain, Model = "LBA"),
-  data_modify(attributes(m_lnr$fit)$metadata$time$chain, Model = "LNR"),
-  data_modify(attributes(m_rdm$fit)$metadata$time$chain, Model = "RDM")
-) |>
-  data_modify(Model = factor(Model, levels = c("LNR", "DDM", "DDM-5", "RDM", "LBA")))
+models <- list(
+  DDM = m_ddm, `DDM-5` = m_ddm5, LNR = m_lnr, LBA = m_lba, RDM = m_rdm
+)
+model_levels <- names(models)
 
-duration_median <- duration |>
-  summarize(total = median(total), .by = Model)
+duration <- do.call(rbind, lapply(model_levels, function(nm) {
+  data_modify(attributes(models[[nm]]$fit)$metadata$time$chain, Model = nm)
+})) |>
+  data_modify(Model = factor(Model, levels = model_levels), Minutes = total / 60)
 
-duration_median |>
-  ggplot(aes(x = Model, y = total, fill = Model)) +
-  geom_col() +
-  geom_text(aes(label = round(total, 1)), vjust = -0.5, size = 3.5) +
-  labs(y = "Median Sampling Duration per Chain (s)") +
-  scale_fill_material_d(guide = "none") +
+duration_range <- duration |>
+  summarize(
+    duration_min = min(Minutes),
+    duration_median = median(Minutes),
+    duration_max = max(Minutes),
+    .by = Model
+  )
+
+quality <- do.call(rbind, lapply(model_levels, function(nm) {
+  est <- models[[nm]]$criteria$loo$estimates
+  data.frame(Model = nm, elpd = est["elpd_loo", "Estimate"], elpd_se = est["elpd_loo", "SE"])
+})) |>
+  data_modify(Model = factor(Model, levels = model_levels))
+
+fit_summary <- merge(duration_range, quality, by = "Model")
+
+fit_summary |>
+  ggplot(aes(x = duration_median, y = elpd, color = Model)) +
+  geom_errorbar(aes(xmin = duration_min, xmax = duration_max), orientation = "y") +
+  geom_errorbar(aes(ymin = elpd - elpd_se, ymax = elpd + elpd_se), width = 0) +
+  geom_point(size = 2.5) +
+  ggrepel::geom_text_repel(aes(label = Model), size = 3.2, show.legend = FALSE) +
+  scale_color_material_d(guide = "none") +
+  labs(
+    x = "Sampling Duration per Chain (min) - median, range across the 4 chains",
+    y = "Fit Quality (elpd_loo ± 1 SE)"
+  ) +
   theme_minimal()
 ```
 
@@ -500,18 +484,18 @@ distributions right.
 #| code-fold: true
 
 pred <- rbind(
-  # estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |>
-  #   reshape_iterations() |>
-  #   data_modify(Model = "DDM"),
-  # estimate_prediction(m_ddm5, data = df, iterations = 50, keep_iterations = TRUE) |>
-  #   reshape_iterations() |>
-  #   data_modify(Model = "DDM-5"),
+  estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |>
+    reshape_iterations() |>
+    data_modify(Model = "DDM"),
+  estimate_prediction(m_ddm5, data = df, iterations = 50, keep_iterations = TRUE) |>
+    reshape_iterations() |>
+    data_modify(Model = "DDM-5"),
   estimate_prediction(m_lnr, data = df, keep_iterations = 50, iterations = 50, ci = NULL) |>
     reshape_iterations() |>
-    data_modify(Model = "LNR"),
+    data_modify(Model = "LNR")
   # estimate_prediction(m_lba, data = df, iterations = 50, keep_iterations = TRUE) |>
   #   reshape_iterations() |>
-  #   data_modify(Model = "LBA"),
+  #   data_modify(Model = "LBA")
   # estimate_prediction(m_rdm, data = df, iterations = 50, keep_iterations = TRUE) |>
   #   reshape_iterations() |>
   #   data_modify(Model = "RDM")

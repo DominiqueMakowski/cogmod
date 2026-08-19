@@ -343,7 +343,7 @@ cogmod_lba2 <- function(
   t0 <- ifelse(v0 > 0, (b - z0) / v0, Inf)
   t1 <- ifelse(v1 > 0, (b - z1) / v1, Inf)
 
-  data.frame(rt = pmin(t0, t1), response = as.numeric(t0 >= t1))
+  list(rt = pmin(t0, t1), response = as.numeric(t0 >= t1))
 }
 
 

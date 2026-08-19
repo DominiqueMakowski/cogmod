@@ -4,7 +4,7 @@ The package logo sits in the middle, with an arrow into each of four regions.
 Each region pairs a small drawing of a response format that `cogmod` covers
 with the names of the families available for it.
 
-    python paper/make_fig_overview.py
+    python man/figures/make_fig_overview.py
 
 Writes paper/figures/fig_overview.png and a copy in man/figures/, which is
 where the README picks it up.
@@ -25,10 +25,10 @@ from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch, PathPatc
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+HERE = os.path.dirname(os.path.abspath(__file__))  # man/figures
+ROOT = os.path.dirname(os.path.dirname(HERE))
 LOGO = os.path.join(ROOT, "man", "figures", "logo.png")
-OUTDIR = os.path.join(HERE, "figures")
+OUTDIR = os.path.join(ROOT, "paper", "figures")
 CLICK_SVG = os.path.join(OUTDIR, "asset_click.svg")
 
 # Logo palette, plus a fourth accent taken from the hex border gradient.
@@ -227,7 +227,7 @@ REGIONS = [
     dict(
         title="Ordinal ratings", subtitle="Likert-type scale",
         icon=icon_likert, color=AMBER, xbox=LEFT, side="top",
-        families=[("betadiscrete()", 10.5, "Discrete Beta")],
+        families=[("Discrete Beta", 10.5, None)],
     ),
     dict(
         title="Analog ratings", subtitle="Slider, visual analog scale",
@@ -236,24 +236,24 @@ REGIONS = [
         # but it is the subject of a separate paper and is deliberately not
         # discussed anywhere in the manuscript - not in the text, and not in
         # this figure's caption. Leave it listed here and unmentioned there.
-        families=[("choco()", 10.5, "Choice-Confidence"),
-                  ("betagate()", 10.5, "Beta-Gate")],
+        families=[("CHOCO", 12.0, "Choice-confidence"),
+                  ("Beta-Gate", 10.5, None)],
     ),
     dict(
         title="Choices and RTs", subtitle="Speeded two-choice decision",
         icon=icon_choice, color=BLUE, xbox=LEFT, side="bottom",
-        families=[("ddm()", 10.5, "Drift Diffusion"),
-                  ("lba()", 10.5, "Linear Ballistic Accumulator"),
-                  ("lnr()", 10.5, "Lognormal Race"),
-                  ("rdm()", 10.5, "Racing Diffusion")],
+        families=[("DDM", 12.5, "Drift diffusion model"),
+                  ("LBA", 12.5, "Linear ballistic accumulator"),
+                  ("LNR", 12.5, "Lognormal race"),
+                  ("RDM", 12.5, "Racing diffusion model")],
     ),
     dict(
         title="Response times", subtitle="Detection, simple RT",
         icon=icon_rt, color=VIOLET, xbox=RIGHT, side="bottom",
-        families=[("rt_exgaussian()", 10.5, "ExGaussian"),
-                  ("rt_invgaussian()", 10.5, "Shifted Wald"),
-                  ("rt_lognormal()", 10.5, "Shifted LogNormal"),
-                  ("rt_lba()", 10.5, "Single-accumulator LBA")],
+        families=[("ExGaussian", 10.5, None),
+                  ("Shifted Wald", 10.5, None),
+                  ("Shifted LogNormal", 10.5, None),
+                  ("Single-accumulator LBA", 9.0, None)],
     ),
 ]
 
@@ -312,12 +312,16 @@ def draw_header(ax, fig, reg):
 
 
 def draw_words(ax, fig, reg, gap=2.0):
+    """Each family shows its short/main name big and in colour; only families
+    with a genuine full-name expansion (e.g. RDM -> racing diffusion model)
+    get a small italic subtitle underneath - plain descriptive names (e.g.
+    ExGaussian) don't need one."""
     x0, x1 = reg["xbox"]
     color = reg["color"]
-    expanded = reg["families"][0][2] is not None
+    expanded = any(f[2] is not None for f in reg["families"])
     items = []
     for name, size, exp in reg["families"]:
-        w = measure(ax, fig, name, size, family="monospace")
+        w = measure(ax, fig, name, size, weight="bold")
         if exp:
             w = max(w, measure(ax, fig, exp, 6.5, style="italic"))
         items.append(dict(text=name, size=size, exp=exp, w=w))
@@ -325,7 +329,7 @@ def draw_words(ax, fig, reg, gap=2.0):
     if reg.get("sort"):                          # widest first packs tighter
         items.sort(key=lambda it: -it["w"])
     rows = pack(items, x1 - x0, gap)
-    row_h = 6.6 if expanded else 4.0
+    row_h = 5.8 if expanded else 4.0
     edge = GEOM[reg["side"]]["word_edge"]
     top = edge + row_h * len(rows) if reg["side"] == "top" else edge
 
@@ -336,12 +340,12 @@ def draw_words(ax, fig, reg, gap=2.0):
             if j:
                 x += gap
             xc = x + it["w"] / 2
-            ax.text(xc, y + (1.3 if it["exp"] else 0), it["text"],
-                    fontsize=it["size"], family="monospace", color=color,
+            ax.text(xc, y + (0.9 if it["exp"] else 0), it["text"],
+                    fontsize=it["size"], weight="bold", color=color,
                     ha="center", va="center", zorder=4,
                     alpha=0.92)
             if it["exp"]:
-                ax.text(xc, y - 2.1, it["exp"], fontsize=6.5, style="italic",
+                ax.text(xc, y - 1.6, it["exp"], fontsize=6.5, style="italic",
                         color=MUTED, ha="center", va="center", zorder=4)
             x += it["w"]
 

@@ -47,14 +47,17 @@ tutorials**](https://dominiquemakowski.github.io/CognitiveModels/).
     `mu` and `sigma` index the Gaussian component alone and `tau` the
     exponential tail - unlike `brms`’s native `exgaussian()`, whose `mu`
     indexes the mean of the entire distribution)
-  - [x] Shifted LogNormal
-  - [x] Shifted Wald (Inverse Gaussian)
-  - [x] Weibull
-  - [x] LogWeibull (Gumbel)
-  - [x] Inverse Weibull (Fréchet)
-  - [x] Gamma
-  - [x] Inverse Gamma
-  - [x] Shifted LogGamma (Generalized Gamma)
+  - [x] Shifted LogNormal, Shifted Log-Student-t (robust LogNormal,
+    heavy-tailed)
+  - [x] Shifted Wald (Inverse Gaussian), Wald with drift variability,
+    Ex-Wald ([Schwarz,
+    2001](https://link.springer.com/article/10.3758/bf03195403))
+  - [x] Birnbaum-Saunders / fatigue life ([Birnbaum & Saunders,
+    1969](https://doi.org/10.2307/3212003)) - evidence accumulating in
+    discrete cycles, one-directionally; an equal mixture of a Wald and
+    its length-biased twin, in the same drift and threshold parameters
+  - [x] Weibull, LogWeibull (Gumbel), Inverse Weibull (Fréchet)
+  - [x] Gamma, Inverse Gamma, Shifted LogGamma (Generalized Gamma)
 - [**Models for Decision Making (Choice +
   RT)**](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
   - [x] Drift Diffusion Model (DDM)
@@ -64,47 +67,9 @@ tutorials**](https://dominiquemakowski.github.io/CognitiveModels/).
     2020](https://doi.org/10.3758/s13423-020-01719-6))
 
 ![Response formats covered by cogmod, and the main families available
-for each. `cogmod_stanvars()` supplies the Stan code for whichever family
-a formula names, and every family has `d*()` and `r*()` functions for
-density evaluation and simulation.](man/figures/fig_overview.png)
-
-## Roadmap
-
-Candidate additions for RT-only data. Now that `cogmod_loggamma()` nests the
-LogNormal, Weibull, Gamma and inverse Weibull as interior points of a
-single shape parameter, the families worth adding are the ones it
-*cannot* reach.
-
-- [ ] **Log-Student-t** - `log(RT - ndt) ~ t(nu)`. A robust LogNormal:
-  heavy tails absorb slow contaminants rather than a mixture doing it,
-  which is the one kind of outlier `poutlier` deliberately does not
-  model. Recovers the LogNormal as `nu -> Inf`, so it varies kurtosis
-  where `cogmod_loggamma()` varies skew.
-- [ ] **Log-logistic** - `log(RT - ndt) ~ Logistic`. The motivation is
-  the *hazard function*: Weibull and Gamma hazards are monotone, whereas
-  the log-logistic rises then falls, a shape none of the current
-  families can produce.
-- [ ] **Ex-Wald** ([Schwarz,
-  2001](https://doi.org/10.3758/BF03195423)) - a Wald convolved with an
-  exponential. The mechanistic counterpart of the Ex-Gaussian: a
-  diffusive decision stage plus an exponential residual stage, rather
-  than a descriptive Gaussian one.
-- [ ] **LATER / recinormal** ([Carpenter & Williams,
-  1995](https://doi.org/10.1038/377059a0)) - `1 / (RT - ndt)` normally
-  distributed. Standard in the oculomotor literature, and the limit of
-  the single-accumulator `cogmod_lba1()` as its start-point range goes to
-  zero.
-- [x] **Wald with across-trial drift variability** - added as the
-  `sigmadrift` parameter of `cogmod_invgaussian()` rather than as a new
-  family. `sigmadrift = 0` in the formula is the classic Wald.
-- [ ] **Shifted sinh-arcsinh (log-SHASH)** ([Jones & Pewsey,
-  2009](https://doi.org/10.1093/biomet/asp053)) - location, scale,
-  skewness and tail weight as four separate parameters. Where
-  `cogmod_loggamma()` ties skew and tail weight together through one
-  `shape`, SHASH decouples them.
-- [ ] **Birnbaum-Saunders (fatigue life)** - a first-passage-time
-  distribution neighbouring the inverse Gaussian, with the tidy property
-  that `(1/a) * (sqrt(T/b) - sqrt(b/T))` is exactly standard normal.
+for each. Every family comes with a `_stanvars()` function supplying its
+Stan code, and with `d*()` and `r*()` functions for density evaluation
+and simulation.](man/figures/fig_overview.png)
 
 ## What are Computational Cognitive Models?
 
@@ -156,10 +121,12 @@ remotes::install_github("DominiqueMakowski/cogmod")
 ## Usage
 
 For each model implemented, `cogmod` provides a **`brms`-compatible
-custom family** (e.g., `cogmod_choco()`) together with the **Stan code**
-needed to evaluate it. `cogmod_stanvars()` reads the family off the formula
-and returns that code, so the family is named once. Everything else (formula
-syntax, post-processing, predictions…) works like any other `brms` model.
+custom family** (e.g., `cogmod_choco()`) together with a **`stanvars`
+object** (e.g., `cogmod_choco_stanvars()`) that injects the Stan code
+required to evaluate it. Both simply need to be passed to `brms::brm()`
+via the `family` and `stanvars` arguments - everything else (formula
+syntax, post-processing, predictions…) works like any other `brms`
+model.
 
 Below, we simulate some data from the [**Choice-Confidence (CHOCO)
 model**](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.html),
@@ -183,8 +150,8 @@ for (x in seq(0.1, 0.9, by = 0.1)) {
 }
 ```
 
-A `brms` model can then be specified by adding `family = cogmod_choco()` to the
-formula, and passing `stanvars = cogmod_stanvars(f)` to `brm()`:
+A `brms` model can then be specified by adding `family = cogmod_choco()`
+to the formula, and passing `stanvars = cogmod_stanvars(f)` to `brm()`:
 
 ``` r
 f <- bf(
@@ -250,3 +217,20 @@ Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html
 vignettes for more detailed examples.
 
 ![](man/figures/decision_making1.png)
+
+## Roadmap
+
+- [ ] **Log-logistic** - `log(RT - ndt) ~ Logistic`. The motivation is
+  the *hazard function*: Weibull and Gamma hazards are monotone, whereas
+  the log-logistic rises then falls, a shape none of the current
+  families can produce.
+- [ ] **LATER / recinormal** ([Carpenter & Williams,
+  1995](https://doi.org/10.1038/377059a0)) - `1 / (RT - ndt)` normally
+  distributed. Standard in the oculomotor literature, and the limit of
+  the single-accumulator `cogmod_lba1()` as its start-point range goes
+  to zero.
+- [ ] **Shifted sinh-arcsinh (log-SHASH)** ([Jones & Pewsey,
+  2009](https://doi.org/10.1093/biomet/asp053)) - location, scale,
+  skewness and tail weight as four separate parameters. Where
+  `cogmod_loggamma()` ties skew and tail weight together through one
+  `shape`, SHASH decouples them.

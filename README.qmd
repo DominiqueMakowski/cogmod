@@ -39,17 +39,11 @@ If you have suggestions for improvement, please [get in touch](https://github.co
   - [x] Discrete-Beta ([Sciandra, 2024](https://link.springer.com/article/10.1007/s10651-023-00592-5))
 - [**Models for Reaction Times**](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html)
   - [x] Ex-Gaussian model (with the classical parameterization in which `mu` and `sigma` index the Gaussian component alone and `tau` the exponential tail - unlike `brms`'s native `exgaussian()`, whose `mu` indexes the mean of the entire distribution)
-  - [x] Shifted LogNormal
-  - [x] Shifted Log-Student-t (robust LogNormal, heavy-tailed)
-  - [x] Shifted Wald (Inverse Gaussian)
-  - [x] Ex-Wald ([Schwarz, 2001](https://link.springer.com/article/10.3758/bf03195403)) - a Wald convolved with an exponential residual stage
+  - [x] Shifted LogNormal, Shifted Log-Student-t (robust LogNormal, heavy-tailed)
+  - [x] Shifted Wald (Inverse Gaussian), Wald with drift variability, Ex-Wald ([Schwarz, 2001](https://link.springer.com/article/10.3758/bf03195403))
   - [x] Birnbaum-Saunders / fatigue life ([Birnbaum & Saunders, 1969](https://doi.org/10.2307/3212003)) - evidence accumulating in discrete cycles, one-directionally; an equal mixture of a Wald and its length-biased twin, in the same drift and threshold parameters
-  - [x] Weibull
-  - [x] LogWeibull (Gumbel)
-  - [x] Inverse Weibull (Fréchet)
-  - [x] Gamma
-  - [x] Inverse Gamma
-  - [x] Shifted LogGamma (Generalized Gamma)
+  - [x] Weibull, LogWeibull (Gumbel), Inverse Weibull (Fréchet)
+  - [x] Gamma, Inverse Gamma, Shifted LogGamma (Generalized Gamma)
 - [**Models for Decision Making (Choice + RT)**](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
   - [x] Drift Diffusion Model (DDM)
   - [x] Linear Ballistic Accumulator (LBA)

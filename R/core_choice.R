@@ -48,7 +48,10 @@
 #                      which may branch on `dec`
 #  ldens             : R log-density of the decision component, at t > 0, given
 #                      the response index `k`
-#  rng               : R sampler; returns data.frame(rt, response), unshifted
+#  rng               : R sampler; returns list(rt, response), unshifted. A bare
+#                      list, not a data frame: `.rchoice()` only reads the two
+#                      elements off it, and building a data frame per call is
+#                      the single most expensive thing in `posterior_predict()`
 #  init              : natural-scale starting values, for cogmod_inits()
 #  prior             : optional, per-dpar priors for cogmod_priors() to fill,
 #                      where the likelihood has a flat direction brms would
@@ -86,7 +89,7 @@
     rng = function(n, p) {
       d0 <- stats::rlnorm(n, meanlog = -p$mu, sdlog = p$sigmazero)
       d1 <- stats::rlnorm(n, meanlog = -p$nuone, sdlog = p$sigmaone)
-      data.frame(rt = pmin(d0, d1), response = as.numeric(d0 >= d1))
+      list(rt = pmin(d0, d1), response = as.numeric(d0 >= d1))
     },
     init = list(mu = 0.7, nuone = 0.7, sigmazero = 0.5, sigmaone = 0.5),
     # Push an accumulator's rate down far enough and it stops finishing first
@@ -635,15 +638,28 @@
 # Mixture RNG, shared by every choice family's r*() function. Returns a data
 # frame with `rt` and `response`, so an outlier draw carries a choice as well as
 # a time - drawn uniformly over the K options, matching the density.
+#
+# `as_matrix = TRUE` returns the same two columns as a plain matrix instead. That
+# is for `.posterior_predict_choice()`, which brms calls once per observation
+# and which needs a matrix anyway: building a data frame here only to convert it
+# back costs more than everything else in the call put together (a data frame is
+# ~17x the price of the equivalent `cbind()`, and the round trip was two of them
+# plus an `as.matrix()`, or about 63% of the total). The registry's `rng`
+# entries return a bare list for the same reason.
 #' @keywords internal
-.rchoice <- function(name, n, ndt, poutlier, ...) {
+.rchoice <- function(name, n, ndt, poutlier, ..., as_matrix = FALSE) {
   spec <- .choice_spec(name)
   params <- .prepare_choice(name, n = n, ndt = ndt, poutlier = poutlier, ...)
   m <- params$ndraws
 
+  out <- function(rt, response) {
+    if (as_matrix) cbind(rt = rt, response = response)
+    else data.frame(rt = rt, response = response)
+  }
+
   rt <- numeric(m)
   response <- numeric(m)
-  if (m == 0) return(data.frame(rt = rt, response = response))
+  if (m == 0) return(out(rt, response))
 
   is_out <- stats::runif(m) < params$poutlier
 
@@ -659,7 +675,7 @@
     rt[keep] <- sim$rt + params$ndt[keep]
     response[keep] <- sim$response
   }
-  data.frame(rt = rt, response = response)
+  out(rt, response)
 }
 
 
@@ -727,9 +743,9 @@
   }
   n_draws <- max(vapply(c(dec, list(ndt)), length, integer(1)))
 
-  out <- do.call(.rchoice, c(
-    list(name = name, n = n_draws, ndt = ndt, poutlier = poutlier),
+  do.call(.rchoice, c(
+    list(name = name, n = n_draws, ndt = ndt, poutlier = poutlier,
+         as_matrix = TRUE),
     dec
   ))
-  as.matrix(out)
 }
