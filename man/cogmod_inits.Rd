@@ -96,7 +96,9 @@ gradient will do, whereas too large removes the gradient altogether.
 The family is read off \code{formula}, so build it with
 \code{brms::bf(..., family = cogmod_gamma())}. Every family built on the direct
 \code{ndt} + \code{poutlier} parameterization is covered - \code{\link[=cogmod_lognormal]{cogmod_lognormal()}},
-\code{\link[=cogmod_loggamma]{cogmod_loggamma()}}, \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}, \code{\link[=cogmod_gamma]{cogmod_gamma()}}, \code{\link[=cogmod_invgamma]{cogmod_invgamma()}},
+\code{\link[=cogmod_logstudent]{cogmod_logstudent()}}, \code{\link[=cogmod_loggamma]{cogmod_loggamma()}}, \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}, \code{\link[=cogmod_exwald]{cogmod_exwald()}},
+\code{\link[=cogmod_bisa]{cogmod_bisa()}}, \code{\link[=cogmod_gamma]{cogmod_gamma()}},
+\code{\link[=cogmod_invgamma]{cogmod_invgamma()}},
 \code{\link[=cogmod_weibull]{cogmod_weibull()}}, \code{\link[=cogmod_invweibull]{cogmod_invweibull()}}, \code{\link[=cogmod_logweibull]{cogmod_logweibull()}}, \code{\link[=cogmod_lba1]{cogmod_lba1()}} and,
 for the choice-and-RT models, \code{\link[=cogmod_lnr]{cogmod_lnr()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}},
 \code{\link[=cogmod_lba2]{cogmod_lba2()}} and \code{\link[=cogmod_ddm]{cogmod_ddm()}} - plus

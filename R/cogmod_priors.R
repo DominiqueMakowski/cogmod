@@ -55,10 +55,13 @@
 #' The family is read off `formula`, so build it with
 #' `brms::bf(..., family = cogmod_lognormal())`. Every family built on the direct
 #' `ndt` + `poutlier` parameterization is edited: [cogmod_lognormal()],
-#' [cogmod_loggamma()], [cogmod_invgaussian()], [cogmod_gamma()], [cogmod_invgamma()],
+#' [cogmod_logstudent()], [cogmod_loggamma()], [cogmod_invgaussian()], [cogmod_exwald()],
+#' [cogmod_bisa()], [cogmod_gamma()],
+#' [cogmod_invgamma()],
 #' [cogmod_weibull()], [cogmod_invweibull()], [cogmod_logweibull()] and, for the
 #' choice-and-RT models, [cogmod_lnr()], [cogmod_rdm()], [cogmod_lba2()] and
-#' [cogmod_ddm()]. Any other family, or
+#' [cogmod_ddm()]. [cogmod_exgaussian()] is edited too, although it is not built
+#' on that parameterization - see its own section below. Any other family, or
 #' a formula carrying none, is passed through: you get a message and `brms`'s own
 #' defaults, unchanged, so the call is always safe to leave in a script.
 #'
@@ -82,8 +85,22 @@
 #' decision density becomes unbounded at the shift and the likelihood with it.
 #'
 #' A family may add rows of its own where its likelihood has a flat direction
-#' that `brms` would leave improper. Five do:
+#' that `brms` would leave improper. Seven do:
 #'
+#' - [cogmod_logstudent()]: `dof`. The LogNormal is only reached as `dof -> Inf`,
+#'   and it is approached slowly - at `dof = 100` the density still differs from
+#'   the LogNormal by 66% in the tail - so above about `dof = 30` the likelihood
+#'   has almost stopped moving, and a `log` link puts that region at plus
+#'   infinity. The prior fences the other end too: a Student-t is symmetric on
+#'   the log scale, so a small `dof` piles mass just above `ndt` as well as in
+#'   the slow tail, which is what `poutlier` is for. `normal(1.8, 0.7)` centres
+#'   `dof` at 6 with 95% between 1.5 and 24.
+#' - [cogmod_exwald()]: `tau`, the mean of the exponential residual stage. It is
+#'   a length of time in seconds behind a `softplus` link, which `brms` has no
+#'   way to know, and it shares a ridge with `ndt` - both delay the response,
+#'   and only the shape of the leading edge tells them apart.
+#'   `normal(-1.5, 0.7)` is the same statement [cogmod_exgaussian()] gets for the
+#'   same quantity: roughly 55 to 630 ms.
 #' - [cogmod_lba1()]: `sigmabias` and `boundary`. As the start-point range
 #'   approaches zero the LBA converges to the recinormal and the likelihood
 #'   stops depending on it, and a `softplus` link reaches zero only at minus
@@ -130,6 +147,38 @@
 #' enough to be a sensible default cannot move the posterior out of it - only
 #' bias it. `?rcogmod_weibull` sets out what to do instead.
 #'
+#' # The ex-Gaussian
+#'
+#' [cogmod_exgaussian()] has neither `ndt` nor `poutlier`, but it does have two
+#' parameters that are lengths of time in **seconds** behind a `softplus` link,
+#' and `brms` has no way to know that. `sigma` and `tau` are set; `mu` is not.
+#'
+#' | class | `sigma` | `tau` |
+#' | --- | --- | --- |
+#' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-2.3, 0.7)` | `normal(-1.5, 0.7)` |
+#' | `b` (slopes) | `normal(0, 0.5)` | `normal(0, 0.5)` |
+#' | `sd`, `sds` | `exponential(1)` | `exponential(1)` |
+#'
+#' On the `softplus` scale `normal(-2.3, 0.7)` puts `sigma` - the SD of the
+#' Gaussian component - between roughly 25 and 330 ms with a median of 96 ms,
+#' and `normal(-1.5, 0.7)` puts `tau` - the mean of the exponential tail -
+#' between roughly 55 and 630 ms with a median of 201 ms. Both cover the range
+#' these parameters occupy across the usual simple- and choice-RT tasks and are
+#' wide enough not to fight data that disagrees.
+#'
+#' `tau` arrives from `brms` flat, so it is filled like any other unrecognised
+#' custom dpar. `sigma` arrives with a **non-empty** default,
+#' `student_t(3, 0, 2.5)`, because `brms` recognises the name from its own
+#' families - centred on `softplus(0) = 0.69 s`, a Gaussian SD wider than most
+#' whole RT distributions. That one is overridden rather than filled, the same
+#' treatment `shape` and an omitted `ndt` get above.
+#'
+#' `mu` is left alone deliberately. It is the response's own intercept, and
+#' `brms`'s `student_t(3, 0, 2.5)` is proper and a reasonable weakly informative
+#' statement for a location on this link. Note it is the centre of the Gaussian
+#' component **alone**, so the mean of the distribution it implies is
+#' `mu + tau`; see [cogmod_exgaussian()].
+#'
 #' # Parameters left out of the formula
 #'
 #' Writing `ndt ~ 1` and omitting `ndt` entirely are not the same thing to
@@ -155,9 +204,17 @@
 #' | `sigmandt` ([cogmod_ddm()]) | `normal(-3, 1)` | `lognormal(-3, 1)` |
 #' | `nuone` ([cogmod_lnr()]) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` |
 #' | `sigmazero`, `sigmaone` ([cogmod_lnr()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
+#' | `dof` ([cogmod_logstudent()]) | `normal(1.8, 0.7)` | `lognormal(1.8, 0.7)` |
+#' | `tau` ([cogmod_exwald()]) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
+#' | `sigma` ([cogmod_exgaussian()]) | `normal(-2.3, 0.7)` | `lognormal(-2.3, 0.7)` |
+#' | `tau` ([cogmod_exgaussian()]) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
 #'
 #' The `ndt` pair describes the same belief twice: `lognormal` is just `normal`
-#' on the log scale, written for the untransformed parameter.
+#' on the log scale, written for the untransformed parameter. The
+#' [cogmod_exgaussian()] pairs do the same to within a rounding error, because
+#' `softplus(x)` and `exp(x)` agree to three figures for the `x` below `-2` that
+#' both parameters live at: `lognormal(-2.3, 0.7)` has median 0.100 against
+#' `softplus(-2.3) = 0.096`.
 #'
 #' If the data were trimmed before fitting, tighten this rather than removing
 #' it: `normal(-7, 0.5)` asserts essentially no contamination while keeping the
@@ -174,14 +231,17 @@
 #' will still pull the rate up; to switch the parameter off entirely, trim the
 #' data and it will simply sit near zero.
 #'
-#' The omitted-`ndt` row is the one case where a **non-empty** `brms` default is
-#' overridden rather than filled. `brms` recognises the name `ndt` from its own
-#' shifted families and supplies `uniform(0, min_Y)` - precisely the min-RT
-#' bound that [cogmod_lognormal()]'s parameterization exists to remove, reimposed
-#' silently and with a warning about an upper bound on an unbounded parameter.
-#' An omitted `poutlier` is left flat over `[0, 1]` by `brms`, which is proper
-#' but puts half its mass above 0.5, and an omitted `shape` is flat over the whole
-#' real line, which is not proper at all.
+#' Two rows override a **non-empty** `brms` default rather than filling an empty
+#' one. `brms` recognises the name `ndt` from its own shifted families and
+#' supplies `uniform(0, min_Y)` - precisely the min-RT bound that
+#' [cogmod_lognormal()]'s parameterization exists to remove, reimposed silently
+#' and with a warning about an upper bound on an unbounded parameter. It
+#' recognises `sigma` too, and gives [cogmod_exgaussian()]'s a half
+#' `student_t(3, 0, 2.5)`, whose median of 1.9 s is a Gaussian SD wider than
+#' most whole RT distributions. An omitted `poutlier` is left flat
+#' over `[0, 1]` by `brms`, which is proper but puts half its mass above 0.5, and
+#' an omitted `shape` or `tau` is flat over the whole real line, which is not
+#' proper at all.
 #'
 #' Slope and group-level priors are deliberately narrow. On a log or a logit
 #' link a flat slope prior is not as harmless as it looks, and a group-level SD
@@ -217,12 +277,17 @@ cogmod_priors <- function(formula, data, ...) {
   family <- .cogmod_family(formula)
   fam <- .family_name(family)
 
-  if (!isTRUE(fam %in% .OUTLIER_FAMILIES)) {
+  if (isTRUE(fam %in% .OUTLIER_FAMILIES)) {
+    out <- .priors_shifted(formula, data, family, ...)
+  } else if (isTRUE(fam %in% names(.PRIORS_PLAIN))) {
+    spec <- .PRIORS_PLAIN[[fam]]
+    out <- .priors_dpars(formula, data, family, spec$prior, spec$override, ...)
+  } else {
     message(
       "cogmod_priors() has nothing to add for family '",
       if (is.null(fam)) "<none found on the formula>" else fam,
       "'; returning the brms defaults unchanged. ",
-      "Currently supported: ", paste(.OUTLIER_FAMILIES, collapse = ", "), ". ",
+      "Currently supported: ", paste(.priors_families(), collapse = ", "), ". ",
       "The family is read off the formula, so build it with ",
       "bf(..., family = cogmod_lognormal())."
     )
@@ -231,39 +296,145 @@ cogmod_priors <- function(formula, data, ...) {
     return(do.call(brms::validate_prior, args))
   }
 
-  out <- .priors_shifted(formula, data, family, ...)
   brms::validate_prior(out, formula, data, family = family, ...)
 }
 
 
-# Priors for the shifted families built on `ndt` + `poutlier`. Reads get_prior()
-# and fills only the rows brms left flat, so the result cannot contain a prior
-# matching no parameter.
+# Every family cogmod_priors() edits, for the message above.
+#' @keywords internal
+.priors_families <- function() unique(c(.OUTLIER_FAMILIES, names(.PRIORS_PLAIN)))
+
+
+# Families that are NOT on the ndt + poutlier mixture but still have dpars brms
+# leaves flat, or gives a default that is wrong for a parameter measured in
+# seconds.
+#
+# Same shape as the `prior` slot in the .SHIFTED / .CHOICE registries: one named
+# character vector per dpar, with any of `link` (the dpar is modelled in bf(), so
+# it lives on its link scale), `nat` (the dpar is omitted from bf(), so brms
+# declares it as a plain auxiliary parameter on the natural scale) and `slope`.
+#
+# `override` names the dpars whose *modelled intercept* row is replaced even
+# though brms already supplied a prior for it. Auxiliary rows are always
+# replaced - that is what the `nat` entry is for - so they need no listing.
+#' @keywords internal
+.PRIORS_PLAIN <- list(
+  # cogmod_exgaussian() has no ndt and no poutlier, but it does have two
+  # parameters that are lengths of time in seconds, behind a softplus link, and
+  # brms has no way to know that.
+  #
+  # `tau` arrives flat: brms does not recognise the name, so a custom dpar gets
+  # an improper prior over the whole real line, on a link whose upper reaches
+  # are RTs of tens of seconds.
+  #
+  # `sigma` arrives with student_t(3, 0, 2.5), which brms supplies because it
+  # recognises the *name* from its own families - and which is centred on
+  # softplus(0) = 0.69 s, a Gaussian SD wider than most whole RT distributions,
+  # with the bulk of its mass out past a second. That is why `sigma` is in
+  # `override`: the row is not empty, so filling it is not enough.
+  #
+  # On the softplus scale normal(-2.3, 0.7) puts `sigma` at 25-333 ms with a
+  # median of 96 ms, and normal(-1.5, 0.7) puts `tau` at 55-631 ms with a median
+  # of 201 ms - the range these two occupy across the usual simple- and
+  # choice-RT tasks, and wide enough not to fight data that disagrees.
+  #
+  # The `nat` pair says the same thing for the untransformed parameter. Because
+  # softplus(x) ~ exp(x) for x well below zero - the region both of these live in
+  # - a lognormal with the same numbers lands in almost the same place:
+  # lognormal(-2.3, 0.7) has median 0.100 against softplus's 0.096.
+  #
+  # `mu` is deliberately absent. It is the response's own intercept, brms gives
+  # it a proper student_t(3, 0, 2.5), and unlike `sigma` and `tau` that is a
+  # reasonable weakly informative statement for a Gaussian centre on the softplus
+  # scale (median 0.69 s). Note it is the centre of the Gaussian component alone,
+  # so the distribution it implies has mean `mu + tau`; see ?rcogmod_exgaussian.
+  cogmod_exgaussian = list(
+    prior = list(
+      sigma = c(link = "normal(-2.3, 0.7)", nat = "lognormal(-2.3, 0.7)",
+                slope = "normal(0, 0.5)"),
+      tau = c(link = "normal(-1.5, 0.7)", nat = "lognormal(-1.5, 0.7)",
+              slope = "normal(0, 0.5)")
+    ),
+    override = "sigma"
+  )
+)
+
+
+# The two parameters the ndt + poutlier parameterization introduces, plus the
+# one decision dpar whose brms default is actively harmful, in the same form as
+# a family's own `prior` slot. Merged with that slot in .priors_shifted().
+#
+# ndt is a location in time, in SECONDS: exp(-1.2) = 0.30 s. Nothing in these
+# families is equivariant to the unit of measurement any more - see
+# .POUTLIER_SCALE in core_shifted.R - so the location is a constant. The `nat`
+# entry is the same distribution written for the untransformed parameter.
+#
+# poutlier is deliberately NOT the same belief twice. Leaving it out of the
+# formula is itself information: the user either trimmed the data already or does
+# not expect outliers. So the `nat` form puts its mode at zero, which a
+# logit-scale prior cannot do at any location. The median matches regardless -
+# exponential(100) has median 0.0069 against plogis(-5) = 0.0067 - so the centre
+# is unchanged, only the shape. Truncation at 1 is negligible: exp(-100) of the
+# mass is above it. brms's own default here is flat over [0, 1] - proper, but it
+# puts half its mass above 0.5.
+#
+# shape exists only for cogmod_loggamma() and has an identity link, so the two
+# scales carry the same prior. It is centred on the LogNormal and tight enough
+# that sigma * shape = 1 - where the density blows up at the shift - is several
+# SDs away for any realistic sigma. It is overridden rather than filled: brms
+# recognises the name from its own gamma/weibull families and supplies
+# gamma(0.01, 0.01), a prior with support only on the positives, for a parameter
+# that has to be free to go negative (that is the whole inverse Weibull half of
+# the family). Stan would reject every negative proposal, silently truncating
+# `shape` at 0.
+#' @keywords internal
+.SHIFTED_BASE_PRIORS <- list(
+  ndt = c(link = "normal(-1.2, 0.2)", nat = "lognormal(-1.2, 0.2)"),
+  poutlier = c(link = "normal(-5, 1)", nat = "exponential(100)"),
+  shape = c(link = "normal(0, 0.5)", nat = "normal(0, 0.5)")
+)
+
+
+# Priors for the shifted families built on `ndt` + `poutlier`: the two the
+# parameterization introduces, plus whatever decision dpars the family named for
+# itself in the registry's `prior` slot.
 #' @keywords internal
 .priors_shifted <- function(formula, data, family, ...) {
+  own <- .mixture_spec(.family_name(family))$prior
+  if (is.null(own)) own <- list()
+  # The base entries win, but no family names one of them, so this only decides
+  # a collision that cannot currently happen.
+  own[names(.SHIFTED_BASE_PRIORS)] <- .SHIFTED_BASE_PRIORS
+  .priors_dpars(formula, data, family, own, override = "shape", ...)
+}
+
+
+# Reads get_prior() for the model in hand and fills only the rows brms left
+# flat - plus the ones named in `override`, where the default brms supplies is
+# worse than nothing - so the result cannot contain a prior matching no
+# parameter.
+#
+# `own` is a named list, one entry per dpar to edit, each a character vector
+# with any of `link`, `nat` and `slope`. See .PRIORS_PLAIN above.
+#' @keywords internal
+.priors_dpars <- function(formula, data, family, own, override = character(0),
+                          ..., slope_default = "normal(0, 0.2)") {
   p <- brms::get_prior(formula, data = data, family = family, ...)
   # Kept whole: once `p` has been filtered down to the rows being set, there is
   # no way left to tell "this blanket row covers a coefficient we left alone"
   # from "this blanket row covers nothing at all".
   all_rows <- p
 
-  # `shape` only exists for cogmod_loggamma(); brms leaves it flat like the others, and
-  # a flat prior there lets the sampler wander into sigma * shape >= 1, where the
-  # decision density is unbounded at the shift.
-  #
-  # A family may name further decision dpars of its own in the registry's
-  # `prior` slot, for the same reason: a direction the likelihood is flat or
-  # near-flat in, which brms would otherwise leave improper. cogmod_lba1() is
-  # the case in hand - see the note on its registry entry.
-  own <- .mixture_spec(.family_name(family))$prior
-  dpars <- unique(c("ndt", "poutlier", "shape", names(own)))
+  dpars <- names(own)
+  if (is.null(override)) override <- character(0)
 
   # A dpar reaches get_prior() in one of two forms, depending on whether it
   # appears in the formula at all.
   #
   #  - *Modelled*, even as `~ 1`: brms builds a linear predictor for it and
   #    reports class "Intercept" / "b" / "sd" with dpar = "<name>". The
-  #    parameter lives on the LINK scale (log for ndt, logit for poutlier).
+  #    parameter lives on the LINK scale (log for ndt, logit for poutlier,
+  #    softplus for the ex-Gaussian's sigma and tau).
   #
   #  - *Omitted*: brms declares it as a plain auxiliary parameter - the same
   #    mechanism as `sigma` for gaussian() when you do not write `sigma ~ .` -
@@ -273,21 +444,18 @@ cogmod_priors <- function(formula, data, ...) {
   #
   # Matching on `dpar` alone caught only the first kind, which left an omitted
   # `poutlier` on brms's flat prior over [0, 1] and an omitted `shape` genuinely
-  # improper.
+  # improper. Auxiliary rows are taken whether or not brms filled them, which is
+  # what replaces the uniform(0, min_Y) it puts on an omitted `ndt` - precisely
+  # the min-RT bound this parameterization exists to remove - and the
+  # student_t(3, 0, 2.5) it puts on an omitted ex-Gaussian `sigma`.
   aux <- p$class %in% dpars & !nzchar(p$dpar)
 
   link <- p$dpar %in% dpars & !nzchar(p$prior)
   # ...unless a proper blanket row already covers them, as brms gives smooths.
   link <- link & !vapply(seq_len(nrow(p)), .covered_by_blanket, logical(1), p = p)
-
-  # brms recognises the name `shape` from its own gamma/weibull families and
-  # supplies gamma(0.01, 0.01) - a prior with support only on the positives, for
-  # a parameter that has to be free to go negative (that is the whole inverse
-  # Weibull half of the family). Stan would reject every negative proposal,
-  # silently truncating `shape` at 0. That row arrives non-empty, so it has to be
-  # overridden rather than filled. Same story as the `uniform(0, min_Y)` that
-  # brms puts on an omitted `ndt`, handled through `aux` above.
-  link <- link | (p$dpar == "shape" & p$class == "Intercept")
+  # The modelled counterpart of the auxiliary override: these rows arrive
+  # non-empty, so they have to be replaced rather than filled.
+  link <- link | (p$dpar %in% override & p$class == "Intercept")
 
   fill <- aux | link
   if (!any(fill)) {
@@ -296,58 +464,19 @@ cogmod_priors <- function(formula, data, ...) {
   aux <- aux[fill]
   p <- p[fill, , drop = FALSE]
 
-  # ndt is a location in time, in SECONDS: exp(-1.2) = 0.30 s. Nothing in this
-  # family is equivariant to the unit of measurement any more - see
-  # .POUTLIER_SCALE in core_shifted.R - so the location is a constant.
-  loc_ndt <- "-1.2"
-
   p$prior <- vapply(
     seq_len(nrow(p)),
     function(i) {
       cls <- p$class[i]
-      if (aux[i]) {
-        # Natural scale: no link is applied to an auxiliary parameter.
-        return(switch(
-          cls,
-          # The same distribution as normal(loc, 0.2) on log(ndt), written for
-          # the untransformed parameter. This deliberately *overrides* a
-          # non-empty brms default: brms recognises the name `ndt` from its own
-          # shifted families and supplies uniform(0, min_Y), which is exactly
-          # the min-RT bound this parameterization exists to remove.
-          ndt = sprintf("lognormal(%s, 0.2)", loc_ndt),
-          # Leaving `poutlier` out of the formula is itself information: the
-          # user either trimmed the data already or does not expect outliers.
-          # So the mode sits at zero rather than at a positive rate, unlike the
-          # link-scale prior, which cannot put mass at 0 at all. The median
-          # matches it regardless - exponential(100) has median 0.0069 against
-          # plogis(-5) = 0.0067 - so the centre is unchanged, only the shape.
-          # Truncation at 1 is negligible: exp(-100) of the mass is above it.
-          # brms's own default here is flat over [0, 1] - proper, but it puts
-          # half its mass above 0.5.
-          poutlier = "exponential(100)",
-          # identity link, so the link-scale prior carries over unchanged
-          shape = "normal(0, 0.5)",
-          # anything the family named for itself
-          .own_prior(own, cls, "nat")
-        ))
-      }
+      # Natural scale: no link is applied to an auxiliary parameter.
+      if (aux[i]) return(.own_prior(own, cls, "nat"))
       intercept <- cls == "Intercept" || (cls == "b" && p$coef[i] == "Intercept")
       if (intercept) {
-        switch(
-          p$dpar[i],
-          ndt = sprintf("normal(%s, 0.2)", loc_ndt),
-          # Centred on the LogNormal, and tight enough that sigma * shape = 1 -
-          # where the density blows up at the shift - is several SDs away for
-          # any realistic sigma.
-          shape = "normal(0, 0.5)",
-          poutlier = "normal(-5, 1)",
-          # anything the family named for itself
-          .own_prior(own, p$dpar[i], "link")
-        )
+        .own_prior(own, p$dpar[i], "link")
       } else if (cls == "b") {
         # a family may widen the blanket slope prior for a dpar of its own
         slope <- .own_prior(own, p$dpar[i], "slope")
-        if (nzchar(slope)) slope else "normal(0, 0.2)"
+        if (nzchar(slope)) slope else slope_default
       } else if (cls %in% c("sd", "sds")) {
         "exponential(1)"
       } else {

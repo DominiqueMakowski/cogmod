@@ -21,3 +21,5 @@ README.qmd
 ^vignettes/models/
 ^vignettes/models_large/
 ^data-raw$
+^AGENTS\.md$
+^CLAUDE\.md$

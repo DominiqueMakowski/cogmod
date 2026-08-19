@@ -50,6 +50,80 @@
     ),
     label = "LogNormal"
   ),
+  cogmod_logstudent = list(
+    # log(decision time) ~ scaled Student-t, i.e. a robust LogNormal. `dof` is
+    # the degrees of freedom - what brms::student() calls `nu`, renamed because
+    # cogmod_lnr() already spends `nuzero`/`nuone` on drift rates, and because
+    # brms recognises the name `nu` and injects defaults of its own for it
+    # (normal(2.7, 0.8) modelled, gamma(2, 0.1) omitted). `dof` arrives flat like
+    # every other dpar this package defines, so cogmod_priors() simply fills it.
+    dpars = c("mu", "sigma", "dof"),
+    links = c("identity", "softplus", "log"),
+    lb = c(NA, 0, 0), ub = c(NA, NA, NA),
+    stan_check = "sigma <= 0 || dof <= 0",
+    stan_dens = "student_t_lpdf(log(t_adj) | dof, mu, sigma) - log(t_adj)",
+    ldens = function(t, p) {
+      stats::dt((log(t) - p$mu) / p$sigma, df = p$dof, log = TRUE) -
+        log(p$sigma) - log(t)
+    },
+    rng = function(n, p) exp(p$mu + p$sigma * stats::rt(n, p$dof)),
+    # E[exp(sigma * T)] with T a Student-t diverges for EVERY finite dof: the t
+    # has polynomial tails and exp() outruns them, so the moment generating
+    # function does not exist anywhere. Unlike cogmod_logweibull(), where the
+    # mean exists below sigma = 1, there is no region of the parameter space
+    # where this one has an expectation, so posterior_epred() has nothing to
+    # return at all - see posterior_epred_cogmod_logstudent(). The median is
+    # exact: ndt + exp(mu).
+    mean = NULL,
+    init = list(mu = -0.7, sigma = 0.4, dof = 5),
+    # Two flat-ish directions, and the prior is what fences both.
+    #
+    # Upward: the LogNormal is only reached as dof -> Inf, and it is approached
+    # slowly - at dof = 100 the density still differs from the LogNormal by 66%
+    # in the tail, and it takes dof ~ 1e4 to get within 1%. So above about
+    # dof = 30 the likelihood has almost stopped moving, and a log link puts
+    # that region at plus infinity.
+    #
+    # Downward: a t is symmetric ON THE LOG SCALE, so a small dof does not only
+    # buy the slow tail this family exists for - it also piles mass just above
+    # `ndt`, which is exactly what poutlier is for. The two then compete. See
+    # the `note` below for the numbers.
+    #
+    # normal(1.8, 0.7) on the log link is centred at dof = 6.0 with 95% between
+    # 1.5 and 24: heavy enough for the slow tail to be worth having, light
+    # enough that the fast-side spike stays under a tenth of a percent.
+    prior = list(
+      dof = c(link = "normal(1.8, 0.7)", nat = "lognormal(1.8, 0.7)",
+              slope = "normal(0, 0.3)")
+    ),
+    dpar_doc = c(
+      "mu: location of the decision time on the log scale.",
+      "sigma: scale of the decision time on the log scale (> 0).",
+      paste("dof: degrees of freedom of the Student-t on the log-RT scale",
+            "(> 0). Smaller is"),
+      "   heavier-tailed; dof -> Inf is the LogNormal."
+    ),
+    note = c(
+      paste("The decision density is UNBOUNDED at `ndt`: as t_adj -> 0 it grows",
+            "like 1 / (t_adj *"),
+      paste("|log t_adj|^(dof + 1)), where a LogNormal decays to zero. The spike",
+            "is integrable for"),
+      paste("every dof > 0, so the posterior stays proper, but the likelihood",
+            "has no maximum -"),
+      "it is the prior on `ndt` that keeps the sampler off min(RT).",
+      "",
+      paste("A Student-t is symmetric on the log scale, so a small `dof` fattens",
+            "BOTH tails. At"),
+      paste("dof = 2, 1.5% of the decision distribution falls below 0.05 s",
+            "against a LogNormal's"),
+      paste("5e-9, which is territory `poutlier` also claims; at dof = 5 it is",
+            "0.1%, while the"),
+      paste("slow tail is still five orders of magnitude heavier than a",
+            "LogNormal's at 5 s."),
+      "Expect `dof` and `poutlier` to trade off if the prior on either is widened."
+    ),
+    label = "Log-Student-t"
+  ),
   cogmod_loggamma = list(
     dpars = c("mu", "sigma", "shape"),
     links = c("identity", "softplus", "identity"),
@@ -142,6 +216,128 @@
       "zero. Fix it (`sigmadrift = 0` in bf()) unless the design can identify it."
     ),
     label = "Wald (inverse Gaussian)"
+  ),
+  cogmod_exwald = list(
+    # Schwarz (2001): the decision time is a Wald convolved with an Exponential
+    # of mean `tau` - a diffusive decision stage followed by an exponentially
+    # distributed residual stage. The mechanistic counterpart of
+    # cogmod_exgaussian(), whose first stage is a descriptive Gaussian instead,
+    # and `tau` means the same thing in both.
+    #
+    # No `sigmadrift` here, deliberately. It and `tau` both fatten the right
+    # tail and would be near-impossible to tell apart; cogmod_invgaussian() is
+    # where the drift-variability route lives.
+    dpars = c("mu", "boundary", "tau"),
+    links = c("softplus", "softplus", "softplus"),
+    lb = c(0, 0, 0), ub = c(NA, NA, NA),
+    stan_check = "mu <= 0 || boundary <= 0 || tau <= 0",
+    stan_dens = "cogmod_exwald_decision_lpdf(t_adj | mu, boundary, tau)",
+    prelude = ".EXWALD_STAN_PRELUDE",
+    ldens = function(t, p) .dexwald_raw(t, p$mu, p$boundary, p$tau),
+    rng = function(n, p) {
+      .rwald_raw(n, p$mu, p$boundary) + stats::rexp(n, 1 / p$tau)
+    },
+    # Finite, unlike the drift-variability Wald: the exponential stage has a
+    # mean and the fixed-drift Wald has one too, so they simply add.
+    mean = function(p) p$boundary / p$mu + p$tau,
+    init = list(mu = 3, boundary = 0.5, tau = 0.15),
+    # `tau` is a length of time in seconds, and brms leaves it flat. Same belief,
+    # and the same numbers, as the `tau` of cogmod_exgaussian(): it is the same
+    # quantity, the mean of an exponential residual stage. See cogmod_priors().
+    prior = list(
+      tau = c(link = "normal(-1.5, 0.7)", nat = "lognormal(-1.5, 0.7)",
+              slope = "normal(0, 0.5)")
+    ),
+    dpar_doc = c(
+      "mu: drift rate, the average speed of evidence accumulation (> 0).",
+      "boundary: decision threshold, the evidence needed to respond (> 0).",
+      paste("tau: mean of the exponential residual stage, in seconds (> 0).",
+            "The decision time is")
+    ),
+    note = c(
+      paste("`ndt` and `tau` both delay the response and are separated only by",
+            "shape - `ndt` is a"),
+      paste("hard floor, `tau` a variable stage - so they sit on a ridge. The",
+            "prior on `ndt` is"),
+      "what holds it; widen it and expect the two to trade off.",
+      "",
+      paste("The density has two branches, both exact. Where mu^2 > 2 / tau the",
+            "convolution collapses"),
+      paste("to a closed form in the Wald CDF; below that the same expression",
+            "continues"),
+      paste("analytically through the Faddeeva function. They meet exactly at",
+            "mu^2 = 2 / tau.")
+    ),
+    label = "ex-Wald"
+  ),
+  cogmod_bisa = list(
+    # Birnbaum-Saunders (fatigue life), carried in the same (drift, threshold)
+    # currency as cogmod_invgaussian() - and that is the point of it. The Wald
+    # accumulates by diffusion, so evidence can move either way at any instant;
+    # here it arrives in discrete cycles and only ever TOWARDS the boundary.
+    # What is random is the SIZE of each increment, never its sign.
+    #
+    # Sum n such increments and apply the CLT: S_n ~ Normal(n mu, n), the
+    # increment SD being fixed at 1 per cycle - the same convention that fixes
+    # the Wald's diffusion coefficient, which is what keeps `mu` and `boundary`
+    # comparable across the two families. Then
+    #
+    #   P(T <= n) = P(S_n >= boundary) = Phi((mu n - boundary) / sqrt(n)),
+    #
+    # and treating the cycle count n as continuous is the first-crossing
+    # approximation. So the standardised time is
+    #
+    #   z = (mu t - boundary) / sqrt(t)   ~   Normal(0, 1)   exactly,
+    #
+    # which is the usual (1 / a)(sqrt(t / b) - sqrt(b / t)) written in these
+    # parameters: b = boundary / mu is the scale and a = 1 / sqrt(mu * boundary)
+    # the shape. That map is a bijection - boundary = sqrt(b) / a and
+    # mu = 1 / (a sqrt(b)) - so the mechanistic parameterization gives up
+    # nothing, and cogmod_invgaussian(sigmadrift = 0) then differs from this
+    # family ONLY in how the evidence arrives.
+    #
+    # Note there is no third parameter and there cannot be one: the shape is
+    # pinned by mu * boundary once the increment SD is fixed, exactly as the
+    # Wald's own shape is pinned at boundary^2.
+    dpars = c("mu", "boundary"),
+    links = c("softplus", "softplus"),
+    lb = c(0, 0), ub = c(NA, NA),
+    stan_check = "mu <= 0 || boundary <= 0",
+    stan_dens = "cogmod_bisa_decision_lpdf(t_adj | mu, boundary)",
+    prelude = ".BISA_STAN_PRELUDE",
+    ldens = function(t, p) .dbisa_raw(t, p$mu, p$boundary),
+    rng = function(n, p) .rbisa_raw(n, p$mu, p$boundary),
+    # The Wald's mean plus 1 / (2 mu^2), and always finite - nothing here varies
+    # across trials, so posterior_epred() always has a number to return. The
+    # variance is boundary / mu^3 + 5 / (4 mu^4), against the Wald's
+    # boundary / mu^3.
+    mean = function(p) p$boundary / p$mu + 1 / (2 * p$mu^2),
+    # The same starting point as cogmod_invgaussian(), the parameters meaning
+    # the same thing there.
+    init = list(mu = 3, boundary = 0.5),
+    dpar_doc = c(
+      paste("mu: drift rate, the average size of the per-cycle evidence",
+            "increment (> 0)."),
+      "boundary: decision threshold, the evidence needed to respond (> 0)."
+    ),
+    note = c(
+      paste("The density is the Wald's, tilted: f_BS(t) = f_Wald(t) *",
+            "(mu t + boundary) / (2 boundary)."),
+      paste("Equivalently it is an EQUAL MIXTURE of the Wald with the same",
+            "parameters and that"),
+      paste("Wald's length-biased version, so at a given (mu, boundary) it is",
+            "both slower and more"),
+      paste("spread out: at mu = 3, boundary = 0.5 the mean is 0.222 s against",
+            "the Wald's 0.167 and"),
+      paste("the SD 0.184 against 0.136. The right tail is still",
+            "exponential-order, exp(-mu^2 t / 2),"),
+      "like the Wald's and unlike a LogNormal's.",
+      "",
+      paste("The median is exactly boundary / mu, which is the Wald's MEAN.",
+            "Do not read the two"),
+      "families' parameters as describing the same central tendency."
+    ),
+    label = "Birnbaum-Saunders (fatigue life)"
   ),
   cogmod_gamma = list(
     dpars = c("mu", "sigma"), # shape, scale
@@ -813,6 +1009,299 @@ real cogmod_invgaussian_decision_lpdf(real t, real mu, real boundary, real sigma
   return base - 0.5 * log(D) - square(boundary - mu * t) / (2 * t * D)
     + log1m_exp(std_normal_lcdf(-(boundary * s2 + mu) / (sigmadrift * sqrt(D))))
     - log1m_exp(std_normal_lcdf(-mu / sigmadrift));
+}
+"
+
+
+# ex-Wald -----------------------------------------------------------------
+
+# The decision time of cogmod_exwald() is Wald(drift, boundary) + Exp(1 / tau).
+# Writing g = 1 / tau, the convolution
+#
+#   f(t) = g e^{-g t} INT_0^t f_Wald(u) e^{g u} du
+#
+# has an elementary closed form, because f_Wald(u) e^{g u} is itself a Wald
+# density with a different drift:
+#
+#   f_Wald(u; v, a) e^{g u} = e^{a (v - k)} f_Wald(u; k, a),   k = sqrt(v^2 - 2g)
+#
+# so the integral is e^{a(v - k)} F_Wald(t; k, a) and
+#
+#   f(t) = g exp(-g t + a (v - k)) F_Wald(t; k, a).
+#
+# Exact - it agrees with brute-force convolution to 5e-14 - but only while
+# v^2 > 2g, i.e. tau > 2 / drift^2. That is NOT the usual regime: at a drift of
+# 3 and a threshold of 0.5 it demands tau > 0.22 s, where a residual stage is
+# more often nearer 0.1 s, so the other branch is reached routinely.
+#
+# Below the line k is imaginary, k = i * kappa with kappa = sqrt(2g - v^2), and
+# the same expression continues analytically. Because F_Wald's two terms are
+# complex conjugates of one another there,
+#
+#   INT_0^t f_Wald(u) e^{g u} du = 2 e^{a v} Re[e^{-i a kappa} Phi(-alpha + i beta)]
+#
+# with alpha = a / sqrt(t) and beta = kappa sqrt(t). Writing Phi through the
+# Faddeeva function w(z) = e^{-z^2} erfc(-i z) - which is what makes this
+# computable, w being analytic and well conditioned throughout the upper half
+# plane - the substitution alpha * beta = a * kappa makes every large factor
+# cancel on paper, leaving
+#
+#   f(t) = g exp(-(a - v t)^2 / (2 t)) Re[w(z)],
+#     z = (kappa sqrt(t) + i a / sqrt(t)) / sqrt(2).
+#
+# The exponent is the Wald's own, so nothing here can overflow, and the whole
+# branch costs one real exponential and one w(). At kappa -> 0 it reduces to
+# `g exp(a v - v^2 t / 2) erfc(a / sqrt(2t))`, which is the closed form at
+# k = 0, so the two branches meet exactly rather than approximately: measured
+# either side of the seam the relative step is 5e-8, against 0.74 for the
+# 64-point Gauss-Legendre rule this replaced.
+#
+# Quadrature was tried first and abandoned. The log-integrand of the original
+# convolution is bimodal - d/du = 0 is k2 u^2 + 3 u - a^2 = 0, which has two
+# interior roots whenever 9 > 4 kappa^2 a^2, one at the Wald bulk near zero and
+# one at u = t where exp(g u) is climbing - and the two peak widths vary
+# independently over orders of magnitude, so no fixed panel layout resolves
+# both. Single-panel, exponentially tilted, split-at-the-mode and
+# z = a / sqrt(u) rules all reached only 1e-1 relative error somewhere in the
+# region an RT fit actually visits.
+#' @keywords internal
+.dexwald_raw <- function(t, drift, boundary, tau) {
+  g <- 1 / tau
+  k2 <- drift^2 - 2 * g
+
+  closed <- function() {
+    k <- sqrt(pmax(k2, 0))
+    log(g) - g * t + boundary * (drift - k) + .log_pwald_fixed(t, k, boundary)
+  }
+  faddeeva <- function() {
+    st <- sqrt(t)
+    rw <- .re_faddeeva(sqrt(pmax(-k2, 0)) * st / sqrt(2),
+                       boundary / (st * sqrt(2)))
+    # Re w is the Voigt function, strictly positive off the real axis; the guard
+    # is for a rounding-level negative where it has underflowed.
+    log(g) - (boundary - drift * t)^2 / (2 * t) + log(pmax(rw, 0))
+  }
+
+  if (all(k2 >= 0)) return(closed())
+  if (all(k2 < 0)) return(faddeeva())
+
+  # Both branches occur in the same call, which happens as soon as `tau` or the
+  # drift is modelled. Computed whole and selected rather than subset, because
+  # `t` may be a draws x observations matrix whose shape has to survive - the
+  # same reason .dwald_raw() masks instead of indexing.
+  use <- (k2 >= 0) & rep(TRUE, length(t))
+  dim(use) <- dim(t)
+  ifelse(use, closed(), faddeeva())
+}
+
+# log F_Wald(t; drift, boundary) for a fixed drift. The same expression as
+# .pwald_fixed(), carried in logs throughout: the CDF underflows to exactly zero
+# well before the log density stops being representable, and `exp(2 a v)`
+# overflows on its own long before the product does.
+#' @keywords internal
+.log_pwald_fixed <- function(t, drift, boundary) {
+  st <- sqrt(t)
+  l1 <- stats::pnorm((drift * t - boundary) / st, log.p = TRUE)
+  l2 <- 2 * boundary * drift +
+    stats::pnorm(-(drift * t + boundary) / st, log.p = TRUE)
+  m <- pmax(l1, l2)
+  out <- m + log(exp(l1 - m) + exp(l2 - m))
+  # Both terms vanish; pmax() is -Inf and the difference would be NaN.
+  out[!is.finite(m)] <- -Inf
+  out
+}
+
+# Coefficients of Weideman's (1994) rational approximation to the Faddeeva
+# function, built once when the namespace loads - the same arrangement as
+# .GAUSS_LEGENDRE, and for the same reason: the Stan prelude is generated from
+# this object, so the two implementations cannot drift apart.
+#
+# N = 24 terms. The approximation is exact to 8e-11 at w(0), and N = 32 gives
+# the ex-Wald density to the last digit N = 24 already reaches, so the extra
+# terms buy nothing here.
+#' @keywords internal
+.WEIDEMAN <- local({
+  N <- 24L
+  M <- 2L * N
+  L <- sqrt(N / sqrt(2))
+  k <- seq(-M + 1L, M - 1L)
+  tt <- L * tan(k * pi / M / 2)
+  f <- c(0, exp(-tt^2) * (L^2 + tt^2))
+  n <- length(f)
+  # fftshift
+  fs <- c(f[(floor(n / 2) + 1):n], f[1:floor(n / 2)])
+  a <- Re(stats::fft(fs)) / (2 * M)
+  list(N = N, L = L, a = rev(a[2:(N + 1)]))
+})
+
+# Re w(x + i y) for y > 0, by Horner on Weideman's rational approximation.
+# Written out in real and imaginary parts rather than with R's complex type,
+# because the Stan counterpart has to do exactly the same arithmetic in the same
+# order, and because it keeps the draws x observations shape of the inputs.
+#' @keywords internal
+.re_faddeeva <- function(x, y) {
+  L <- .WEIDEMAN$L
+  a <- .WEIDEMAN$a
+  # d = L - i z with z = x + i y, so d = (L + y) - i x
+  dr <- L + y
+  di <- -x
+  den <- dr^2 + di^2
+  # Z = (L + i z) / d, numerator (L - y) + i x
+  nr <- L - y
+  ni <- x
+  zr <- (nr * dr + ni * di) / den
+  zi <- (ni * dr - nr * di) / den
+
+  pr <- a[1] + 0 * zr
+  pim <- 0 * zr
+  for (n in seq_along(a)[-1]) {
+    tr <- pr * zr - pim * zi + a[n]
+    pim <- pr * zi + pim * zr
+    pr <- tr
+  }
+
+  # w = 2 p / d^2 + (1 / sqrt(pi)) / d, real part only
+  d2r <- dr^2 - di^2
+  d2i <- 2 * dr * di
+  q <- d2r^2 + d2i^2
+  2 * (pr * d2r + pim * d2i) / q + (1 / sqrt(pi)) * dr / den
+}
+
+# Stan counterpart. The Weideman coefficients are written out from .WEIDEMAN, so
+# the two implementations are generated from one table.
+#' @keywords internal
+.EXWALD_STAN_PRELUDE <- local({
+  num <- function(v) formatC(v, format = "g", digits = 17, width = 1)
+  sprintf("
+// Re w(x + i y) for y > 0, where w is the Faddeeva function
+// w(z) = exp(-z^2) erfc(-i z). Weideman (1994), %d-term rational approximation,
+// evaluated by Horner in explicit real and imaginary parts.
+real cogmod_re_faddeeva(real x, real y) {
+  real L = %s;
+  array[%d] real a = {%s};
+  real dr = L + y;
+  real di = -x;
+  real den = square(dr) + square(di);
+  real zr = ((L - y) * dr + x * di) / den;
+  real zi = (x * dr - (L - y) * di) / den;
+  real pr = a[1];
+  real pim = 0;
+  for (n in 2:%d) {
+    real tr = pr * zr - pim * zi + a[n];
+    pim = pr * zi + pim * zr;
+    pr = tr;
+  }
+  real d2r = square(dr) - square(di);
+  real d2i = 2 * dr * di;
+  real q = square(d2r) + square(d2i);
+  return 2 * (pr * d2r + pim * d2i) / q + 0.56418958354775628 * dr / den;
+}
+
+// log of the Wald CDF with drift v >= 0 and threshold a > 0, at t > 0. The
+// exp(2 a v) factor overflows on its own long before the product it belongs to
+// stops being representable, so it is folded into the exponent instead.
+real cogmod_exwald_lwaldcdf(real t, real v, real a) {
+  real st = sqrt(t);
+  return log_sum_exp(
+    std_normal_lcdf((v * t - a) / st),
+    2 * a * v + std_normal_lcdf(-(v * t + a) / st)
+  );
+}
+
+// Log density of the ex-Wald decision time (no shift): a Wald with drift `mu`
+// and threshold `boundary`, convolved with an Exponential of mean `tau`.
+//
+// Where mu^2 > 2 / tau the convolution collapses to a closed form in the Wald
+// CDF, with drift k = sqrt(mu^2 - 2 / tau). Below that k is imaginary and the
+// same expression continues analytically into
+//
+//   f(t) = g exp(-(boundary - mu t)^2 / (2 t)) Re[w(z)],
+//     z = (kappa sqrt(t) + i boundary / sqrt(t)) / sqrt(2)
+//
+// with kappa = sqrt(2 / tau - mu^2). The exponent is the Wald's own, so nothing
+// overflows. The two branches meet exactly - at kappa = 0 the second reduces to
+// the first - and measured either side of the seam the relative step is 5e-8.
+real cogmod_exwald_decision_lpdf(real t, real mu, real boundary, real tau) {
+  real g = inv(tau);
+  real k2 = square(mu) - 2 * g;
+
+  if (k2 >= 0) {
+    real k = sqrt(k2);
+    return log(g) - g * t + boundary * (mu - k)
+      + cogmod_exwald_lwaldcdf(t, k, boundary);
+  }
+
+  real st = sqrt(t);
+  real rw = cogmod_re_faddeeva(sqrt(-k2) * st / sqrt2(), boundary / (st * sqrt2()));
+  if (rw <= 0) return negative_infinity();
+  return log(g) - square(boundary - mu * t) / (2 * t) + log(rw);
+}
+",
+    .WEIDEMAN$N, num(.WEIDEMAN$L), .WEIDEMAN$N,
+    paste(num(.WEIDEMAN$a), collapse = ", "), .WEIDEMAN$N)
+})
+
+
+# Unshifted Birnbaum-Saunders -----------------------------------------------
+
+# The decision component of cogmod_bisa(). Written in the same (drift,
+# threshold) parameters as .dwald_raw(), and in those parameters the density is
+# the Wald's own with one extra factor:
+#
+#   f(t) = (mu t + boundary) / (2 sqrt(2 pi) t^{3/2})
+#            * exp(-(mu t - boundary)^2 / (2 t))
+#        = f_Wald(t; mu, boundary) * (mu t + boundary) / (2 boundary).
+#
+# That is not a coincidence and it is worth seeing why, because it is the whole
+# character of the family. In the textbook (a, b) parameters the exponent is
+# -z^2 / 2 with z = (1 / a)(sqrt(t / b) - sqrt(b / t)); substituting
+# b = boundary / mu and a = 1 / sqrt(mu * boundary) gives a * sqrt(b) = 1 / mu,
+# so z collapses to (mu t - boundary) / sqrt(t) - the Wald's own exponent
+# numerator - and the prefactor (sqrt(t / b) + sqrt(b / t)) / (2 a t) collapses
+# to (mu t + boundary) / (2 t^{3/2}). One sign is all that separates them.
+#
+# The tilt factor is (1 + t / b) / 2, which is what makes the family an equal
+# mixture of that Wald and its length-biased version: the sum of the two
+# first-passage routes to the same boundary, one of which weights long crossings
+# in proportion to their length. It costs one log and one square more than
+# nothing, so this is the cheapest density in the package after the LogNormal.
+#
+# `t` is expected finite and strictly positive; the parameters are recycled
+# against it, and may arrive as draws x observations matrices.
+#' @keywords internal
+.dbisa_raw <- function(t, drift, boundary) {
+  log(drift * t + boundary) - 0.5 * (log(2 * pi) + 3 * log(t)) - log(2) -
+    (drift * t - boundary)^2 / (2 * t)
+}
+
+# Exact, and a one-liner, because (1 / a)(sqrt(T / b) - sqrt(b / T)) is exactly
+# standard normal: invert that for T and a single Normal draw gives a single
+# Birnbaum-Saunders draw. No rejection, no two-root correction of the kind
+# .rwald_raw() needs.
+#' @keywords internal
+.rbisa_raw <- function(n, drift, boundary) {
+  b <- boundary / drift
+  h <- stats::rnorm(n) / (2 * sqrt(drift * boundary))
+  b * (h + sqrt(1 + h^2))^2
+}
+
+# Stan counterpart of .dbisa_raw(). No branch and no special function: unlike
+# every other first-passage family here, this one is closed form everywhere in
+# the parameter space.
+#' @keywords internal
+.BISA_STAN_PRELUDE <- "
+// Log density of the Birnbaum-Saunders decision time (no shift), with evidence
+// arriving in discrete cycles of average size `mu` and unit SD, towards a
+// threshold `boundary`. (mu * t - boundary) / sqrt(t) is then exactly standard
+// normal, which leaves the density elementary:
+//
+//   f(t) = f_Wald(t; mu, boundary) * (mu t + boundary) / (2 boundary),
+//
+// the Wald's own density tilted by the length-biasing factor. Note the sign:
+// the exponent carries (mu t - boundary), the prefactor (mu t + boundary).
+real cogmod_bisa_decision_lpdf(real t, real mu, real boundary) {
+  return log(mu * t + boundary) - 0.5 * (log(2 * pi()) + 3 * log(t)) - log(2)
+    - square(mu * t - boundary) / (2 * t);
 }
 "
 

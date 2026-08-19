@@ -71,10 +71,13 @@ of these defaults, or omit it to add a prior for a different slot:
 The family is read off \code{formula}, so build it with
 \code{brms::bf(..., family = cogmod_lognormal())}. Every family built on the direct
 \code{ndt} + \code{poutlier} parameterization is edited: \code{\link[=cogmod_lognormal]{cogmod_lognormal()}},
-\code{\link[=cogmod_loggamma]{cogmod_loggamma()}}, \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}, \code{\link[=cogmod_gamma]{cogmod_gamma()}}, \code{\link[=cogmod_invgamma]{cogmod_invgamma()}},
+\code{\link[=cogmod_logstudent]{cogmod_logstudent()}}, \code{\link[=cogmod_loggamma]{cogmod_loggamma()}}, \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}, \code{\link[=cogmod_exwald]{cogmod_exwald()}},
+\code{\link[=cogmod_bisa]{cogmod_bisa()}}, \code{\link[=cogmod_gamma]{cogmod_gamma()}},
+\code{\link[=cogmod_invgamma]{cogmod_invgamma()}},
 \code{\link[=cogmod_weibull]{cogmod_weibull()}}, \code{\link[=cogmod_invweibull]{cogmod_invweibull()}}, \code{\link[=cogmod_logweibull]{cogmod_logweibull()}} and, for the
 choice-and-RT models, \code{\link[=cogmod_lnr]{cogmod_lnr()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}}, \code{\link[=cogmod_lba2]{cogmod_lba2()}} and
-\code{\link[=cogmod_ddm]{cogmod_ddm()}}. Any other family, or
+\code{\link[=cogmod_ddm]{cogmod_ddm()}}. \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} is edited too, although it is not built
+on that parameterization - see its own section below. Any other family, or
 a formula carrying none, is passed through: you get a message and \code{brms}'s own
 defaults, unchanged, so the call is always safe to leave in a script.
 
@@ -98,8 +101,22 @@ LogNormal shape and keeps the sampler clear of \code{sigma * shape >= 1}, where 
 decision density becomes unbounded at the shift and the likelihood with it.
 
 A family may add rows of its own where its likelihood has a flat direction
-that \code{brms} would leave improper. Five do:
+that \code{brms} would leave improper. Seven do:
 \itemize{
+\item \code{\link[=cogmod_logstudent]{cogmod_logstudent()}}: \code{dof}. The LogNormal is only reached as \code{dof -> Inf},
+and it is approached slowly - at \code{dof = 100} the density still differs from
+the LogNormal by 66\% in the tail - so above about \code{dof = 30} the likelihood
+has almost stopped moving, and a \code{log} link puts that region at plus
+infinity. The prior fences the other end too: a Student-t is symmetric on
+the log scale, so a small \code{dof} piles mass just above \code{ndt} as well as in
+the slow tail, which is what \code{poutlier} is for. \code{normal(1.8, 0.7)} centres
+\code{dof} at 6 with 95\% between 1.5 and 24.
+\item \code{\link[=cogmod_exwald]{cogmod_exwald()}}: \code{tau}, the mean of the exponential residual stage. It is
+a length of time in seconds behind a \code{softplus} link, which \code{brms} has no
+way to know, and it shares a ridge with \code{ndt} - both delay the response,
+and only the shape of the leading edge tells them apart.
+\code{normal(-1.5, 0.7)} is the same statement \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} gets for the
+same quantity: roughly 55 to 630 ms.
 \item \code{\link[=cogmod_lba1]{cogmod_lba1()}}: \code{sigmabias} and \code{boundary}. As the start-point range
 approaches zero the LBA converges to the recinormal and the likelihood
 stops depending on it, and a \code{softplus} link reaches zero only at minus
@@ -148,6 +165,38 @@ enough to be a sensible default cannot move the posterior out of it - only
 bias it. \code{?rcogmod_weibull} sets out what to do instead.
 }
 
+\section{The ex-Gaussian}{
+\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} has neither \code{ndt} nor \code{poutlier}, but it does have two
+parameters that are lengths of time in \strong{seconds} behind a \code{softplus} link,
+and \code{brms} has no way to know that. \code{sigma} and \code{tau} are set; \code{mu} is not.\tabular{lll}{
+   class \tab \code{sigma} \tab \code{tau} \cr
+   \code{Intercept}, or \code{b} on a coefficient named \code{Intercept} \tab \code{normal(-2.3, 0.7)} \tab \code{normal(-1.5, 0.7)} \cr
+   \code{b} (slopes) \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \cr
+   \code{sd}, \code{sds} \tab \code{exponential(1)} \tab \code{exponential(1)} \cr
+}
+
+
+On the \code{softplus} scale \code{normal(-2.3, 0.7)} puts \code{sigma} - the SD of the
+Gaussian component - between roughly 25 and 330 ms with a median of 96 ms,
+and \code{normal(-1.5, 0.7)} puts \code{tau} - the mean of the exponential tail -
+between roughly 55 and 630 ms with a median of 201 ms. Both cover the range
+these parameters occupy across the usual simple- and choice-RT tasks and are
+wide enough not to fight data that disagrees.
+
+\code{tau} arrives from \code{brms} flat, so it is filled like any other unrecognised
+custom dpar. \code{sigma} arrives with a \strong{non-empty} default,
+\code{student_t(3, 0, 2.5)}, because \code{brms} recognises the name from its own
+families - centred on \verb{softplus(0) = 0.69 s}, a Gaussian SD wider than most
+whole RT distributions. That one is overridden rather than filled, the same
+treatment \code{shape} and an omitted \code{ndt} get above.
+
+\code{mu} is left alone deliberately. It is the response's own intercept, and
+\code{brms}'s \code{student_t(3, 0, 2.5)} is proper and a reasonable weakly informative
+statement for a location on this link. Note it is the centre of the Gaussian
+component \strong{alone}, so the mean of the distribution it implies is
+\code{mu + tau}; see \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}.
+}
+
 \section{Parameters left out of the formula}{
 Writing \code{ndt ~ 1} and omitting \code{ndt} entirely are not the same thing to
 \code{brms}, and the difference matters here. A dpar that appears in \code{bf()} - even
@@ -170,11 +219,19 @@ lives on:\tabular{lll}{
    \code{sigmandt} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}) \tab \code{normal(-3, 1)} \tab \code{lognormal(-3, 1)} \cr
    \code{nuone} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}) \tab \code{normal(0.7, 1.5)} \tab \code{normal(0.7, 1.5)} \cr
    \code{sigmazero}, \code{sigmaone} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
+   \code{dof} (\code{\link[=cogmod_logstudent]{cogmod_logstudent()}}) \tab \code{normal(1.8, 0.7)} \tab \code{lognormal(1.8, 0.7)} \cr
+   \code{tau} (\code{\link[=cogmod_exwald]{cogmod_exwald()}}) \tab \code{normal(-1.5, 0.7)} \tab \code{lognormal(-1.5, 0.7)} \cr
+   \code{sigma} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(-2.3, 0.7)} \tab \code{lognormal(-2.3, 0.7)} \cr
+   \code{tau} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(-1.5, 0.7)} \tab \code{lognormal(-1.5, 0.7)} \cr
 }
 
 
 The \code{ndt} pair describes the same belief twice: \code{lognormal} is just \code{normal}
-on the log scale, written for the untransformed parameter.
+on the log scale, written for the untransformed parameter. The
+\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} pairs do the same to within a rounding error, because
+\code{softplus(x)} and \code{exp(x)} agree to three figures for the \code{x} below \code{-2} that
+both parameters live at: \code{lognormal(-2.3, 0.7)} has median 0.100 against
+\code{softplus(-2.3) = 0.096}.
 
 If the data were trimmed before fitting, tighten this rather than removing
 it: \code{normal(-7, 0.5)} asserts essentially no contamination while keeping the
@@ -191,14 +248,17 @@ still a prior rather than a constraint, so a genuine spike of fast responses
 will still pull the rate up; to switch the parameter off entirely, trim the
 data and it will simply sit near zero.
 
-The omitted-\code{ndt} row is the one case where a \strong{non-empty} \code{brms} default is
-overridden rather than filled. \code{brms} recognises the name \code{ndt} from its own
-shifted families and supplies \code{uniform(0, min_Y)} - precisely the min-RT
-bound that \code{\link[=cogmod_lognormal]{cogmod_lognormal()}}'s parameterization exists to remove, reimposed
-silently and with a warning about an upper bound on an unbounded parameter.
-An omitted \code{poutlier} is left flat over \verb{[0, 1]} by \code{brms}, which is proper
-but puts half its mass above 0.5, and an omitted \code{shape} is flat over the whole
-real line, which is not proper at all.
+Two rows override a \strong{non-empty} \code{brms} default rather than filling an empty
+one. \code{brms} recognises the name \code{ndt} from its own shifted families and
+supplies \code{uniform(0, min_Y)} - precisely the min-RT bound that
+\code{\link[=cogmod_lognormal]{cogmod_lognormal()}}'s parameterization exists to remove, reimposed silently
+and with a warning about an upper bound on an unbounded parameter. It
+recognises \code{sigma} too, and gives \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}'s a half
+\code{student_t(3, 0, 2.5)}, whose median of 1.9 s is a Gaussian SD wider than
+most whole RT distributions. An omitted \code{poutlier} is left flat
+over \verb{[0, 1]} by \code{brms}, which is proper but puts half its mass above 0.5, and
+an omitted \code{shape} or \code{tau} is flat over the whole real line, which is not
+proper at all.
 
 Slope and group-level priors are deliberately narrow. On a log or a logit
 link a flat slope prior is not as harmless as it looks, and a group-level SD

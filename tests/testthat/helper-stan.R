@@ -20,9 +20,9 @@
 # Every family with an lpdf to expose, and the internal that generates it. The
 # betadiscrete one is an lpmf; everything else is an lpdf.
 .STAN_LPDF_FAMILIES <- c(
-  "cogmod_lognormal", "cogmod_loggamma", "cogmod_invgaussian", "cogmod_gamma",
+  "cogmod_lognormal", "cogmod_logstudent", "cogmod_loggamma", "cogmod_invgaussian", "cogmod_gamma",
   "cogmod_invgamma", "cogmod_weibull", "cogmod_invweibull", "cogmod_logweibull",
-  "cogmod_lba1", "cogmod_lnr", "cogmod_rdm", "cogmod_ddm", "cogmod_lba2",
+  "cogmod_exwald", "cogmod_bisa", "cogmod_lba1", "cogmod_lnr", "cogmod_rdm", "cogmod_ddm", "cogmod_lba2",
   "cogmod_betagate", "cogmod_choco", "cogmod_exgaussian", "cogmod_betadiscrete"
 )
 

@@ -74,7 +74,9 @@
 #' The family is read off `formula`, so build it with
 #' `brms::bf(..., family = cogmod_gamma())`. Every family built on the direct
 #' `ndt` + `poutlier` parameterization is covered - [cogmod_lognormal()],
-#' [cogmod_loggamma()], [cogmod_invgaussian()], [cogmod_gamma()], [cogmod_invgamma()],
+#' [cogmod_logstudent()], [cogmod_loggamma()], [cogmod_invgaussian()], [cogmod_exwald()],
+#' [cogmod_bisa()], [cogmod_gamma()],
+#' [cogmod_invgamma()],
 #' [cogmod_weibull()], [cogmod_invweibull()], [cogmod_logweibull()], [cogmod_lba1()] and,
 #' for the choice-and-RT models, [cogmod_lnr()], [cogmod_rdm()],
 #' [cogmod_lba2()] and [cogmod_ddm()] - plus

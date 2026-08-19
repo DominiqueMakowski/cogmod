@@ -339,6 +339,7 @@ f <- bf(
 
 m_exgauss <- brm(f,
   data = df,
+  prior = cogmod_priors(f, df),
   init = cogmod_inits(f, df),
   stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
@@ -521,6 +522,86 @@ m_wald <- brms::add_criterion(m_wald, "loo")
 saveRDS(m_wald, file = "../models/m_wald.rds")
 ```
 
+
+
+### Linear Ballistic Accumulator
+
+The LBA is normally a *race*: one accumulator per response option, each rising
+linearly and ballistically - no within-trial noise - from a start point drawn
+uniformly on `[0, A]` at a drift rate drawn from a normal, until one of them
+reaches the threshold `b`. The first to arrive determines both the response and
+the RT. With no choice to model there is nothing to race, so what is used here is
+the **single-accumulator** version: the RT is simply that one accumulator's
+finishing time, `(b - start) / drift`, plus non-decision time. All of the RT
+variability therefore comes from across-trial variability in the start point
+(`sigmabias`, the `A` above) and in the drift rate, rather than from moment-to-moment
+noise within the trial.
+
+`sigma` is fixed to `1` rather than estimated because the evidence scale is
+arbitrary: nothing observable is measured in "units of evidence". Multiplying the
+drift rate, its standard deviation `sigma`, the start-point range `A` and the
+threshold `b` all by the same constant leaves the decision time
+`(b - start) / drift` completely unchanged, since numerator and denominator scale
+together. Only *ratios* of these parameters are identified, so exactly one of them
+has to be pinned down to fix the scale, and by convention that is the drift
+standard deviation. The remaining parameters are then read in units of the
+across-trial drift SD. Any one of the four would do equally well; `sigma` is
+chosen because it is the least interesting of them. Note that this is what
+`sigma = 1` in the formula below does - it fixes the parameter as a constant. Drop
+it and `brms` will happily *estimate* it instead, leaving the model unidentified
+and the sampler free to wander along that ridge.
+
+Fixing the evidence scale is not quite the end of the identification story. As
+the start-point range `sigmabias` shrinks toward zero the LBA converges to the
+*recinormal* - the LATER model, in which `1 / (RT - ndt)` is normally
+distributed - and it does so smoothly, which means the likelihood becomes
+**flat** in `sigmabias` once the range is small enough. On a `softplus` link
+zero sits at minus infinity, so a flat prior over a flat likelihood is an
+improper posterior, and the failure is quiet rather than loud: fitted without
+priors on these data, `sigmabias` for the speed condition ran off to
+`softplus(-10.4) = 3e-05` with `Rhat` 1.69 and an effective sample size of 6,
+while every other parameter looked fine. `cogmod_priors()` supplies weak
+`normal(0, 1)` priors on `sigmabias` and `boundary` for exactly this reason -
+the threshold is `b = sigmabias + boundary`, so the two share the ridge - which
+brings that same fit to `Rhat` 1.02, an effective sample size of 387, and a
+sensible finite estimate. This is the same argument as for `ndt` and `poutlier`
+in `vignette("outliers")`: pass `prior = cogmod_priors(f, df)`.
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- bf(
+  RT ~ Condition,
+  sigmabias ~ Condition,
+  boundary ~ Condition,
+  ndt ~ Condition,
+  sigma = 1,
+  family = cogmod_lba1()
+)
+
+m_lba <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_lba <- brms::add_criterion(m_lba, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_lba, file = "../models/m_lba1.rds")
+```
+
+
+
+
+
 ### Other Models
 
 Note that the families presented below have not been used nearly as
@@ -531,6 +612,156 @@ whether they offer any real advantage - in terms of fit, of interpretability,
 or of computational behaviour - over the more established options.
 
 ::: {.panel-tabset}
+
+#### Wald-4
+
+This mode corresponds to the Shifted Wald model with an extra parameter corresponding to a variable drift rate.
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- bf(
+  RT ~ Condition,
+  boundary ~ Condition,
+  ndt ~ Condition,
+  sigmadrift ~ Condition,
+  family = cogmod_invgaussian()
+)
+
+m_wald4 <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_wald4 <- brms::add_criterion(m_wald4, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_wald4, file = "../models/m_wald4.rds")
+```
+
+
+#### ExWald
+
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- bf(
+  RT ~ Condition,
+  boundary ~ Condition,
+  ndt ~ Condition,
+  tau ~ Condition,
+  family = cogmod_exwald()
+)
+
+m_exwald <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_exwald <- brms::add_criterion(m_exwald, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_exwald, file = "../models/m_exwald.rds")
+```
+
+
+#### Birnbaum-Saunders (BiSa)
+
+The Birnbaum-Saunders (or *fatigue life*) model is the Wald's near neighbour,
+and it is stated in the same parameters - `mu` is a drift rate and `boundary` a
+threshold in both - so the only thing that differs between them is *how* the
+evidence arrives. Where the Wald accumulates by diffusion, and evidence can move
+either way at any instant, here it arrives in discrete cycles that only ever
+push towards the boundary: what is random is the **size** of each increment,
+never its sign. 
+
+The result is an equal mixture of a Wald and that Wald's length-biased version,
+which makes it slower and more dispersed than the Wald at the same parameters
+while keeping the same exponential-order right tail. It has no extra parameter
+to pay for that, and the density is closed form throughout.
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- bf(
+  RT ~ Condition,
+  boundary ~ Condition,
+  ndt ~ Condition,
+  family = cogmod_bisa()
+)
+
+m_bisa <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_bisa <- brms::add_criterion(m_bisa, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_bisa, file = "../models/m_bisa.rds")
+```
+
+
+#### LogStudent
+
+The LogStudent-*t* model varies kurtosis where LogGamma varies skew (see below).
+As dof grows the Student-*t* becomes the Normal, with lighter tails.
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- bf(
+  RT ~ Condition,
+  sigma ~ Condition,
+  dof ~ Condition,
+  ndt ~ Condition,
+  family = cogmod_logstudent()
+)
+
+m_logstudent <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_logstudent <- brms::add_criterion(m_logstudent, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_logstudent, file = "../models/m_logstudent.rds")
+```
+
 
 #### Weibull
 
@@ -717,39 +948,6 @@ saveRDS(m_invgamma, file = "../models/m_invgamma.rds")
 ```
 
 
-#### Wald-4
-
-This mode corresponds to the Shifted Wald model with an extra parameter corresponding to the .
-
-```{r}
-#| eval: false
-#| code-fold: false
-
-f <- bf(
-  RT ~ Condition,
-  boundary ~ Condition,
-  ndt ~ Condition,
-  sigmadrift ~ Condition,
-  family = cogmod_invgaussian()
-)
-
-m_wald <- brm(
-  f,
-  data = df,
-  prior = cogmod_priors(f, df),
-  init = cogmod_inits(f, df),
-  stanvars = cogmod_stanvars(f),
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_wald4 <- brms::add_criterion(m_wald, "loo")
-```
-```{r}
-#| eval: false
-#| echo: false
-
-saveRDS(m_wald4, file = "../models/m_wald4.rds")
-```
 
 :::
 
@@ -815,82 +1013,24 @@ saveRDS(m_loggamma, file = "../models/m_loggamma.rds")
 ```
 
 
-### Linear Ballistic Accumulator
-
-The LBA is normally a *race*: one accumulator per response option, each rising
-linearly and ballistically - no within-trial noise - from a start point drawn
-uniformly on `[0, A]` at a drift rate drawn from a normal, until one of them
-reaches the threshold `b`. The first to arrive determines both the response and
-the RT. With no choice to model there is nothing to race, so what is used here is
-the **single-accumulator** version: the RT is simply that one accumulator's
-finishing time, `(b - start) / drift`, plus non-decision time. All of the RT
-variability therefore comes from across-trial variability in the start point
-(`sigmabias`, the `A` above) and in the drift rate, rather than from moment-to-moment
-noise within the trial.
-
-`sigma` is fixed to `1` rather than estimated because the evidence scale is
-arbitrary: nothing observable is measured in "units of evidence". Multiplying the
-drift rate, its standard deviation `sigma`, the start-point range `A` and the
-threshold `b` all by the same constant leaves the decision time
-`(b - start) / drift` completely unchanged, since numerator and denominator scale
-together. Only *ratios* of these parameters are identified, so exactly one of them
-has to be pinned down to fix the scale, and by convention that is the drift
-standard deviation. The remaining parameters are then read in units of the
-across-trial drift SD. Any one of the four would do equally well; `sigma` is
-chosen because it is the least interesting of them. Note that this is what
-`sigma = 1` in the formula below does - it fixes the parameter as a constant. Drop
-it and `brms` will happily *estimate* it instead, leaving the model unidentified
-and the sampler free to wander along that ridge.
-
-Fixing the evidence scale is not quite the end of the identification story. As
-the start-point range `sigmabias` shrinks toward zero the LBA converges to the
-*recinormal* - the LATER model, in which `1 / (RT - ndt)` is normally
-distributed - and it does so smoothly, which means the likelihood becomes
-**flat** in `sigmabias` once the range is small enough. On a `softplus` link
-zero sits at minus infinity, so a flat prior over a flat likelihood is an
-improper posterior, and the failure is quiet rather than loud: fitted without
-priors on these data, `sigmabias` for the speed condition ran off to
-`softplus(-10.4) = 3e-05` with `Rhat` 1.69 and an effective sample size of 6,
-while every other parameter looked fine. `cogmod_priors()` supplies weak
-`normal(0, 1)` priors on `sigmabias` and `boundary` for exactly this reason -
-the threshold is `b = sigmabias + boundary`, so the two share the ridge - which
-brings that same fit to `Rhat` 1.02, an effective sample size of 387, and a
-sensible finite estimate. This is the same argument as for `ndt` and `poutlier`
-in `vignette("outliers")`: pass `prior = cogmod_priors(f, df)`.
-
 ```{r}
-#| eval: false
-#| code-fold: false
-
-f <- bf(
-  RT ~ Condition,
-  sigmabias ~ Condition,
-  boundary ~ Condition,
-  ndt ~ Condition,
-  sigma = 1,
-  family = cogmod_lba1()
-)
-
-m_lba <- brm(
-  f,
-  data = df,
-  prior = cogmod_priors(f, df),
-  init = cogmod_inits(f, df),
-  stanvars = cogmod_stanvars(f),
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_lba <- brms::add_criterion(m_lba, "loo")
-```
-```{r}
-#| eval: false
 #| echo: false
 
-saveRDS(m_lba, file = "../models/m_lba1.rds")
+path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"
+m_loggamma <- readRDS(url(paste0(path, "m_loggamma.rds")))
 ```
 
+```{r}
+#| code-fold: false
 
+parameters::parameters(m_loggamma, test = NULL, diagnostic = NULL) |> 
+  insight::format_table() |>
+  insight::display()
+```
 
+As we can see from the table above, the `shape`'s intercept is approximately between -0.68 and -0.20, which
+suggest that the best fit lies between the LogNormal and the Inverse Weibull.
+Let's see if these results hold up by comparing all the models.
 
 ## Model Comparison
 
@@ -908,23 +1048,27 @@ m_normal <- readRDS(url(paste0(path, "m_normal.rds")))
 m_exgauss <- readRDS(url(paste0(path, "m_exgauss.rds")))
 m_lognormal <- readRDS(url(paste0(path, "m_lognormal.rds")))
 m_wald <- readRDS(url(paste0(path, "m_wald.rds")))
+m_lba <- readRDS(url(paste0(path, "m_lba1.rds")))
+m_wald4 <- readRDS(url(paste0(path, "m_wald4.rds")))
+m_exwald <- readRDS(url(paste0(path, "m_exwald.rds")))
+m_bisa <- readRDS(url(paste0(path, "m_bisa.rds")))
+m_logstudent <- readRDS(url(paste0(path, "m_logstudent.rds")))
 m_weibull <- readRDS(url(paste0(path, "m_weibull.rds")))
 m_logweibull <- readRDS(url(paste0(path, "m_logweibull.rds")))
 m_invweibull <- readRDS(url(paste0(path, "m_invweibull.rds")))
 m_gamma <- readRDS(url(paste0(path, "m_gamma.rds")))
 m_invgamma <- readRDS(url(paste0(path, "m_invgamma.rds")))
-m_loggamma <- readRDS(url(paste0(path, "m_loggamma.rds")))
-m_lba <- readRDS(url(paste0(path, "m_lba1.rds")))
 ```
 
 
 ```{r}
 #| code-fold: false
 
-loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
+loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald, m_lba,
+                 m_wald4, m_exwald, m_bisa, m_logstudent,
                  m_weibull, m_logweibull, m_invweibull,
-                 m_gamma, m_invgamma, m_loggamma,
-                 m_lba) |>
+                 m_gamma, m_invgamma, m_loggamma
+                 ) |>
   parameters(include_ENP = TRUE)
 ```
 
@@ -954,9 +1098,12 @@ fit-quality axis instead.
 ```{r}
 models <- list(
   Normal = m_normal, ExGaussian = m_exgauss, LogNormal = m_lognormal,
-  InvGaussian = m_wald, Weibull = m_weibull, LogWeibull = m_logweibull,
-  InvWeibull = m_invweibull, Gamma = m_gamma, InvGamma = m_invgamma,
-  LogGamma = m_loggamma, LBA = m_lba
+  InvGaussian = m_wald, LBA = m_lba,
+  Wald4 = m_wald4, ExWald = m_exwald, BiSa = m_bisa,
+  LogStudent = m_logstudent,
+  Weibull = m_weibull, LogWeibull = m_logweibull, InvWeibull = m_invweibull, 
+  Gamma = m_gamma, InvGamma = m_invgamma, LogGamma = m_loggamma
+  
 )
 model_levels <- names(models)
 
@@ -979,14 +1126,16 @@ quality <- do.call(rbind, lapply(model_levels, function(nm) {
 })) |>
   data_modify(Model = factor(Model, levels = model_levels))
 
-fit_summary <- merge(duration_range, quality, by = "Model")
+fit_summary <- merge(duration_range, quality, by = "Model") |> 
+  data_modify(Label = ifelse(Model == "Normal", paste0("Normal (= ", round(elpd), ")"), as.character(Model)),
+              elpd = ifelse(Model == "Normal", elpd + 1000, elpd))
 
 fit_summary |>
   ggplot(aes(x = duration_median, y = elpd, color = Model)) +
   geom_errorbar(aes(xmin = duration_min, xmax = duration_max), orientation = "y") +
-  geom_errorbar(aes(ymin = elpd - elpd_se, ymax = elpd + elpd_se), width = 0) +
+  # geom_errorbar(aes(ymin = elpd - elpd_se, ymax = elpd + elpd_se), width = 0) +
   geom_point(size = 2.5) +
-  ggrepel::geom_text_repel(aes(label = Model), size = 3.2, show.legend = FALSE) +
+  ggrepel::geom_text_repel(aes(label = Label), size = 3.2, show.legend = FALSE) +
   scale_color_material_d(guide = "none") +
   labs(
     x = "Sampling Duration per Chain (min) - median, range across the 4 chains",
@@ -1016,6 +1165,21 @@ pred <- rbind(
   estimate_prediction(m_wald, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "InvGaussian"),
+  estimate_prediction(m_lba, keep_iterations = 50, iterations = 50) |>
+    reshape_iterations() |>
+    data_modify(Model = "LBA"),
+  estimate_prediction(m_wald4, keep_iterations = 50, iterations = 50) |>
+    reshape_iterations() |>
+    data_modify(Model = "Wald-4"),
+  estimate_prediction(m_exwald, keep_iterations = 50, iterations = 50) |>
+    reshape_iterations() |>
+    data_modify(Model = "ExWald"),
+  estimate_prediction(m_bisa, keep_iterations = 50, iterations = 50) |>
+    reshape_iterations() |>
+    data_modify(Model = "BiSa"),
+  estimate_prediction(m_logstudent, keep_iterations = 50, iterations = 50) |>
+    reshape_iterations() |>
+    data_modify(Model = "LogStudent"),
   estimate_prediction(m_weibull, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "Weibull"),
@@ -1033,15 +1197,13 @@ pred <- rbind(
     data_modify(Model = "InvGamma"),
   estimate_prediction(m_loggamma, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
-    data_modify(Model = "LogGamma"),
-  estimate_prediction(m_lba, keep_iterations = 50, iterations = 50) |>
-    reshape_iterations() |>
-    data_modify(Model = "LBA") 
+    data_modify(Model = "LogGamma")
 ) |>
   data_modify(Model = factor(Model, levels = c("Normal", "ExGaussian", "LogNormal", "InvGaussian", 
+                                               "LBA", "Wald-4", "ExWald", "BiSa", "LogStudent",
                                                "Weibull", "LogWeibull", "InvWeibull", 
-                                               "Gamma", "InvGamma", "LogGamma", 
-                                               "LBA")))
+                                               "Gamma", "InvGamma", "LogGamma" 
+                                               )))
 
 p <- pred |>
   data_filter(iter_value < 2) |> 
@@ -1081,6 +1243,16 @@ rez <- rbind(
     data_modify(Model = "LogNormal"),
   parameters::parameters(m_wald, test = NULL, diagnostic = NULL) |>
     data_modify(Model = "InvGaussian"),
+  parameters::parameters(m_lba, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "LBA"),
+  parameters::parameters(m_wald4, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "Wald-4"),
+  parameters::parameters(m_exwald, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "ExWald"),
+  parameters::parameters(m_bisa, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "BiSa"),
+  parameters::parameters(m_logstudent, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "LogStudent"),
   parameters::parameters(m_weibull, test = NULL, diagnostic = NULL) |>
     data_modify(Model = "Weibull"),
   parameters::parameters(m_logweibull, test = NULL, diagnostic = NULL) |>
@@ -1092,14 +1264,13 @@ rez <- rbind(
   parameters::parameters(m_invgamma, test = NULL, diagnostic = NULL) |>
     data_modify(Model = "InvGamma"),
   parameters::parameters(m_loggamma, test = NULL, diagnostic = NULL) |>
-    data_modify(Model = "LogGamma"),
-  parameters::parameters(m_lba, test = NULL, diagnostic = NULL) |>
-    data_modify(Model = "LBA") 
+    data_modify(Model = "LogGamma")
 ) |>
   data_modify(Model = factor(Model, levels = c("Normal", "ExGaussian", "LogNormal", "InvGaussian", 
+                                               "LBA", "Wald-4", "ExWald", "BiSa", "LogStudent",
                                                "Weibull", "LogWeibull", "InvWeibull", 
-                                               "Gamma", "InvGamma", "LogGamma", 
-                                               "LBA")))
+                                               "Gamma", "InvGamma", "LogGamma" 
+                                               )))
 
 rez |> 
   filter(grepl("ConditionSpeed", Parameter)) |>
@@ -1120,6 +1291,9 @@ rez |>
 ## Real Data
 
 ```{r}
+#| eval: false
+#| echo: true
+
 df_srt <- read.csv("https://raw.githubusercontent.com/RealityBending/DoggoNogoValidation/refs/heads/main/data/data_simpleRT.csv") |> 
   filter(RT > 0)
 
@@ -1132,6 +1306,13 @@ df_srt |>
 ```
 
 ### Model Selection
+
+```{r}
+#| eval: false
+#| echo: false
+
+path_doggonogo <- "C:/Users/domma/Dropbox/RECHERCHE/Studies/DoggoNogoValidation/analysis/models/"
+```
 
 
 ::: {.panel-tabset}
@@ -1155,7 +1336,7 @@ m_normal <- brms::add_criterion(m_normal, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_normal, file = "../models_large/m_srt_normal.rds")
+saveRDS(m_normal, file = paste0(path_doggonogo, "/m_srt_normal.rds"))
 ```
 
 #### ExGaussian
@@ -1186,7 +1367,7 @@ m_exgauss <- brms::add_criterion(m_exgauss, "loo")
 #| eval: false
 #| echo: false
 
-saveRDS(m_exgauss, file = "../models_large/m_srt_exgauss.rds")
+saveRDS(m_exgauss, file = paste0(path_doggonogo, "/m_srt_exgauss.rds"))
 ```
 
 
@@ -1199,11 +1380,15 @@ saveRDS(m_exgauss, file = "../models_large/m_srt_exgauss.rds")
 #| echo: false
 #| eval: false
 
-m_normal <- readRDS(url(paste0(path, "../models_large/m_srt_normal.rds")))
-m_exgauss <- readRDS(url(paste0(path, "../models_large/m_srt_exgauss.rds")))
+m_normal <- readRDS(path, "../models_large/m_srt_normal.rds")
+m_exgauss <- readRDS(path, "../models_large/m_srt_exgauss.rds")
 ```
 
 ```{r}
+#| echo: false
+#| eval: false
+
+
 models <- list(
   Normal = m_normal, ExGaussian = m_exgauss
 )

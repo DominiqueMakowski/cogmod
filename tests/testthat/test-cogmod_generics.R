@@ -196,6 +196,46 @@ test_that("cogmod_priors returns rows that match real parameters", {
   expect_true(any(p$dpar == "ndt" & p$class == "Intercept" & nzchar(p$prior)))
 })
 
+# cogmod_exgaussian is not on the ndt + poutlier mixture, but `sigma` and `tau`
+# are still lengths of time in seconds behind a softplus link. `tau` arrives from
+# brms flat; `sigma` arrives with a student_t(3, 0, 2.5) it supplies because it
+# recognises the name, which has to be *overridden* rather than filled.
+test_that("cogmod_priors sets sigma and tau for cogmod_exgaussian", {
+  set.seed(3)
+  d <- data.frame(
+    RT = rcogmod_exgaussian(200, mu = 0.4, sigma = 0.1, tau = 0.2),
+    Condition = factor(rep(c("a", "b"), length.out = 200)),
+    id = factor(rep(1:10, length.out = 200))
+  )
+
+  f <- brms::bf(RT ~ Condition, sigma ~ Condition, tau ~ Condition,
+                family = cogmod_exgaussian())
+  p <- expect_silent(cogmod_priors(f, d))
+  pick <- function(cls, dpar, coef = "") {
+    p$prior[p$class == cls & p$dpar == dpar & p$coef == coef]
+  }
+  expect_equal(pick("Intercept", "sigma"), "normal(-2.3, 0.7)")
+  expect_equal(pick("Intercept", "tau"), "normal(-1.5, 0.7)")
+  expect_equal(pick("b", "sigma"), "normal(0, 0.5)")
+  expect_equal(pick("b", "tau"), "normal(0, 0.5)")
+  # mu is the response's own intercept and brms already gives it a proper
+  # student_t, so it is left exactly as it was.
+  expect_equal(pick("Intercept", ""), "student_t(3, 0, 2.5)")
+  expect_equal(pick("b", ""), "")
+
+  # Omitted from bf(), both live on the natural scale instead.
+  f2 <- brms::bf(RT ~ Condition, family = cogmod_exgaussian())
+  p2 <- expect_silent(cogmod_priors(f2, d))
+  expect_equal(p2$prior[p2$class == "sigma"], "lognormal(-2.3, 0.7)")
+  expect_equal(p2$prior[p2$class == "tau"], "lognormal(-1.5, 0.7)")
+
+  # A family that is genuinely unsupported still messages and passes through.
+  expect_message(
+    cogmod_priors(brms::bf(RT ~ Condition, family = brms::brmsfamily("gaussian")), d),
+    "nothing to add"
+  )
+})
+
 
 # Stan declaration parsing ------------------------------------------------
 
@@ -289,18 +329,84 @@ test_that("the generics survive complex model specifications", {
     expect_true(all(vapply(vals, function(v) all(is.finite(v)), logical(1))),
                 label = paste("finite inits for", nm))
 
-    # cogmod_exgaussian is passed through with a message by design; everything else
-    # has to be silent, including the validate_prior() call inside.
-    p <- if (identical(nm, "exgaussian")) {
-      suppressMessages(cogmod_priors(f, dc))
-    } else {
-      expect_silent(cogmod_priors(f, dc))
-    }
+    # Silent, including the validate_prior() call inside.
+    p <- expect_silent(cogmod_priors(f, dc))
     # ...and brms must not warn that one of those rows goes unused.
     expect_silent(
       brms::make_stancode(f, data = dc, family = f$family, prior = p,
                           stanvars = cogmod_stanvars(f))
     )
+  }
+})
+
+
+test_that("cogmod_inits and cogmod_priors cover every shifted family", {
+  # The block above sweeps model *specifications* past one or two families.
+  # This one sweeps every *family* past the two specifications that matter,
+  # because the two forms a dpar can take are where these generics go wrong: a
+  # dpar written in bf() lives on its link scale and reaches get_prior() as a
+  # class "Intercept" row, while a dpar left out of bf() is declared by brms as
+  # a plain auxiliary parameter on the natural scale, under a class of its own
+  # name. A registry entry that gives a dpar only one of the two, or spells it
+  # differently in the `prior` slot than in `dpars`, is invisible until someone
+  # fits that family that way round.
+  set.seed(3)
+  n <- 200
+  ds <- data.frame(
+    RT = rcogmod_lognormal(n, ndt = 0.2, poutlier = 0.02),
+    Condition = factor(rep(c("a", "b"), length.out = n)),
+    id = factor(rep(1:10, length.out = n))
+  )
+
+  for (nm in names(cogmod:::.SHIFTED)) {
+    spec <- cogmod:::.shifted_spec(nm)
+    fam <- get(nm)()
+    # cogmod_lba1()'s evidence scale has no unit, so one of its four dpars has
+    # to be pinned or cogmod_stanvars() warns about the ray. `sigma = 1` is the
+    # convention, and it is what the family is actually fitted with.
+    pinned <- if (is.null(spec$scale_ray)) character(0) else "sigma"
+    pin <- stats::setNames(as.list(rep(1, length(pinned))), pinned)
+    specs <- list(
+      omitted = do.call(brms::bf, c(list(RT ~ Condition), pin,
+                                    list(family = fam))),
+      modelled = do.call(brms::bf, c(
+        list(RT ~ Condition),
+        lapply(setdiff(fam$dpars, c("mu", pinned)),
+               function(x) stats::as.formula(paste(x, "~ Condition"))),
+        pin, list(family = fam)
+      ))
+    )
+
+    # Whatever the family fences for itself, plus the two the parameterization
+    # adds and the `shape` of .SHIFTED_BASE_PRIORS where the family has one.
+    fenced <- c(names(spec$prior), "ndt", "poutlier",
+                intersect("shape", spec$dpars))
+
+    for (s in names(specs)) {
+      f <- specs[[s]]
+      lab <- paste(nm, s)
+
+      vals <- cogmod_inits(f, ds)(1)
+      expect_setequal(names(vals), declared_params(f, ds))
+      expect_true(all(vapply(vals, function(v) all(is.finite(v)), logical(1))),
+                  label = paste("finite inits for", lab))
+
+      p <- expect_silent(cogmod_priors(f, ds))
+      for (dp in fenced) {
+        row <- if (s == "modelled") {
+          p$prior[p$class == "Intercept" & p$dpar == dp]
+        } else {
+          p$prior[p$class == dp & p$dpar == ""]
+        }
+        expect_length(row, 1)
+        expect_true(nzchar(row), label = paste("prior for", dp, "in", lab))
+      }
+      # and none of those rows may match a parameter the model does not have
+      expect_silent(
+        brms::make_stancode(f, data = ds, family = f$family, prior = p,
+                            stanvars = cogmod_stanvars(f))
+      )
+    }
   }
 })
 

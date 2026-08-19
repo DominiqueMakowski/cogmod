@@ -55,6 +55,97 @@
 
 ## New features
 
+* New family **`cogmod_exwald()`** ([Schwarz, 2001](https://doi.org/10.3758/bf03195403)):
+  the decision time is a Wald convolved with an exponential residual stage of
+  mean `tau` - the mechanistic counterpart of `cogmod_exgaussian()`, whose first
+  stage is a descriptive Gaussian instead, with `tau` meaning the same thing in
+  both. The mean exists and is `ndt + boundary / mu + tau`, so
+  `posterior_epred()` returns a number.
+
+  The density has two branches, **both exact**. Where `mu^2 > 2 / tau` the
+  convolution collapses to a closed form in the Wald CDF; below that - which is
+  the common regime, since at a drift of 3 and a threshold of 0.5 the closed form
+  needs `tau > 0.22 s` - the same expression continues analytically through the
+  Faddeeva function, giving
+  `g * exp(-(boundary - mu * t)^2 / (2 * t)) * Re[w(z)]`. The exponent is the
+  Wald's own, so nothing overflows, and the branches meet exactly at
+  `mu^2 = 2 / tau`. Across a grid spanning the usual RT region the density
+  integrates to 1 to within 8e-12, the mean is right to 3e-9, and the relative
+  step across the branch seam is 5e-8.
+
+  Note there is deliberately no `sigmadrift`: it and `tau` both fatten the right
+  tail and are very hard to tell apart, and `cogmod_invgaussian()` is where the
+  drift-variability route lives. `ndt` and `tau` also share a ridge - both delay
+  the response, and only the shape of the leading edge separates them - so
+  `cogmod_priors()` gives `tau` the same `normal(-1.5, 0.7)` it gives
+  `cogmod_exgaussian()`. Fixing `ndt = 0` in `bf()` recovers Schwarz's own model.
+
+* New family **`cogmod_bisa()`**, the Birnbaum-Saunders or fatigue-life
+  distribution ([Birnbaum & Saunders,
+  1969](https://doi.org/10.2307/3212003)): a first-passage-time model in which
+  evidence arrives in **discrete cycles and only ever towards the boundary** -
+  what is random is the size of each increment, never its sign. Summing those
+  increments and applying the CLT, then treating the cycle count as continuous,
+  gives the first-crossing time.
+
+  It is parameterized mechanistically, as `mu` (drift) and `boundary`
+  (threshold), so it sits directly alongside `cogmod_invgaussian()` with the
+  parameters meaning the same thing and only the mode of accumulation differing.
+  Fixing the per-cycle SD at 1 is the same convention that fixes the Wald's
+  diffusion coefficient, and it makes `(mu * t - boundary) / sqrt(t)` **exactly**
+  standard normal - the usual `(1 / a) * (sqrt(t / b) - sqrt(b / t))` written in
+  these parameters, with `b = boundary / mu` and `a = 1 / sqrt(mu * boundary)`.
+  The map between the two is a bijection, so nothing is given up.
+
+  Everything is then closed form, and the density is the Wald's own tilted by
+  `(mu * t + boundary) / (2 * boundary)` - one sign apart from it. That tilt
+  makes the family an **equal mixture of an inverse Gaussian and its
+  length-biased twin**, so at the same `(mu, boundary)` it is slower and more
+  dispersed than the Wald (mean 0.222 s against 0.167, SD 0.184 against 0.136 at
+  `mu = 3, boundary = 0.5`), while keeping the same exponential-order right
+  tail. `E[T] = ndt + boundary / mu + 1 / (2 * mu^2)` is always finite, so
+  `posterior_epred()` returns a number, and the median is exactly
+  `ndt + boundary / mu`. There is no `sigmadrift`: the extra dispersion comes
+  from the mixture structure at no cost in parameters, and drift variability is
+  what `cogmod_invgaussian()` is for.
+
+  It is also the cheapest first-passage density in the package - one log and one
+  square, no branch and no special function - and `rcogmod_bisa()` is one normal
+  draw per observation, exact, with no rejection step.
+
+* New family **`cogmod_logstudent()`**: `log(RT - ndt)` follows a Student-t, a
+  robust LogNormal that varies kurtosis where `cogmod_loggamma()` varies skew.
+  The heavy tail absorbs slow contaminants into the likelihood rather than into
+  a mixture component, which matters because the `poutlier` component is a half
+  Normal and by construction cannot explain a slow response. At `dof = 5` the
+  probability of a decision time beyond 5 s is about five orders of magnitude
+  larger than the matching LogNormal's.
+
+  The degrees of freedom are called **`dof`**, not `nu`: `cogmod_lnr()` already
+  spends `nuzero`/`nuone` on drift rates, and `brms` recognises the name `nu`
+  and supplies defaults of its own for it.
+
+  Two things to know. **The mean does not exist** for any finite `dof`, so
+  `posterior_epred()` errors rather than returning a number; the median is exact
+  at `ndt + exp(mu)`. And **the density is unbounded at `ndt`** - integrable, so
+  the posterior stays proper, but the likelihood has no maximum, which is one
+  more reason `cogmod_priors()` is not optional. A Student-t is also symmetric
+  on the log scale, so a small `dof` fattens the fast tail as well as the slow
+  one and competes with `poutlier`; `cogmod_priors()` centres `dof` at 6 with
+  95% of its mass between 1.5 and 24 to keep that in check.
+
+* `cogmod_priors()` now supports **`cogmod_exgaussian()`**, where before it
+  returned the `brms` defaults with a message. `sigma` and `tau` are both
+  lengths of time in seconds behind a `softplus` link, which `brms` has no way
+  to know: `tau` arrives flat, and `sigma` arrives with the
+  `student_t(3, 0, 2.5)` that `brms` supplies because it recognises the *name* -
+  a Gaussian SD centred on 0.69 s modelled, 1.9 s omitted, wider than most whole
+  RT distributions. They now get `normal(-2.3, 0.7)` and `normal(-1.5, 0.7)` on
+  the link scale (roughly 25-330 ms for `sigma`, 55-630 ms for `tau`), and the
+  matching `lognormal` when the dpar is left out of `bf()` altogether. `mu` is
+  deliberately untouched: it is the response's own intercept and the `brms`
+  default is already proper and reasonable there.
+
 * `cogmod_invgaussian()` gains **`sigmadrift`**, the between-trial SD of the
   drift rate. Above zero, each trial draws its own drift from a
   `Normal(mu, sigmadrift)` truncated at zero, which is what lets the Wald

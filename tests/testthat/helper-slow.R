@@ -1,7 +1,7 @@
 # Opt-in gate for the model-fitting tests
 # =======================================
 #
-# Six blocks in the suite fit a real model with `brms::brm()`. Each compiles its
+# Nine blocks in the suite fit a real model with `brms::brm()`. Each compiles its
 # own Stan program, which on Windows costs more than every other test in the
 # file put together, and they are the reason a full run takes the better part of
 # an hour. They are worth having - they are the only end-to-end check that a

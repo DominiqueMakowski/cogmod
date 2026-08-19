@@ -38,8 +38,11 @@ reference:
     - title: "RT-only Models"
       contents:
           - rcogmod_lognormal
+          - rcogmod_logstudent
           - rcogmod_loggamma
           - rcogmod_invgaussian
+          - rcogmod_exwald
+          - rcogmod_bisa
           - rcogmod_gamma
           - rcogmod_invgamma
           - rcogmod_weibull
