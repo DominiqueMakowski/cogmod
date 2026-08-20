@@ -166,9 +166,10 @@ bias it. \code{?rcogmod_weibull} sets out what to do instead.
 }
 
 \section{The ex-Gaussian}{
-\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} has neither \code{ndt} nor \code{poutlier}, but it does have two
-parameters that are lengths of time in \strong{seconds} behind a \code{softplus} link,
-and \code{brms} has no way to know that. \code{sigma} and \code{tau} are set; \code{mu} is not.\tabular{lll}{
+\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} has neither \code{ndt} nor \code{poutlier}, but all three of its
+parameters are lengths of time in \strong{seconds}, and \code{brms} has no way to know
+that. \code{sigma} and \code{tau} sit behind a \code{softplus} link; \code{mu} is on \code{identity}.
+All three intercepts are set.\tabular{lll}{
    class \tab \code{sigma} \tab \code{tau} \cr
    \code{Intercept}, or \code{b} on a coefficient named \code{Intercept} \tab \code{normal(-2.3, 0.7)} \tab \code{normal(-1.5, 0.7)} \cr
    \code{b} (slopes) \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \cr
@@ -190,11 +191,17 @@ families - centred on \verb{softplus(0) = 0.69 s}, a Gaussian SD wider than most
 whole RT distributions. That one is overridden rather than filled, the same
 treatment \code{shape} and an omitted \code{ndt} get above.
 
-\code{mu} is left alone deliberately. It is the response's own intercept, and
-\code{brms}'s \code{student_t(3, 0, 2.5)} is proper and a reasonable weakly informative
-statement for a location on this link. Note it is the centre of the Gaussian
-component \strong{alone}, so the mean of the distribution it implies is
-\code{mu + tau}; see \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}.
+\code{mu} gets \code{normal(0.4, 0.25)} on its own intercept - 95\% of the mass between
+-0.09 and 0.89 s. It used to be left to \code{brms}, whose \code{student_t(3, 0, 2.5)}
+is a fair statement about a location on a \code{softplus} link (median 0.69 s) but
+not on the \code{identity} link \code{mu} now uses, where it is centred on zero seconds
+and puts a Gaussian centre of -2 s on a par with one of +2 s. The prior does
+\strong{not} exclude negative values: \code{mu} is a location, and for fast
+heavily-tailed data the Gaussian component genuinely belongs near or below
+zero with \code{tau} carrying the mass. Only the intercept is set - the response's
+slopes are the effects being estimated, and are left to \code{brms}. Note that \code{mu}
+is the centre of the Gaussian component \strong{alone}, so the mean of the
+distribution it implies is \code{mu + tau}; see \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}.
 }
 
 \section{Parameters left out of the formula}{
@@ -221,6 +228,7 @@ lives on:\tabular{lll}{
    \code{sigmazero}, \code{sigmaone} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
    \code{dof} (\code{\link[=cogmod_logstudent]{cogmod_logstudent()}}) \tab \code{normal(1.8, 0.7)} \tab \code{lognormal(1.8, 0.7)} \cr
    \code{tau} (\code{\link[=cogmod_exwald]{cogmod_exwald()}}) \tab \code{normal(-1.5, 0.7)} \tab \code{lognormal(-1.5, 0.7)} \cr
+   \code{mu} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(0.4, 0.25)} \tab - (always modelled) \cr
    \code{sigma} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(-2.3, 0.7)} \tab \code{lognormal(-2.3, 0.7)} \cr
    \code{tau} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(-1.5, 0.7)} \tab \code{lognormal(-1.5, 0.7)} \cr
 }

@@ -2,6 +2,41 @@
 
 ## Breaking changes
 
+* **`cogmod_exgaussian()`'s `mu` is now on an `identity` link** and is
+  unbounded, where it was on `softplus` with a lower bound of zero. `sigma` and
+  `tau` are unchanged.
+
+  `mu` is the **location** of the Gaussian component, not a scale. The
+  convolution is well defined for any real value - the density integrates to one
+  at `mu = 0` and below - and the Stan `lpdf` has always agreed, checking only
+  `sigma` and `tau`. The old bound lived in `.prepare_exgaussian()` and in the
+  family declaration alone, so the R functions were refusing inputs the sampler
+  would happily fit.
+
+  Two things were wrong with constraining it. Interpretability, which is most of
+  the point of the ex-Gaussian: behind `softplus` a coefficient is not in
+  seconds, and the conversion factor moves with the intercept - the local slope
+  is 0.33 at `mu = 0.4` s, 0.39 at 0.5 s and 0.63 at 1 s, so the same effect
+  reads as a different number depending on where the intercept sits. And
+  fidelity: for fast, heavily-tailed data the Gaussian component genuinely
+  belongs near or below zero with `tau` carrying the mass, and forcing `mu > 0`
+  distorts the `mu`/`tau` split in exactly the cases where that decomposition is
+  the quantity being estimated. `identity` also matches every other
+  implementation - `brms`'s own `exgaussian()`, `retimes`, and the estimates in
+  the literature - so fitted values are now directly comparable.
+
+  **What to change.** Coefficients on `mu` are now in seconds and are not
+  comparable to values from an earlier fit; refit rather than reinterpret. Pass
+  `cogmod_exgaussian(link_mu = "softplus")` to keep the old behaviour.
+
+* **`cogmod_priors()` now sets a prior on `cogmod_exgaussian()`'s `mu`
+  intercept**, `normal(0.4, 0.25)`. It previously left `mu` to `brms`, whose
+  `student_t(3, 0, 2.5)` was a fair statement on the softplus scale (median
+  0.69 s) but on `identity` is centred on zero seconds and rates a Gaussian
+  centre of -2 s as plausible as one of +2 s. The prior deliberately does not
+  exclude negative values. Only the intercept is set; the response's slopes are
+  the effects being estimated and are left alone.
+
 * The **outlier component is now a half Normal with a fixed scale of 0.2 s**,
   where it was a half Student-t with 3 degrees of freedom and a user-supplied
   scale. Two things changed, for one reason.
@@ -125,6 +160,38 @@
 # cogmod 0.2.1
 
 ## New features
+
+* **`sigmabias = 0` is now allowed in `cogmod_lba1()` and `cogmod_lba2()`**, and
+  in the single-accumulator case it is the **recinormal**, or LATER, model of
+  [Carpenter & Williams (1995)](https://doi.org/10.1038/377059a0): the
+  accumulator starts at zero on every trial, so the decision time is
+  `boundary / drift` and `1 / (RT - ndt)` is normally distributed, with `mu` and
+  `sigma` the mean and SD of *promptness*. Zero was previously rejected as an
+  invalid parameter; it is a nested model, and the bound is now closed for the
+  same reason `cogmod_invgaussian()`'s `sigmadrift` and `cogmod_ddm()`'s three
+  between-trial variabilities are.
+
+  ```r
+  bf(rt ~ 1, sigmabias = 0, boundary = 1)  # free: mu, sigma
+  ```
+
+  Nothing about the density had to change for this to be exact - at
+  `sigmabias = 0` the existing Taylor branch evaluates to
+  `dnorm(b / t, mu, sigma) * b / t^2 / pnorm(mu / sigma)` to machine precision,
+  in R and in Stan alike - so the two models share one likelihood and
+  `loo_compare()` between them is like-for-like.
+
+  This matters beyond nesting. Estimating `sigmabias` freely is treacherous
+  precisely *because* the recinormal limit is smooth: the likelihood goes flat
+  as the start-point range shrinks, and `softplus` reaches zero only at minus
+  infinity, so `cogmod_priors()` has to fence the direction off. Pinning it at
+  zero removes the parameter instead, which is the honest option when the design
+  cannot identify a start-point range.
+
+  Note that **two** pins are now needed for the evidence scale, not one:
+  scaling multiplies every member of the scale ray by a common constant and
+  leaves zero at zero, so `sigmabias = 0` drops off the ray rather than pinning
+  it. `cogmod_stanvars()` says so explicitly when that is the only fix present.
 
 * New family **`cogmod_exwald()`** ([Schwarz, 2001](https://doi.org/10.3758/bf03195403)):
   the decision time is a Wald convolved with an exponential residual stage of

@@ -55,11 +55,18 @@
 # exactly what makes this quiet: the fit converges, `pp_check()` looks right,
 # and only the parameter estimates are meaningless.
 #
-# Fixing any ONE member of the ray pins it - `sigmazero = 1` conventionally,
-# but `boundary = 1` or `sigmabias = 0.5` do the job just as well. Omitting a
-# dpar from `bf()` does NOT: brms then declares it as a free auxiliary
-# parameter, which leaves the ray exactly as free as before. That distinction
-# is the whole reason this looks at `$pfix` rather than at `$pforms`.
+# Fixing any ONE member of the ray at a NON-ZERO value pins it - `sigmazero = 1`
+# conventionally, but `boundary = 1` or `sigmabias = 0.5` do the job just as
+# well. Two things that look like they should pin it do not:
+#
+#   - Omitting a dpar from `bf()`. brms then declares it as a free auxiliary
+#     parameter, which leaves the ray exactly as free as before. That
+#     distinction is why this looks at `$pfix` rather than at `$pforms`.
+#   - Fixing one at ZERO. Scaling multiplies every member by c and c * 0 = 0, so
+#     zero is the one value the ray runs through unchanged. `sigmabias = 0` is
+#     the recinormal (LATER), and it is a genuinely useful thing to write - but
+#     it removes a parameter from the ray rather than pinning the ray, and the
+#     remaining members still need one of their own.
 #
 # `.warn_scale_ray()` is called from cogmod_stanvars(), which is the one of the
 # three generics a fit cannot skip.
@@ -74,13 +81,35 @@
   # `mu` is the response's own formula, so it is never in $pfix and cannot be
   # the one the user pinned. It stays in `ray` because it is genuinely on the
   # ray - it just is not a way out of it.
-  if (length(intersect(names(formula$pfix), ray))) return(invisible(NULL))
+  pinned <- formula$pfix[intersect(names(formula$pfix), ray)]
+  # Anything that is not a single number counts as a pin, which is what this
+  # did before the zero case was carved out: only an unambiguous zero is
+  # treated as failing to pin.
+  pins <- vapply(pinned, function(v) {
+    num <- tryCatch(suppressWarnings(as.numeric(v)),
+                    error = function(e) NA_real_)
+    length(num) != 1 || is.na(num) || num != 0
+  }, logical(1))
+  if (any(pins)) return(invisible(NULL))
 
+  # The message spells the invariance out rather than naming it. "The evidence
+  # scale is arbitrary" means nothing to someone who has not already worked out
+  # what is wrong; "multiplying these four by a common constant leaves the
+  # likelihood unchanged" is the same fact in a form the reader can check.
   sd <- if (identical(fam, "cogmod_lba1")) "sigma" else "sigmazero"
+  zero <- names(pins)[!pins]
   warning(
-    fam, "(): the evidence scale is arbitrary, so either `", sd,
-    "` (conventional) or `boundary` has to be fixed. Add `", sd,
-    " = 1` to the formula. See ?", sub("^cogmod_", "rcogmod_", fam), ".",
+    fam, "(): the evidence scale is arbitrary - multiplying ",
+    paste0("`", ray, "`", collapse = ", "),
+    " by a common constant leaves the likelihood exactly unchanged - so one of",
+    " them has to be fixed to a non-zero value. Add `", sd,
+    " = 1` to the formula.",
+    if (length(zero)) {
+      paste0(" `", zero[1], " = 0` does not count: zero times any constant is",
+             " still zero, so fixing it constrains nothing and the others stay",
+             " free to scale.")
+    } else "",
+    " See ?", sub("^cogmod_", "rcogmod_", fam), ".",
     call. = FALSE
   )
   invisible(NULL)

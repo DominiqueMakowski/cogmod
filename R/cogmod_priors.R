@@ -149,9 +149,10 @@
 #'
 #' # The ex-Gaussian
 #'
-#' [cogmod_exgaussian()] has neither `ndt` nor `poutlier`, but it does have two
-#' parameters that are lengths of time in **seconds** behind a `softplus` link,
-#' and `brms` has no way to know that. `sigma` and `tau` are set; `mu` is not.
+#' [cogmod_exgaussian()] has neither `ndt` nor `poutlier`, but all three of its
+#' parameters are lengths of time in **seconds**, and `brms` has no way to know
+#' that. `sigma` and `tau` sit behind a `softplus` link; `mu` is on `identity`.
+#' All three intercepts are set.
 #'
 #' | class | `sigma` | `tau` |
 #' | --- | --- | --- |
@@ -173,11 +174,17 @@
 #' whole RT distributions. That one is overridden rather than filled, the same
 #' treatment `shape` and an omitted `ndt` get above.
 #'
-#' `mu` is left alone deliberately. It is the response's own intercept, and
-#' `brms`'s `student_t(3, 0, 2.5)` is proper and a reasonable weakly informative
-#' statement for a location on this link. Note it is the centre of the Gaussian
-#' component **alone**, so the mean of the distribution it implies is
-#' `mu + tau`; see [cogmod_exgaussian()].
+#' `mu` gets `normal(0.4, 0.25)` on its own intercept - 95% of the mass between
+#' -0.09 and 0.89 s. It used to be left to `brms`, whose `student_t(3, 0, 2.5)`
+#' is a fair statement about a location on a `softplus` link (median 0.69 s) but
+#' not on the `identity` link `mu` now uses, where it is centred on zero seconds
+#' and puts a Gaussian centre of -2 s on a par with one of +2 s. The prior does
+#' **not** exclude negative values: `mu` is a location, and for fast
+#' heavily-tailed data the Gaussian component genuinely belongs near or below
+#' zero with `tau` carrying the mass. Only the intercept is set - the response's
+#' slopes are the effects being estimated, and are left to `brms`. Note that `mu`
+#' is the centre of the Gaussian component **alone**, so the mean of the
+#' distribution it implies is `mu + tau`; see [cogmod_exgaussian()].
 #'
 #' # Parameters left out of the formula
 #'
@@ -206,6 +213,7 @@
 #' | `sigmazero`, `sigmaone` ([cogmod_lnr()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 #' | `dof` ([cogmod_logstudent()]) | `normal(1.8, 0.7)` | `lognormal(1.8, 0.7)` |
 #' | `tau` ([cogmod_exwald()]) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
+#' | `mu` ([cogmod_exgaussian()]) | `normal(0.4, 0.25)` | - (always modelled) |
 #' | `sigma` ([cogmod_exgaussian()]) | `normal(-2.3, 0.7)` | `lognormal(-2.3, 0.7)` |
 #' | `tau` ([cogmod_exgaussian()]) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
 #'
@@ -343,13 +351,26 @@ cogmod_priors <- function(formula, data, ...) {
   # - a lognormal with the same numbers lands in almost the same place:
   # lognormal(-2.3, 0.7) has median 0.100 against softplus's 0.096.
   #
-  # `mu` is deliberately absent. It is the response's own intercept, brms gives
-  # it a proper student_t(3, 0, 2.5), and unlike `sigma` and `tau` that is a
-  # reasonable weakly informative statement for a Gaussian centre on the softplus
-  # scale (median 0.69 s). Note it is the centre of the Gaussian component alone,
-  # so the distribution it implies has mean `mu + tau`; see ?rcogmod_exgaussian.
+  # `mu` used to be left to brms, on the grounds that student_t(3, 0, 2.5) is a
+  # reasonable statement about a Gaussian centre on the SOFTPLUS scale, where it
+  # has a median of 0.69 s. `mu` is on an identity link now, and the same prior
+  # there is centred on zero seconds with a scale of 2.5 s - it says a Gaussian
+  # component centred at -2 s is as plausible as one at +2 s. So it needs one of
+  # its own, and gets normal(0.4, 0.25): 95% of its mass in -0.09 to 0.89 s.
+  #
+  # Note it deliberately does NOT exclude negative values. `mu` is a location,
+  # and for fast heavily-tailed data the Gaussian component genuinely belongs
+  # near or below zero with `tau` carrying the mass - the prior is there to say
+  # where RT data usually sit, not to reimpose the constraint the identity link
+  # was chosen to remove. Note also that it is the centre of the Gaussian
+  # component alone, so the distribution it implies has mean `mu + tau`; see
+  # ?rcogmod_exgaussian.
+  #
+  # Only the intercept is set. The response's slopes are left to brms, because
+  # they are the effects the model is being fitted to estimate.
   cogmod_exgaussian = list(
     prior = list(
+      mu = c(link = "normal(0.4, 0.25)"),
       sigma = c(link = "normal(-2.3, 0.7)", nat = "lognormal(-2.3, 0.7)",
                 slope = "normal(0, 0.5)"),
       tau = c(link = "normal(-1.5, 0.7)", nat = "lognormal(-1.5, 0.7)",
@@ -457,10 +478,30 @@ cogmod_priors <- function(formula, data, ...) {
   # non-empty, so they have to be replaced rather than filled.
   link <- link | (p$dpar %in% override & p$class == "Intercept")
 
-  fill <- aux | link
+  # `mu` is the response's own linear predictor, so brms reports it with an
+  # EMPTY dpar - class "Intercept", or class "b" with coef "Intercept" under
+  # `0 + Intercept` - and neither branch above can see it. A family that names a
+  # `mu` prior in its registry slot is asking for that row specifically, and
+  # only cogmod_exgaussian() does: its `mu` is on an identity link, where brms's
+  # student_t(3, 0, 2.5) is centred on zero seconds. Every other family leaves
+  # `mu` to brms and is unaffected, because none of them names one.
+  #
+  # Only the INTERCEPT is taken, never the slopes. The response's slopes are the
+  # effects the user is there to estimate; shrinking them with a blanket prior
+  # is a different decision from giving the intercept a sensible location, and
+  # not one this function should make on its own.
+  resp <- ("mu" %in% dpars) & !nzchar(p$dpar) &
+    (p$class == "Intercept" | (p$class == "b" & p$coef == "Intercept"))
+
+  fill <- aux | link | resp
   if (!any(fill)) {
     return(brms::empty_prior())
   }
+  # The dpar to look the prior up under. It is `p$dpar` for everything except
+  # the response rows above, whose dpar is empty by construction.
+  target <- p$dpar
+  target[resp] <- "mu"
+  target <- target[fill]
   aux <- aux[fill]
   p <- p[fill, , drop = FALSE]
 
@@ -472,10 +513,10 @@ cogmod_priors <- function(formula, data, ...) {
       if (aux[i]) return(.own_prior(own, cls, "nat"))
       intercept <- cls == "Intercept" || (cls == "b" && p$coef[i] == "Intercept")
       if (intercept) {
-        .own_prior(own, p$dpar[i], "link")
+        .own_prior(own, target[i], "link")
       } else if (cls == "b") {
         # a family may widen the blanket slope prior for a dpar of its own
-        slope <- .own_prior(own, p$dpar[i], "slope")
+        slope <- .own_prior(own, target[i], "slope")
         if (nzchar(slope)) slope else slope_default
       } else if (cls %in% c("sd", "sds")) {
         "exponential(1)"

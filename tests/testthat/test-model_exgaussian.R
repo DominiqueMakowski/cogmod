@@ -110,7 +110,9 @@ test_that("cogmod_exgaussian() builds a valid brms custom family", {
     expect_identical(fam$dpars, c("mu", "sigma", "tau"))
     expect_identical(
         unname(c(fam$link, fam$link_sigma, fam$link_tau)),
-        c("softplus", "softplus", "softplus")
+        c("identity", "softplus", "softplus")
     )
-    expect_equal(fam$lb, list(mu = "0", sigma = "0", tau = "0"))
+    # `mu` is a location, not a scale, so it is unbounded - the convolution is
+    # defined for any real value and the Stan lpdf only ever checked the two SDs
+    expect_equal(fam$lb, list(mu = NA_character_, sigma = "0", tau = "0"))
 })

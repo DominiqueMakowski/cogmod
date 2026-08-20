@@ -161,7 +161,9 @@
 #'   Must be positive.
 #' @param sigmabias Maximum starting point. The starting point of each
 #'   accumulator on each trial is drawn from `Uniform(0, sigmabias)`. Must be
-#'   positive.
+#'   non-negative; `0` means both accumulators start at zero on every trial, so
+#'   only the drift rates vary - the choice counterpart of the recinormal
+#'   special case described in [rcogmod_lba1()].
 #' @param boundary Threshold offset, so the threshold is
 #'   `b = boundary + sigmabias`. Must be positive.
 #' @param ndt Non-decision time (shift parameter), in seconds. Represents the

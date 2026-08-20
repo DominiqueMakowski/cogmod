@@ -29,23 +29,41 @@
 #' can lead to different (and potentially incorrect) inferences than effects
 #' estimated on this classical `mu`.
 #'
-#' In the `brms` custom family (`cogmod_exgaussian()`), all three parameters use
-#' a `"softplus"` link (`log(1 + exp(x))`) by default, rather than
-#' `"identity"` or `"log"`. `mu` must remain strictly positive since it
-#' represents the (unobserved) center of the Gaussian component. An
-#' `"identity"` link would allow the linear predictor to cross zero or go
-#' negative, which is invalid for all three parameters. A `"log"` link would
-#' enforce positivity too, but its curvature explodes as the linear predictor
-#' departs from zero, producing extreme gradients and making priors/sampling
-#' harder to calibrate, especially for `mu` and `tau`, which are already both
-#' on the RT scale (seconds) and can take comparatively large values.
-#' `"softplus"` is positive-constrained like `"log"` but behaves almost
-#' linearly (`softplus(x) ~ x`) away from zero, making it easier to specify
-#' weakly-informative priors directly on the RT scale while still guaranteeing
-#' valid, strictly positive parameters.
+#' In the `brms` custom family (`cogmod_exgaussian()`), `sigma` and `tau` use a
+#' `"softplus"` link (`log(1 + exp(x))`) rather than `"log"`. Both are scales
+#' and must be strictly positive for the density to exist at all. A `"log"` link
+#' would enforce that too, but its curvature explodes as the linear predictor
+#' departs from zero, producing extreme gradients and making priors and sampling
+#' harder to calibrate - and `tau` is on the RT scale (seconds), where it can
+#' take comparatively large values. `"softplus"` is positive-constrained like
+#' `"log"` but behaves almost linearly (`softplus(x) ~ x`) away from zero, so
+#' weakly-informative priors can be stated directly on the RT scale.
+#'
+#' `mu` is different, and uses `"identity"`. It is the **location** of the
+#' Gaussian component, not a scale: the convolution is well defined for any real
+#' value, and the density integrates to one at `mu = 0` or below just as it does
+#' above (the Stan `lpdf` has always accepted a non-positive `mu` - it checks
+#' only `sigma` and `tau`). Nothing is gained by constraining it, and two things
+#' are lost. First, interpretability, which is most of the reason to prefer the
+#' ex-Gaussian in the first place: behind a `softplus` link a coefficient is not
+#' in seconds, and the conversion factor moves with the intercept - the local
+#' slope is 0.33 at `mu = 0.4` s, 0.39 at 0.5 s and 0.63 at 1 s, so the same
+#' effect reads as a different number depending on where the intercept sits. On
+#' `"identity"` a coefficient is seconds, full stop. Second, fidelity: for fast,
+#' heavily-tailed data the Gaussian component genuinely belongs near or below
+#' zero with `tau` carrying the mass, and forcing `mu > 0` distorts the `mu`/`tau`
+#' split in exactly the cases where that decomposition is the thing being
+#' estimated. This also matches every other implementation - `brms`'s own
+#' `exgaussian()`, `retimes`, and the estimates reported in the literature - so
+#' fitted values are directly comparable.
+#'
+#' The cost is that `brms`'s default intercept prior is no longer sensible for
+#' `mu` (`student_t(3, 0, 2.5)` centred at zero seconds), which is why
+#' [cogmod_priors()] now supplies one.
 #'
 #' @param n Number of observations. If `length(n) > 1`, the length is taken to be the number required.
-#' @param mu Mean of the Gaussian component. Must be positive. Range: (0, Inf).
+#' @param mu Mean of the Gaussian component. Unbounded - it is a location, not a
+#'   scale - though for RT data it is normally positive. Range: (-Inf, Inf).
 #' @param sigma SD of the Gaussian component. Must be positive. Range: (0, Inf).
 #' @param tau Mean of the exponential component (the tail). Must be positive. Range: (0, Inf).
 #'
@@ -118,10 +136,11 @@ dcogmod_exgaussian <- function(x, mu = 0.5, sigma = 0.1, tau = 0.2, log = FALSE)
 
 #' @keywords internal
 .prepare_exgaussian <- function(x = NULL, n = NULL, mu, sigma, tau) {
-    # Validate parameters once
-    if (any(mu <= 0)) {
-        stop("`mu` must be positive.")
-    }
+    # Validate parameters once. `mu` is deliberately NOT checked: it is the
+    # location of the Gaussian component, the convolution is defined for any
+    # real value, and the Stan lpdf has only ever rejected the two scales. The
+    # R side used to reject `mu <= 0`, which meant it refused inputs the sampler
+    # was perfectly happy to fit. See ?rcogmod_exgaussian.
     if (any(sigma <= 0)) {
         stop("`sigma` must be positive.")
     }
@@ -161,20 +180,23 @@ dcogmod_exgaussian <- function(x, mu = 0.5, sigma = 0.1, tau = 0.2, log = FALSE)
 
 #' @rdname rcogmod_exgaussian
 #' @param link_mu,link_sigma,link_tau Character of the type of link used to
-#'   model the ex-Gaussian parameters. Defaults to `"softplus"` for all three
-#'   (see Details).
+#'   model the ex-Gaussian parameters. Defaults to `"identity"` for `mu` and
+#'   `"softplus"` for `sigma` and `tau` (see Details).
 #' @return A `brms::custom_family` object.
 #' @export
 cogmod_exgaussian <- function(
-    link_mu = "softplus",
+    link_mu = "identity",
     link_sigma = "softplus",
     link_tau = "softplus"
 ) {
     brms::custom_family(
         name = "cogmod_exgaussian",
         dpars = c("mu", "sigma", "tau"), # mu/sigma = Gaussian location/SD, tau = exponential mean
+        # mu is a LOCATION and is unbounded; only the two scales are positive.
+        # See the Details section: the convolution is defined for any real mu,
+        # and the Stan lpdf below has always accepted one.
+        lb = c(NA, 0, 0),
         links = c(link_mu, link_sigma, link_tau),
-        lb = c(0, 0, 0), # Lower bounds: mu > 0 (RT scale), sigma > 0, tau > 0
         ub = c(NA, NA, NA),
         type = "real" # Continuous outcome variable (RT)
     )
@@ -185,7 +207,9 @@ cogmod_exgaussian <- function(
     "
 // Log-likelihood for a single observation from the classical Ex-Gaussian distribution.
 // Y: observed reaction time.
-// mu: mean of the Gaussian component (> 0).
+// mu: mean of the Gaussian component. A LOCATION, so unbounded - the
+//     convolution is defined for any real value, which is why the check below
+//     leaves it alone.
 // sigma: SD of the Gaussian component (> 0).
 // tau: mean of the exponential component, i.e., the tail (> 0).
 real cogmod_exgaussian_lpdf(real Y, real mu, real sigma, real tau) {

@@ -678,6 +678,25 @@ test_that("cogmod_stanvars warns when the evidence scale is left free", {
     expect_no_warning(cogmod_stanvars(pinned))
   }
 
+  # Except at ZERO. Scaling the ray multiplies every member by c, and c * 0 = 0,
+  # so `sigmabias = 0` - the recinormal, a legitimate model since the bound was
+  # closed - takes that parameter off the ray instead of pinning the ray. The
+  # remaining members are as free as before, and the warning has to survive.
+  for (zero in list(
+    brms::bf(RT | dec(Error) ~ 1, sigmabias = 0, family = cogmod_lba2()),
+    brms::bf(RT ~ 1, sigmabias = 0, family = cogmod_lba1())
+  )) {
+    expect_warning(cogmod_stanvars(zero), "evidence scale is arbitrary")
+    expect_warning(cogmod_stanvars(zero), "does not count")
+  }
+
+  # A second, non-zero pin alongside it does the job.
+  expect_no_warning(cogmod_stanvars(
+    brms::bf(RT ~ 1, sigmabias = 0, boundary = 1, family = cogmod_lba1())))
+  expect_no_warning(cogmod_stanvars(
+    brms::bf(RT | dec(Error) ~ 1, sigmabias = 0, sigmazero = 1,
+             family = cogmod_lba2())))
+
   # The families whose scale is pinned by construction stay quiet: the RDM and
   # the DDM both have a unit diffusion coefficient baked into the likelihood.
   expect_no_warning(cogmod_stanvars(

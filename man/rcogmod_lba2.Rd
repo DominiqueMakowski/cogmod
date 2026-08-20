@@ -71,7 +71,9 @@ Must be positive.}
 
 \item{sigmabias}{Maximum starting point. The starting point of each
 accumulator on each trial is drawn from \code{Uniform(0, sigmabias)}. Must be
-positive.}
+non-negative; \code{0} means both accumulators start at zero on every trial, so
+only the drift rates vary - the choice counterpart of the recinormal
+special case described in \code{\link[=rcogmod_lba1]{rcogmod_lba1()}}.}
 
 \item{boundary}{Threshold offset, so the threshold is
 \code{b = boundary + sigmabias}. Must be positive.}

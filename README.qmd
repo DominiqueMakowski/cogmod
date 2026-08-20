@@ -168,8 +168,6 @@ See the [Subjective Ratings](https://dominiquemakowski.github.io/cogmod/articles
 ## Roadmap
 
 - [ ] **Log-logistic** - `log(RT - ndt) ~ Logistic`. The motivation is the *hazard function*: Weibull and Gamma hazards are monotone, whereas the log-logistic rises then falls, a shape none of the current families can produce.
-- [ ] **LATER / recinormal** ([Carpenter & Williams, 1995](https://doi.org/10.1038/377059a0)) - `1 / (RT - ndt)` normally
-  distributed. Standard in the oculomotor literature, and the limit of the
-  single-accumulator `cogmod_lba1()` as its start-point range goes to zero.
+- [ ] **Early responses as a process rather than a fixed mixture.** `poutlier` currently mixes in a half-Normal at zero   with a fixed scale: a contaminant with no mechanism, there so that one stray fast response cannot drag `ndt` down. LATER handles the same responses with a second *accumulator* - an "early" or "maverick" unit with a mean rate near zero and a large SD - that **races** the main one, so an early response is a decision that happened to win rather than a trial the model disowns. That is the better account, and it is what the second line on a reciprobit plot actually is.  It is also a large undertaking: a race needs the winner's density against the loser's survival for every family in `.OUTLIER_FAMILIES`, where the present mixture needs one scalar, and the early unit is *deliberately* half-defective  (with a mean rate of zero, half its trials never arrive at all) - which our normalised densities cannot represent unless the race is there to absorb the missing mass. Put on hold until we find a design that does not cost every family its closed form.
 - [ ] **Shifted sinh-arcsinh (log-SHASH)** ([Jones & Pewsey, 2009](https://doi.org/10.1093/biomet/asp053)) - location, scale, skewness and tail weight as four separate parameters. Where `cogmod_loggamma()` ties skew and
   tail weight together through one `shape`, SHASH decouples them.

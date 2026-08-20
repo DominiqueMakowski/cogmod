@@ -16,7 +16,7 @@ rcogmod_exgaussian(n, mu = 0.5, sigma = 0.1, tau = 0.2)
 dcogmod_exgaussian(x, mu = 0.5, sigma = 0.1, tau = 0.2, log = FALSE)
 
 cogmod_exgaussian(
-  link_mu = "softplus",
+  link_mu = "identity",
   link_sigma = "softplus",
   link_tau = "softplus"
 )
@@ -34,7 +34,8 @@ posterior_epred_cogmod_exgaussian(prep)
 \arguments{
 \item{n}{Number of observations. If \code{length(n) > 1}, the length is taken to be the number required.}
 
-\item{mu}{Mean of the Gaussian component. Must be positive. Range: (0, Inf).}
+\item{mu}{Mean of the Gaussian component. Unbounded - it is a location, not a
+scale - though for RT data it is normally positive. Range: (-Inf, Inf).}
 
 \item{sigma}{SD of the Gaussian component. Must be positive. Range: (0, Inf).}
 
@@ -45,8 +46,8 @@ posterior_epred_cogmod_exgaussian(prep)
 \item{log}{Logical; if TRUE, probabilities p are given as log(p).}
 
 \item{link_mu, link_sigma, link_tau}{Character of the type of link used to
-model the ex-Gaussian parameters. Defaults to \code{"softplus"} for all three
-(see Details).}
+model the ex-Gaussian parameters. Defaults to \code{"identity"} for \code{mu} and
+\code{"softplus"} for \code{sigma} and \code{tau} (see Details).}
 
 \item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
 
@@ -86,20 +87,37 @@ level of the overall mean, so effects estimated on \code{brms}'s default \code{m
 can lead to different (and potentially incorrect) inferences than effects
 estimated on this classical \code{mu}.
 
-In the \code{brms} custom family (\code{cogmod_exgaussian()}), all three parameters use
-a \code{"softplus"} link (\code{log(1 + exp(x))}) by default, rather than
-\code{"identity"} or \code{"log"}. \code{mu} must remain strictly positive since it
-represents the (unobserved) center of the Gaussian component. An
-\code{"identity"} link would allow the linear predictor to cross zero or go
-negative, which is invalid for all three parameters. A \code{"log"} link would
-enforce positivity too, but its curvature explodes as the linear predictor
-departs from zero, producing extreme gradients and making priors/sampling
-harder to calibrate, especially for \code{mu} and \code{tau}, which are already both
-on the RT scale (seconds) and can take comparatively large values.
-\code{"softplus"} is positive-constrained like \code{"log"} but behaves almost
-linearly (\code{softplus(x) ~ x}) away from zero, making it easier to specify
-weakly-informative priors directly on the RT scale while still guaranteeing
-valid, strictly positive parameters.
+In the \code{brms} custom family (\code{cogmod_exgaussian()}), \code{sigma} and \code{tau} use a
+\code{"softplus"} link (\code{log(1 + exp(x))}) rather than \code{"log"}. Both are scales
+and must be strictly positive for the density to exist at all. A \code{"log"} link
+would enforce that too, but its curvature explodes as the linear predictor
+departs from zero, producing extreme gradients and making priors and sampling
+harder to calibrate - and \code{tau} is on the RT scale (seconds), where it can
+take comparatively large values. \code{"softplus"} is positive-constrained like
+\code{"log"} but behaves almost linearly (\code{softplus(x) ~ x}) away from zero, so
+weakly-informative priors can be stated directly on the RT scale.
+
+\code{mu} is different, and uses \code{"identity"}. It is the \strong{location} of the
+Gaussian component, not a scale: the convolution is well defined for any real
+value, and the density integrates to one at \code{mu = 0} or below just as it does
+above (the Stan \code{lpdf} has always accepted a non-positive \code{mu} - it checks
+only \code{sigma} and \code{tau}). Nothing is gained by constraining it, and two things
+are lost. First, interpretability, which is most of the reason to prefer the
+ex-Gaussian in the first place: behind a \code{softplus} link a coefficient is not
+in seconds, and the conversion factor moves with the intercept - the local
+slope is 0.33 at \code{mu = 0.4} s, 0.39 at 0.5 s and 0.63 at 1 s, so the same
+effect reads as a different number depending on where the intercept sits. On
+\code{"identity"} a coefficient is seconds, full stop. Second, fidelity: for fast,
+heavily-tailed data the Gaussian component genuinely belongs near or below
+zero with \code{tau} carrying the mass, and forcing \code{mu > 0} distorts the \code{mu}/\code{tau}
+split in exactly the cases where that decomposition is the thing being
+estimated. This also matches every other implementation - \code{brms}'s own
+\code{exgaussian()}, \code{retimes}, and the estimates reported in the literature - so
+fitted values are directly comparable.
+
+The cost is that \code{brms}'s default intercept prior is no longer sensible for
+\code{mu} (\code{student_t(3, 0, 2.5)} centred at zero seconds), which is why
+\code{\link[=cogmod_priors]{cogmod_priors()}} now supplies one.
 }
 \examples{
 # Simulate 1000 RTs

@@ -184,9 +184,12 @@ cogmod_inits <- function(formula, data, jitter = 0.25, ...) {
   switch(
     fam,
     # mu and tau are the Gaussian centre and the exponential mean, both in
-    # seconds; sigma is the Gaussian SD. Behind a softplus link the default
-    # start puts all three at log(2) = 0.69 s, which makes sigma alone wider
-    # than most whole RT distributions.
+    # seconds; sigma is the Gaussian SD. Behind the softplus link that `sigma`
+    # and `tau` use, the default start puts both at log(2) = 0.69 s, which makes
+    # sigma alone wider than most whole RT distributions. `mu` is on identity,
+    # where the generic start of 0 would put the Gaussian centre at zero
+    # seconds - harmless but pointless when 0.4 s is known to be the right
+    # neighbourhood.
     cogmod_exgaussian = list(mu = 0.4, sigma = 0.1, tau = 0.2),
     NULL
   )

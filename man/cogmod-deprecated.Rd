@@ -367,7 +367,7 @@ posterior_predict_rt_exgaussian(i, prep, ...)
 rrt_exgaussian(n, mu = 0.5, sigma = 0.1, tau = 0.2)
 
 rt_exgaussian(
-  link_mu = "softplus",
+  link_mu = "identity",
   link_sigma = "softplus",
   link_tau = "softplus"
 )

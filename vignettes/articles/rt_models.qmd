@@ -557,10 +557,7 @@ the start-point range `sigmabias` shrinks toward zero the LBA converges to the
 distributed - and it does so smoothly, which means the likelihood becomes
 **flat** in `sigmabias` once the range is small enough. On a `softplus` link
 zero sits at minus infinity, so a flat prior over a flat likelihood is an
-improper posterior, and the failure is quiet rather than loud: fitted without
-priors on these data, `sigmabias` for the speed condition ran off to
-`softplus(-10.4) = 3e-05` with `Rhat` 1.69 and an effective sample size of 6,
-while every other parameter looked fine. `cogmod_priors()` supplies weak
+improper posterior. `cogmod_priors()` supplies weak
 `normal(0, 1)` priors on `sigmabias` and `boundary` for exactly this reason -
 the threshold is `b = sigmabias + boundary`, so the two share the ridge - which
 brings that same fit to `Rhat` 1.02, an effective sample size of 387, and a
@@ -602,6 +599,8 @@ saveRDS(m_lba, file = "../models/m_lba1.rds")
 
 
 
+
+
 ### Other Models
 
 Note that the families presented below have not been used nearly as
@@ -613,9 +612,102 @@ or of computational behaviour - over the more established options.
 
 ::: {.panel-tabset}
 
+#### Recinormal (LATER)
+
+The **recinormal** (reciprocal-of-normal) distribution is at the basis of the
+**LATER** model - Linear Approach To Threshold with Ergodic Rate: if the rate of
+linear accumulation varies normally from trial to trial, then `1 / RT` is
+normally distributed, so RT itself is recinormal. This idea is in fact *older* than most sequential-sampling models. Carpenter proposed it in 1981, then formalized it with Williams in
+[1995](https://doi.org/10.1038/377059a0), after noticing that the usual skewed RT
+histogram never matched any standard statistical distribution, and reasoning
+that since RT is the outcome of a *rate* process - a signal rising to threshold,
+like a reaction reaching completion - it made more sense to model the
+variability in that underlying rate than to keep fitting shapes to its result.
+Switching the analysis from RT to `1 / RT` and finding a clean Gaussian was the
+payoff of that reframing.
+
+In the terms of the previous section, this is exactly where the LBA was heading:
+set the start-point range `sigmabias` to zero and the accumulator starts from the
+same place on *every* trial, so the only thing left varying is the rate of rise.
+The decision time is then simply `b / rate`, and a normally distributed rate
+makes `1 / (RT - ndt)` normally distributed in turn. (The `- ndt` is the one
+refinement on the classical statement above: any time spent on encoding and motor
+execution is not part of the rate process, so it has to come off before the
+reciprocal is taken.)
+
+What makes LATER attractive is that its two parameters are directly
+interpretable, and interpretable as something you can *see*, often called **promptness** - how quickly the response comes, rather than how long it takes - and `mu` and `sigma` are simply its mean and
+standard deviation. This is what a *reciprobit* plot displays: promptness on a
+probit axis, on which a LATER model is a straight line, `mu` sets its position
+and `sigma` its slope. Carpenter's central claim is read off exactly that plot -
+manipulating the prior probability of a stimulus shifts the line sideways
+(a change in `mu`, the rate of rise), while manipulating urgency swivels it about
+its intercept (a change in the threshold).
+
+Going the other way is instructive too. LATER lets the *rate* vary from trial to
+trial but treats the level the signal starts from as fixed; letting that vary as
+well gives the **extended LATER (E-LATER)** model of
+[Nakahara et al. (2006)](https://doi.org/10.1016/j.neunet.2006.07.001) - which
+is to say that the LBA's `sigmabias` is not an LBA-specific device but the same
+extension the oculomotor literature arrived at independently, the two differing
+mainly in the distribution assumed for the starting level.
+
+There is no separate family for this: LATER **is** `cogmod_lba1()` with
+`sigmabias` fixed at zero. Two parameters have to be fixed rather than one. 
+As the evidence scale is arbitrary in the sense
+described above - multiplying `mu`, `sigma`, `sigmabias` and `boundary` by any
+common constant leaves the likelihood unchanged - so one of them has to be fixed
+to break that. Compared to the 1-accumulator LBA, for LATER the natural choice 
+is `boundary = 1`, which leaves `mu` and `sigma` reading directly as the mean and SD of promptness.
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- bf(
+  RT ~ Condition,
+  sigma ~ Condition,
+  ndt ~ Condition,
+  sigmabias = 0,   # no start-point variability: this is what makes it LATER
+  boundary = 1,    # absorbs the threshold, so mu and sigma are promptness
+  family = cogmod_lba1()
+)
+
+m_recinormal <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_recinormal <- brms::add_criterion(m_recinormal, "loo")
+```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_recinormal, file = "../models/m_recinormal.rds")
+```
+
+
 #### Wald-4
 
-This mode corresponds to the Shifted Wald model with an extra parameter corresponding to a variable drift rate.
+This mode corresponds to the Shifted Wald model with an extra parameter corresponding to the variability of the drift rate. That extra parameter makes it a **hybrid of the Wald and LATER models**: it is the only one here carrying *both* sources of randomness.
+The Wald has moment-to-moment noise within the trial and a drift rate that is
+the same on every trial; LATER has no within-trial noise at all and puts all of
+the variability into a drift rate that is redrawn each trial; Wald-4 has both at
+once, and each is nested inside it. Set `sigmadrift = 0` and the across-trial
+variability disappears, leaving the plain Wald exactly. Push the other way -
+letting the accumulated evidence grow large relative to the diffusion noise,
+which here means scaling `mu`, `boundary` and `sigmadrift` up together - and the
+within-trial noise becomes negligible, leaving the recinormal of the previous
+section. That second limit is approached rather than reached (the relative error
+falls off as the square of the scaling factor), so it is not something you fix in
+the formula, but it is worth knowing it is there: it means that large values of
+all three parameters describe very nearly the same distribution as small ones,
+which is a ridge, and part of why `cogmod_priors()` puts a prior on `sigmadrift`.
 
 ```{r}
 #| eval: false
@@ -1049,6 +1141,7 @@ m_exgauss <- readRDS(url(paste0(path, "m_exgauss.rds")))
 m_lognormal <- readRDS(url(paste0(path, "m_lognormal.rds")))
 m_wald <- readRDS(url(paste0(path, "m_wald.rds")))
 m_lba <- readRDS(url(paste0(path, "m_lba1.rds")))
+m_recinormal <- readRDS(url(paste0(path, "m_recinormal.rds")))
 m_wald4 <- readRDS(url(paste0(path, "m_wald4.rds")))
 m_exwald <- readRDS(url(paste0(path, "m_exwald.rds")))
 m_bisa <- readRDS(url(paste0(path, "m_bisa.rds")))
@@ -1064,8 +1157,9 @@ m_invgamma <- readRDS(url(paste0(path, "m_invgamma.rds")))
 ```{r}
 #| code-fold: false
 
-loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald, m_lba,
-                 m_wald4, m_exwald, m_bisa, m_logstudent,
+loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald, 
+                 m_lba, m_recinormal, m_wald4, m_exwald, 
+                 m_bisa, m_logstudent,
                  m_weibull, m_logweibull, m_invweibull,
                  m_gamma, m_invgamma, m_loggamma
                  ) |>
@@ -1098,12 +1192,11 @@ fit-quality axis instead.
 ```{r}
 models <- list(
   Normal = m_normal, ExGaussian = m_exgauss, LogNormal = m_lognormal,
-  InvGaussian = m_wald, LBA = m_lba,
-  Wald4 = m_wald4, ExWald = m_exwald, BiSa = m_bisa,
-  LogStudent = m_logstudent,
+  InvGaussian = m_wald, LBA = m_lba, Recinormal = m_recinormal, 
+  Wald4 = m_wald4, ExWald = m_exwald,
+  BiSa = m_bisa, LogStudent = m_logstudent,
   Weibull = m_weibull, LogWeibull = m_logweibull, InvWeibull = m_invweibull, 
   Gamma = m_gamma, InvGamma = m_invgamma, LogGamma = m_loggamma
-  
 )
 model_levels <- names(models)
 
@@ -1168,6 +1261,9 @@ pred <- rbind(
   estimate_prediction(m_lba, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "LBA"),
+  estimate_prediction(m_recinormal, keep_iterations = 50, iterations = 50) |>
+    reshape_iterations() |>
+    data_modify(Model = "ReciNormal"),
   estimate_prediction(m_wald4, keep_iterations = 50, iterations = 50) |>
     reshape_iterations() |>
     data_modify(Model = "Wald-4"),
@@ -1200,7 +1296,7 @@ pred <- rbind(
     data_modify(Model = "LogGamma")
 ) |>
   data_modify(Model = factor(Model, levels = c("Normal", "ExGaussian", "LogNormal", "InvGaussian", 
-                                               "LBA", "Wald-4", "ExWald", "BiSa", "LogStudent",
+                                               "LBA", "ReciNormal", "Wald-4", "ExWald", "BiSa", "LogStudent",
                                                "Weibull", "LogWeibull", "InvWeibull", 
                                                "Gamma", "InvGamma", "LogGamma" 
                                                )))
@@ -1245,6 +1341,8 @@ rez <- rbind(
     data_modify(Model = "InvGaussian"),
   parameters::parameters(m_lba, test = NULL, diagnostic = NULL) |>
     data_modify(Model = "LBA"),
+  parameters::parameters(m_recinormal, test = NULL, diagnostic = NULL) |>
+    data_modify(Model = "ReciNormal"),
   parameters::parameters(m_wald4, test = NULL, diagnostic = NULL) |>
     data_modify(Model = "Wald-4"),
   parameters::parameters(m_exwald, test = NULL, diagnostic = NULL) |>
@@ -1267,7 +1365,7 @@ rez <- rbind(
     data_modify(Model = "LogGamma")
 ) |>
   data_modify(Model = factor(Model, levels = c("Normal", "ExGaussian", "LogNormal", "InvGaussian", 
-                                               "LBA", "Wald-4", "ExWald", "BiSa", "LogStudent",
+                                               "LBA", "ReciNormal", "Wald-4", "ExWald", "BiSa", "LogStudent",
                                                "Weibull", "LogWeibull", "InvWeibull", 
                                                "Gamma", "InvGamma", "LogGamma" 
                                                )))

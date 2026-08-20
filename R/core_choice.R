@@ -215,9 +215,16 @@
     links = c("identity", "identity", "softplus", "softplus", "softplus",
               "softplus"),
     lb = c(NA, NA, 0, 0, 0, 0), ub = c(NA, NA, NA, NA, NA, NA),
+    # Zero start-point variability is a model rather than an invalid parameter,
+    # exactly as in cogmod_lba1(): both accumulators then start at 0 every
+    # trial and only the drifts vary. The same two kernels cover it - the
+    # density's Taylor branch at delta = 0 is the recinormal and the survival
+    # collapses to Phi(z1) - so nothing here changes but the bound. See the
+    # cogmod_lba1() entry in core_shifted.R for the derivation.
+    lb_open = c(NA, NA, TRUE, TRUE, FALSE, TRUE),
     K = 2L,
     vars = "dec[n]",
-    stan_check = paste("sigmazero <= 0 || sigmaone <= 0 || sigmabias <= 0",
+    stan_check = paste("sigmazero <= 0 || sigmaone <= 0 || sigmabias < 0",
                        "|| boundary <= 0"),
     stan_dens = paste0(
       "dec == 0\n",

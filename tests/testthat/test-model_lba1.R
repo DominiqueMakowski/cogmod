@@ -231,8 +231,10 @@ test_that("Stan cogmod_lba1_lpdf matches R dcogmod_lba1", {
     drift = c(1, 3),
     sigma = c(0.5, 1),
     # the small start-point ranges are the ones that used to break: both
-    # differences in the LBA bracket cancel as sigmabias -> 0
-    sigmabias = c(1e-6, 1e-3, 0.5, 1.0),
+    # differences in the LBA bracket cancel as sigmabias -> 0. Zero itself is
+    # the recinormal (LATER), a supported model rather than a boundary to
+    # avoid, and Stan has to agree with R there too.
+    sigmabias = c(0, 1e-6, 1e-3, 0.5, 1.0),
     boundary = c(0.2, 0.5),
     ndt = c(0, 0.1, 0.25),
     poutlier = c(0, 0.03)
@@ -285,6 +287,73 @@ test_that("the density stays normalised as the start-point range shrinks", {
     expect_lt(rel, prev)
     prev <- rel
   }
+})
+
+
+test_that("sigmabias = 0 is exactly the recinormal (LATER) model", {
+  skip_on_cran()
+  # The end of that sequence is not merely approached, it is reachable: zero is
+  # an admissible value of `sigmabias`, and there the density IS the recinormal,
+  # in which 1 / (RT - ndt) is normally distributed. delta = sigmabias / st is
+  # then 0, which takes the Taylor branch of .lba_dens_over_A(), and there
+  # drift + sigma * z1 = b / t identically - so what comes out is the closed
+  # form below rather than an approximation to it.
+  recinormal <- function(t, drift, s, b, ndt) {
+    d <- t - ndt
+    dnorm(b / d, drift, s) * b / d^2 / pnorm(drift / s)
+  }
+
+  grid <- covering_grid(
+    x = c(0.35, 0.5, 0.9, 1.6, 3.0),
+    drift = c(1, 3, 6),
+    sigma = c(0.5, 1, 2),
+    boundary = c(0.2, 0.5, 1),
+    ndt = c(0, 0.1, 0.3)
+  )
+  for (k in seq_len(nrow(grid))) {
+    g <- grid[k, ]
+    got <- dcogmod_lba1(g$x, drift = g$drift, sigma = g$sigma, sigmabias = 0,
+                        boundary = g$boundary, ndt = g$ndt)
+    want <- recinormal(g$x, g$drift, g$sigma, g$boundary, g$ndt)
+    expect_equal(got, want, tolerance = 1e-12,
+                 label = sprintf("x=%.2f drift=%g sigma=%g b=%g ndt=%g",
+                                 g$x, g$drift, g$sigma, g$boundary, g$ndt))
+  }
+
+  # Proper, not defective: truncating the drift at zero is what the 1 / Phi
+  # normalisation in the closed form above pays for.
+  total <- integrate(
+    function(z) dcogmod_lba1(z, drift = 3, sigma = 1, sigmabias = 0,
+                             boundary = 0.5, ndt = 0.3),
+    lower = 0.3, upper = Inf, rel.tol = 1e-10
+  )$value
+  expect_equal(total, 1, tolerance = 1e-6)
+
+  # Continuous into the pinned value from above, so the free and the fixed model
+  # really are the same likelihood at the same point.
+  approach <- vapply(
+    c(1e-2, 1e-4, 1e-6, 1e-8),
+    function(A) dcogmod_lba1(0.5, sigmabias = A, ndt = 0.3), numeric(1)
+  )
+  at_zero <- dcogmod_lba1(0.5, sigmabias = 0, ndt = 0.3)
+  expect_equal(approach[length(approach)], at_zero, tolerance = 1e-7)
+  expect_true(all(diff(abs(approach - at_zero)) < 0))
+
+  # The RNG follows: every trial starts at zero, so RT = ndt + b / drift.
+  set.seed(11)
+  rts <- rcogmod_lba1(20000, drift = 3, sigma = 1, sigmabias = 0,
+                      boundary = 0.5, ndt = 0.3)
+  expect_true(all(rts > 0.3))
+  expect_true(all(is.finite(rts)))
+  # promptness is the truncated normal it is supposed to be
+  promptness <- 0.5 / (rts - 0.3)
+  expect_equal(mean(promptness), 3, tolerance = 0.05)
+  expect_equal(sd(promptness), 1, tolerance = 0.05)
+
+  # The bound is closed, not open: zero is admissible and only negatives are not.
+  expect_silent(dcogmod_lba1(0.5, sigmabias = 0, ndt = 0.2))
+  expect_warning(dcogmod_lba1(0.5, sigmabias = -1e-8, ndt = 0.2),
+                 "must be at least 0")
 })
 
 

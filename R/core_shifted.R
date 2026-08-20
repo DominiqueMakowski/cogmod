@@ -405,7 +405,23 @@
     dpars = c("mu", "sigma", "sigmabias", "boundary"),
     links = c("softplus", "softplus", "softplus", "softplus"),
     lb = c(NA, 0, 0, 0), ub = c(NA, NA, NA, NA),
-    stan_check = "sigma <= 0 || sigmabias <= 0 || boundary <= 0",
+    # A start-point range of exactly zero is a model, not an invalid parameter:
+    # the accumulator then starts at 0 every trial, the finishing time is b / v,
+    # and 1 / (RT - ndt) is normal - the recinormal, i.e. the LATER model of
+    # Carpenter & Williams (1995). Its bound is therefore closed, for the same
+    # reason cogmod_invgaussian() closes `sigmadrift` and cogmod_ddm() closes
+    # its three between-trial variabilities: the nested simpler model is
+    # reachable by pinning the extension parameter at its floor.
+    #
+    # Nothing else has to change for that to be exact. `delta = sigmabias / st`
+    # is then 0, which takes the Taylor branch of .lba_dens_over_A(), and there
+    # the series is phi(z1) * (drift + sigma * z1) / st with drift + sigma * z1
+    # = b / t identically - that is phi(z1) * b / (sigma * t^2), the recinormal
+    # density itself rather than an approximation to it. .lba_surv_raw()
+    # likewise collapses to Phi(z1), the survival of a deterministic start
+    # point, which is what cogmod_lba2() needs.
+    lb_open = c(TRUE, TRUE, FALSE, TRUE),
+    stan_check = "sigma <= 0 || sigmabias < 0 || boundary <= 0",
     stan_dens = "cogmod_lba1_decision_lpdf(t_adj | mu, sigma, sigmabias, boundary)",
     prelude = ".LBA_STAN_PRELUDE",
     ldens = function(t, p) .dlba1_raw(t, p$mu, p$sigma, p$sigmabias, p$boundary),
@@ -418,15 +434,25 @@
     # Every one of these four is a length on the evidence scale, and that scale
     # has no unit: multiply them all by any c > 0 and (b - z) / v is unchanged,
     # so the likelihood is EXACTLY constant along that ray. Fixing any one of
-    # them in bf() pins it. .warn_scale_ray() says so when none of them is.
+    # them in bf() at a NON-ZERO value pins it; zero is the one value the
+    # scaling leaves alone, so `sigmabias = 0` does not. .warn_scale_ray() says
+    # so when nothing pins it.
     scale_ray = c("mu", "sigma", "sigmabias", "boundary"),
-    # As the start-point range shrinks the LBA converges to the recinormal, so
-    # the likelihood becomes *flat* in `sigmabias` as it approaches zero - and a
+    # `sigmabias` is estimable but treacherous, and the two are worth keeping
+    # apart. Estimating it, the likelihood becomes *flat* as it approaches zero
+    # - the LBA is converging to the recinormal, and once the start-point range
+    # is small enough making it smaller stops changing the density - while a
     # softplus link reaches zero only at minus infinity. Flat prior plus
     # infinite flat region is the improper posterior cogmod_priors() exists to
     # prevent; without these rows `sigmabias` runs off to -11 with Rhat near 1.7.
     # `boundary` is fenced for the same reason: b = sigmabias + boundary, so the
     # two share the ridge. See ?rcogmod_lba1.
+    #
+    # Pinning `sigmabias = 0` in bf() is the other option and has none of that
+    # trouble: it is not a parameter, so there is no flat direction to sample
+    # along and cogmod_priors() emits no row for it. That is the recinormal, and
+    # it is the honest thing to do when the design cannot identify a start-point
+    # range rather than letting a prior invent one.
     #
     # `link` is the intercept prior when the dpar is modelled in bf() (softplus
     # scale here), `nat` the one for a dpar omitted from bf(), which brms
