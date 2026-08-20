@@ -51,6 +51,20 @@
   drift rate, so the Wald can produce the long right tails empirical RT
   distributions have. Described in full under 0.2.0 below.
 
+* New function **`pcogmod_ddm()`**, the diffusion's cumulative distribution
+  function - the package had `pcogmod_rdm()` and `pcogmod_invgaussian()` but no
+  DDM counterpart. `response = NULL` gives the RT distribution marginally over
+  the choice, and `response = 0`/`1` the defective CDF that boundary carries.
+
+  It is the series that `rcogmod_ddm()` now inverts to draw from, so it was
+  written and validated anyway; exposing it costs nothing and it is the more
+  accurate of the two available implementations. Against numerical integration
+  of `dcogmod_ddm()` over a grid of 360 cells the worst deviation is 1e-15,
+  where `rtdists::pdiffusion()` is out by up to 5e-4 (and `pdiffusion(Inf, ...)`
+  by 1.4e-4). It covers the classic 4-parameter DDM plus the outlier component;
+  the between-trial variability parameters would each need their own quadrature
+  layer, so they are not arguments rather than being silently ignored.
+
 ## Performance
 
 * **`cogmod_rdm()` samples about 1.5x faster.** It was the most expensive
@@ -84,11 +98,29 @@
   path changed. Measured on the `vignette("decision_making")` models at 20
   draws: LNR 41.5 -> 20.7 us per observation-draw, LBA 32.9.
 
-  `cogmod_ddm()` gains least (560 -> 474 us) because its cost is elsewhere:
-  `brms::rwiener()` samples one draw per call, and roughly 85% of that is
-  per-call setup which cannot amortise when every posterior draw has its own
-  parameters. Predicting from a DDM remains an order of magnitude dearer than
-  from the races.
+* **`cogmod_ddm()` samples its predictions 4-6x faster**, on top of the above.
+  It was the slowest family to predict from by an order of magnitude, because
+  `brms::rwiener()` takes one parameter set per call and roughly 85% of that
+  call is fixed setup - which cannot amortise when every posterior draw carries
+  its own parameters. (rtdists' marginal cost is 1.4 us per draw against a
+  772 us fixed cost; RWiener's sampler does not amortise at all, staying at
+  55-90 us per draw for any n.)
+
+  Draws are now taken by inverting the CDF, which vectorises across parameter
+  sets because every step acts on the whole vector at once. The large-time
+  series splits into a part that depends on the time and a part that does not,
+  so the latter is built once and each evaluation is a single `exp()` and a
+  column sum; and the density falls out of the same `exp()`, which makes a
+  Newton step cost exactly what a bisection step costs. Eight Newton passes
+  leave about 0.6% of draws for a bisection cleanup that cannot fail, since the
+  bracket is valid by construction.
+
+  Accurate to 1e-13 in log RT against a 60-step bisection, with no
+  Kolmogorov-Smirnov failure against either `brms::rwiener()` or
+  `rtdists::rdiffusion()` over a wide parameter grid. The CDF underneath it
+  agrees with numerical integration to 1e-9, where `rtdists::pdiffusion()` is
+  out by up to 5e-4. On the `vignette("decision_making")` models:
+  DDM 560 -> 122 us per observation-draw, DDM-5 483 -> 75.
 
 # cogmod 0.2.1
 

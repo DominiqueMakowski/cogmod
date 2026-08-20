@@ -200,6 +200,79 @@ test_that("rcogmod_ddm returns rt and response", {
 })
 
 
+test_that("pcogmod_ddm integrates dcogmod_ddm", {
+  # The CDF is what rcogmod_ddm() inverts to draw from, so an error here would
+  # land straight in the draws. Checked against the package's own density rather
+  # than against rtdists, which is the less accurate of the two: at drift -4,
+  # boundary 0.6, bias 0.25 it deviates from this integral by up to 5e-4 where
+  # pcogmod_ddm() is at rounding error. See ?rcogmod_ddm.
+  grid <- covering_grid(
+    drift = c(-3, -1, 0, 1, 3),
+    boundary = c(0.6, 1.2, 2.0),
+    bias = c(0.3, 0.5, 0.7),
+    q = c(0.35, 0.6, 1.2, 3),
+    response = c(0L, 1L)
+  )
+  for (i in seq_len(nrow(grid))) {
+    g <- grid[i, ]
+    integrated <- stats::integrate(
+      function(t) dcogmod_ddm(t, drift = g$drift, boundary = g$boundary,
+                              bias = g$bias, ndt = 0.2, response = g$response,
+                              poutlier = 0),
+      0, g$q, rel.tol = 1e-11, subdivisions = 2000
+    )$value
+    expect_equal(
+      pcogmod_ddm(g$q, drift = g$drift, boundary = g$boundary, bias = g$bias,
+                  ndt = 0.2, response = g$response, poutlier = 0),
+      integrated,
+      tolerance = 1e-8,
+      info = sprintf("drift %.1f boundary %.1f bias %.2f q %.2f resp %d",
+                     g$drift, g$boundary, g$bias, g$q, g$response)
+    )
+  }
+})
+
+
+test_that("pcogmod_ddm behaves like a CDF", {
+  q <- seq(0.05, 6, length.out = 200)
+  p <- pcogmod_ddm(q, drift = -1.5, boundary = 1.1, bias = 0.45, ndt = 0.2,
+                   poutlier = 0.05)
+  expect_false(is.unsorted(p))
+  expect_true(all(p >= 0 & p <= 1))
+  # The two defective CDFs partition the marginal one.
+  expect_equal(pcogmod_ddm(1.5, response = 0) + pcogmod_ddm(1.5, response = 1),
+               pcogmod_ddm(1.5))
+  expect_equal(pcogmod_ddm(0.8, lower.tail = FALSE), 1 - pcogmod_ddm(0.8))
+  expect_equal(pcogmod_ddm(0.8, log.p = TRUE), log(pcogmod_ddm(0.8)))
+  # Nothing arrives before the non-decision time without an outlier process.
+  expect_equal(pcogmod_ddm(0.1, ndt = 0.2, poutlier = 0), 0)
+  expect_equal(pcogmod_ddm(500), 1)
+  expect_length(pcogmod_ddm(c(0.3, 0.5, 0.9), drift = c(-1, 0, 1)), 3)
+  # The between-trial variability parameters would each need a quadrature layer,
+  # so they are not arguments at all rather than being silently ignored.
+  expect_error(pcogmod_ddm(1, sigmadrift = 0.5))
+})
+
+
+test_that("pcogmod_ddm agrees with the sampler it is inverted from", {
+  skip_on_cran()
+  set.seed(4)
+  for (g in list(c(-2, 1.2, 0.5), c(1.5, 0.8, 0.35), c(0, 1.5, 0.6))) {
+    sim <- rcogmod_ddm(60000, drift = g[1], boundary = g[2], bias = g[3],
+                       ndt = 0.2, poutlier = 0)
+    probs <- c(0.1, 0.25, 0.5, 0.75, 0.9)
+    qq <- unname(stats::quantile(sim$rt, probs))
+    expect_equal(
+      pcogmod_ddm(qq, drift = g[1], boundary = g[2], bias = g[3], ndt = 0.2,
+                  poutlier = 0),
+      probs,
+      tolerance = 0.01,
+      info = sprintf("drift %.1f boundary %.1f bias %.2f", g[1], g[2], g[3])
+    )
+  }
+})
+
+
 test_that("rcogmod_ddm reproduces its own density", {
   set.seed(42)
   n <- 40000

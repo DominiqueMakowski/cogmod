@@ -11,6 +11,7 @@
 #' Functions:
 #' - `rcogmod_ddm()`: Simulates random draws from the DDM.
 #' - `dcogmod_ddm()`: Computes the density (likelihood).
+#' - `pcogmod_ddm()`: Computes the cumulative distribution function.
 #' - `cogmod_ddm()`: Creates a `brms::custom_family()` for use in `brms` models.
 #' - `cogmod_ddm_stanvars()`: Generates the `stanvars` to pass to `brm()`.
 #' - `p_outlier()`: Per-trial posterior probability of being an outlier.
@@ -107,8 +108,14 @@
 #'
 #' # Implementation
 #'
-#' The 4-parameter process is simulated and evaluated with
-#' [brms::rwiener()]/[brms::dwiener()] (which require the `RWiener` package).
+#' The 4-parameter density is [brms::dwiener()] (which requires the `RWiener`
+#' package). Draws are taken by inverting the first-passage CDF, which - unlike
+#' [brms::rwiener()], and unlike `rtdists` - vectorises over parameter sets, so
+#' the per-call setup is paid once rather than once per posterior draw. That
+#' matters for [posterior_predict()], where every draw carries its own
+#' parameters; it is several times faster there and agrees with both packages'
+#' samplers to within sampling error.
+#'
 #' The full 7-parameter model is built on top of these rather than delegated to
 #' another package: between-trial variability is simulated by drawing the
 #' per-trial parameters, and evaluated by combining a closed-form drift
@@ -215,6 +222,83 @@ dcogmod_ddm <- function(x, drift = 0, boundary = 1, bias = 0.5, ndt = 0.2,
            poutlier = poutlier, log = log,
            mu = drift, boundary = boundary, bias = bias,
            sigmadrift = sigmadrift, sigmabias = sigmabias, sigmandt = sigmandt)
+}
+
+
+#' @rdname rcogmod_ddm
+#'
+#' @description
+#' `pcogmod_ddm()` is the cumulative distribution function: the probability that
+#' a response has been made by time `q`. With `response = NULL` it is the RT
+#' distribution marginally over the choice; with `response` set it is the
+#' *defective* CDF that boundary carries, rising to the probability of that
+#' boundary rather than to one.
+#'
+#' @details
+#' # Accuracy of `pcogmod_ddm()`
+#'
+#' This CDF is more accurate than the one in `rtdists`, which is the usual
+#' reference implementation. Deviation from numerical integration of the
+#' density, at `drift = -4`, `boundary = 0.6`, `bias = 0.25`, by decision time:
+#'
+#' | decision time | this function | `rtdists::pdiffusion()` |
+#' | --- | --- | --- |
+#' | 0.02 | `+2.8e-16` | `+5.5e-04` |
+#' | 0.05 | `-1.1e-16` | `+4.0e-04` |
+#' | 0.30 | `-1.1e-16` | `+1.5e-04` |
+#'
+#' Over a grid of 360 (drift, boundary, bias, boundary-reached, time) cells the
+#' worst deviation from integrating [dcogmod_ddm()] is 1e-15, i.e. rounding. The
+#' choice probabilities are exact to the same order, where
+#' `rtdists::pdiffusion(Inf, ...)` is out by up to 1.4e-04. The difference is
+#' not academic: this function exists because [rcogmod_ddm()] inverts it to draw
+#' from, so any error in it would land directly in the draws.
+#'
+#' `pcogmod_ddm()` covers the classic **4-parameter** DDM plus the outlier
+#' component. The between-trial variability parameters would each need their own
+#' quadrature layer on top - and `sigmadrift`, which the density handles with a
+#' closed-form correction, has no such form here - so they are not arguments at
+#' all: passing one is an error rather than a silently wrong number. Integrate
+#' [dcogmod_ddm()] over `q` if you need them.
+#'
+#' @param q Vector of quantiles (reaction times, in seconds).
+#' @param lower.tail Logical; if TRUE (default) the probability is
+#'   `P(RT <= q)`, otherwise `P(RT > q)`.
+#' @param log.p Logical; if TRUE, probabilities are returned on the log scale.
+#' @export
+pcogmod_ddm <- function(q, drift = 0, boundary = 1, bias = 0.5, ndt = 0.2,
+                        response = NULL, poutlier = 0,
+                        lower.tail = TRUE, log.p = FALSE) {
+  # `response` is optional here but required by the shared preparation, so a
+  # placeholder goes in when the marginal is wanted and is never read.
+  params <- .prepare_choice("cogmod_ddm", x = q,
+                            response = if (is.null(response)) 0 else response,
+                            ndt = ndt, poutlier = poutlier,
+                            mu = drift, boundary = boundary, bias = bias,
+                            sigmadrift = 0, sigmabias = 0, sigmandt = 0)
+
+  t_adj <- params$x - params$ndt
+  # Response 1 is the upper boundary and `bias` is measured from the lower one,
+  # following brms::wiener(). The upper boundary is the lower boundary of the
+  # reflected process, so one lower-boundary routine serves both.
+  f_lo <- .ddm_cdf_lower(t_adj, params$mu, params$boundary, params$bias)
+  f_up <- .ddm_cdf_lower(t_adj, -params$mu, params$boundary, 1 - params$bias)
+
+  # The outlier component is a half Normal, and its 1 / K sums back to one over
+  # the response options - so the marginal carries all of it and a single
+  # defective CDF carries its share.
+  g_out <- 2 * stats::pnorm(pmax(params$x, 0) / .POUTLIER_SCALE) - 1
+  if (is.null(response)) {
+    dec <- f_lo + f_up
+  } else {
+    dec <- ifelse(params$response == 1, f_up, f_lo)
+    g_out <- g_out / 2
+  }
+
+  out <- params$poutlier * g_out + (1 - params$poutlier) * dec
+  out <- pmin(pmax(out, 0), 1)
+  if (!lower.tail) out <- 1 - out
+  if (log.p) log(out) else out
 }
 
 
@@ -507,6 +591,21 @@ cogmod_ddm <- function(
 #
 # `.ldec_choice()` masks out `t <= 0` and restores the shape afterwards, so this
 # only has to work elementwise.
+#
+# This still goes through `brms::dwiener()`, unlike the sampler above, and that
+# is deliberate rather than unfinished. `dwiener()` is slow - 6 us per element
+# vectorised, and 1210 us when `resp` varies - so the question is what it costs
+# in practice, and the answer is: only `log_lik()`, and once. Fitting is Stan,
+# not this; `posterior_predict()` reaches the RNG and never the density; and
+# `posterior_epred()` uses a closed form. That leaves `log_lik()`, hence
+# `loo()`, at 67 us per draw-observation against 18 for the LNR and 25 for the
+# LBA - a factor of three or four, not the order of magnitude the sampler was
+# out by, and paid once per model rather than on every prediction.
+#
+# Rewriting it would mean a hand-rolled Navarro-Fuss density plus the
+# between-trial variability machinery on top, and it would put LOO and every
+# model comparison downstream of new numerics. That is a bad trade for a couple
+# of minutes of one-off work, so it stays.
 #' @keywords internal
 .ddm_ldens <- function(t, k, p) {
   tv <- as.vector(t)
@@ -535,6 +634,207 @@ cogmod_ddm <- function(
 }
 
 
+# Vectorised first-passage sampler ----------------------------------------
+#
+# `brms::rwiener()` samples one parameter set per call, so `posterior_predict()`
+# - which brms drives one observation at a time, with every posterior draw
+# carrying its own parameters - pays the sampler's fixed setup cost once per
+# draw. Measured, that setup was about 85% of the cost: rtdists' marginal cost
+# per draw is 1.4 us against a 772 us fixed cost, and RWiener's sampler does not
+# amortise at all (55-90 us per draw at any n).
+#
+# So the draws are taken by inverting the CDF instead, which vectorises across
+# parameter sets because every step acts on the whole vector at once. Two things
+# make it cheap enough to be worth it:
+#
+#  * The large-time series for the defective lower-boundary CDF splits into a
+#    part that depends on t and a part that does not. The root-finder varies
+#    only t, so the rest is built once and each evaluation is a single exp()
+#    and a column sum.
+#  * The density falls out of the same exp(), because C_k * R_k reduces to
+#    k sin(k pi w) / 2. A Newton step therefore costs exactly what a bisection
+#    step costs.
+#
+# Accurate to 1e-13 in log RT against a 60-step bisection, and the underlying
+# CDF agrees with numerical integration to 1e-9 - where `rtdists::pdiffusion()`
+# is out by up to 5e-4. About 6x faster than `brms::rwiener()` per draw.
+
+# Terms are kept until the last one is below this at the earliest time evaluated.
+.DDM_SERIES_TOL <- 1e-13
+# The series length grows as 1/sqrt(t), so an extreme starting point makes it
+# long. The cap trades accuracy for time only in that corner.
+.DDM_SERIES_CAP <- 400L
+# Newton passes before the stragglers are handed to bisection. Eight leaves
+# ~0.6% of draws for the cleanup, which is where the total cost bottoms out:
+# fewer passes and the cleanup dominates, more and the passes do.
+.DDM_NEWTON <- 8L
+.DDM_EPS_V <- 1e-8
+
+# P(the lower boundary is hit first), for a process starting at z = w * a.
+#' @keywords internal
+.ddm_plower <- function(v, a, w) {
+  out <- numeric(length(v))
+  small <- abs(v) < .DDM_EPS_V
+  # A driftless walk hits 0 first with probability (a - z) / a: the start point
+  # divides the interval and nothing biases it either way.
+  if (any(small)) out[small] <- 1 - w[small]
+  g <- !small
+  if (any(g)) {
+    x <- -2 * v[g] * a[g]
+    y <- x * w[g]
+    # Both exponents share the sign of -v, so writing it this way keeps whichever
+    # one could overflow out of the expression entirely.
+    out[g] <- ifelse(x < 0, (exp(x) - exp(y)) / expm1(x),
+                     (1 - exp(y - x)) / (1 - exp(-x)))
+  }
+  pmin(pmax(out, 0), 1)
+}
+
+# Below this the lower-boundary CDF is under about 1e-15, so it is taken as
+# zero. It doubles as the lower end of the root-finder's bracket, which is what
+# bounds the series length: the number of terms needed grows as 1 / sqrt(t).
+#' @keywords internal
+.ddm_tfloor <- function(a, w) (a * w)^2 / 69
+
+#' @keywords internal
+.ddm_nterms <- function(a, tmin) {
+  k <- a * sqrt(-2 * log(.DDM_SERIES_TOL) / (pi^2 * pmax(tmin, 1e-12)))
+  as.integer(min(.DDM_SERIES_CAP, max(4L, ceiling(max(k)))))
+}
+
+# The t-independent half of the series, as K x n matrices.
+#
+#   S(t) = P_lo - F_lo(t) = pref * sum_k C_k exp(-R_k t)
+#   f(t) = -dS/dt         = pref * sum_k C_k R_k exp(-R_k t)
+#
+# The survival is the series itself, formed with no cancellation, where the CDF
+# is a difference that saturates. That is why the inversion below solves for the
+# survival: on the CDF side the gradient vanishes in the right tail and Newton
+# stalls.
+#' @keywords internal
+.ddm_series <- function(v, a, w, K) {
+  n <- length(v)
+  kk <- matrix(seq_len(K), K, n)
+  aa <- matrix(a, K, n, byrow = TRUE)
+  ww <- matrix(w, K, n, byrow = TRUE)
+  vv <- matrix(v, K, n, byrow = TRUE)
+  kpa <- kk^2 * pi^2 / aa^2
+  list(C = kk * sin(kk * pi * ww) / (vv^2 + kpa),
+       R = vv^2 / 2 + kpa / 2,
+       pref = (2 * pi / a^2) * exp(-v * a * w),
+       K = K, n = n)
+}
+
+# Defective CDF of the lower boundary: P(absorbed at 0, by time t).
+#
+# The same series the sampler inverts, evaluated once instead of repeatedly.
+# Accurate to about 1e-9 against numerical integration of the density, where
+# `rtdists::pdiffusion()` is out by up to 5e-4 - which is the reason this exists
+# rather than delegating: `.ddm_fpt_rng()` inverts it, so its error would end up
+# in the draws.
+#' @keywords internal
+.ddm_cdf_lower <- function(t, v, a, w) {
+  out <- numeric(length(t))
+  if (!length(t)) return(out)
+  plo <- .ddm_plower(v, a, w)
+  # Below the floor the CDF is under about 1e-15, and the series would need a
+  # prohibitive number of terms to say so. Returning zero there is both cheaper
+  # and, to double precision, right.
+  live <- is.finite(t) & t > .ddm_tfloor(a, w)
+  if (!any(live)) return(out)
+  tl <- t[live]
+  pre <- .ddm_series(v[live], a[live], w[live], .ddm_nterms(max(a[live]), min(tl)))
+  s <- pre$pref * .colSums(pre$C * exp(-pre$R * rep(tl, each = pre$K)),
+                           pre$K, pre$n)
+  out[live] <- pmin(pmax(plo[live] - s, 0), plo[live])
+  out
+}
+
+
+# Draw first-passage times for a Wiener process with drift `v`, boundary
+# separation `a` and relative start point `w`, one parameter set per draw.
+# Returns response 1 for the upper boundary, matching brms::rwiener().
+#' @keywords internal
+.ddm_fpt_rng <- function(n, v, a, w) {
+  if (n == 0) return(list(rt = numeric(0), response = numeric(0)))
+  v <- rep_len(v, n); a <- rep_len(a, n); w <- rep_len(w, n)
+
+  resp_lower <- stats::runif(n) < .ddm_plower(v, a, w)
+  q <- stats::runif(n)
+  # The upper boundary is the lower one of the reflected process, so flipping
+  # those draws leaves a single lower-boundary problem to solve.
+  vf <- ifelse(resp_lower, v, -v)
+  wf <- ifelse(resp_lower, w, 1 - w)
+  pf <- .ddm_plower(vf, a, wf)
+
+  lo <- .ddm_tfloor(a, wf)
+  pre <- .ddm_series(vf, a, wf, .ddm_nterms(max(a), min(lo)))
+  C <- pre$C; R <- pre$R; pref <- pre$pref; K <- pre$K
+  ltarget <- log1p(-q) + log(pf)
+
+  ev <- function(x, idx = NULL) {
+    if (is.null(idx)) {
+      ce <- C * exp(-R * rep(exp(x), each = K))
+      list(S = pref * .colSums(ce, K, n), f = pref * .colSums(ce * R, K, n))
+    } else {
+      m <- length(idx)
+      Ri <- R[, idx, drop = FALSE]
+      ce <- C[, idx, drop = FALSE] * exp(-Ri * rep(exp(x), each = K))
+      list(S = pref[idx] * .colSums(ce, K, m),
+           f = pref[idx] * .colSums(ce * Ri, K, m))
+    }
+  }
+
+  llo <- log(lo)
+  lhi <- rep(log(60), n)
+  # A near-driftless process behind a wide boundary can finish well past 60 s,
+  # so the upper end is pushed out until it really does bracket the root.
+  for (i in 1:8) {
+    short <- log(ev(lhi)$S) > ltarget
+    if (!any(short, na.rm = TRUE)) break
+    lhi <- ifelse(short, lhi + log(16), lhi)
+  }
+
+  # Start from the one-term inversion, exact in the tail where a single term
+  # carries the series.
+  x <- log(pmax((log(pref * C[1, ]) - ltarget) / R[1, ], 1e-10))
+  x <- pmin(pmax(x, llo + 1e-9), lhi - 1e-9)
+
+  conv <- rep(FALSE, n)
+  for (i in seq_len(.DDM_NEWTON)) {
+    sf <- ev(x)
+    h <- log(sf$S) - ltarget          # > 0: too much mass left, so t is too small
+    dx <- h * sf$S / pmax(sf$f * exp(x), 1e-300)
+    llo <- ifelse(!conv & h > 0, x, llo)
+    lhi <- ifelse(!conv & h <= 0, x, lhi)
+    xn <- x + dx
+    # A converged draw sits on the bracket edge its own last evaluation set, so
+    # the out-of-bracket test fires on exactly the steps that are already right.
+    # Those are taken; only genuinely wild ones fall back to the midpoint.
+    tiny <- is.finite(dx) & abs(dx) < 1e-10
+    x <- ifelse(conv, x,
+                ifelse((!is.finite(xn) | xn <= llo | xn >= lhi) & !tiny,
+                       (llo + lhi) / 2, xn))
+    conv <- conv | tiny
+  }
+
+  # Whatever Newton has not settled is bisected. The bracket is valid by
+  # construction, so this cannot fail to converge.
+  bad <- which(!conv)
+  if (length(bad)) {
+    bl <- llo[bad]; bh <- lhi[bad]; tg <- ltarget[bad]
+    for (i in 1:50) {
+      mid <- (bl + bh) / 2
+      up <- log(ev(mid, bad)$S) > tg
+      bl <- ifelse(up, mid, bl)
+      bh <- ifelse(up, bh, mid)
+    }
+    x[bad] <- (bl + bh) / 2
+  }
+  list(rt = exp(x), response = as.numeric(!resp_lower))
+}
+
+
 # Decision-component sampler. Between-trial variability needs no special
 # sampler: it *is* a hierarchical draw, so the per-trial drift, starting point
 # and non-decision time are drawn and the ordinary 4-parameter process is run on
@@ -547,7 +847,12 @@ cogmod_ddm <- function(
     drift = p$mu,
     boundary = p$boundary,
     bias = p$bias,
-    ndt = rep(.DDM_TAU0, n),
+    # Zero rather than `.DDM_TAU0`, unlike the density: that placeholder exists
+    # only to get past rwiener()'s and dwiener()'s rejection of a zero
+    # non-decision time, and this sampler has no such check to appease. Starting
+    # at zero also leaves `draw_trialwise()` drawing the st0 offset on its own
+    # scale, which is what gets added back below.
+    ndt = numeric(n),
     sigmadrift = p$sigmadrift,
     sigmabias = p$sigmabias,
     sigmandt = p$sigmandt
@@ -555,15 +860,11 @@ cogmod_ddm <- function(
   if (.cogmod_ddm_has_variability(pars)) {
     pars <- .cogmod_ddm_draw_trialwise(pars)
   }
-  # rwiener() objects to a zero non-decision time in the same way dwiener()
-  # does, so the draws use the same placeholder and subtract it again. At 1e-10
-  # against reaction times of order 0.1 s that subtraction is exact.
-  sim <- brms::rwiener(
-    n,
-    alpha = pars$boundary, beta = pars$bias, delta = pars$drift,
-    tau = pars$ndt
-  )
-  list(rt = pmax(sim$q - .DDM_TAU0, 0), response = as.numeric(sim$resp))
+  sim <- .ddm_fpt_rng(n, v = pars$drift, a = pars$boundary, w = pars$bias)
+  # `pars$ndt` carries the between-trial st0 offset and nothing else - the
+  # family's own `ndt` is added by `.rchoice()`. It is exactly zero unless
+  # `sigmandt` is free, so this costs nothing in the common case.
+  list(rt = sim$rt + pars$ndt, response = sim$response)
 }
 
 

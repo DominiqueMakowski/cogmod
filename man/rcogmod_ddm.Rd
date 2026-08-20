@@ -3,6 +3,7 @@
 \name{rcogmod_ddm}
 \alias{rcogmod_ddm}
 \alias{dcogmod_ddm}
+\alias{pcogmod_ddm}
 \alias{cogmod_ddm}
 \alias{cogmod_ddm_lpdf_expose}
 \alias{cogmod_ddm_stanvars}
@@ -35,6 +36,18 @@ dcogmod_ddm(
   sigmandt = 0,
   poutlier = 0,
   log = FALSE
+)
+
+pcogmod_ddm(
+  q,
+  drift = 0,
+  boundary = 1,
+  bias = 0.5,
+  ndt = 0.2,
+  response = NULL,
+  poutlier = 0,
+  lower.tail = TRUE,
+  log.p = FALSE
 )
 
 cogmod_ddm(
@@ -97,6 +110,13 @@ with the outlier component.}
 
 \item{log}{Logical; if TRUE, returns the log-density. Default: FALSE.}
 
+\item{q}{Vector of quantiles (reaction times, in seconds).}
+
+\item{lower.tail}{Logical; if TRUE (default) the probability is
+\code{P(RT <= q)}, otherwise \code{P(RT > q)}.}
+
+\item{log.p}{Logical; if TRUE, probabilities are returned on the log scale.}
+
 \item{link_mu, link_boundary, link_bias}{Link functions for the drift rate, the
 boundary separation and the starting point. \code{mu} is the drift: \code{brms}
 requires the first distributional parameter of a custom family to be called
@@ -138,10 +158,17 @@ Functions:
 \itemize{
 \item \code{rcogmod_ddm()}: Simulates random draws from the DDM.
 \item \code{dcogmod_ddm()}: Computes the density (likelihood).
+\item \code{pcogmod_ddm()}: Computes the cumulative distribution function.
 \item \code{cogmod_ddm()}: Creates a \code{brms::custom_family()} for use in \code{brms} models.
 \item \code{cogmod_ddm_stanvars()}: Generates the \code{stanvars} to pass to \code{brm()}.
 \item \code{p_outlier()}: Per-trial posterior probability of being an outlier.
 }
+
+\code{pcogmod_ddm()} is the cumulative distribution function: the probability that
+a response has been made by time \code{q}. With \code{response = NULL} it is the RT
+distribution marginally over the choice; with \code{response} set it is the
+\emph{defective} CDF that boundary carries, rising to the probability of that
+boundary rather than to one.
 }
 \section{Response coding}{
 The response coded \code{1} (\code{response} here, \code{dec()} in a \code{brms} formula) is the
@@ -233,8 +260,14 @@ applies unchanged here.
 }
 
 \section{Implementation}{
-The 4-parameter process is simulated and evaluated with
-\code{\link[brms:Wiener]{brms::rwiener()}}/\code{\link[brms:Wiener]{brms::dwiener()}} (which require the \code{RWiener} package).
+The 4-parameter density is \code{\link[brms:Wiener]{brms::dwiener()}} (which requires the \code{RWiener}
+package). Draws are taken by inverting the first-passage CDF, which - unlike
+\code{\link[brms:Wiener]{brms::rwiener()}}, and unlike \code{rtdists} - vectorises over parameter sets, so
+the per-call setup is paid once rather than once per posterior draw. That
+matters for \code{\link[rstantools:posterior_predict]{rstantools::posterior_predict()}}, where every draw carries its own
+parameters; it is several times faster there and agrees with both packages'
+samplers to within sampling error.
+
 The full 7-parameter model is built on top of these rather than delegated to
 another package: between-trial variability is simulated by drawing the
 per-trial parameters, and evaluated by combining a closed-form drift
@@ -277,6 +310,32 @@ is a fixed regularizer rather than a claim about how guesses are distributed.
 Use \code{\link[=with_outliers]{with_outliers()}} for the fitted mixture - chiefly for
 \code{brms::pp_check()} - and \code{\link[=without_outliers]{without_outliers()}} to go back. \code{log_lik()} is
 always the full mixture.
+}
+
+\section{Accuracy of \code{pcogmod_ddm()}}{
+This CDF is more accurate than the one in \code{rtdists}, which is the usual
+reference implementation. Deviation from numerical integration of the
+density, at \code{drift = -4}, \code{boundary = 0.6}, \code{bias = 0.25}, by decision time:\tabular{lll}{
+   decision time \tab this function \tab \code{rtdists::pdiffusion()} \cr
+   0.02 \tab \code{+2.8e-16} \tab \code{+5.5e-04} \cr
+   0.05 \tab \code{-1.1e-16} \tab \code{+4.0e-04} \cr
+   0.30 \tab \code{-1.1e-16} \tab \code{+1.5e-04} \cr
+}
+
+
+Over a grid of 360 (drift, boundary, bias, boundary-reached, time) cells the
+worst deviation from integrating \code{\link[=dcogmod_ddm]{dcogmod_ddm()}} is 1e-15, i.e. rounding. The
+choice probabilities are exact to the same order, where
+\code{rtdists::pdiffusion(Inf, ...)} is out by up to 1.4e-04. The difference is
+not academic: this function exists because \code{\link[=rcogmod_ddm]{rcogmod_ddm()}} inverts it to draw
+from, so any error in it would land directly in the draws.
+
+\code{pcogmod_ddm()} covers the classic \strong{4-parameter} DDM plus the outlier
+component. The between-trial variability parameters would each need their own
+quadrature layer on top - and \code{sigmadrift}, which the density handles with a
+closed-form correction, has no such form here - so they are not arguments at
+all: passing one is an error rather than a silently wrong number. Integrate
+\code{\link[=dcogmod_ddm]{dcogmod_ddm()}} over \code{q} if you need them.
 }
 
 \examples{

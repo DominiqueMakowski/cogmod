@@ -159,7 +159,32 @@
     # sampler wanders down the sigmabias -> 0 edge - the plain Wald race - and
     # produces divergent transitions. Same failure, and the same fix, as
     # cogmod_lba1(), which shares this parameterization. See ?rcogmod_rdm.
+    #
+    # `driftone` has the retreating-accumulator plateau described under
+    # cogmod_lnr() above, and it is the same failure for the same reason: push
+    # the error accumulator's rate down far enough and it never finishes first,
+    # so the likelihood depends on it only through the loser's survival, which
+    # has already saturated at 1. The softplus link reaches zero only at minus
+    # infinity, so a flat prior over that direction is an improper posterior.
+    # It is not hypothetical - fitting the two-participant lexical decision data
+    # of vignette("decision_making"), where the Accuracy condition carries only
+    # 75 errors, ran the intercept to -9.1 (a drift of 0.0001, the floor) with
+    # the condition slope going to +8.9 to pay for it, and 49% of transitions
+    # divergent. The LNR, which fences the same direction, samples the same data
+    # without a single divergence.
+    #
+    # `mu` has the mirror-image plateau but is the response's own intercept, so
+    # brms already gives it a proper student_t default and it is left alone -
+    # again as for cogmod_lnr(). Model a rarely-chosen option and it is worth
+    # mirroring the `driftone` prior onto it by hand.
+    #
+    # The slope here is `normal(0, 2)` rather than the `normal(0, 0.5)` the two
+    # threshold parameters get: a drift sits around 3 on this link, so a genuine
+    # condition effect is worth a unit or two and a tighter prior would fight
+    # it. It still fences the runaway, which was an order of magnitude larger.
     prior = list(
+      driftone = c(link = "normal(3, 2)", nat = "lognormal(1, 0.75)",
+                   slope = "normal(0, 2)"),
       sigmabias = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
                     slope = "normal(0, 0.5)"),
       boundary = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
