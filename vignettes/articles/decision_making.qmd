@@ -484,24 +484,28 @@ distributions right.
 #| code-fold: true
 
 pred <- rbind(
-  estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |>
+  estimate_prediction(m_ddm, data = df, iterations = 50, 
+                      keep_iterations = TRUE, ci = NULL) |>
     reshape_iterations() |>
     data_modify(Model = "DDM"),
-  estimate_prediction(m_ddm5, data = df, iterations = 50, keep_iterations = TRUE) |>
+  estimate_prediction(m_ddm5, data = df, iterations = 50, 
+                      keep_iterations = TRUE, ci = NULL) |>
     reshape_iterations() |>
     data_modify(Model = "DDM-5"),
-  estimate_prediction(m_lnr, data = df, keep_iterations = 50, iterations = 50, ci = NULL) |>
+  estimate_prediction(m_lnr, data = df, iterations = 50, 
+                      keep_iterations = TRUE, ci = NULL) |>
     reshape_iterations() |>
-    data_modify(Model = "LNR")
-  # estimate_prediction(m_lba, data = df, iterations = 50, keep_iterations = TRUE) |>
-  #   reshape_iterations() |>
-  #   data_modify(Model = "LBA")
+    data_modify(Model = "LNR"),
+  estimate_prediction(m_lba, data = df, iterations = 50, 
+                      keep_iterations = TRUE, ci = NULL) |>
+    reshape_iterations() |>
+    data_modify(Model = "LBA")
   # estimate_prediction(m_rdm, data = df, iterations = 50, keep_iterations = TRUE) |>
   #   reshape_iterations() |>
   #   data_modify(Model = "RDM")
 ) |>
-  datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index", "Model")) |>
-  datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model"), values_from = "iter_value", names_from = "Component")
+  datawizard::data_select(select = c("Row", "Component", "Condition", "iter_value", "iter_group", "iter_index", "Model")) |>
+  datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model", "Condition"), values_from = "iter_value", names_from = "Component")
 
 # The LBA occasionally predicts enormous RTs (a near-zero drift rate takes a
 # very long time to reach the threshold). `stat_density()` spreads its
@@ -520,31 +524,38 @@ bw <- 0.02  # Histogram bin width
 # number of trials of that response) scales each half by its own frequency.
 p <- ggplot(df, aes(x = RT)) +
   # Observed data
-  geom_histogram(data = df[df$Error == 0, ], aes(y = after_stat(count) / (n_obs * bw)),
-                 binwidth = bw, fill = "darkgreen", alpha = 0.3) +
-  geom_histogram(data = df[df$Error == 1, ], aes(y = -after_stat(count) / (n_obs * bw)),
-                 binwidth = bw, fill = "darkred", alpha = 0.3) +
+  geom_histogram(data = df[df$Error == 0, ], aes(y = after_stat(count) / (nrow(df) * 0.02),
+                                                 fill = Condition),
+                 binwidth = 0.02, alpha = 0.6, position = "identity") +
+  geom_histogram(data = df[df$Error == 1, ], aes(y = -after_stat(count) / (nrow(df) * 0.02),
+                                                 fill = Condition),
+                 binwidth = 0.02, alpha = 0.6, position = "identity") +
   # One faint line per posterior draw
-  geom_line(data = correct,
-            aes(x = rt, y = after_stat(count) / n_obs, color = Model,
-                group = interaction(Model, iter_group)),
-            stat = "density", alpha = 0.05, linewidth = 0.3) +
-  geom_line(data = error,
-            aes(x = rt, y = -after_stat(count) / n_obs, color = Model,
-                group = interaction(Model, iter_group)),
-            stat = "density", alpha = 0.05, linewidth = 0.3) +
+  # geom_line(data = correct,
+  #           aes(x = rt, y = after_stat(count) / n_obs, color = Model,
+  #               group = interaction(Model, iter_group, Condition)),
+  #           stat = "density", alpha = 0.05, linewidth = 0.3) +
+  # geom_line(data = error,
+  #           aes(x = rt, y = -after_stat(count) / n_obs, color = Model,
+  #               group = interaction(Model, iter_group, Condition)),
+  #           stat = "density", alpha = 0.05, linewidth = 0.3) +
   # Posterior predictive density, pooled over draws
   geom_line(data = correct,
-            aes(x = rt, y = after_stat(count) / (n_obs * n_iter), color = Model),
-            stat = "density", linewidth = 0.9) +
+            aes(x = rt, y = after_stat(count) / (n_obs * n_iter), 
+                color = Model, linetype = Condition),
+            stat = "density", linewidth = 1.2) +
   geom_line(data = error,
-            aes(x = rt, y = -after_stat(count) / (n_obs * n_iter), color = Model),
-            stat = "density", linewidth = 0.9) +
+            aes(x = rt, y = -after_stat(count) / (n_obs * n_iter), 
+                color = Model, linetype = Condition),
+            stat = "density", linewidth = 1.2) +
   geom_hline(yintercept = 0, color = "grey40", linewidth = 0.3) +
   scale_color_material_d(palette = "rainbow") +
-  guides(color = guide_legend(override.aes = list(alpha = 1, linewidth = 1.2))) +
+  scale_fill_manual(values = c("Accuracy"="#3F51B5", "Speed"="#F4511E")) +
+  guides(color = guide_legend(override.aes = list(alpha = 1, linewidth = 1.2)),
+         linetype = "none") +
   coord_cartesian(xlim = c(0.25, 1.25)) +
   labs(x = "RT (s)", y = "Density (up = Correct, down = Error)", color = "Model") +
+  # facet_wrap(~Model) +
   theme_minimal()
 p
 ```
@@ -563,5 +574,5 @@ the RTs of correct responses.
 #| echo: false
 #| eval: false
 
-ggsave("../man/figures/decision_making1.png", p, width = 10, height = 5.5, bg = "white", dpi = 300)
+ggsave("../../man/figures/decision_making1.png", p, width = 10, height = 5.5, bg = "white", dpi = 300)
 ```
