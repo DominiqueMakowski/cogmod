@@ -3,11 +3,15 @@
 # redistributed with `cogmod`; this script reconstructs the subset used in the
 # paper and in the vignettes.
 #
-# `censor` flags the trials the original authors excluded: uninterpretable
-# responses, RT < 180 ms and RT > 3 s. Following them, we additionally cap RT at
-# 2 s.
+# The only exclusion is `RT <= 2` s. This deliberately matches the vignettes
+# exactly - the `censor` column and the "error" response level are *not*
+# filtered out here, because the models the paper reports were fitted on the
+# unfiltered subset. Applying the original authors' censoring instead drops a
+# further five trials and puts every n in the paper three or four out from the
+# fitted models, which is the sort of drift this script exists to prevent.
 #
-# Sourced by make_figures.R and make_fig_eam.R.
+# Sourced by make_figures.R (which writes wagenmakers2008.csv for
+# make_fig_approaches.py).
 
 wagenmakers <- function() {
   if (!requireNamespace("rtdists", quietly = TRUE)) {
@@ -17,9 +21,7 @@ wagenmakers <- function() {
   utils::data("speed_acc", package = "rtdists", envir = e)
   speed_acc <- e$speed_acc
 
-  d <- speed_acc[
-    !speed_acc$censor & speed_acc$response != "error" & speed_acc$rt <= 2,
-  ]
+  d <- speed_acc[speed_acc$rt <= 2, ]
 
   data.frame(
     Participant = as.integer(as.character(d$id)),

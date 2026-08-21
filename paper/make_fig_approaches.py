@@ -72,8 +72,11 @@ def load():
             # dataset stored it as a logical, hence "TRUE" as well.
             if r["Error"] in ("TRUE", "1") or int(r["Participant"]) > 3:
                 continue
+            # RT <= 2 s is the only exclusion, matching the models exactly.
+            # A lower bound here would drop four fast trials the fitted models
+            # keep, and put this figure's n out from every other n in the paper.
             t = float(r["RT"])
-            if 0.2 <= t <= 2.0:
+            if t <= 2.0:
                 rt[r["Condition"]].append(t)
     return {k: np.array(v) for k, v in rt.items()}
 
@@ -337,14 +340,18 @@ def main():
     heading(fig, COL_MECH[0], ROW_Y0[1] + PANEL_H,
             "Distributional approach", "The model is a shape")
 
-    pars = {"Accuracy": (0.472, 0.052, 0.217), "Speed": (0.423, 0.040, 0.126)}
+    # Posterior means from the ex-Gaussian of Example 2 (mu, sigma, tau), in
+    # seconds. `mu` is on an identity link, so it is read off the posterior
+    # directly rather than through softplus. Regenerate with make_tables.R if
+    # the model is refitted.
+    pars = {"Accuracy": (0.476, 0.058, 0.213), "Speed": (0.429, 0.051, 0.120)}
     for cond, col in (("Accuracy", ACC), ("Speed", SPD)):
         mu, sg, ta = pars[cond]
         ax.plot(GRID, exponnorm.pdf(GRID, ta / sg, loc=mu, scale=sg),
                 color=col, lw=1.7, zorder=4)
     for (x0, x1), y, lab in (
-        ((0.245, 0.175), 0.52, r"bulk: 472 $\rightarrow$ 423 ms"),
-        ((0.560, 0.430), 0.20, r"tail: 217 $\rightarrow$ 126 ms"),
+        ((0.245, 0.175), 0.52, r"bulk: 476 $\rightarrow$ 429 ms"),
+        ((0.560, 0.430), 0.20, r"tail: 213 $\rightarrow$ 120 ms"),
     ):
         ax.annotate("", xy=(x1, y), xytext=(x0, y), xycoords="axes fraction",
                     textcoords="axes fraction", zorder=Z_ARROW,
@@ -355,8 +362,19 @@ def main():
     note(ax, "The same 141 ms, split into\na shift and a shorter tail")
 
     # -- row 3: computational ----------------------------------------------
+    #
+    # Posterior means from the shifted Wald of Example 2 (drift, boundary,
+    # ndt), in seconds, on the response scale. Regenerate with make_tables.R.
+    #
+    # These are the *fitted* values, not a maximum-likelihood fit to the same
+    # trials, and the difference matters. Four of these 4,285 responses are
+    # faster than 200 ms; the fitted model hands all four to its outlier
+    # component (p_outlier = 1.00 for each), while an MLE shifted Wald has no
+    # such component and is forced to drop `ndt` to zero to give them positive
+    # density. `wald_fit()` below is kept for reference but is no longer what
+    # the figure draws.
     axm, ax = rows[2]
-    fits = {c: wald_fit(rt[c]) for c in ("Accuracy", "Speed")}
+    fits = {"Accuracy": (2.732, 1.003, 0.323), "Speed": (3.853, 0.965, 0.299)}
     sketch_process(axm, *fits["Accuracy"])
     heading(fig, COL_MECH[0], ROW_Y0[2] + PANEL_H,
             "Computational approach", "The model is a process")

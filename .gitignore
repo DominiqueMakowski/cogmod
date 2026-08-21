@@ -62,3 +62,8 @@ vignettes/*_files
 vignettes/models_large/*
 AGENTS.md
 CLAUDE.md
+
+# Clinical data for paper/example_cnp.R, downloaded from OpenNeuro ds000030.
+# Not redistributed - see paper/download_cnp.R to fetch them.
+paper/cnp_data/
+paper/paper_cache/

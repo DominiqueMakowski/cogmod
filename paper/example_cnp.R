@@ -3,10 +3,10 @@
 #
 # Task-switching data from the UCLA Consortium for Neuropsychiatric Phenomics
 # (Poldrack et al., 2016), OpenNeuro ds000030. The data are NOT redistributed
-# with this repository; this script downloads the trial-level event files
-# directly from the OpenNeuro S3 bucket.
+# with this repository; run `download_cnp.R` first to fetch the trial-level
+# event files from the OpenNeuro S3 bucket into cnp_data/.
 #
-# Runtime: download ~1 min; the brms fit took ~27 min on 16 cores.
+# Runtime: the brms fit took ~27 min on 16 cores.
 # =============================================================================
 
 library(dplyr)
@@ -14,46 +14,40 @@ library(brms)
 library(cogmod)
 library(bayestestR)
 
-BASE <- "https://s3.amazonaws.com/openneuro.org/ds000030"
-DIR  <- "cnp_data"
-dir.create(file.path(DIR, "events"), recursive = TRUE, showWarnings = FALSE)
+DIR <- "cnp_data"
 
-# ---- 1. Download -------------------------------------------------------------
+# ---- 1. Load the downloaded files --------------------------------------------
 
 pfile <- file.path(DIR, "participants.tsv")
-if (!file.exists(pfile)) download.file(file.path(BASE, "participants.tsv"), pfile)
+if (!file.exists(pfile)) stop("Run download_cnp.R first.")
 participants <- read.delim(pfile)
 
 subs <- participants |>
   filter(diagnosis %in% c("CONTROL", "ADHD"), taskswitch == "1") |>
   pull(participant_id)
 
-for (s in subs) {
-  out <- file.path(DIR, "events", paste0(s, ".tsv"))
-  if (file.exists(out) && file.size(out) > 500) next
-  url <- sprintf("%s/%s/func/%s_task-taskswitch_events.tsv", BASE, s, s)
-  try(download.file(url, out, quiet = TRUE), silent = TRUE)
-}
-
 # ---- 2. Assemble trial-level data --------------------------------------------
 
+# Some event files code missing values as "n/a", which makes read.delim() give
+# the column back as character for those participants and only those; declare
+# the string so every file yields the same types.
 d <- lapply(subs, function(s) {
   f <- file.path(DIR, "events", paste0(s, ".tsv"))
   if (!file.exists(f)) return(NULL)
-  e <- read.delim(f)
+  e <- read.delim(f, na.strings = c("n/a", "NA", ""))
   data.frame(
     Participant = s,
     Diagnosis   = participants$diagnosis[participants$participant_id == s],
-    RT          = e$ReactionTime,
-    Correct     = e$CorrectResp,
-    Switching   = e$Switching,
-    Congruency  = e$Congruency
+    RT          = as.numeric(e$ReactionTime),
+    Correct     = as.numeric(e$CorrectResp),
+    Switching   = as.character(e$Switching),
+    Congruency  = as.character(e$Congruency)
   )
 }) |> bind_rows()
 
 # Correct responses only; standard RT trimming. RT == 0 codes a non-response.
 d <- d |>
-  filter(Correct == 1, RT > 0.2, RT < 2) |>
+  filter(!is.na(RT), !is.na(Correct), Correct == 1, RT > 0.2, RT < 2) |>
   mutate(
     Diagnosis = factor(Diagnosis, levels = c("CONTROL", "ADHD")),
     Switching = factor(Switching, levels = c("NOSWITCH", "SWITCH"))
@@ -100,7 +94,7 @@ f <- bf(
   sigma ~ Diagnosis * Switching + (1 | Participant),
   ndt ~ Diagnosis + (1 | Participant),
   poutlier ~ 1,
-  family = cogmod_lognormal(minrt = 0.2)
+  family = cogmod_lognormal()
 )
 
 m_ln <- brm(
@@ -118,12 +112,13 @@ print(summary(m_ln))
 
 # ---- 5. Response-scale decomposition -----------------------------------------
 
-p       <- posterior::as_draws_df(m_ln)
+p        <- posterior::as_draws_df(m_ln)
 softplus <- function(x) log1p(exp(x))
-minrt   <- min(d$RT)
 
-ndt_c <- plogis(p$b_tau_Intercept) * minrt
-ndt_a <- plogis(p$b_tau_Intercept + p$b_tau_DiagnosisADHD) * minrt
+# `ndt` is on a `log` link and is in seconds outright. It used to be called
+# `tau` and to be a logit-scaled fraction of a `minrt` argument; both are gone.
+ndt_c <- exp(p$b_ndt_Intercept)
+ndt_a <- exp(p$b_ndt_Intercept + p$b_ndt_DiagnosisADHD)
 sig_c <- softplus(p$b_sigma_Intercept)
 sig_a <- softplus(p$b_sigma_Intercept + p$b_sigma_DiagnosisADHD)
 dec_c <- exp(p$b_Intercept + sig_c^2 / 2)
@@ -138,9 +133,24 @@ report(dec_a - dec_c, "decision component")
 report(ndt_a - ndt_c, "non-decision time")
 report((ndt_a + dec_a) - (ndt_c + dec_c), "total mean RT")
 
-# The decision and non-decision parameters trade off; report the correlation
-cat("posterior cor(mu_ADHD, tau_ADHD) =",
-    round(cor(p$b_DiagnosisADHD, p$b_tau_DiagnosisADHD), 3), "\n")
+# The dispersion effect is reported on the link scale in the text, so give its
+# pd directly, along with the two interaction terms the model agrees are null.
+pd <- function(x) as.numeric(p_direction(x))
+cat(sprintf("sigma: Diagnosis effect (link) = %+.3f, pd = %.3f\n",
+            median(p$b_sigma_DiagnosisADHD), pd(p$b_sigma_DiagnosisADHD)))
+cat(sprintf("mu:    Diagnosis x Switching   = %+.3f, pd = %.3f\n",
+            median(p$`b_DiagnosisADHD:SwitchingSWITCH`),
+            pd(p$`b_DiagnosisADHD:SwitchingSWITCH`)))
+cat(sprintf("sigma: Diagnosis x Switching   = %+.3f, pd = %.3f\n",
+            median(p$`b_sigma_DiagnosisADHD:SwitchingSWITCH`),
+            pd(p$`b_sigma_DiagnosisADHD:SwitchingSWITCH`)))
 
+# The decision and non-decision parameters trade off; report the correlation
+cat("posterior cor(mu_ADHD, ndt_ADHD) =",
+    round(cor(p$b_DiagnosisADHD, p$b_ndt_DiagnosisADHD), 3), "\n")
+
+# `sc` is the per-participant switch cost computed in section 3; make_fig_adhd.R
+# needs all three objects.
 saveRDS(d, file.path(DIR, "d.rds"))
+saveRDS(sc, file.path(DIR, "sc.rds"))
 saveRDS(m_ln, file.path(DIR, "m_ln.rds"))

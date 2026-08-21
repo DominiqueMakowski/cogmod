@@ -3,7 +3,7 @@
 #
 # The rest of the pipeline is Python, run after this script:
 #   make_fig_approaches.py   figures/fig_approaches.png  (reads the csv below)
-#   make_fig_overview.py     figures/fig_overview.png    (embeds the logo)
+#   ../man/figures/make_fig_overview.py  figures/fig_overview.png (embeds the logo)
 #   add_figure_titles.py     puts headings on the two vignette figures
 
 library(ggplot2)
@@ -15,8 +15,12 @@ dir.create("figures", showWarnings = FALSE)
 
 source("wagenmakers.R") # reconstructs the data from rtdists::speed_acc
 
-# Intermediate consumed by make_fig_approaches.py
-write.csv(wagenmakers(), "wagenmakers2008.csv", row.names = FALSE)
+# Intermediate consumed by make_fig_approaches.py. Only the three participants
+# the paper actually models are written out: this is a derived intermediate,
+# not a copy of the dataset, and `rtdists` remains the source of record.
+w <- wagenmakers()
+write.csv(w[w$Participant %in% c(1, 2, 3), ], "wagenmakers2008.csv",
+          row.names = FALSE)
 
 # ---------------------------------------------------------------------------
 # Figure 1: two conditions with identical means but radically different shapes.
@@ -69,11 +73,16 @@ f_eg <- bf(
 # doubles the sampling time; the estimates are unchanged. Note that running
 # *longer* chains does not help, since the divergences come from rare
 # excursions into the tau -> 0 tail rather than from too few draws.
+#
+# cogmod_priors() supplies the `mu` intercept prior that the identity link
+# needs (see below) and fences `tau`, which brms leaves flat because it does
+# not recognise the name; cogmod_inits() starts all three in seconds.
 m_eg <- brm(
   f_eg,
   data = sim,
-  stanvars = cogmod_exgaussian_stanvars(),
-  init = 0,
+  prior = cogmod_priors(f_eg, sim),
+  init = cogmod_inits(f_eg, sim),
+  stanvars = cogmod_stanvars(f_eg),
   chains = 4, cores = 4, iter = 2000, seed = 1,
   control = list(adapt_delta = 0.999, max_treedepth = 12),
   backend = "cmdstanr",
@@ -83,15 +92,18 @@ m_eg <- brm(
 )
 print(m_eg)
 
-# Response scale (softplus link on all three parameters), in milliseconds.
+# Response scale, in seconds. `mu` is on an `identity` link and so is already
+# in seconds - it is the *location* of the Gaussian component, which is well
+# defined at and below zero, and constraining it distorted the mu/tau split.
+# `sigma` and `tau` are lengths of time and stay on `softplus`.
 d <- brms::as_draws_df(m_eg)
 softplus <- function(x) log1p(exp(x))
 cell <- function(v) sprintf("%.3f [%.3f, %.3f]", mean(v), quantile(v, .025), quantile(v, .975))
 
 pars <- list(
   mu = list(
-    A = softplus(d$b_Intercept),
-    B = softplus(d$b_Intercept + d$b_ConditionB)
+    A = d$b_Intercept,
+    B = d$b_Intercept + d$b_ConditionB
   ),
   sigma = list(
     A = softplus(d$b_sigma_Intercept),

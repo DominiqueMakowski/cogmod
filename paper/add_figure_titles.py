@@ -40,7 +40,7 @@ FIGURES = [
     dict(src=os.path.join(VIG, "rt_models1.png"),
          dst=os.path.join(OUTDIR, "fig_ppcheck.png"),
          shown_in=6.5,
-         title="Nine reaction time families fitted to the same trials",
+         title="Sixteen reaction time families fitted to the same trials",
          subtitle="Posterior predictive draws over the observed data"),
 ]
 

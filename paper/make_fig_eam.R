@@ -1,7 +1,7 @@
 # Generates figures/fig_eam.png, used in Example 1 of paper.qmd.
 #
 # Reads the five choice+RT models fitted in the `Decision Making Models`
-# vignette (vignettes/models/*.rds, see vignettes/decision_making.qmd), so it
+# vignette (vignettes/models/*.rds, see vignettes/articles/decision_making.qmd), so it
 # does not refit anything. Run from the `paper/` directory.
 #
 #   Rscript make_fig_eam.R
@@ -28,21 +28,23 @@ models <- list(
   LBA     = readRDS(file.path(VIG, "m_lba2.rds")),
   LNR     = readRDS(file.path(VIG, "m_lnr.rds")),
   `DDM-5` = readRDS(file.path(VIG, "m_ddm5.rds")),
-  RDM     = readRDS(file.path(VIG, "m_rdm.rds")),
-  DDM     = readRDS(file.path(VIG, "m_ddm.rds"))
+  DDM     = readRDS(file.path(VIG, "m_ddm.rds")),
+  RDM     = readRDS(file.path(VIG, "m_rdm.rds"))
 )
 
-# Same subset as the vignette: one participant, correct and error trials.
-source("wagenmakers.R") # reconstructs the data from rtdists::speed_acc
-df <- wagenmakers()
-df <- df[df$Participant == 1, ]
+# The data are taken from the fitted object rather than rebuilt here, so the
+# figure cannot drift away from the models the vignette actually fitted
+# (participants 1-3 of Wagenmakers et al., RT <= 2 s, correct and error trials).
+df <- models$DDM$data
 n_obs <- nrow(df)
+pct_correct <- 100 * mean(df$Error == 0)
+pct_error <- 100 * mean(df$Error == 1)
 
 # Ordered by ELPD (best first); the levels drive every legend and axis below.
 LEVELS <- names(models)
 COLORS <- c(
   LBA = "#4CAF50", LNR = "#FF9800", `DDM-5` = "#2196F3",
-  RDM = "#E91E63", DDM = "#673AB7"
+  DDM = "#673AB7", RDM = "#E91E63"
 )
 
 # ---------------------------------------------------------------------------
@@ -50,8 +52,12 @@ COLORS <- c(
 # interleaved (odd columns = RT, even columns = response), one pair per trial.
 # ---------------------------------------------------------------------------
 
+# `with_outliers()` matters here. By default `posterior_predict()` returns the
+# decision process alone, while `log_lik()` - and so `loo()` - is the full
+# mixture. Panel C ranks the models by LOO, so panels A and B have to check the
+# same distribution that ranking was computed from.
 pred <- lapply(LEVELS, function(nm) {
-  pp <- brms::posterior_predict(models[[nm]], ndraws = NDRAWS)
+  pp <- brms::posterior_predict(cogmod::with_outliers(models[[nm]]), ndraws = NDRAWS)
   rt <- pp[, seq(1, 2 * n_obs, by = 2), drop = FALSE]
   resp <- pp[, seq(2, 2 * n_obs, by = 2), drop = FALSE]
   data.frame(
@@ -118,10 +124,10 @@ pA <- ggplot(df, aes(x = RT)) +
     stat = "density", linewidth = 0.75
   ) +
   geom_hline(yintercept = 0, color = "grey40", linewidth = 0.3) +
-  annotate("text", x = 1.29, y = 2.6, label = "Correct (91.6%)",
-           hjust = 1, size = 2.9, fontface = "bold", color = "#2E7D32") +
-  annotate("text", x = 1.29, y = -0.42, label = "Errors (8.4%)",
-           hjust = 1, size = 2.9, fontface = "bold", color = "#B71C1C") +
+  annotate("text", x = 1.29, y = 2.6, hjust = 1, size = 2.9, fontface = "bold",
+           color = "#2E7D32", label = sprintf("Correct (%.1f%%)", pct_correct)) +
+  annotate("text", x = 1.29, y = -0.42, hjust = 1, size = 2.9, fontface = "bold",
+           color = "#B71C1C", label = sprintf("Errors (%.1f%%)", pct_error)) +
   scale_color_manual(values = COLORS, breaks = LEVELS) +
   guides(color = guide_legend(override.aes = list(alpha = 1, linewidth = 1.1), nrow = 1)) +
   coord_cartesian(xlim = c(0.28, 1.3)) +
@@ -231,9 +237,10 @@ p <- (pA | (pB / pC)) +
   plot_annotation(
     tag_levels = "A",
     title = "Five evidence accumulation models, one interface",
-    subtitle = paste(
-      "Choices and reaction times from one participant of Wagenmakers et al. (2008),",
-      "1,917 trials"
+    subtitle = sprintf(
+      paste("Choices and reaction times from three participants of",
+            "Wagenmakers et al. (2008), %s trials"),
+      format(n_obs, big.mark = ",")
     ),
     theme = theme(
       plot.title = element_text(face = "bold", size = 11, colour = "#22252E"),

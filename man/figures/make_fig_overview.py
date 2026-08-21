@@ -252,8 +252,12 @@ REGIONS = [
         icon=icon_rt, color=VIOLET, xbox=RIGHT, side="bottom",
         families=[("ExGaussian", 10.5, None),
                   ("Shifted Wald", 10.5, None),
+                  ("Ex-Wald", 10.5, None),
                   ("Shifted LogNormal", 10.5, None),
-                  ("Single-accumulator LBA", 9.0, None)],
+                  ("Log-Student", 10.5, None),
+                  ("LogGamma", 10.5, None),
+                  ("Single-accumulator LBA", 9.0, None),
+                  ("Recinormal (LATER)", 9.0, None)],
     ),
 ]
 
