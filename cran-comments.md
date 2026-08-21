@@ -1,12 +1,6 @@
-# cogmod 0.2.2
+# cogmod 0.3.0
 
 This is a new submission.
-
-## Test environments
-
-* local Windows 11, R 4.5.3
-* GitHub Actions: ubuntu-latest (devel, release, oldrel-1), macOS-latest
-  (release), windows-latest (release)
 
 ## R CMD check results
 

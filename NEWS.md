@@ -1,4 +1,4 @@
-# cogmod 0.2.2
+# cogmod 0.3.0
 
 ## New features
 
