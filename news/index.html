@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -41,9 +41,9 @@
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.2.2" id="cogmod-022">cogmod 0.2.2<a class="anchor" aria-label="anchor" href="#cogmod-022"></a></h2>
+<h2 class="pkg-version" data-toc-text="0.3.0" id="cogmod-030">cogmod 0.3.0<a class="anchor" aria-label="anchor" href="#cogmod-030"></a></h2>
 <div class="section level3">
-<h3 id="new-features-0-2-2">New features<a class="anchor" aria-label="anchor" href="#new-features-0-2-2"></a></h3>
+<h3 id="new-features-0-3-0">New features<a class="anchor" aria-label="anchor" href="#new-features-0-3-0"></a></h3>
 <ul><li>
 <p>New family <strong><code><a href="../reference/rcogmod_geg.html">cogmod_geg()</a></code></strong>, the Generalised Ex-Gaussian of <a href="https://doi.org/10.1007/s11571-022-09813-2" class="external-link">Marmolejo-Ramos et al. (2023)</a>: the ex-Gaussian with its CDF raised to a power, <code>F_GEG(x) = F_EG(x)^shape</code>. The construction is Durrans’ alpha-power family, so the density is <code>shape * F_EG(x)^(shape - 1) * f_EG(x)</code> and stays closed form - Stan ships both <code>exp_mod_normal_lpdf</code> and <code>exp_mod_normal_lcdf</code>, so the whole likelihood is three lines and costs one extra CDF.</p>
 <p><code>shape = 1</code> is <code><a href="../reference/rcogmod_exgaussian.html">cogmod_exgaussian()</a></code> <strong>exactly</strong>, not approximately, in R and in Stan alike, so <code><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare()</a></code> between the two is like-for-like.</p>
@@ -54,7 +54,7 @@
 </li>
 </ul></div>
 <div class="section level3">
-<h3 id="breaking-changes-0-2-2">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-0-2-2"></a></h3>
+<h3 id="breaking-changes-0-3-0">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-0-3-0"></a></h3>
 <ul><li>
 <p><strong><code><a href="../reference/rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>’s <code>mu</code> is now on an <code>identity</code> link</strong> and is unbounded, where it was on <code>softplus</code> with a lower bound of zero. <code>sigma</code> and <code>tau</code> are unchanged.</p>
 <p><code>mu</code> is the <strong>location</strong> of the Gaussian component, not a scale. The convolution is well defined for any real value - the density integrates to one at <code>mu = 0</code> and below - and the Stan <code>lpdf</code> has always agreed, checking only <code>sigma</code> and <code>tau</code>. The old bound lived in <code>.prepare_exgaussian()</code> and in the family declaration alone, so the R functions were refusing inputs the sampler would happily fit.</p>
@@ -79,7 +79,7 @@
 </li>
 </ul></div>
 <div class="section level3">
-<h3 id="performance-0-2-2">Performance<a class="anchor" aria-label="anchor" href="#performance-0-2-2"></a></h3>
+<h3 id="performance-0-3-0">Performance<a class="anchor" aria-label="anchor" href="#performance-0-3-0"></a></h3>
 <ul><li>
 <p><strong><code><a href="../reference/rcogmod_rdm.html">cogmod_rdm()</a></code> samples about 1.5x faster.</strong> It was the most expensive likelihood in the package - roughly 5.9 us per observation per gradient, against 2.6 for <code><a href="../reference/rcogmod_lba2.html">cogmod_lba2()</a></code> and 0.8 for <code><a href="../reference/rcogmod_lnr.html">cogmod_lnr()</a></code> - and two thirds of that was avoidable. The Stan survival evaluated the normal CDF at <code>alpha</code> and at <code>beta</code> twice each, once inside <code>log_g()</code> and once again for the terms that follow it, and it assembled its six signed terms through a helper returning a <code>vector[2]</code>, which allocates on the autodiff stack once per term per observation per leapfrog step.</p>
 <p><code>log_g()</code> now takes <code>log Phi(u)</code> from its caller, which brings the survival from six normal-CDF evaluations to four, and the six terms are grouped into the two differences that are individually monotone in the threshold, so each is one <code>log_diff_exp()</code> of known sign and nothing on the hot path returns a vector. The maths is unchanged and the grouped form cancels <em>less</em>: against the R implementation it agrees to 6e-11 where the term-by-term form reached 5e-9. Gradients are unchanged to the precision finite differences can resolve.</p>

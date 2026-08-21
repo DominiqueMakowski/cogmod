@@ -84,7 +84,7 @@ citation("cogmod")
 #> To cite cogmod in publications use:
 #> 
 #>   Makowski, D. (2026). cogmod: Cognitive Models for Subjective Scales
-#>   and Decision Making Tasks. R package version 0.2.2.
+#>   and Decision Making Tasks. R package version 0.3.0.
 #>   https://github.com/DominiqueMakowski/cogmod
 #> 
 #> A BibTeX entry for LaTeX users is
@@ -93,7 +93,7 @@ citation("cogmod")
 #>     title = {{cogmod}: Cognitive Models for Subjective Scales and Decision Making Tasks},
 #>     author = {Dominique Makowski},
 #>     year = {2026},
-#>     note = {R package version 0.2.2},
+#>     note = {R package version 0.3.0},
 #>     url = {https://github.com/DominiqueMakowski/cogmod},
 #>   }
 ```
