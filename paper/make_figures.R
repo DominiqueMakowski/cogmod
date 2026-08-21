@@ -10,6 +10,9 @@ library(ggplot2)
 library(patchwork)
 library(lme4)
 library(cogmod)
+library(png)
+library(grid)
+library(cowplot)
 
 dir.create("figures", showWarnings = FALSE)
 
@@ -20,7 +23,8 @@ source("wagenmakers.R") # reconstructs the data from rtdists::speed_acc
 # not a copy of the dataset, and `rtdists` remains the source of record.
 w <- wagenmakers()
 write.csv(w[w$Participant %in% c(1, 2, 3), ], "wagenmakers2008.csv",
-          row.names = FALSE)
+  row.names = FALSE
+)
 
 # ---------------------------------------------------------------------------
 # Figure 1: two conditions with identical means but radically different shapes.
@@ -36,6 +40,7 @@ print(summary(m))
 means <- aggregate(RT ~ Condition, data = sim, FUN = mean)
 print(means)
 
+
 p1 <- ggplot(sim, aes(x = RT, fill = Condition)) +
   geom_histogram(bins = 100, alpha = 0.75, position = "identity") +
   geom_vline(
@@ -48,10 +53,22 @@ p1 <- ggplot(sim, aes(x = RT, fill = Condition)) +
   labs(x = "Reaction Time (s)", y = "Count") +
   theme_minimal(base_size = 11) +
   theme(
-    legend.position = c(0.9, 0.8),
+    legend.position = "top",
     panel.grid.minor = element_blank()
   )
 
+p1 <- ggdraw(p1) +
+  draw_image(
+    "meme_anakin.png",
+    x = 0.55,
+    y = 0.29,
+    width = 0.7,
+    height = 0.7,
+    hjust = 0,
+    vjust = 0,
+    scale = 1,
+    clip = "on"
+  )
 # ---------------------------------------------------------------------------
 # The same data under an ex-Gaussian likelihood. Only the family and the two
 # extra formulas differ from the linear mixed model above. Feeds panel C of
@@ -240,6 +257,7 @@ p <- (p1 / (t1 | t2)) +
     )
   )
 
+p
 ggsave("figures/fig_motivation.png", p, width = 6.5, height = 4.7, dpi = 300, bg = "white")
 
 cat("\nDone.\n")

@@ -8,9 +8,7 @@
 #
 # Panel A: posterior predictive check, correct responses drawn upwards and
 #          errors downwards, each scaled by its own predicted frequency.
-# Panel B: the statistic the check is really about - the predicted difference
-#          between the mean error RT and the mean correct RT.
-# Panel C: what each architecture costs against what it buys.
+# Panel B: what each architecture costs against what it buys.
 
 library(brms)
 library(cogmod)
@@ -54,8 +52,8 @@ COLORS <- c(
 
 # `with_outliers()` matters here. By default `posterior_predict()` returns the
 # decision process alone, while `log_lik()` - and so `loo()` - is the full
-# mixture. Panel C ranks the models by LOO, so panels A and B have to check the
-# same distribution that ranking was computed from.
+# mixture. Panel B ranks the models by LOO, so panel A has to check the same
+# distribution that ranking was computed from.
 pred <- lapply(LEVELS, function(nm) {
   pp <- brms::posterior_predict(cogmod::with_outliers(models[[nm]]), ndraws = NDRAWS)
   rt <- pp[, seq(1, 2 * n_obs, by = 2), drop = FALSE]
@@ -75,8 +73,8 @@ pred$Model <- factor(pred$Model, levels = LEVELS)
 # so the races occasionally predict enormous RTs. The observed data were
 # trimmed at 2 s, so predictions beyond 3 s are discarded throughout: in panel
 # A a single extreme draw would flatten every curve (`stat_density()` spreads
-# its evaluation grid over the whole x range), and in panel B it would move a
-# whole draw's error mean by several hundred milliseconds.
+# its evaluation grid over the whole x range), and it would move a whole draw's
+# error mean by several hundred milliseconds in the statistic printed below.
 cat(sprintf("dropped %d predicted RTs > 3 s (%.3f%%)\n",
             sum(pred$rt > 3), 100 * mean(pred$rt > 3)))
 pred <- pred[pred$rt < 3, ]
@@ -145,51 +143,30 @@ pA <- ggplot(df, aes(x = RT)) +
   )
 
 # ---------------------------------------------------------------------------
-# Panel B: the error-timing statistic. One number per posterior draw, against
-# the value observed in the data.
+# The error-timing statistic, printed rather than plotted.
+#
+# This used to be panel B. The paper no longer discusses which architecture
+# matches this particular statistic - on three pooled participants that is a
+# partial result, not a finding - so the figure is down to the two panels that
+# stand on their own. The numbers are still computed and printed, because they
+# are what tells you whether the predictive check in panel A is hiding a
+# systematic error-timing miss.
 # ---------------------------------------------------------------------------
-
-stat_draws <- do.call(rbind, lapply(LEVELS, function(nm) {
-  d <- pred[pred$Model == nm, ]
-  s <- tapply(seq_len(nrow(d)), d$draw, function(i) {
-    mean(d$rt[i][d$response[i] == 1]) - mean(d$rt[i][d$response[i] == 0])
-  })
-  data.frame(Model = nm, value = as.numeric(s))
-}))
-stat_draws$Model <- factor(stat_draws$Model, levels = rev(LEVELS))
 
 observed <- mean(df$RT[df$Error == 1]) - mean(df$RT[df$Error == 0])
 cat(sprintf("observed mean(error) - mean(correct) = %+.3f s\n", observed))
 for (nm in LEVELS) {
-  v <- stat_draws$value[stat_draws$Model == nm]
+  d <- pred[pred$Model == nm, ]
+  s <- tapply(seq_len(nrow(d)), d$draw, function(i) {
+    mean(d$rt[i][d$response[i] == 1]) - mean(d$rt[i][d$response[i] == 0])
+  })
+  v <- as.numeric(s)
   cat(sprintf("%-6s predicted %+.3f [%+.3f, %+.3f]\n", nm, mean(v),
               quantile(v, .025), quantile(v, .975)))
 }
 
-pB <- ggplot(stat_draws, aes(x = value, y = Model, color = Model, fill = Model)) +
-  geom_vline(xintercept = observed, linetype = "dashed", color = "grey30", linewidth = 0.4) +
-  ggdist::stat_halfeye(
-    .width = 0.95, point_size = 1.2, interval_size = 0.5,
-    slab_alpha = 0.55, height = 0.85, normalize = "groups"
-  ) +
-  annotate("text", x = observed, y = 5.75, label = "  observed", hjust = 0,
-           size = 2.7, color = "grey30") +
-  scale_color_manual(values = COLORS, guide = "none") +
-  scale_fill_manual(values = COLORS, guide = "none") +
-  coord_cartesian(clip = "off") +
-  labs(
-    title = "Are errors slower than correct responses?",
-    subtitle = "Predicted mean RT difference, error - correct",
-    x = "Difference (s)", y = NULL
-  ) +
-  theme_minimal(base_size = 9) +
-  theme(
-    panel.grid.minor = element_blank(),
-    plot.margin = margin(2, 8, 2, 2)
-  )
-
 # ---------------------------------------------------------------------------
-# Panel C: predictive accuracy against sampling cost.
+# Panel B: predictive accuracy against sampling cost.
 # ---------------------------------------------------------------------------
 
 elpd <- vapply(models, function(m) m$criteria$loo$estimates["elpd_loo", "Estimate"], numeric(1))
@@ -212,7 +189,7 @@ diffs <- data.frame(
 diffs$Model <- factor(diffs$Model, levels = LEVELS)
 print(diffs)
 
-pC <- ggplot(diffs, aes(x = time, y = elpd_diff, color = Model)) +
+pB <- ggplot(diffs, aes(x = time, y = elpd_diff, color = Model)) +
   geom_hline(yintercept = 0, color = "grey70", linewidth = 0.3) +
   geom_linerange(aes(ymin = elpd_diff - se_diff, ymax = elpd_diff + se_diff), linewidth = 0.5) +
   geom_point(size = 2.2) +
@@ -232,7 +209,7 @@ pC <- ggplot(diffs, aes(x = time, y = elpd_diff, color = Model)) +
 
 # ---------------------------------------------------------------------------
 
-p <- (pA | (pB / pC)) +
+p <- (pA | pB) +
   plot_layout(widths = c(1.15, 1)) +
   plot_annotation(
     tag_levels = "A",
@@ -251,5 +228,5 @@ p <- (pA | (pB / pC)) +
 
 # Sized so that, once scaled to the width it occupies in the two-column PDF,
 # the heading prints at ~10.5 pt like the other figures.
-ggsave("figures/fig_eam.png", p, width = 7.2, height = 4.5, dpi = 300, bg = "white")
+ggsave("figures/fig_eam.png", p, width = 7.2, height = 3.9, dpi = 300, bg = "white")
 cat("\nwrote figures/fig_eam.png\n")
