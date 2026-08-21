@@ -144,8 +144,10 @@ test_that("cogmod_inits supports cogmod_exgaussian", {
                 family = cogmod_exgaussian())
   vals <- cogmod_inits(f, d_ex, jitter = 0)(1)
   expect_setequal(names(vals), declared_params(f, d_ex))
-  # All three are softplus by default and all three are targeted.
-  expect_equal(vals$Intercept, log(expm1(0.4)))
+  # `mu` is on `identity` - it is the location of the Gaussian component, not a
+  # scale - so its start is in seconds outright. `sigma` and `tau` are lengths
+  # of time behind `softplus`, so theirs go through the inverse link.
+  expect_equal(vals$Intercept, 0.4)
   expect_equal(vals$Intercept_sigma, log(expm1(0.1)))
   expect_equal(vals$Intercept_tau, log(expm1(0.2)))
 
@@ -218,9 +220,11 @@ test_that("cogmod_priors sets sigma and tau for cogmod_exgaussian", {
   expect_equal(pick("Intercept", "tau"), "normal(-1.5, 0.7)")
   expect_equal(pick("b", "sigma"), "normal(0, 0.5)")
   expect_equal(pick("b", "tau"), "normal(0, 0.5)")
-  # mu is the response's own intercept and brms already gives it a proper
-  # student_t, so it is left exactly as it was.
-  expect_equal(pick("Intercept", ""), "student_t(3, 0, 2.5)")
+  # `mu` moved from softplus to identity, and brms's student_t(3, 0, 2.5) is a
+  # fair statement on the softplus scale but on identity is centred on zero
+  # seconds and rates a Gaussian centre of -2 s as plausible as +2 s. Only the
+  # intercept is set; the slopes are the effects being estimated.
+  expect_equal(pick("Intercept", ""), "normal(0.4, 0.25)")
   expect_equal(pick("b", ""), "")
 
   # Omitted from bf(), both live on the natural scale instead.
@@ -458,7 +462,13 @@ test_that("the R parameter checks reject exactly what Stan rejects", {
   expect_error(rcogmod_lognormal(5, sigma = 0), "sigma")
   expect_error(rcogmod_gamma(5, mu = 0), "mu")
   expect_error(rcogmod_invgaussian(5, boundary = -0.1), "boundary")
-  expect_error(rcogmod_lba1(5, sigmabias = 0), "sigmabias")
+  expect_error(rcogmod_lba1(5, sigmabias = -1), "sigmabias")
+  # cogmod_lba1()'s bound on `sigmabias` is closed at zero, where cogmod_rdm()'s
+  # is open, and the registry's lb/ub is what makes the two differ. Zero is a
+  # nested model for the LBA - the recinormal, or LATER - so it has to be
+  # reachable; the RDM has no such limit and still rejects it.
+  expect_silent(rcogmod_lba1(5, sigmabias = 0))
+  expect_error(rcogmod_rdm(5, bias = 0), "sigmabias")
   # shape is unconstrained for the log-gamma, so it must not be rejected
   expect_silent(rcogmod_loggamma(5, shape = -3))
   # ndt = 0 and poutlier = 0 are legitimate, not boundary violations

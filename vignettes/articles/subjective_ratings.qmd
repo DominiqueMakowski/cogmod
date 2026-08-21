@@ -59,6 +59,7 @@ The Zero-One Inflated Beta (ZOIB) model assumes that the data can be modeled as 
 
 ```{r}
 #| eval: false
+#| code-fold: false
 
 f <- bf(
   score ~ x,
@@ -74,10 +75,13 @@ m_zoib <- brm(f,
 )
 
 m_zoib <- brms::add_criterion(m_zoib, "loo")  # For later model comparison
-
-saveRDS(m_zoib, file = "models/m_zoib.rds")
 ```
+```{r}
+#| eval: false
+#| echo: false
 
+saveRDS(m_zoib, file = "../models/m_zoib.rds")
+```
 
 #### XBX Model
 
@@ -85,6 +89,7 @@ saveRDS(m_zoib, file = "models/m_zoib.rds")
 
 ```{r}
 #| eval: false
+#| code-fold: false
 
 f <- bf(
   score ~ x,
@@ -99,10 +104,13 @@ m_xbx <- brm(f,
 )
 
 m_xbx <- brms::add_criterion(m_xbx, "loo")  # For later model comparison
-
-saveRDS(m_xbx, file = "models/m_xbx.rds")
 ```
+```{r}
+#| eval: false
+#| echo: false
 
+saveRDS(m_xbx, file = "../models/m_xbx.rds")
+```
 
 #### Beta-Gate Model
 
@@ -110,6 +118,7 @@ The [**Beta-Gate model**](https://dominiquemakowski.github.io/cogmod/reference/r
 
 ```{r}
 #| eval: false
+#| code-fold: false
 
 f <- bf(
   score ~ x,
@@ -125,9 +134,14 @@ m_betagate <- brm(f,
 )
 
 m_betagate <- brms::add_criterion(m_betagate, "loo")  # For later model comparison
-
-saveRDS(m_betagate, file = "models/m_betagate.rds")
 ```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_betagate, file = "../models/m_betagate.rds")
+```
+
 
 #### CHOCO Model
 
@@ -135,6 +149,7 @@ See the [**documentation**](https://dominiquemakowski.github.io/cogmod/reference
 
 ```{r}
 #| eval: false
+#| code-fold: false
 
 f <- bf(
   score ~ x,
@@ -154,8 +169,12 @@ m_choco <- brm(f,
 )
 
 m_choco <- brms::add_criterion(m_choco, "loo")  # For later model comparison
+```
+```{r}
+#| eval: false
+#| echo: false
 
-saveRDS(m_choco, file = "models/m_choco.rds")
+saveRDS(m_choco, file = "../models/m_choco.rds")
 ```
 
 
@@ -187,15 +206,6 @@ that CHOCO provides a significantly better fit than the other models.
 loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |>
   parameters(include_ENP = TRUE)
 ```
-
-
-
-| Name | LOOIC | ENP | ELPD | Difference | Difference_SE | p |
-| --- | --- | --- | --- | --- | --- | --- |
-| m_choco | -770.7 | 8.93 | 385.33 | 0.00 | 0.00 |  |
-| m_betagate | -159.8 | 7.21 | 79.88 | -305.45 | 16.68 | < .001 |
-| m_zoib | -159.7 | 7.00 | 79.86 | -305.46 | 16.99 | < .001 |
-| m_xbx | -145.0 | 5.11 | 72.51 | -312.81 | 16.81 | < .001 |
 
 Note that you can also use `report::report()` on the output of `loo_compare()`
 to get a textual summary.
@@ -263,7 +273,7 @@ p
 #| echo: false
 #| eval: false
 
-ggsave("../man/figures/subjective_ratings1.png", p, width = 12, height = 8, bg = "white")
+ggsave("../../man/figures/subjective_ratings1.png", p, width = 12, height = 8, bg = "white")
 ```
 
 ![](../man/figures/subjective_ratings1.png)
@@ -316,7 +326,7 @@ p2
 
 library(patchwork)
 
-ggsave("../man/figures/subjective_ratings2.png", p1 / p2, width = 12, height = 8, bg = "white")
+ggsave("../../man/figures/subjective_ratings2.png", p1 / p2, width = 12, height = 8, bg = "white")
 ```
 
 ![](../man/figures/subjective_ratings2.png)
@@ -335,7 +345,7 @@ set.seed(33)
 
 df <- data.frame()
 for(x in seq(0.2, 0.8, by = 0.1)) {
-  rating <- rcogmod_betadiscrete(n=200, mu = x, phi = 3, k = 6)
+  rating <- rcogmod_betadiscrete(n=500, mu = x, phi = 3, k = 6)
   df <- rbind(df, data.frame(x = x, rating = rating))
 }
 
@@ -357,6 +367,7 @@ The Beta-Binomial is a common default for bounded count data, though it wasn't d
 
 ```{r}
 #| eval: false
+#| code-fold: false
 
 f <- bf(
   rating | trials(5) ~ x,
@@ -372,8 +383,13 @@ m_betabinomial <- brm(f,
 )
 
 m_betabinomial <- brms::add_criterion(m_betabinomial, "loo")  # For later model comparison
+```
 
-saveRDS(m_betabinomial, file = "models/m_betabinomial.rds")
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_betabinomial, file = "../models/m_betabinomial.rds")
 ```
 
 
@@ -386,6 +402,7 @@ The Discrete Beta model ([Sciandra, 2024](https://link.springer.com/article/10.1
 
 ```{r}
 #| eval: false
+#| code-fold: false
 
 f <- bf(
   rating | vint(6) ~ x,
@@ -400,9 +417,14 @@ m_betadiscrete <- brm(f,
 )
 
 m_betadiscrete <- brms::add_criterion(m_betadiscrete, "loo")  # For later model comparison
-
-saveRDS(m_betadiscrete, file = "models/m_betadiscrete.rds")
 ```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_betadiscrete, file = "../models/m_betadiscrete.rds")
+```
+
 
 #### Ordinal (Cumulative)
 
@@ -413,6 +435,7 @@ Furthermore, because these threshold parameters are highly sample-dependent, com
 
 ```{r}
 #| eval: false
+#| code-fold: false
 
 f <- bf(
   rating ~ x,
@@ -426,10 +449,13 @@ m_cumulative <- brm(f,
 )
 
 m_cumulative <- brms::add_criterion(m_cumulative, "loo")  # For later model comparison
-
-saveRDS(m_cumulative, file = "models/m_cumulative.rds")
 ```
+```{r}
+#| eval: false
+#| echo: false
 
+saveRDS(m_cumulative, file = "../models/m_cumulative.rds")
+```
 
 ### Model Comparison
 
@@ -452,10 +478,11 @@ We can compare these models together using the `loo` package.
 #| code-fold: true
 #| eval: false
 
-# loo::loo_compare(m_betabinomial, m_betadiscrete, m_cumulative) |>
-#   report::report()
+loo::loo_compare(m_betabinomial, m_betadiscrete) |>
+  parameters::parameters()
 ```
 
+Note that the cumulative model cannot be easily compared with LOO due to some quirks with its parametrization, but we can run PP checks.
 
 
 ```{r}
@@ -463,13 +490,16 @@ We can compare these models together using the `loo` package.
 
 
 pred <- rbind(
-  estimate_prediction(m_betabinomial, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_betabinomial, ci = NULL, 
+                      iterations = 100, keep_iterations = TRUE) |>
     reshape_iterations() |>
     data_modify(iter_value = iter_value + 1, Model = "Beta-Binomial"),
-  estimate_prediction(m_betadiscrete, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_betadiscrete, ci = NULL, 
+                      iterations = 100, keep_iterations = TRUE) |>
     reshape_iterations() |>
     data_modify(Model = "Beta-Discrete"),
-  estimate_prediction(m_cumulative, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_cumulative, ci = NULL, 
+                      iterations = 100, keep_iterations = TRUE) |>
     reshape_iterations() |>
     data_modify(Model = "Ordinal")
 )  
@@ -493,7 +523,6 @@ p <- df |>
     color = "#FF5722", size = 1
   ) +
   labs(title = "Rating Distribution", x = "Score", y = "Density") +
-  coord_cartesian(y = c(0, 350)) +
   theme_minimal() +
   facet_wrap(~Model)
 p
@@ -503,7 +532,7 @@ p
 #| echo: false
 #| eval: false
 
-ggsave("../man/figures/subjective_ratings3.png", p, width = 12, height = 5, bg = "white")
+ggsave("../../man/figures/subjective_ratings3.png", p, width = 12, height = 5, bg = "white")
 ```
 
 ![](../man/figures/subjective_ratings3.png)

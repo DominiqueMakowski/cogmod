@@ -191,6 +191,10 @@ cogmod_inits <- function(formula, data, jitter = 0.25, ...) {
     # seconds - harmless but pointless when 0.4 s is known to be the right
     # neighbourhood.
     cogmod_exgaussian = list(mu = 0.4, sigma = 0.1, tau = 0.2),
+    # cogmod_geg() starts from the ex-Gaussian it nests: shape = 1 is that
+    # model exactly, and it is the one point on the shape axis known not to be
+    # somewhere up the shape/mu ridge.
+    cogmod_geg = list(mu = 0.4, sigma = 0.1, tau = 0.2, shape = 1),
     NULL
   )
 }

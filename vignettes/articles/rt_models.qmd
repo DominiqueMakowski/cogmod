@@ -326,6 +326,16 @@ and `sigma` are the mean and SD of the Gaussian component and `tau` is the
 mean of the exponential tail - directly matching the classical
 parameterization.
 
+Note that `cogmod` also implements the **Generalised Ex-Gaussian**
+([Marmolejo-Ramos et al., 2023](https://doi.org/10.1007/s11571-022-09813-2)),
+`cogmod_geg()`, which adds a `shape` parameter that raises the ex-Gaussian's
+CDF to a power. It reaches distributions the ex-Gaussian cannot - including
+negatively skewed ones - and `shape = 1` recovers `cogmod_exgaussian()`
+exactly, so the two can be compared with `loo_compare()`. The cost is
+parameter interpretability: with `shape` free the mean is no longer
+`mu + tau`, and `shape` is strongly confounded with `mu`. See
+`?cogmod_geg` for the details.
+
 ```{r}
 #| eval: false
 #| code-fold: false
@@ -1166,6 +1176,8 @@ loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
   parameters(include_ENP = TRUE)
 ```
 
+Note that you can also use `report::report()` on the output of `loo_compare()`
+to get a textual summary.
 
 ### Sampling Duration 
 

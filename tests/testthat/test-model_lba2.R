@@ -231,7 +231,7 @@ test_that("dcogmod_lba2 returns 0 density for invalid parameters", {
                sigmaone = 1, sigmabias = 0.5, boundary = 0.5, ndt = 0.2,
                response = 0)
   for (bad in list(list(sigmazero = 0), list(sigmaone = -1),
-                   list(sigmabias = 0), list(boundary = 0), list(ndt = -0.1),
+                   list(sigmabias = -1), list(boundary = 0), list(ndt = -0.1),
                    list(poutlier = 1.5), list(response = 2))) {
     expect_warning(d <- do.call(dcogmod_lba2, modifyList(args, bad)),
                    info = names(bad))
@@ -241,6 +241,11 @@ test_that("dcogmod_lba2 returns 0 density for invalid parameters", {
   # unlikely to respond
   expect_silent(d <- dcogmod_lba2(0.5, driftzero = -1, driftone = 2,
                                   response = 0))
+  expect_true(is.finite(d) && d > 0)
+
+  # `sigmabias = 0` is not invalid either: it is the nested no-start-point-
+  # variability race, and the density's Taylor branch evaluates it exactly.
+  expect_silent(d <- do.call(dcogmod_lba2, modifyList(args, list(sigmabias = 0))))
   expect_true(is.finite(d) && d > 0)
 })
 
@@ -337,10 +342,13 @@ test_that("rcogmod_lba2 produces responses below ndt only via outliers", {
 
 test_that("rcogmod_lba2 errors on invalid parameters", {
   expect_error(rcogmod_lba2(10, sigmazero = 0), "sigmazero")
-  expect_error(rcogmod_lba2(10, sigmabias = 0), "sigmabias")
+  expect_error(rcogmod_lba2(10, sigmabias = -1), "sigmabias")
   expect_error(rcogmod_lba2(10, boundary = 0), "boundary")
   expect_error(rcogmod_lba2(10, ndt = -1), "ndt")
   expect_error(rcogmod_lba2(10, poutlier = 2), "poutlier")
+
+  # zero is the closed end of `sigmabias`'s support, not a violation of it
+  expect_silent(rcogmod_lba2(10, sigmabias = 0))
 })
 
 
@@ -546,12 +554,24 @@ test_that("Stan cogmod_lba2_lpdf matches dcogmod_lba2", {
   # invalid arguments are rejected on both sides
   expect_equal(lpdf(0.5, 3, 2, 0, 1, 0.5, 0.5, 0.2, 0.02, 0L), -Inf)
   expect_equal(lpdf(0.5, 3, 2, 1, 0, 0.5, 0.5, 0.2, 0.02, 0L), -Inf)
-  expect_equal(lpdf(0.5, 3, 2, 1, 1, 0, 0.5, 0.2, 0.02, 0L), -Inf)
+  expect_equal(lpdf(0.5, 3, 2, 1, 1, -1, 0.5, 0.2, 0.02, 0L), -Inf)
   expect_equal(lpdf(0.5, 3, 2, 1, 1, 0.5, 0, 0.2, 0.02, 0L), -Inf)
   expect_equal(lpdf(0.5, 3, 2, 1, 1, 0.5, 0.5, -0.1, 0.02, 0L), -Inf)
   expect_equal(lpdf(0.5, 3, 2, 1, 1, 0.5, 0.5, 0.2, 1.5, 0L), -Inf)
   expect_equal(lpdf(0.5, 3, 2, 1, 1, 0.5, 0.5, 0.2, 0.02, 2L), -Inf)
   expect_equal(lpdf(0, 3, 2, 1, 1, 0.5, 0.5, 0.2, 0.02, 0L), -Inf)
+
+  # `sigmabias = 0` is the nested no-start-point-variability race, not an
+  # invalid argument, and the two implementations have to agree there too -
+  # that shared likelihood is what makes loo_compare() against the general
+  # model like-for-like rather than a comparison of two different densities.
+  for (resp in 0:1) {
+    s0 <- lpdf(0.5, 3, 2, 1, 1, 0, 0.5, 0.2, 0.02, as.integer(resp))
+    r0 <- dcogmod_lba2(0.5, 3, 2, 1, 1, sigmabias = 0, boundary = 0.5,
+                       ndt = 0.2, response = resp, poutlier = 0.02, log = TRUE)
+    expect_true(is.finite(s0))
+    expect_lt(abs(s0 - r0) / max(1, abs(r0)), 1e-9)
+  }
 })
 
 

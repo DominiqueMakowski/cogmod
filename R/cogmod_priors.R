@@ -377,6 +377,34 @@ cogmod_priors <- function(formula, data, ...) {
               slope = "normal(0, 0.5)")
     ),
     override = "sigma"
+  ),
+
+  # cogmod_geg() is the ex-Gaussian with its CDF raised to `shape`, so mu, sigma
+  # and tau get exactly the same treatment - and then `shape` needs a prior of
+  # its own for a reason the other three do not have.
+  #
+  # `shape` is only weakly identified against `mu`: at the maximum likelihood the
+  # two correlate about -0.98 on real RT data, because raising the CDF to a power
+  # shifts the distribution as well as bending it. Left flat, `shape` will happily
+  # wander a long way up that ridge and drag `mu`, `sigma` and `tau` with it,
+  # which is how a family that nests the ex-Gaussian ends up reporting a `mu`
+  # nowhere near the ex-Gaussian's.
+  #
+  # On the log link zero is `shape = 1`, the ex-Gaussian, so normal(0, 0.5) is
+  # centred on the nested model and puts 95% of its mass in shape 0.37 to 2.7.
+  # That is wide enough for the negative-skew and heavy-kurtosis shapes the
+  # family exists to reach, and narrow enough that the ridge stays fenced.
+  cogmod_geg = list(
+    prior = list(
+      mu = c(link = "normal(0.4, 0.25)"),
+      sigma = c(link = "normal(-2.3, 0.7)", nat = "lognormal(-2.3, 0.7)",
+                slope = "normal(0, 0.5)"),
+      tau = c(link = "normal(-1.5, 0.7)", nat = "lognormal(-1.5, 0.7)",
+              slope = "normal(0, 0.5)"),
+      shape = c(link = "normal(0, 0.5)", nat = "lognormal(0, 0.5)",
+                slope = "normal(0, 0.5)")
+    ),
+    override = c("sigma", "shape")
   )
 )
 

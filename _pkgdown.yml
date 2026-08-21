@@ -49,6 +49,7 @@ reference:
           - rcogmod_logweibull
           - rcogmod_invweibull
           - rcogmod_exgaussian
+          - rcogmod_geg
           - rcogmod_lba1
     - title: "Other"
       contents:

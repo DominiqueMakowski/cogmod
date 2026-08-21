@@ -1,5 +1,46 @@
 # cogmod 0.2.2
 
+## New features
+
+* New family **`cogmod_geg()`**, the Generalised Ex-Gaussian of
+  [Marmolejo-Ramos et al. (2023)](https://doi.org/10.1007/s11571-022-09813-2):
+  the ex-Gaussian with its CDF raised to a power, `F_GEG(x) = F_EG(x)^shape`.
+  The construction is Durrans' alpha-power family, so the density is
+  `shape * F_EG(x)^(shape - 1) * f_EG(x)` and stays closed form - Stan ships
+  both `exp_mod_normal_lpdf` and `exp_mod_normal_lcdf`, so the whole likelihood
+  is three lines and costs one extra CDF.
+
+  `shape = 1` is `cogmod_exgaussian()` **exactly**, not approximately, in R and
+  in Stan alike, so `loo_compare()` between the two is like-for-like.
+
+  What it buys is shape. Sweeping `sigma` and `tau` across the values RT data
+  occupy, the ex-Gaussian spans skewness 0 to 2 and excess kurtosis 0 to 6;
+  freeing `shape` widens that to roughly -0.4 to 4.8 and 0 to 35. In particular
+  the GEG can be **negatively skewed**, which the ex-Gaussian cannot be at any
+  parameter value.
+
+  What it costs is interpretability, and specifically the property the
+  ex-Gaussian is normally reported for. **The mean is no longer `mu + tau`** -
+  at `mu = 0.4`, `tau = 0.2` it runs 0.31 at `shape = 0.2` and 1.15 at
+  `shape = 20` - and it has no closed form, so `posterior_epred()` integrates
+  numerically and is the one generic materially slower here than for a
+  closed-form family. On a full data set, summarise `posterior_predict()` draws
+  instead.
+
+  `shape` is also badly confounded with `mu`: fitted by maximum likelihood to
+  the lexical-decision data used in the vignettes, the two correlate about
+  -0.98 at the optimum, and the other estimates move with it (on one condition
+  `mu` goes 0.429 to 0.508, `sigma` 0.051 to 0.037, `tau` 0.119 to 0.162).
+  `shape` re-slices the same bulk-and-tail split rather than adding an
+  independent axis. `cogmod_priors()` therefore gives it a deliberately
+  informative `normal(0, 0.5)` on the `log` link - centred on `shape = 1`, the
+  ex-Gaussian - and `cogmod_inits()` starts it there.
+
+  Use it when fit is the point. When the `mu`/`tau` decomposition is the point,
+  `cogmod_exgaussian()` is the family to fit; when a better-fitting descriptive
+  family is the point, `cogmod_logstudent()` and `cogmod_loggamma()` decouple
+  skew from tail weight with parameters that stay interpretable.
+
 ## Breaking changes
 
 * **`cogmod_exgaussian()`'s `mu` is now on an `identity` link** and is
