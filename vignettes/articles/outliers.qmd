@@ -953,7 +953,6 @@ fast responses, the model cannot do it for you.
 saveRDS(
   list(desc = desc, hist = hist_fast, caf = caf, baseline = baseline,
        sensitivity = sens, fitinfo = fitinfo, rates = rates),
-  "../models/outliers.rds",
-  compress = "xz"
+  "../models/outliers.rds"
 )
 ```

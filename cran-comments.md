@@ -1,4 +1,4 @@
-# cogmod 0.1.0
+# cogmod 0.2.2
 
 This is a new submission.
 
