@@ -120,95 +120,38 @@ remotes::install_github("DominiqueMakowski/cogmod")
 
 ## Usage
 
-For each model implemented, `cogmod` provides a **`brms`-compatible
-custom family** (e.g., `cogmod_choco()`) together with a **`stanvars`
-object** (e.g., `cogmod_choco_stanvars()`) that injects the Stan code
-required to evaluate it. Both simply need to be passed to `brms::brm()`
-via the `family` and `stanvars` arguments - everything else (formula
-syntax, post-processing, predictions…) works like any other `brms`
-model.
-
-Below, we simulate some data from the [**Choice-Confidence (CHOCO)
-model**](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.html),
-a distribution useful to describe bimodal ratings (e.g., confidence or
-slider scales) as a mixture of a discrete choice (left vs. right side of
-the scale) and a continuous Beta-distributed evaluation.
+using a `cogmod` model requires two arguments beyond a standard `brm()`
+call: `family` and `stanvars`. Two further helpers, `cogmod_priors()`
+and `cogmod_inits()`, are strictly speaking optional but should be
+treated as part of the call: they provide adapted chain-initialization
+values and weakly informative priors on the sensitive parameters to
+limit convergence issues and other sampling pathologies.
 
 ``` r
 library(cogmod)
 library(brms)
-library(easystats)
-library(ggplot2)
 
-set.seed(33)
-
-df <- data.frame()
-for (x in seq(0.1, 0.9, by = 0.1)) {
-  score <- rcogmod_choco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3,
-                  confleft = 1 - x, pex = 0.03, bex = 0.6, pmid = 0)
-  df <- rbind(df, data.frame(x = x, score = score))
-}
-```
-
-A `brms` model can then be specified by adding `family = cogmod_choco()`
-to the formula, and passing `stanvars = cogmod_stanvars(f)` to `brm()`:
-
-``` r
+# Specify the formula using brms' bf()
 f <- bf(
-  score ~ x,
-  confright ~ x,
-  confleft ~ x,
-  precright ~ x,
-  precleft ~ x,
-  pex ~ x,
-  bex ~ x,
-  pmid = 0,
-  family = cogmod_choco()
+  RT ~ Condition,
+  sigma ~ Condition,
+  ndt ~ Condition,
+  family = cogmod_lognormal()
 )
 
-m_choco <- brm(f,
-  data = df, stanvars = cogmod_stanvars(f),
-  chains = 4, backend = "cmdstanr"
+# Fit the model
+m <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  backend = "cmdstanr"
 )
 ```
 
 We can then analyze its results, and check its predictions like with any
-other models.
-
-<details class="code-fold">
-<summary>Code</summary>
-
-``` r
-# Load a pre-fitted model for demonstration purposes
-path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"
-m_choco <- readRDS(url(paste0(path, "m_choco.rds")))
-```
-
-</details>
-
-``` r
-# Generate predictions with easystats
-pred <- estimate_prediction(m_choco, keep_iterations = 50, iterations = 50) |>
-  reshape_iterations()
-
-insight::get_data(m_choco) |>
-  ggplot(aes(x = score, y = after_stat(density))) +
-  geom_histogram(bins = 100, fill = "#2196F3") +
-  geom_histogram(
-    data = pred, aes(x = iter_value, group = as.factor(iter_group)),
-    bins = 100, alpha = 0.03, position = "identity", fill = "#FF5722"
-  ) +
-  labs(title = "Posterior Predictive Check", x = "Score", y = "Density") +
-  theme_minimal()
-```
-
-![](man/figures/ppcheck-1.png)
-
-The model nicely recovers the bimodal shape of the observed data -
-something that traditional (unimodal) Beta-related models fail to
-capture (see the vignette for a comparison).
-
-See the [Subjective
+other models. See the [Subjective
 Ratings](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html),
 [RT-only
 Models](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
@@ -216,7 +159,7 @@ and [Decision Making
 Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
 vignettes for more detailed examples.
 
-![](man/figures/decision_making1.png)
+![](man/figures/decision_making1.png) ![](man/figures/rt_models1.png)
 
 ## Roadmap
 
@@ -224,29 +167,26 @@ vignettes for more detailed examples.
   the *hazard function*: Weibull and Gamma hazards are monotone, whereas
   the log-logistic rises then falls, a shape none of the current
   families can produce.
-- [x] **LATER / recinormal** ([Carpenter & Williams,
-  1995](https://doi.org/10.1038/377059a0)) - `1 / (RT - ndt)` normally
-  distributed. Standard in the oculomotor literature. Done, and without
-  a family of its own: it is `cogmod_lba1()` with `sigmabias = 0`, where
-  the density is exactly the recinormal rather than a limit.
 - [ ] **Early responses as a process rather than a fixed mixture.**
   `poutlier` currently mixes in a half-Normal at zero with a fixed
   scale: a contaminant with no mechanism, there so that one stray fast
   response cannot drag `ndt` down. LATER handles the same responses with
-  a second *accumulator* - an "early" or "maverick" unit with a mean
+  a second *accumulator* - an “early” or “maverick” unit with a mean
   rate near zero and a large SD - that **races** the main one, so an
   early response is a decision that happened to win rather than a trial
   the model disowns. That is the better account, and it is what the
   second line on a reciprobit plot actually is. It is also a large
-  undertaking: a race needs the winner's density against the loser's
+  undertaking: a race needs the winner’s density against the loser’s
   survival for every family in `.OUTLIER_FAMILIES`, where the present
   mixture needs one scalar, and the early unit is *deliberately*
   half-defective (with a mean rate of zero, half its trials never arrive
   at all) - which our normalised densities cannot represent unless the
-  race is there to absorb the missing mass. Parked until there is a
+  race is there to absorb the missing mass. Put on hold until we find a
   design that does not cost every family its closed form.
 - [ ] **Shifted sinh-arcsinh (log-SHASH)** ([Jones & Pewsey,
   2009](https://doi.org/10.1093/biomet/asp053)) - location, scale,
   skewness and tail weight as four separate parameters. Where
   `cogmod_loggamma()` ties skew and tail weight together through one
   `shape`, SHASH decouples them.
+- [ ] Add and check `cogmod_priors()` and `cogmod_inits()` for
+  subjective scale models.

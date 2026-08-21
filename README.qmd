@@ -79,91 +79,46 @@ remotes::install_github("DominiqueMakowski/cogmod")
 
 ## Usage
 
-For each model implemented, `cogmod` provides a **`brms`-compatible custom family** (e.g., `cogmod_choco()`) together with a **`stanvars` object** (e.g., `cogmod_choco_stanvars()`) that injects the Stan code required to evaluate it. Both simply need to be passed to `brms::brm()` via the `family` and `stanvars` arguments - everything else (formula syntax, post-processing, predictions...) works like any other `brms` model.
+using a `cogmod` model requires two arguments beyond a
+standard `brm()` call: `family` and `stanvars`. Two further helpers,
+`cogmod_priors()` and `cogmod_inits()`, are strictly speaking optional but
+should be treated as part of the call: they provide adapted chain-initialization 
+values and weakly informative priors on the sensitive parameters to limit
+convergence issues and other sampling pathologies.
 
-Below, we simulate some data from the [**Choice-Confidence (CHOCO) model**](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.html), a distribution useful to describe bimodal ratings (e.g., confidence or slider scales) as a mixture of a discrete choice (left vs. right side of the scale) and a continuous Beta-distributed evaluation.
 
 ```{r}
-#| label: setup
-#| message: false
-#| warning: false
+#| code-fold: false
+#| eval: false
 
 library(cogmod)
 library(brms)
-library(easystats)
-library(ggplot2)
 
-set.seed(33)
-
-df <- data.frame()
-for (x in seq(0.1, 0.9, by = 0.1)) {
-  score <- rcogmod_choco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3,
-                  confleft = 1 - x, pex = 0.03, bex = 0.6, pmid = 0)
-  df <- rbind(df, data.frame(x = x, score = score))
-}
-```
-
-A `brms` model can then be specified by adding `family = cogmod_choco()` to the formula, and passing `stanvars = cogmod_stanvars(f)` to `brm()`:
-
-```{r}
-#| eval: false
-
+# Specify the formula using brms' bf()
 f <- bf(
-  score ~ x,
-  confright ~ x,
-  confleft ~ x,
-  precright ~ x,
-  precleft ~ x,
-  pex ~ x,
-  bex ~ x,
-  pmid = 0,
-  family = cogmod_choco()
+  RT ~ Condition,
+  sigma ~ Condition,
+  ndt ~ Condition,
+  family = cogmod_lognormal()
 )
 
-m_choco <- brm(f,
-  data = df, stanvars = cogmod_stanvars(f),
-  chains = 4, backend = "cmdstanr"
+# Fit the model
+m <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  backend = "cmdstanr"
 )
 ```
-
 
 We can then analyze its results, and check its predictions like with any other models.
-
-```{r}
-#| code-fold: true
-
-# Load a pre-fitted model for demonstration purposes
-path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"
-m_choco <- readRDS(url(paste0(path, "m_choco.rds")))
-```
-
-
-```{r}
-#| label: ppcheck
-#| fig-width: 7
-#| fig-height: 4
-
-# Generate predictions with easystats
-pred <- estimate_prediction(m_choco, keep_iterations = 50, iterations = 50) |>
-  reshape_iterations()
-
-insight::get_data(m_choco) |>
-  ggplot(aes(x = score, y = after_stat(density))) +
-  geom_histogram(bins = 100, fill = "#2196F3") +
-  geom_histogram(
-    data = pred, aes(x = iter_value, group = as.factor(iter_group)),
-    bins = 100, alpha = 0.03, position = "identity", fill = "#FF5722"
-  ) +
-  labs(title = "Posterior Predictive Check", x = "Score", y = "Density") +
-  theme_minimal()
-```
-
-The model nicely recovers the bimodal shape of the observed data - something that traditional (unimodal) Beta-related models fail to capture (see the vignette for a comparison).
-
 See the [Subjective Ratings](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html), [RT-only Models](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html), and [Decision Making Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html) vignettes for more detailed examples.
 
 
 ![](man/figures/decision_making1.png)
+![](man/figures/rt_models1.png)
 
 ## Roadmap
 
