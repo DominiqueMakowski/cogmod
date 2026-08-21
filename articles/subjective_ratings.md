@@ -20,7 +20,7 @@ set.seed(33)
 
 df <- data.frame()
 for(x in seq(0.1, 0.9, by = 0.1)) {
-  score <- rchoco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3, 
+  score <- rcogmod_choco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3, 
                   confleft = 1-x, pex = 0.03, bex = 0.6, pmid = 0)
   df <- rbind(df, data.frame(x = x, score = score))
 }
@@ -59,8 +59,6 @@ m_zoib <- brm(f,
 )
 
 m_zoib <- brms::add_criterion(m_zoib, "loo")  # For later model comparison
-
-saveRDS(m_zoib, file = "models/m_zoib.rds")
 ```
 
 #### XBX Model
@@ -88,14 +86,12 @@ m_xbx <- brm(f,
 )
 
 m_xbx <- brms::add_criterion(m_xbx, "loo")  # For later model comparison
-
-saveRDS(m_xbx, file = "models/m_xbx.rds")
 ```
 
 #### Beta-Gate Model
 
 The [**Beta-Gate
-model**](https://dominiquemakowski.github.io/cogmod/reference/rbetagate.html)
+model**](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.html)
 corresponds to a reparametrized Ordered Beta model ([Kubinec,
 2023](https://doi.org/10.1017/pan.2022.20)). In this model, observed 0s
 and 1s represent instances where the underlying continuous response
@@ -108,23 +104,21 @@ f <- bf(
   phi ~ x,
   pex ~ x,
   bex ~ x, 
-  family = betagate()
+  family = cogmod_betagate()
 )
 
 m_betagate <- brm(f,
-  data = df, family = betagate(), stanvars = betagate_stanvars(), init = 0,
+  data = df, stanvars = cogmod_stanvars(f), init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
 m_betagate <- brms::add_criterion(m_betagate, "loo")  # For later model comparison
-
-saveRDS(m_betagate, file = "models/m_betagate.rds")
 ```
 
 #### CHOCO Model
 
 See the
-[**documentation**](https://dominiquemakowski.github.io/cogmod/reference/rchoco.html)
+[**documentation**](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.html)
 of the Choice-Confidence (CHOCO).
 
 ``` r
@@ -138,17 +132,15 @@ f <- bf(
   pex ~ x,
   bex ~ x,
   pmid = 0, 
-  family = choco()
+  family = cogmod_choco()
 )
 
 m_choco <- brm(f,
-  data = df, family = choco(), stanvars = choco_stanvars(), init = 0,
+  data = df, stanvars = cogmod_stanvars(f), init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
 m_choco <- brms::add_criterion(m_choco, "loo")  # For later model comparison
-
-saveRDS(m_choco, file = "models/m_choco.rds")
 ```
 
 ### Model Comparison
@@ -168,13 +160,6 @@ Code
 loo::loo_compare(m_zoib, m_xbx, m_betagate, m_choco) |>
   parameters(include_ENP = TRUE)
 ```
-
-| Name       | LOOIC  | ENP  | ELPD   | Difference | Difference_SE | p       |
-|------------|--------|------|--------|------------|---------------|---------|
-| m_choco    | -770.7 | 8.93 | 385.33 | 0.00       | 0.00          |         |
-| m_betagate | -159.8 | 7.21 | 79.88  | -305.45    | 16.68         | \< .001 |
-| m_zoib     | -159.7 | 7.00 | 79.86  | -305.46    | 16.99         | \< .001 |
-| m_xbx      | -145.0 | 5.11 | 72.51  | -312.81    | 16.81         | \< .001 |
 
 Note that you can also use
 [`report::report()`](https://easystats.github.io/report/reference/report.html)
@@ -200,7 +185,7 @@ rbind(
   theme_minimal() 
 ```
 
-![](subjective_ratings_files/figure-html/unnamed-chunk-8-1.png)
+![](subjective_ratings_files/figure-html/unnamed-chunk-12-1.png)
 
 #### Posterior Predictive Check
 
@@ -272,7 +257,7 @@ p1 <- estimate_prediction(m_choco, data = "grid", length = 4, keep_iterations = 
 p1
 ```
 
-![](subjective_ratings_files/figure-html/unnamed-chunk-11-1.png)
+![](subjective_ratings_files/figure-html/unnamed-chunk-15-1.png)
 
 Code
 
@@ -300,7 +285,7 @@ p2 <- pred_params |>
 p2
 ```
 
-![](subjective_ratings_files/figure-html/unnamed-chunk-11-2.png)
+![](subjective_ratings_files/figure-html/unnamed-chunk-15-2.png)
 
 ![](../reference/figures/subjective_ratings2.png)
 
@@ -314,7 +299,7 @@ set.seed(33)
 
 df <- data.frame()
 for(x in seq(0.2, 0.8, by = 0.1)) {
-  rating <- rbetadiscrete(n=200, mu = x, phi = 3, k = 6)
+  rating <- rcogmod_betadiscrete(n=500, mu = x, phi = 3, k = 6)
   df <- rbind(df, data.frame(x = x, rating = rating))
 }
 
@@ -325,7 +310,7 @@ df |>
   theme_minimal()
 ```
 
-![](subjective_ratings_files/figure-html/unnamed-chunk-13-1.png)
+![](subjective_ratings_files/figure-html/unnamed-chunk-17-1.png)
 
 ### Models
 
@@ -361,8 +346,6 @@ m_betabinomial <- brm(f,
 )
 
 m_betabinomial <- brms::add_criterion(m_betabinomial, "loo")  # For later model comparison
-
-saveRDS(m_betabinomial, file = "models/m_betabinomial.rds")
 ```
 
 #### Beta-Discrete
@@ -394,17 +377,15 @@ f <- bf(
   rating | vint(6) ~ x,
   phi ~ x,
   pzero = 0,  # No zero-inflation
-  family = betadiscrete()
+  family = cogmod_betadiscrete()
 )
 
 m_betadiscrete <- brm(f,
-  data = df, family = betadiscrete(), stanvars = betadiscrete_stanvars(), init = 0,
+  data = df, stanvars = cogmod_stanvars(f), init = 0,
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
 m_betadiscrete <- brms::add_criterion(m_betadiscrete, "loo")  # For later model comparison
-
-saveRDS(m_betadiscrete, file = "models/m_betadiscrete.rds")
 ```
 
 #### Ordinal (Cumulative)
@@ -447,8 +428,6 @@ m_cumulative <- brm(f,
 )
 
 m_cumulative <- brms::add_criterion(m_cumulative, "loo")  # For later model comparison
-
-saveRDS(m_cumulative, file = "models/m_cumulative.rds")
 ```
 
 ### Model Comparison
@@ -459,9 +438,12 @@ Code
 
 ``` r
 
-# loo::loo_compare(m_betabinomial, m_betadiscrete, m_cumulative) |>
-#   report::report()
+loo::loo_compare(m_betabinomial, m_betadiscrete) |>
+  parameters::parameters()
 ```
+
+Note that the cumulative model cannot be easily compared with LOO due to
+some quirks with its parametrization, but we can run PP checks.
 
 Code
 
@@ -469,13 +451,16 @@ Code
 
 
 pred <- rbind(
-  estimate_prediction(m_betabinomial, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_betabinomial, ci = NULL, 
+                      iterations = 100, keep_iterations = TRUE) |>
     reshape_iterations() |>
     data_modify(iter_value = iter_value + 1, Model = "Beta-Binomial"),
-  estimate_prediction(m_betadiscrete, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_betadiscrete, ci = NULL, 
+                      iterations = 100, keep_iterations = TRUE) |>
     reshape_iterations() |>
     data_modify(Model = "Beta-Discrete"),
-  estimate_prediction(m_cumulative, keep_iterations = 100, iterations = 100) |>
+  estimate_prediction(m_cumulative, ci = NULL, 
+                      iterations = 100, keep_iterations = TRUE) |>
     reshape_iterations() |>
     data_modify(Model = "Ordinal")
 )  
@@ -499,12 +484,11 @@ p <- df |>
     color = "#FF5722", size = 1
   ) +
   labs(title = "Rating Distribution", x = "Score", y = "Density") +
-  coord_cartesian(y = c(0, 350)) +
   theme_minimal() +
   facet_wrap(~Model)
 p
 ```
 
-![](subjective_ratings_files/figure-html/unnamed-chunk-19-1.png)
+![](subjective_ratings_files/figure-html/unnamed-chunk-26-1.png)
 
 ![](../reference/figures/subjective_ratings3.png)

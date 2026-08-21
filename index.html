@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Cognitive Models for Subjective Scales and Decision Making Tasks in R • cogmod</title>
+<title>Cognitive Models for Subjective Scales and Decision Making Tasks • cogmod</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
 <link rel="icon" type="”image/svg+xml”" href="favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
@@ -15,10 +15,10 @@
 <link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Cognitive Models for Subjective Scales and Decision Making Tasks in R">
-<meta name="description" content="A collection of tools for cognitive modeling, i.e., to model data from subjective (Likert or analog) scales and decision making tasks (with reaction times and choice data). These cognitive models can be implemented under a Bayesian framework with `brms`.">
-<meta property="og:description" content="A collection of tools for cognitive modeling, i.e., to model data from subjective (Likert or analog) scales and decision making tasks (with reaction times and choice data). These cognitive models can be implemented under a Bayesian framework with `brms`.">
-<meta property="og:image" content="https://github.com/DominiqueMakowski/cogmod/logo.svg">
+<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Cognitive Models for Subjective Scales and Decision Making Tasks">
+<meta name="description" content="Implements cognitive models for data from subjective (Likert or analog) scales and from decision making tasks with reaction times and choice data. Provides random generation, density functions, and custom response distributions for Bayesian estimation with brms, covering beta-gate and choice-confidence models of subjective ratings as well as sequential sampling models including the drift diffusion model, the linear ballistic accumulator of Brown and Heathcote (2008) &lt;doi:10.1016/j.cogpsych.2007.12.002&gt;, the racing diffusion model of Tillman, Van Zandt and Logan (2020) &lt;doi:10.3758/s13423-020-01719-6&gt;, and the lognormal race model.">
+<meta property="og:description" content="Implements cognitive models for data from subjective (Likert or analog) scales and from decision making tasks with reaction times and choice data. Provides random generation, density functions, and custom response distributions for Bayesian estimation with brms, covering beta-gate and choice-confidence models of subjective ratings as well as sequential sampling models including the drift diffusion model, the linear ballistic accumulator of Brown and Heathcote (2008) &lt;doi:10.1016/j.cogpsych.2007.12.002&gt;, the racing diffusion model of Tillman, Van Zandt and Logan (2020) &lt;doi:10.3758/s13423-020-01719-6&gt;, and the lognormal race model.">
+<meta property="og:image" content="https://dominiquemakowski.github.io/cogmod/logo.svg">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -28,7 +28,7 @@
 
     <a class="navbar-brand me-2" href="index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.22</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -41,18 +41,21 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/subjective_ratings.html">Subjective Ratings</a></li>
+<li><a class="dropdown-item" href="articles/overview.html">Overview</a></li>
+    <li><a class="dropdown-item" href="articles/subjective_ratings.html">Subjective Ratings</a></li>
     <li><a class="dropdown-item" href="articles/rt_models.html">RT-only Models</a></li>
+    <li><a class="dropdown-item" href="articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="articles/decision_making.html">Decision Making Models</a></li>
     <li><a class="dropdown-item" href="articles/reliability.html">Assessing Reliability</a></li>
   </ul>
 </li>
+<li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
-<li class="nav-item"><a class="nav-link" href="https://github.com/DominiqueMakowski/cogmod/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/DominiqueMakowski/cogmod/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -65,28 +68,16 @@
 <img src="logo.svg" class="logo" alt=""><h1 id="cogmod-">cogmod <a class="anchor" aria-label="anchor" href="#cogmod-"></a>
 </h1>
 </div>
-<p><a href="https://dominiquemakowski.github.io/cogmod/" class="external-link"><img src="https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63" alt="Documentation"></a> <a href="https://dominiquemakowski.github.io/cogmod/reference/index.html" class="external-link"><img src="https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3" alt="Models"></a></p>
+<p><a href="https://dominiquemakowski.github.io/cogmod/"><img src="https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63" alt="Documentation"></a> <a href="https://dominiquemakowski.github.io/cogmod/reference/index.html"><img src="https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3" alt="Models"></a></p>
 <p><em>Models of Cognition for Subjective Scales and Decision Making Tasks in R</em></p>
 <p>This R package is dedicated to facilitate the application of computational models of cognition in R under a Bayesian framework. These are useful in the field of cognitive science and computational neuropsycholology.</p>
-<div class="section level2">
-<h2 id="status">Status<a class="anchor" aria-label="anchor" href="#status"></a>
-</h2>
-<div class="float">
-<img src="https://img.shields.io/badge/status-WIP-orange.svg" alt="Status"><div class="figcaption">Status</div>
-</div>
-<p><strong>This package is under development.</strong> It’s not meant to be stable and robust at this stage. Use at your own risks. If you have suggestions for improvement, please get in touch!</p>
-<ul>
-<li>I’ve been seeking the best way to implement various sequential models for a long time, initially trying and <a href="https://github.com/DominiqueMakowski/easyRT" class="external-link">failing in R</a>, then developing a lot of hopes for a Julia solution (see the <a href="https://github.com/itsdfish/SequentialSamplingModels.jl" class="external-link">SequentialSamplingModels.jl</a>), but I’m back at making some new attempts in R.</li>
-<li>See also this attempt at <a href="https://dominiquemakowski.github.io/CognitiveModels/" class="external-link"><strong>creating tutorials</strong></a>
-</li>
-</ul>
-</div>
+<p>If you have suggestions for improvement, please <a href="https://github.com/DominiqueMakowski/cogmod/issues" class="external-link">get in touch</a>! See also this related attempt at <a href="https://dominiquemakowski.github.io/CognitiveModels/" class="external-link"><strong>creating tutorials</strong></a>.</p>
 <div class="section level2">
 <h2 id="features">Features<a class="anchor" aria-label="anchor" href="#features"></a>
 </h2>
 <ul>
 <li>
-<a href="https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html" class="external-link"><strong>Models for Subjective Ratings Data (Likert/Slider Scales)</strong></a>
+<a href="https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html"><strong>Models for Subjective Ratings Data (Likert/Slider Scales)</strong></a>
 <ul class="task-list">
 <li><label><input type="checkbox" checked>Choice-Confidence (CHOCO) models (Bi-modal Beta)</label></li>
 <li><label><input type="checkbox" checked>Beta-gate (Ordered Beta, <a href="https://doi.org/10.1017/pan.2022.20" class="external-link">Kubinec, 2023</a>)</label></li>
@@ -94,29 +85,29 @@
 </ul>
 </li>
 <li>
-<a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html" class="external-link"><strong>Models for Reaction Times</strong></a>
+<a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html"><strong>Models for Reaction Times</strong></a>
 <ul class="task-list">
 <li><label><input type="checkbox" checked>Ex-Gaussian model (with the classical parameterization in which <code>mu</code> and <code>sigma</code> index the Gaussian component alone and <code>tau</code> the exponential tail - unlike <code>brms</code>’s native <code><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">exgaussian()</a></code>, whose <code>mu</code> indexes the mean of the entire distribution)</label></li>
-<li><label><input type="checkbox" checked>Shifted LogNormal</label></li>
-<li><label><input type="checkbox" checked>Shifted Wald (Inverse Gaussian)</label></li>
-<li><label><input type="checkbox" checked>Weibull</label></li>
-<li><label><input type="checkbox" checked>LogWeibull (Gumbel)</label></li>
-<li><label><input type="checkbox" checked>Inverse Weibull (Fréchet)</label></li>
-<li><label><input type="checkbox" checked>Gamma</label></li>
-<li><label><input type="checkbox" checked>Inverse Gamma</label></li>
+<li><label><input type="checkbox" checked>Shifted LogNormal, Shifted Log-Student-t (robust LogNormal, heavy-tailed)</label></li>
+<li><label><input type="checkbox" checked>Shifted Wald (Inverse Gaussian), Wald with drift variability, Ex-Wald (<a href="https://link.springer.com/article/10.3758/bf03195403" class="external-link">Schwarz, 2001</a>)</label></li>
+<li><label><input type="checkbox" checked>Birnbaum-Saunders / fatigue life (<a href="https://doi.org/10.2307/3212003" class="external-link">Birnbaum &amp; Saunders, 1969</a>) - evidence accumulating in discrete cycles, one-directionally; an equal mixture of a Wald and its length-biased twin, in the same drift and threshold parameters</label></li>
+<li><label><input type="checkbox" checked>Weibull, LogWeibull (Gumbel), Inverse Weibull (Fréchet)</label></li>
+<li><label><input type="checkbox" checked>Gamma, Inverse Gamma, Shifted LogGamma (Generalized Gamma)</label></li>
 </ul>
 </li>
 <li>
-<a href="https://dominiquemakowski.github.io/cogmod/articles/decision_making.html" class="external-link"><strong>Models for Decision Making (Choice + RT)</strong></a>
+<a href="https://dominiquemakowski.github.io/cogmod/articles/decision_making.html"><strong>Models for Decision Making (Choice + RT)</strong></a>
 <ul class="task-list">
 <li><label><input type="checkbox" checked>Drift Diffusion Model (DDM)</label></li>
 <li><label><input type="checkbox" checked>Linear Ballistic Accumulator (LBA)</label></li>
 <li><label><input type="checkbox" checked>LogNormal Race (LNR)</label></li>
-<li><label><input type="checkbox" checked>Racing Diffusion Model (RDM, <a href="https://doi.org/10.3758/s13423-020-01738-8" class="external-link">Tillman et al., 2020</a>)</label></li>
+<li><label><input type="checkbox" checked>Racing Diffusion Model (RDM, <a href="https://doi.org/10.3758/s13423-020-01719-6" class="external-link">Tillman et al., 2020</a>)</label></li>
 </ul>
 </li>
 </ul>
-<p><img src="reference/figures/rt_models1.png"></p>
+<div class="float">
+<img src="reference/figures/fig_overview.png" alt="Response formats covered by cogmod, and the main families available for each. Every family comes with a _stanvars() function supplying its Stan code, and with d*() and r*() functions for density evaluation and simulation."><div class="figcaption">Response formats covered by cogmod, and the main families available for each. Every family comes with a <code>_stanvars()</code> function supplying its Stan code, and with <code>d*()</code> and <code>r*()</code> functions for density evaluation and simulation.</div>
+</div>
 </div>
 <div class="section level2">
 <h2 id="what-are-computational-cognitive-models">What are Computational Cognitive Models?<a class="anchor" aria-label="anchor" href="#what-are-computational-cognitive-models"></a>
@@ -145,10 +136,10 @@
 <div class="section level2">
 <h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
 </h2>
-<p>For each model implemented, <code>cogmod</code> provides a <strong><code>brms</code>-compatible custom family</strong> (e.g., <code><a href="reference/rchoco.html">choco()</a></code>) together with a <strong><code>stanvars</code> object</strong> (e.g., <code><a href="reference/rchoco.html">choco_stanvars()</a></code>) that injects the Stan code required to evaluate it. Both simply need to be passed to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code> via the <code>family</code> and <code>stanvars</code> arguments - everything else (formula syntax, post-processing, predictions…) works like any other <code>brms</code> model.</p>
-<p>Below, we simulate some data from the <a href="https://dominiquemakowski.github.io/cogmod/reference/rchoco.html" class="external-link"><strong>Choice-Confidence (CHOCO) model</strong></a>, a distribution useful to describe bimodal ratings (e.g., confidence or slider scales) as a mixture of a discrete choice (left vs. right side of the scale) and a continuous Beta-distributed evaluation.</p>
+<p>For each model implemented, <code>cogmod</code> provides a <strong><code>brms</code>-compatible custom family</strong> (e.g., <code><a href="reference/rcogmod_choco.html">cogmod_choco()</a></code>) together with a <strong><code>stanvars</code> object</strong> (e.g., <code><a href="reference/rcogmod_choco.html">cogmod_choco_stanvars()</a></code>) that injects the Stan code required to evaluate it. Both simply need to be passed to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code> via the <code>family</code> and <code>stanvars</code> arguments - everything else (formula syntax, post-processing, predictions…) works like any other <code>brms</code> model.</p>
+<p>Below, we simulate some data from the <a href="https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.html"><strong>Choice-Confidence (CHOCO) model</strong></a>, a distribution useful to describe bimodal ratings (e.g., confidence or slider scales) as a mixture of a discrete choice (left vs. right side of the scale) and a continuous Beta-distributed evaluation.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/DominiqueMakowski/cogmod">cogmod</a></span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/DominiqueMakowski/cogmod" class="external-link">cogmod</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://easystats.github.io/easystats/" class="external-link">easystats</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
@@ -157,11 +148,11 @@
 <span></span>
 <span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="kw">for</span> <span class="op">(</span><span class="va">x</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">0.1</span>, <span class="fl">0.9</span>, by <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">score</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rchoco.html">rchoco</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">100</span>, p <span class="op">=</span> <span class="fl">0.4</span> <span class="op">+</span> <span class="va">x</span> <span class="op">/</span> <span class="fl">2</span>, confright <span class="op">=</span> <span class="fl">0.4</span> <span class="op">+</span> <span class="va">x</span> <span class="op">/</span> <span class="fl">3</span>,</span>
+<span>  <span class="va">score</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rcogmod_choco.html">rcogmod_choco</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">100</span>, p <span class="op">=</span> <span class="fl">0.4</span> <span class="op">+</span> <span class="va">x</span> <span class="op">/</span> <span class="fl">2</span>, confright <span class="op">=</span> <span class="fl">0.4</span> <span class="op">+</span> <span class="va">x</span> <span class="op">/</span> <span class="fl">3</span>,</span>
 <span>                  confleft <span class="op">=</span> <span class="fl">1</span> <span class="op">-</span> <span class="va">x</span>, pex <span class="op">=</span> <span class="fl">0.03</span>, bex <span class="op">=</span> <span class="fl">0.6</span>, pmid <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
 <span>  <span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="va">df</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">x</span>, score <span class="op">=</span> <span class="va">score</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
-<p>A <code>brms</code> model can then be specified by adding <code>family = choco()</code> to the formula, and passing <code>stanvars = choco_stanvars()</code> to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code>:</p>
+<p>A <code>brms</code> model can then be specified by adding <code>family = cogmod_choco()</code> to the formula, and passing <code>stanvars = cogmod_stanvars(f)</code> to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code>:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">score</span> <span class="op">~</span> <span class="va">x</span>,</span>
@@ -172,11 +163,11 @@
 <span>  <span class="va">pex</span> <span class="op">~</span> <span class="va">x</span>,</span>
 <span>  <span class="va">bex</span> <span class="op">~</span> <span class="va">x</span>,</span>
 <span>  pmid <span class="op">=</span> <span class="fl">0</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="reference/rchoco.html">choco</a></span><span class="op">(</span><span class="op">)</span></span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="reference/rcogmod_choco.html">cogmod_choco</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">m_choco</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>, family <span class="op">=</span> <span class="fu"><a href="reference/rchoco.html">choco</a></span><span class="op">(</span><span class="op">)</span>, stanvars <span class="op">=</span> <span class="fu"><a href="reference/rchoco.html">choco_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>, stanvars <span class="op">=</span> <span class="fu"><a href="reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>We can then analyze its results, and check its predictions like with any other models.</p>
@@ -202,14 +193,25 @@ Code
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p><img src="reference/figures/ppcheck-1.png"></p>
 <p>The model nicely recovers the bimodal shape of the observed data - something that traditional (unimodal) Beta-related models fail to capture (see the vignette for a comparison).</p>
-<p>See the <a href="https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html" class="external-link">Subjective Ratings</a>, <a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html" class="external-link">RT-only Models</a>, and <a href="https://dominiquemakowski.github.io/cogmod/articles/decision_making.html" class="external-link">Decision Making Models</a> vignettes for more detailed examples.</p>
+<p>See the <a href="https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html">Subjective Ratings</a>, <a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html">RT-only Models</a>, and <a href="https://dominiquemakowski.github.io/cogmod/articles/decision_making.html">Decision Making Models</a> vignettes for more detailed examples.</p>
 <p><img src="reference/figures/decision_making1.png"></p>
+</div>
+<div class="section level2">
+<h2 id="roadmap">Roadmap<a class="anchor" aria-label="anchor" href="#roadmap"></a>
+</h2>
+<ul class="task-list">
+<li><label><input type="checkbox"><strong>Log-logistic</strong> - <code>log(RT - ndt) ~ Logistic</code>. The motivation is the <em>hazard function</em>: Weibull and Gamma hazards are monotone, whereas the log-logistic rises then falls, a shape none of the current families can produce.</label></li>
+<li><label><input type="checkbox" checked><strong>LATER / recinormal</strong> (<a href="https://doi.org/10.1038/377059a0" class="external-link">Carpenter &amp; Williams, 1995</a>) - <code>1 / (RT - ndt)</code> normally distributed. Standard in the oculomotor literature. Done, and without a family of its own: it is <code><a href="reference/rcogmod_lba1.html">cogmod_lba1()</a></code> with <code>sigmabias = 0</code>, where the density is exactly the recinormal rather than a limit.</label></li>
+<li><label><input type="checkbox"><strong>Early responses as a process rather than a fixed mixture.</strong> <code>poutlier</code> currently mixes in a half-Normal at zero with a fixed scale: a contaminant with no mechanism, there so that one stray fast response cannot drag <code>ndt</code> down. LATER handles the same responses with a second <em>accumulator</em> - an “early” or “maverick” unit with a mean rate near zero and a large SD - that <strong>races</strong> the main one, so an early response is a decision that happened to win rather than a trial the model disowns. That is the better account, and it is what the second line on a reciprobit plot actually is. It is also a large undertaking: a race needs the winner’s density against the loser’s survival for every family in <code>.OUTLIER_FAMILIES</code>, where the present mixture needs one scalar, and the early unit is <em>deliberately</em> half-defective (with a mean rate of zero, half its trials never arrive at all) - which our normalised densities cannot represent unless the race is there to absorb the missing mass. Parked until there is a design that does not cost every family its closed form.</label></li>
+<li><label><input type="checkbox"><strong>Shifted sinh-arcsinh (log-SHASH)</strong> (<a href="https://doi.org/10.1093/biomet/asp053" class="external-link">Jones &amp; Pewsey, 2009</a>) - location, scale, skewness and tail weight as four separate parameters. Where <code><a href="reference/rcogmod_loggamma.html">cogmod_loggamma()</a></code> ties skew and tail weight together through one <code>shape</code>, SHASH decouples them.</label></li>
+</ul>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/DominiqueMakowski/cogmod/">Browse source code</a></li>
+<li><a href="https://github.com/DominiqueMakowski/cogmod/" class="external-link">Browse source code</a></li>
+<li><a href="https://github.com/DominiqueMakowski/cogmod/issues" class="external-link">Report a bug</a></li>
 </ul>
 </div>
 

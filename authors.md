@@ -11,13 +11,13 @@ Source:
 [`inst/CITATION`](https://github.com/DominiqueMakowski/cogmod/blob/main/inst/CITATION)
 
 Makowski, D. (2026). cogmod: Cognitive Models for Subjective Scales and
-Decision Making Tasks in R. R package version 0.0.22.
+Decision Making Tasks. R package version 0.2.2.
 https://github.com/DominiqueMakowski/cogmod
 
     @Manual{makowski2026cogmod,
-      title = {{cogmod}: Cognitive Models for Subjective Scales and Decision Making Tasks in {R}},
+      title = {{cogmod}: Cognitive Models for Subjective Scales and Decision Making Tasks},
       author = {Dominique Makowski},
       year = {2026},
-      note = {R package version 0.0.22},
+      note = {R package version 0.2.2},
       url = {https://github.com/DominiqueMakowski/cogmod},
     }

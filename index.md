@@ -11,24 +11,10 @@ computational models of cognition in R under a Bayesian framework. These
 are useful in the field of cognitive science and computational
 neuropsycholology.
 
-## Status
-
-![Status](https://img.shields.io/badge/status-WIP-orange.svg)
-
-Status
-
-**This package is under development.** It’s not meant to be stable and
-robust at this stage. Use at your own risks. If you have suggestions for
-improvement, please get in touch!
-
-- I’ve been seeking the best way to implement various sequential models
-  for a long time, initially trying and [failing in
-  R](https://github.com/DominiqueMakowski/easyRT), then developing a lot
-  of hopes for a Julia solution (see the
-  [SequentialSamplingModels.jl](https://github.com/itsdfish/SequentialSamplingModels.jl)),
-  but I’m back at making some new attempts in R.
-- See also this attempt at [**creating
-  tutorials**](https://dominiquemakowski.github.io/CognitiveModels/)
+If you have suggestions for improvement, please [get in
+touch](https://github.com/DominiqueMakowski/cogmod/issues)! See also
+this related attempt at [**creating
+tutorials**](https://dominiquemakowski.github.io/CognitiveModels/).
 
 ## Features
 
@@ -52,19 +38,20 @@ tail - unlike `brms`’s native
 [`exgaussian()`](https://paulbuerkner.com/brms/reference/brmsfamily.html),
 whose `mu` indexes the mean of the entire distribution)
 
-Shifted LogNormal
+Shifted LogNormal, Shifted Log-Student-t (robust LogNormal,
+heavy-tailed)
 
-Shifted Wald (Inverse Gaussian)
+Shifted Wald (Inverse Gaussian), Wald with drift variability, Ex-Wald
+([Schwarz, 2001](https://link.springer.com/article/10.3758/bf03195403))
 
-Weibull
+Birnbaum-Saunders / fatigue life ([Birnbaum & Saunders,
+1969](https://doi.org/10.2307/3212003)) - evidence accumulating in
+discrete cycles, one-directionally; an equal mixture of a Wald and its
+length-biased twin, in the same drift and threshold parameters
 
-LogWeibull (Gumbel)
+Weibull, LogWeibull (Gumbel), Inverse Weibull (Fréchet)
 
-Inverse Weibull (Fréchet)
-
-Gamma
-
-Inverse Gamma
+Gamma, Inverse Gamma, Shifted LogGamma (Generalized Gamma)
 
 [**Models for Decision Making (Choice +
 RT)**](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
@@ -76,9 +63,17 @@ Linear Ballistic Accumulator (LBA)
 LogNormal Race (LNR)
 
 Racing Diffusion Model (RDM, [Tillman et al.,
-2020](https://doi.org/10.3758/s13423-020-01738-8))
+2020](https://doi.org/10.3758/s13423-020-01719-6))
 
-![](reference/figures/rt_models1.png)
+![Response formats covered by cogmod, and the main families available
+for each. Every family comes with a \_stanvars() function supplying its
+Stan code, and with d\*() and r\*() functions for density evaluation and
+simulation.](reference/figures/fig_overview.png)
+
+Response formats covered by cogmod, and the main families available for
+each. Every family comes with a `_stanvars()` function supplying its
+Stan code, and with `d*()` and `r*()` functions for density evaluation
+and simulation.
 
 ## What are Computational Cognitive Models?
 
@@ -134,9 +129,9 @@ remotes::install_github("DominiqueMakowski/cogmod")
 
 For each model implemented, `cogmod` provides a **`brms`-compatible
 custom family** (e.g.,
-[`choco()`](https://github.com/DominiqueMakowski/cogmod/reference/rchoco.md))
+[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md))
 together with a **`stanvars` object** (e.g.,
-[`choco_stanvars()`](https://github.com/DominiqueMakowski/cogmod/reference/rchoco.md))
+[`cogmod_choco_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md))
 that injects the Stan code required to evaluate it. Both simply need to
 be passed to
 [`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html) via
@@ -144,7 +139,7 @@ the `family` and `stanvars` arguments - everything else (formula syntax,
 post-processing, predictions…) works like any other `brms` model.
 
 Below, we simulate some data from the [**Choice-Confidence (CHOCO)
-model**](https://dominiquemakowski.github.io/cogmod/reference/rchoco.html),
+model**](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.html),
 a distribution useful to describe bimodal ratings (e.g., confidence or
 slider scales) as a mixture of a discrete choice (left vs. right side of
 the scale) and a continuous Beta-distributed evaluation.
@@ -160,14 +155,14 @@ set.seed(33)
 
 df <- data.frame()
 for (x in seq(0.1, 0.9, by = 0.1)) {
-  score <- rchoco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3,
+  score <- rcogmod_choco(n = 100, p = 0.4 + x / 2, confright = 0.4 + x / 3,
                   confleft = 1 - x, pex = 0.03, bex = 0.6, pmid = 0)
   df <- rbind(df, data.frame(x = x, score = score))
 }
 ```
 
-A `brms` model can then be specified by adding `family = choco()` to the
-formula, and passing `stanvars = choco_stanvars()` to
+A `brms` model can then be specified by adding `family = cogmod_choco()`
+to the formula, and passing `stanvars = cogmod_stanvars(f)` to
 [`brm()`](https://paulbuerkner.com/brms/reference/brm.html):
 
 ``` r
@@ -181,11 +176,11 @@ f <- bf(
   pex ~ x,
   bex ~ x,
   pmid = 0,
-  family = choco()
+  family = cogmod_choco()
 )
 
 m_choco <- brm(f,
-  data = df, family = choco(), stanvars = choco_stanvars(),
+  data = df, stanvars = cogmod_stanvars(f),
   chains = 4, backend = "cmdstanr"
 )
 ```
@@ -234,3 +229,42 @@ Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html
 vignettes for more detailed examples.
 
 ![](reference/figures/decision_making1.png)
+
+## Roadmap
+
+**Log-logistic** - `log(RT - ndt) ~ Logistic`. The motivation is the
+*hazard function*: Weibull and Gamma hazards are monotone, whereas the
+log-logistic rises then falls, a shape none of the current families can
+produce.
+
+**LATER / recinormal** ([Carpenter & Williams,
+1995](https://doi.org/10.1038/377059a0)) - `1 / (RT - ndt)` normally
+distributed. Standard in the oculomotor literature. Done, and without a
+family of its own: it is
+[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+with `sigmabias = 0`, where the density is exactly the recinormal rather
+than a limit.
+
+**Early responses as a process rather than a fixed mixture.** `poutlier`
+currently mixes in a half-Normal at zero with a fixed scale: a
+contaminant with no mechanism, there so that one stray fast response
+cannot drag `ndt` down. LATER handles the same responses with a second
+*accumulator* - an “early” or “maverick” unit with a mean rate near zero
+and a large SD - that **races** the main one, so an early response is a
+decision that happened to win rather than a trial the model disowns.
+That is the better account, and it is what the second line on a
+reciprobit plot actually is. It is also a large undertaking: a race
+needs the winner’s density against the loser’s survival for every family
+in `.OUTLIER_FAMILIES`, where the present mixture needs one scalar, and
+the early unit is *deliberately* half-defective (with a mean rate of
+zero, half its trials never arrive at all) - which our normalised
+densities cannot represent unless the race is there to absorb the
+missing mass. Parked until there is a design that does not cost every
+family its closed form.
+
+**Shifted sinh-arcsinh (log-SHASH)** ([Jones & Pewsey,
+2009](https://doi.org/10.1093/biomet/asp053)) - location, scale,
+skewness and tail weight as four separate parameters. Where
+[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+ties skew and tail weight together through one `shape`, SHASH decouples
+them.

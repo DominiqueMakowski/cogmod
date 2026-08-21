@@ -44,7 +44,7 @@ Code
 ``` r
 
 # The data are generated from a **shifted LogNormal** process (see cogmod's
-# rt_lognormal() family): a non-decision time `ndt` - the incompressible
+# cogmod_lognormal() family): a non-decision time `ndt` - the incompressible
 # encoding + motor delay - to which a LogNormal-distributed decision time is
 # added.
 #
@@ -271,44 +271,41 @@ is estimated at the population level (fixed effects) *and* allowed to
 vary across participants (random slopes).
 
 Because the family has more than one parameter, we can do the same for
-the other two: `sigma` (how variable a participant’s decision times are)
-and `tau` (their non-decision time, as a proportion of the minimum RT).
-Giving each of them the same `Condition + (Condition | Participant)`
-structure means that every participant gets their own dispersion and
-their own shift - and their own condition effects on both - rather than
-being forced to share the group’s. This costs a fair number of
-parameters, but it is the only way to find out whether these quantities
-carry individual differences of their own, and, as we will see below,
-whether they are reliable enough to be used as scores.
+the other two that carry individual differences here: `sigma` (how
+variable a participant’s decision times are) and `ndt` (their
+non-decision time, estimated directly in seconds). Giving each of them
+the same `Condition + (Condition | Participant)` structure means that
+every participant gets their own dispersion and their own shift - and
+their own condition effects on both - rather than being forced to share
+the group’s. This costs a fair number of parameters, but it is the only
+way to find out whether these quantities carry individual differences of
+their own, and, as we will see below, whether they are reliable enough
+to be used as scores.
 
 ``` r
 
 f <- bf(
   RT ~ Condition + (Condition | Participant),
   sigma ~ Condition + (Condition | Participant),
-  tau ~ Condition + (Condition | Participant),
-  minrt = min(sim$RT),
-  family = rt_lognormal()
+  ndt ~ Condition + (Condition | Participant),
+  family = cogmod_lognormal()
 )
-
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = sim)
 
 m <- brm(f,
   data = sim,
-  prior = priors,
-  stanvars = rt_lognormal_stanvars(),
-  init = 0,
+  prior = cogmod_priors(f, sim),
+  init = cogmod_inits(f, sim),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 1000, backend = "cmdstanr"
 )
 ```
 
 The random-effects parts are the key ingredient: they tell the model
 that each participant has their own intercept *and* their own condition
-effects, their own `sigma` and their own `tau`, and they estimate how
+effects, their own `sigma` and their own `ndt`, and they estimate how
 much each of these varies. Note also that we do not need to transform
-the RTs: `family = rt_lognormal()` handles the skew directly - and,
-through `tau`, the non-decision time - so the coefficients are simply
+the RTs: `family = cogmod_lognormal()` handles the skew directly - and,
+through `ndt`, the non-decision time - so the coefficients are simply
 expressed on the log scale of the decision time.
 
 Let us first look at the **fixed effects**, i.e., the population-level
@@ -322,25 +319,25 @@ parameters(m, effects = "fixed")
 #> 
 #> Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)
 #> -------------------------------------------------------------------
-#> (Intercept) |  -0.44 | [-0.56, -0.31] |   100% | 1.011 |        816
-#> ConditionB  |   0.10 | [ 0.00,  0.21] | 97.15% | 1.001 |       1070
-#> ConditionC  |  -0.04 | [-0.23,  0.14] | 64.85% | 1.005 |        941
+#> (Intercept) |  -0.47 | [-0.57, -0.38] |   100% | 1.014 |        649
+#> ConditionB  |   0.10 | [ 0.04,  0.17] | 99.80% | 1.004 |       1113
+#> ConditionC  |  -0.02 | [-0.15,  0.10] | 62.90% | 1.003 |       1163
+#> 
+#> # ndt Parameters
+#> 
+#> Parameter   |   Median |         95% CI |     pd |  Rhat | ESS (tail)
+#> ---------------------------------------------------------------------
+#> (Intercept) |    -1.72 | [-1.95, -1.53] |   100% | 1.001 |       1037
+#> ConditionB  |     0.01 | [-0.24,  0.24] | 53.75% | 1.003 |        958
+#> ConditionC  | 6.98e-03 | [-0.28,  0.29] | 51.90% | 1.001 |       1355
 #> 
 #> # sigma Parameters
 #> 
 #> Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)
 #> -------------------------------------------------------------------
-#> (Intercept) |  -1.39 | [-1.51, -1.28] |   100% | 1.004 |        850
-#> ConditionB  |   0.04 | [-0.09,  0.16] | 74.90% | 1.004 |       1032
-#> ConditionC  |   0.04 | [-0.13,  0.23] | 68.45% | 1.003 |       1205
-#> 
-#> # tau Parameters
-#> 
-#> Parameter   | Median |        95% CI |     pd |  Rhat | ESS (tail)
-#> ------------------------------------------------------------------
-#> (Intercept) |   0.07 | [-0.92, 0.87] | 55.80% | 1.003 |        913
-#> ConditionB  |   0.02 | [-0.98, 0.97] | 51.30% | 1.002 |        949
-#> ConditionC  |   0.24 | [-1.07, 1.73] | 62.85% | 1.004 |        896
+#> (Intercept) |  -1.35 | [-1.43, -1.27] |   100% | 1.001 |       1134
+#> ConditionB  |   0.04 | [-0.05,  0.12] | 80.00% | 1.002 |       1047
+#> ConditionC  |   0.02 | [-0.08,  0.13] | 65.00% | 1.002 |       1285
 #> 
 #> Uncertainty intervals (equal-tailed) computed using a MCMC distribution
 #>   approximation.
@@ -349,7 +346,7 @@ parameters(m, effects = "fixed")
 This reproduces the classic conclusion: an effect of condition B (0.10
 on the log scale, 95% CI \[0.00, 0.21\], *pd* = 97%), and nothing at all
 for condition C (-0.04, 95% CI \[-0.23, 0.14\], *pd* = 65%), whose
-credible interval is comfortably centered on zero. The `sigma` and `tau`
+credible interval is comfortably centered on zero. The `sigma` and `ndt`
 blocks tell a similar story for the other two parameters: no condition
 effect on the dispersion or on the non-decision time comes close to
 being convincing (all *pd* \< 75%), which is as it should be, since we
@@ -365,34 +362,34 @@ parameters(m, effects = "random_variance")
 #> 
 #> Parameter               | Median |        95% CI |     pd |  Rhat | ESS (tail)
 #> ------------------------------------------------------------------------------
-#> (Intercept)             |   0.20 | [ 0.16, 0.28] |   100% | 1.015 |        793
-#> ConditionB              |   0.01 | [ 0.00, 0.04] |   100% | 1.006 |        739
-#> ConditionC              |   0.27 | [ 0.20, 0.37] |   100% | 1.002 |       1267
-#> Intercept ~ ConditionB  |  -0.08 | [-0.90, 0.83] | 54.45% | 1.001 |       1137
-#> Intercept ~ ConditionC  |  -0.22 | [-0.55, 0.16] | 87.80% | 1.000 |       1447
-#> ConditionB ~ ConditionC |   0.32 | [-0.69, 0.90] | 75.90% | 1.016 |        324
+#> (Intercept)             |   0.21 | [ 0.16, 0.28] |   100% | 1.013 |        732
+#> ConditionB              |   0.01 | [ 0.00, 0.03] |   100% | 1.012 |        860
+#> ConditionC              |   0.27 | [ 0.21, 0.37] |   100% | 1.011 |        955
+#> Intercept ~ ConditionB  |  -0.13 | [-0.87, 0.79] | 58.90% | 1.001 |       1516
+#> Intercept ~ ConditionC  |  -0.22 | [-0.53, 0.15] | 88.55% | 1.005 |       1258
+#> ConditionB ~ ConditionC |   0.28 | [-0.74, 0.92] | 69.15% | 1.041 |        130
 #> 
 #> # sigma Parameters (Participant)
 #> 
-#> Parameter               |    Median |        95% CI |     pd |  Rhat | ESS (tail)
-#> ---------------------------------------------------------------------------------
-#> (Intercept)             |      0.03 | [ 0.00, 0.07] |   100% | 1.002 |       1061
-#> ConditionB              |      0.03 | [ 0.00, 0.09] |   100% | 1.002 |        980
-#> ConditionC              |      0.04 | [ 0.00, 0.11] |   100% | 1.005 |       1323
-#> Intercept ~ ConditionB  |     -0.04 | [-0.87, 0.88] | 53.35% | 1.001 |       1679
-#> Intercept ~ ConditionC  |     -0.06 | [-0.87, 0.82] | 54.65% | 1.003 |       1497
-#> ConditionB ~ ConditionC | -2.50e-03 | [-0.88, 0.87] | 50.30% | 1.001 |       1614
+#> Parameter               | Median |        95% CI |     pd |  Rhat | ESS (tail)
+#> ------------------------------------------------------------------------------
+#> (Intercept)             |   0.02 | [ 0.00, 0.06] |   100% | 1.004 |        640
+#> ConditionB              |   0.03 | [ 0.00, 0.08] |   100% | 1.007 |        712
+#> ConditionC              |   0.04 | [ 0.00, 0.11] |   100% | 1.014 |        733
+#> Intercept ~ ConditionB  |  -0.10 | [-0.90, 0.84] | 56.65% | 1.001 |       1195
+#> Intercept ~ ConditionC  |  -0.07 | [-0.89, 0.85] | 54.20% | 1.000 |        803
+#> ConditionB ~ ConditionC |   0.01 | [-0.88, 0.88] | 51.00% | 1.005 |       1042
 #> 
-#> # tau Parameters (Participant)
+#> # ndt Parameters (Participant)
 #> 
 #> Parameter                       | Median |        95% CI |     pd |  Rhat | ESS (tail)
 #> --------------------------------------------------------------------------------------
-#> (Intercept)                     |   0.15 | [ 0.01, 0.45] |   100% | 1.001 |        814
-#> tau_ConditionB                  |   0.10 | [ 0.00, 0.30] |   100% | 1.000 |        839
-#> tau_ConditionC                  |   0.34 | [ 0.01, 0.96] |   100% | 0.999 |       1160
-#> tau_Intercept ~ tau_ConditionB  |  -0.06 | [-0.88, 0.88] | 53.15% | 1.004 |       1064
-#> tau_Intercept ~ tau_ConditionC  |  -0.03 | [-0.85, 0.84] | 52.30% | 1.001 |       1660
-#> tau_ConditionB ~ tau_ConditionC |   0.14 | [-0.84, 0.90] | 58.95% | 1.000 |       1575
+#> (Intercept)                     |   0.06 | [ 0.00, 0.16] |   100% | 1.006 |       1123
+#> ndt_ConditionB                  |   0.04 | [ 0.00, 0.13] |   100% | 1.003 |        900
+#> ndt_ConditionC                  |   0.11 | [ 0.01, 0.26] |   100% | 1.011 |        737
+#> ndt_Intercept ~ ndt_ConditionB  |   0.02 | [-0.85, 0.84] | 51.20% | 0.999 |       1148
+#> ndt_Intercept ~ ndt_ConditionC  |   0.06 | [-0.82, 0.86] | 53.90% | 1.001 |       1101
+#> ndt_ConditionB ~ ndt_ConditionC |   0.14 | [-0.82, 0.90] | 58.50% | 1.005 |       1221
 #> 
 #> Uncertainty intervals (equal-tailed) computed using a MCMC distribution
 #>   approximation.
@@ -409,8 +406,8 @@ the model recovers the true between-participant SD of the B effect
 differences: the measurement noise has been correctly assigned to the
 residual term instead of being mistaken for interindividual variability.
 
-The `sigma` and `tau` blocks also report non-zero SDs (around 0.03-0.04
-for `sigma`, and 0.10-0.34 for `tau`). Resist the temptation to read
+The `sigma` and `ndt` blocks also report non-zero SDs (around 0.03-0.04
+for `sigma`, and 0.10-0.34 for `ndt`). Resist the temptation to read
 these as evidence of individual differences. A random-effect SD is a
 variance, not a ratio: it is expressed on the scale of its own
 parameter, it is bounded below by zero (so its posterior can never be
@@ -432,14 +429,14 @@ another task). These participant-level deviations can be extracted with
 random <- estimate_grouplevel(m)
 
 head(random)
-#> Component   | Group       | Level | Parameter  |    Median |  MAD |         95% CI
-#> ----------------------------------------------------------------------------------
-#> conditional | Participant | S01   | ConditionB | -6.44e-04 | 0.01 | [-0.04,  0.03]
-#> conditional | Participant | S01   | ConditionC |     -0.08 | 0.07 | [-0.25,  0.07]
-#> conditional | Participant | S01   | Intercept  |     -0.23 | 0.05 | [-0.33, -0.13]
-#> conditional | Participant | S02   | ConditionB | -2.68e-03 | 0.01 | [-0.05,  0.02]
-#> conditional | Participant | S02   | ConditionC |     -0.25 | 0.07 | [-0.39, -0.11]
-#> conditional | Participant | S02   | Intercept  |      0.27 | 0.05 | [ 0.18,  0.36]
+#> Component   | Group       | Level | Parameter  |    Median |      MAD |         95% CI
+#> --------------------------------------------------------------------------------------
+#> conditional | Participant | S01   | ConditionB | -4.34e-04 | 9.00e-03 | [-0.03,  0.03]
+#> conditional | Participant | S01   | ConditionC |     -0.07 |     0.07 | [-0.22,  0.07]
+#> conditional | Participant | S01   | Intercept  |     -0.24 |     0.05 | [-0.33, -0.14]
+#> conditional | Participant | S02   | ConditionB | -2.95e-03 |     0.01 | [-0.04,  0.02]
+#> conditional | Participant | S02   | ConditionC |     -0.25 |     0.07 | [-0.39, -0.11]
+#> conditional | Participant | S02   | Intercept  |      0.27 |     0.05 | [ 0.18,  0.37]
 ```
 
 Each row is one participant’s deviation from the population-level
@@ -451,7 +448,7 @@ color:
 ``` r
 
 as.data.frame(random) |>
-  # `Component` distinguishes mu (conditional) from sigma and tau
+  # `Component` distinguishes mu (conditional) from sigma and ndt
   mutate(Parameter = paste0(Parameter, " (", Component, ")")) |>
   ggplot(aes(x = Median, y = Level, color = Parameter)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
@@ -479,7 +476,7 @@ of the 30 clearly exclude zero - these are genuine, statistically
 supported individual differences. The same is true of the `Intercept`,
 which captures how fast each participant is overall.
 
-The `sigma` and `tau` panels look different again: their point estimates
+The `sigma` and `ndt` panels look different again: their point estimates
 are all bunched up around zero while their intervals are wide. That
 combination - no spread, much uncertainty - is the visual signature of a
 parameter about which the data carry no individual-level information,
@@ -545,15 +542,15 @@ output of `estimate_grouplevel()` (or the model itself) to
 
 performance_dvour(random)
 #>     Component       Group  Parameter     D_vour
-#> 1 conditional Participant ConditionB 0.07432459
-#> 2 conditional Participant ConditionC 0.92436057
-#> 3 conditional Participant  Intercept 0.94331901
-#> 4       sigma Participant ConditionB 0.03787823
-#> 5       sigma Participant ConditionC 0.05744583
-#> 6       sigma Participant  Intercept 0.08422147
-#> 7         tau Participant ConditionB 0.04194411
-#> 8         tau Participant ConditionC 0.11866675
-#> 9         tau Participant  Intercept 0.05515361
+#> 1 conditional Participant ConditionB 0.07140210
+#> 2 conditional Participant ConditionC 0.93032310
+#> 3 conditional Participant  Intercept 0.94483827
+#> 4         ndt Participant ConditionB 0.05964280
+#> 5         ndt Participant ConditionC 0.09908817
+#> 6         ndt Participant  Intercept 0.08155732
+#> 7       sigma Participant ConditionB 0.02604177
+#> 8       sigma Participant ConditionC 0.07793225
+#> 9       sigma Participant  Intercept 0.05532574
 ```
 
 The ordering is the one we expected - `ConditionC` at 0.92 is highly
@@ -572,14 +569,14 @@ nuisance to be subtracted away. This is the usual situation rather than
 an accident of our simulation, and it is worth keeping in mind before
 building a clinical index out of a difference score.
 
-Because we gave `sigma` and `tau` their own predictors and random
+Because we gave `sigma` and `ndt` their own predictors and random
 effects, the output also contains one row per parameter *per component*,
 and each gets its own reliability verdict. This is worth doing
 systematically: nothing guarantees that the parameters carrying the
 individual differences are the ones we manipulated. Here, we know they
 are not, because we generated every participant’s decision times with
 the same `sdlog = 0.22` and the same non-decision time of 150 ms - and
-indeed all six `sigma` and `tau` rows land below 0.12, the index
+indeed all six `sigma` and `ndt` rows land below 0.12, the index
 correctly reporting that whatever spread we saw in their group-level
 estimates is uncertainty rather than genuine differences. Treat this as
 a **negative control**: it is the behaviour we want the index to have,
@@ -592,7 +589,7 @@ mean - it is one of the central points of [Williams et
 al. (2021)](https://pubmed.ncbi.nlm.nih.gov/32437184/) - and
 non-decision time is a natural candidate for a stable, person-specific
 quantity. Had these been the reliable components in our data, the
-sensible clinical index would have been `sigma` or `tau`, not a
+sensible clinical index would have been `sigma` or `ndt`, not a
 condition contrast at all.
 
 As for any such index, the thresholds are conventions rather than laws.
@@ -643,7 +640,7 @@ separating **true score variance** from **error variance**:
 - The hierarchical-modelling perspective it rests on is developed in
   [Williams et al. (2021)](https://pubmed.ncbi.nlm.nih.gov/32437184/),
   whose mixed-effects location-scale framework is the reason we gave
-  `sigma` and `tau` their own random effects above: in `cogmod`’s
+  `sigma` and `ndt` their own random effects above: in `cogmod`’s
   families, the dispersion, the shift or the drift rate can each carry
   their own reliability, and each deserves to be checked separately.
 

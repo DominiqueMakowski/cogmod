@@ -5,6 +5,7 @@
 library(cogmod)
 library(easystats)
 library(ggplot2)
+library(dplyr)
 library(brms)
 library(cmdstanr)
 
@@ -15,9 +16,9 @@ options(mc.cores = parallel::detectCores() - 2)
 
 Decision making models jointly account for the **choice** that was made
 and the **response time (RT)** it took to make it. Rather than
-simulating data, we re-use the `wagenmakers2008` dataset (see the
-[RT-only
-Models](https://github.com/DominiqueMakowski/cogmod/articles/rt_models.md)
+simulating data, we re-use the Wagenmakers et al. (2008) lexical
+decision data (see the [RT-only
+Models](https://dominiquemakowski.github.io/cogmod/articles/rt_models.md)
 vignette) - but this time, instead of discarding the errors, we model
 **choice** as *correct* vs. *error* responses. This is a common strategy
 in the decision-making literature when the task itself does not have a
@@ -26,38 +27,54 @@ accumulators/boundaries of the models below.
 
 Evidence accumulation models are considerably more expensive to sample
 than the RT-only models. We therefore use a smaller subset of the data
-here, only one participant, so that the models below can be fit in a
+here, only three participant, so that the models below can be fit in a
 reasonable amount of time for demonstration purposes.
 
 ``` r
 
 set.seed(123)  # For reproducibility
 
-df <- cogmod::wagenmakers2008
-df <- df[df$Participant == 1, ]
+# Experiment 1 of Wagenmakers et al. (2008), from rtdists. 
+data(speed_acc, package = "rtdists")
+
+df <- data.frame(
+  Participant = as.integer(as.character(speed_acc$id)),
+  Condition = unname(c(accuracy = "Accuracy", speed = "Speed")[
+    as.character(speed_acc$condition)]),
+  RT = speed_acc$rt,
+  Error = as.integer(as.character(speed_acc$response) != as.character(speed_acc$stim_cat)),
+  Frequency = unname(c(high = "High", low = "Low", very_low = "Very Low")[
+    sub("^nw_", "", as.character(speed_acc$frequency))])
+) 
+
+
+df <- df[df$Participant %in% c(1, 2, 3) & df$RT <= 2, ]
 
 # Show 10 first rows
-head(df[c("Participant", "Condition", "RT", "Error")], 10)
-#>    Participant Condition    RT Error
-#> 1            1     Speed 0.700     0
-#> 2            1     Speed 0.392     1
-#> 3            1     Speed 0.460     0
-#> 4            1     Speed 0.455     0
-#> 5            1     Speed 0.505     1
-#> 6            1     Speed 0.773     0
-#> 7            1     Speed 0.390     0
-#> 8            1     Speed 0.587     1
-#> 9            1     Speed 0.603     0
-#> 10           1     Speed 0.435     0
+head(df, 10)
+#>    Participant Condition    RT Error Frequency
+#> 1            1     Speed 0.700     0       Low
+#> 2            1     Speed 0.392     1  Very Low
+#> 3            1     Speed 0.460     0  Very Low
+#> 4            1     Speed 0.455     0  Very Low
+#> 5            1     Speed 0.505     1       Low
+#> 6            1     Speed 0.773     0      High
+#> 7            1     Speed 0.390     0      High
+#> 8            1     Speed 0.587     1       Low
+#> 9            1     Speed 0.603     0       Low
+#> 10           1     Speed 0.435     0      High
 ```
 
 ``` r
 
-ggplot(df, aes(x = RT, fill = factor(Error))) +
-  geom_histogram(bins = 100, alpha = 0.8, position = "identity") +
-  facet_wrap(~Condition) +
-  labs(x = "RT (s)", fill = "Response") +
-  scale_fill_manual(values = c("darkgreen", "darkred"), labels = c("Correct", "Error")) +
+ggplot(df, aes(x = RT, fill = Condition)) +
+  geom_histogram(data = df[df$Error == 0, ], aes(y = after_stat(count) / (nrow(df) * 0.02)),
+                 binwidth = 0.02, alpha = 0.6, position = "identity") +
+  geom_histogram(data = df[df$Error == 1, ], aes(y = -after_stat(count) / (nrow(df) * 0.02)),
+                 binwidth = 0.02, alpha = 0.6, position = "identity") +
+  geom_hline(yintercept = 0, color = "black", linewidth = 0.3) +
+  labs(x = "RT (s)", y = "Distribution (Error - Correct)", fill = "Response") +
+  scale_fill_manual(values = c("Accuracy"="#3F51B5", "Speed"="#F4511E")) +
   theme_minimal()
 ```
 
@@ -70,16 +87,31 @@ estimations.
 ## Models
 
 All five models below use `dec(Error)` to indicate the two-choice
-outcome (`0` = Correct, `1` = Error), and a fixed `minrt` (the minimum
-observed RT) to scale the non-decision time parameter `tau`.
+outcome (`0` = Correct, `1` = Error), and all five share the
+parameterization used by the RT-only families (see
+`vignette("outliers")`): `ndt` is estimated directly, in seconds, and a
+`poutlier` parameter mixes in an outlier process so that `ndt` is not
+capped at the fastest observed response. The outlier component is a half
+Normal with a fixed scale of 0.2 s, so **reaction times must be in
+seconds**.
+
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+and
+[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+read the family off the formula, so the same three lines set up any of
+them. Both are worth using rather than hand-written priors and
+`init = 0`: on a log link `init = 0` starts `ndt` at `exp(0) = 1`
+second, above nearly every observed RT, and each of these families has
+at least one direction the likelihood is flat in that `brms` would
+otherwise leave improper.
 
 ### Drift Diffusion Model (DDM)
 
 The DDM assumes that evidence accumulates towards one of two boundaries
-at a rate `mu` (drift rate). `bs` is the boundary separation (higher =
-more cautious), `bias` is the starting point between the two boundaries
-(`0.5` = unbiased), and `tau` is the non-decision time (as a proportion
-of `minrt`).
+at a rate `mu` (drift rate). `boundary` is the boundary separation
+(higher = more cautious), `bias` is the starting point between the two
+boundaries (`0.5` = unbiased), and `ndt` is the non-decision time, in
+seconds.
 
 Two conventions invert the signs one might expect. Following `brms`’s
 own
@@ -93,29 +125,31 @@ exactly `0.5` the two conditional RT distributions are identical).
 
 Note that we use the “simple” 4-parameter DDM here, which does not
 include between-trial variability in drift rate, starting point, or
-non-decision time, hence the `sigmadrift`, `sigmabias`, and `sigmatau`
+non-decision time, hence the `sigmadrift`, `sigmabias`, and `sigmandt`
 parameters are fixed to `0`. Estimating these parameters is possible,
 but considerably more expensive and often unnecessary for many
-applications.
+applications. Note that `sigmandt` is the between-trial *range* of the
+non-decision time in seconds (`st0`); it was called `sigmatau` when it
+was a fraction of a `minrt` parameter that no longer exists.
 
 ``` r
 
 f <- bf(
   RT | dec(Error) ~ Condition,
-  bs ~ Condition,
+  boundary ~ Condition,
   bias ~ 1,
-  tau ~ 1,
-  minrt = min(df$RT),
+  ndt ~ 1,
   sigmadrift = 0,
   sigmabias = 0,
-  sigmatau = 0,
-  family = ddm()
+  sigmandt = 0,
+  family = cogmod_ddm()
 )
 
 m_ddm <- brm(f,
   data = df,
-  init = 0,
-  stanvars = ddm_stanvars(),
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -124,49 +158,47 @@ m_ddm <- brms::add_criterion(m_ddm, "loo")  # Add model performance criterion
 
 ### DDM with Drift Variability (DDM-5)
 
-The three variability parameters are not decoration: each produces a
-specific, and different, effect on the *relative* speed of correct and
-error responses. Between-trial variability in the **drift rate**
-(`sigmadrift`, Ratcliff’s $`s_v`$) makes errors *slower* than correct
-responses, because errors are then contributed disproportionately by the
-trials that happened to draw a low drift. Variability in the **starting
-point** (`sigmabias`, $`s_z`$) does the opposite, producing *faster*
-errors, and variability in the **non-decision time** (`sigmatau`,
-$`s_{t0}`$) mostly affects the leading edge of the distribution. Which
-one to free is therefore an empirical question with a visible answer,
-and here the errors are slightly *slower* than the correct responses -
-so `sigmadrift` is the parameter to free.
+The three variability parameters each produces a specific effect on the
+*relative* speed of correct and error responses. Between-trial
+variability in the **drift rate** (`sigmadrift`, Ratcliff’s $`s_v`$)
+makes errors *slower* than correct responses, because errors are then
+contributed disproportionately by the trials that happened to draw a low
+drift. Variability in the **starting point** (`sigmabias`, $`s_z`$) does
+the opposite, producing *faster* errors, and variability in the
+**non-decision time** (`sigmandt`, $`s_{t0}`$) mostly affects the
+leading edge of the distribution. Which one to free is therefore an
+empirical question with a visible answer, and here the errors are
+slightly *slower* than the correct responses - so `sigmadrift` is the
+parameter to free.
 
-We keep `sigmabias` and `sigmatau` fixed at `0`, for two reasons.
-Statistically they are weakly identified with only ~160 error trials,
-and computationally the exact zero matters: `cogmod`’s Stan code falls
-back to the dedicated (and much cheaper) drift-variability-only density
-when both are exactly `0`, and to adaptive numerical quadrature
-otherwise. A prior *concentrated near* zero would pay the full cost of
-the 7-parameter form without buying anything.
+We keep `sigmabias` and `sigmandt` fixed at `0`, for two reasons.
+Statistically they are weakly identified with only few error trials, and
+computationally the exact zero matters: `cogmod`’s Stan code falls back
+to the dedicated (and much cheaper) drift-variability-only density when
+both are exactly `0`, and to adaptive numerical quadrature otherwise. A
+prior *concentrated near* zero would pay the full cost of the
+7-parameter form without buying anything.
 
 ``` r
 
 f <- bf(
   RT | dec(Error) ~ Condition,
-  bs ~ Condition,
+  boundary ~ Condition,
   bias ~ 1,
-  tau ~ 1,
+  ndt ~ 1,
   sigmadrift ~ 1,
-  minrt = min(df$RT),
   sigmabias = 0,
-  sigmatau = 0,
-  family = ddm()
+  sigmandt = 0,
+  family = cogmod_ddm()
 )
 
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmadrift") |>
-  brms::validate_prior(f, data = df)
-
+# cogmod_priors() already supplies normal(0, 1) for sigmadrift, for the same
+# reason it fences the other flat directions.
 m_ddm5 <- brm(f,
   data = df,
-  prior = priors,
-  init = 0,
-  stanvars = ddm_stanvars(),
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -182,6 +214,18 @@ distribution instead of a ballistic accumulation process. `mu`
 speeds for the “Error” and “Correct” accumulators, and
 `sigmazero`/`sigmaone` their log-space SDs.
 
+Like the RDM below, and unlike the three remaining models here, the LNR
+is fit with `ndt` and `poutlier` directly rather than `tau` and `minrt`:
+`ndt` is estimated in seconds, with no upper bound tied to the fastest
+observed response, and `poutlier` is the proportion of trials attributed
+to a contaminant guessing process (see `vignette("outliers")`).
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+and
+[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+both read the family off `f`, so they need no `tau`-specific setup - and
+`init = 0` is actively harmful here: on the log link it starts `ndt` at
+`exp(0) = 1` second, above nearly every observed RT.
+
 ``` r
 
 f <- bf(
@@ -189,19 +233,15 @@ f <- bf(
   nuone ~ Condition,
   sigmazero ~ 1,
   sigmaone ~ 1,
-  tau ~ 1,
-  minrt = min(df$RT),
-  family = lnr()
+  ndt ~ Condition,
+  family = cogmod_lnr()
 )
-
-priors <- brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau") |>
-  brms::validate_prior(f, data = df)
 
 m_lnr <- brm(f,
   data = df,
-  # prior = priors,
-  init = 0,
-  stanvars = lnr_stanvars(),
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -212,40 +252,36 @@ m_lnr <- brms::add_criterion(m_lnr, "loo")  # Add model performance criterion
 
 The LBA assumes two independent accumulators (one per choice) that race
 towards a common threshold `b` (`sigmabias` = start-point range `A`,
-`bs` = extra distance so that `b = A + bs`). `mu` and `driftone` are the
-mean drift rates for the “Correct” and “Error” accumulators, and
-`sigmazero`/ `sigmaone` their between-trial drift variability.
+`boundary` = extra distance so that `b = A + boundary`). `mu` and
+`driftone` are the mean drift rates for the “Correct” and “Error”
+accumulators, and `sigmazero`/ `sigmaone` their between-trial drift
+variability.
+
+Note that `sigmazero` is **fixed to 1** below. The evidence scale of an
+LBA is arbitrary - multiply the drifts, their SDs, the start-point range
+and the threshold by any constant and every finishing time is
+unchanged - so the six parameters are identified only up to a common
+factor. Priors make the posterior proper; only fixing one of them
+identifies the scale.
 
 ``` r
 
 f <- bf(
   RT | dec(Error) ~ Condition,
   driftone ~ Condition,
-  sigmazero ~ 1,
+  sigmazero = 1,
   sigmaone ~ 1,
   sigmabias ~ 1,
-  bs ~ 1,
-  tau ~ 1,
-  minrt = min(df$RT),
-  family = lba()
+  boundary ~ 1,
+  ndt ~ 1,
+  family = cogmod_lba2()
 )
-
-priors <- c(
-  brms::set_prior("normal(0, 2)", class = "Intercept"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "driftone"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmazero"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmaone"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "sigmabias"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "bs"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau")
-) |>
-  brms::validate_prior(f, data = df)
 
 m_lba <- brm(f,
   data = df,
-  prior = priors,
-  init = 0.5,
-  stanvars = lba_stanvars(),
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
@@ -271,7 +307,9 @@ variability parameter to estimate.
 
 Because each accumulator is a Wald (shifted inverse Gaussian) process,
 the drift rates use a softplus link and are constrained to be
-non-negative.
+non-negative. Like the LNR, `ndt` is estimated in seconds, and
+`poutlier` is the proportion of trials attributed to a contaminant early
+responses (see `vignette("outliers")`).
 
 ``` r
 
@@ -279,140 +317,128 @@ f <- bf(
   RT | dec(Error) ~ Condition,
   driftone ~ Condition,
   sigmabias ~ 1,
-  bs ~ 1,
-  tau ~ 1,
-  minrt = min(df$RT),
-  family = rdm()
+  boundary ~ 1,
+  ndt ~ 1,
+  family = cogmod_rdm()
 )
-
-priors <- c(
-  brms::set_prior("normal(0, 2)", class = "Intercept"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "driftone"),
-  # See the note below: sigmabias needs a prior to stay identified.
-  brms::set_prior("normal(-1, 1)", class = "Intercept", dpar = "sigmabias"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "bs"),
-  brms::set_prior("normal(0, 1)", class = "Intercept", dpar = "tau")
-) |>
-  brms::validate_prior(f, data = df)
 
 m_rdm <- brm(f,
   data = df,
-  prior = priors,
-  init = 0.5,
-  stanvars = rdm_stanvars(),
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
   chains = 4, iter = 500, backend = "cmdstanr"
 )
 
 m_rdm <- brms::add_criterion(m_rdm, "loo")  # Add model performance criterion
 ```
 
-### Identifiability of `sigmabias` and `bs`
+**Identifiability of `sigmabias` and `boundary`**: This concerns the LBA
+as much as the RDM, since both are parameterized the same way. The two
+parameters enter the model only through the threshold
+`b = boundary + sigmabias`, so they trade off almost freely, potentially
+ruining model convergence.
 
-This concerns the LBA as much as the RDM, since both are parameterized
-the same way. The two parameters enter the model only through the
-threshold `b = bs + sigmabias`, so they trade off almost freely: on
-simulated data with 4,000 trials, the profile log-likelihood moves by
-about 3 units as `sigmabias` sweeps from 0 to half the threshold, while
-`bs` slides to compensate. Under flat priors the sampler drifts down the
-`sigmabias -> 0` ridge (which is just a race of two plain Wald
-accumulators) and produces divergent transitions - several hundred of
-them, in a 4,000-trial simulation.
+This is a different identifiability problem from the model’s overall
+*scale* invariance - multiplying every drift, its SD, the start-point
+range and the threshold by a constant leaves every finishing time
+unchanged - which the LBA literature resolves by fixing one drift-rate
+SD to `1` (Brown & Heathcote,
+[2008](https://doi.org/10.1016/j.cogpsych.2007.12.002)), the convention
+already used for `sigmazero` above. There is no equivalent standard fix
+for the `boundary`/`sigmabias` split itself. Toolboxes that estimate by
+maximum likelihood (e.g. `rtdists`) just let both float freely and
+accept the estimation noise that comes with it; Bayesian hierarchical
+packages built around this model class (e.g. `EMC2`, the successor to
+`DMC`) do not fix either parameter outright either - they regularize the
+ridge with weakly-informative priors and partial pooling across
+participants and conditions rather than pin the split down directly.
+`cogmod` takes the same route at the level of a single fit: a prior on
+`sigmabias` might help, and for the RDM
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+supplies a weakly informative one (`normal(0, 1)`) on the softplus
+scale.
 
-A weakly informative prior on `sigmabias` is enough to prevent that:
-under the softplus link, `normal(-1, 1)` is centred near `0.31`, and it
-removes the divergences entirely. It does not make `sigmabias` itself
-trustworthy, though. In a recovery check where the true value was `0.3`
-and the prior was centred at `0.31`, the posterior still came back at
-`0.21` - the likelihood pulls it down the ridge and the prior only
-partly resists. The *sum* recovered accurately over the same fit (1.08
-against a true 1.10).
-
-So prefer `bs + sigmabias` whenever you interpret a threshold or compare
-one across conditions, and treat the split between the two as
-weakly-determined.
+A prior of that shape does not make `sigmabias` itself trustworthy,
+though, so prefer `boundary + sigmabias` whenever you interpret a
+threshold or compare one across conditions, and treat the split between
+the two as weakly-determined.
 
 ## Model Comparison
 
-> Everything below is fitted to one participant, with no random effects,
-> short chains, and predictors on only some parameters - with the goal
-> of demonstrating the workflow. The “findings” are thus not to be taken
-> at face value.
+> Everything below is fitted to a subset of data, with no random
+> effects, short chains, and predictors on only some parameters - with
+> the goal of demonstrating the workflow. The “findings” are thus not to
+> be taken at face value.
 
 ### Model Fit
 
 ``` r
 
 loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
-  report::report()
-#> The difference in predictive accuracy, as indexed by Expected Log Predictive
-#> Density (ELPD-LOO), suggests that '1' is the best model (ELPD = 960.72),
-#> followed by '2' (diff-ELPD = -56.02 +- 11.54, p < .001), '3' (diff-ELPD =
-#> -76.21 +- 15.79, p < .001), '4' (diff-ELPD = -99.40 +- 20.69, p < .001) and '5'
-#> (diff-ELPD = -180.57 +- 21.15, p < .001)
+  parameters(include_ENP = TRUE)
+#> # Fixed Effects
+#> 
+#> Name |   LOOIC |   ENP |    ELPD | Difference | Difference_SE |      p
+#> ----------------------------------------------------------------------
+#> 1    | -2657.7 |  8.42 | 1328.86 |       0.00 |          0.00 |       
+#> 2    | -2633.0 |  9.86 | 1316.52 |     -12.34 |         10.12 | 0.223 
+#> 3    | -2507.3 | 10.74 | 1253.66 |     -75.20 |         17.27 | < .001
+#> 4    | -2436.3 | 10.70 | 1218.16 |    -110.70 |         19.13 | < .001
+#> 5    | -2419.4 |  6.96 | 1209.69 |    -119.17 |         18.13 | < .001
 ```
-
-One feature of that ranking is worth a comment, because it shows what a
-comparison like this is actually good for. The simple DDM comes last,
-even though it is the only model here allowed to move its threshold
-across conditions (`bs ~ Condition`) - the mechanism speed instructions
-are believed to act on. Its deficit lies on a different axis: it
-predicts errors 0.110 s *faster* than correct responses (95% CI
-`[-0.135, -0.086]`) against an observed `+0.039` s, while the three
-races, each carrying a separate drift for the error accumulator, all
-cover the observed value. Not because a DDM without variability can only
-produce fast errors - a `bias` below `0.5` produces slow ones - but
-because these errors have a heavier *tail* at an unchanged leading edge
-(in the `Accuracy` condition, 90th percentile 1.081 s against 0.744 s
-for correct responses, but 10th percentile 0.458 s against 0.446 s). The
-start point slides the whole distribution, and it has to account for the
-error rate at the same time.
-
-**DDM-5** adds exactly the missing degree of freedom: with the errors
-contributed disproportionately by the trials that drew a low drift,
-drift variability lengthens the error tail without moving its leading
-edge. Same model, same threshold mechanism, only `sigmadrift` freed -
-and it is worth 104 ELPD points, moves the DDM from last to third, and
-closes the error-timing gap (`+0.007`, `[-0.058, +0.087]`). The lesson
-is about diagnosis rather than about which family wins: a poor fit had
-an identifiable cause, the cause pointed at one parameter, and freeing
-it recovered the gap.
 
 ### Sampling Duration
 
-As with the RT-only models, we summarize each model’s sampling duration
-by the median time per chain. Choice+RT models are considerably more
-expensive to sample than RT-only models (see the [RT-only
-Models](https://github.com/DominiqueMakowski/cogmod/articles/rt_models.md)
-vignette): the DDM relies on Stan’s `wiener_lpdf`, which is
-comparatively slow, while the LBA, LNR and RDM likelihoods involve
-evaluating both a “winner” density and a “loser” survival function for
-every observation. Among the three races, the LNR is by far the
-cheapest, since its density and survival are just LogNormal ones, while
-the RDM and the LBA each need several normal CDF evaluations per
-observation and land in the same, much slower, range.
-
-Freeing `sigmadrift` is not free either: DDM-5 costs about 3.7 times the
-simple DDM, though it remains cheaper than either of the two slow races.
+Choice+RT models are considerably more expensive to sample than RT-only
+models: the DDM relies on Stan’s `wiener_lpdf`, which is comparatively
+slow, while the LBA, LNR and RDM likelihoods involve evaluating both a
+“winner” density and a “loser” survival function for every observation.
+Among the three races, the LNR is by far the cheapest, since its density
+and survival are just LogNormal ones, while the RDM and the LBA are much
+slower. Freeing `sigmadrift` is not free either: DDM-5 costs is
+significantly slower than the simple DDM, though it remains cheaper than
+either of the two slow races.
 
 ``` r
 
-duration <- rbind(
-  data_modify(attributes(m_ddm$fit)$metadata$time$chain, Model = "DDM"),
-  data_modify(attributes(m_ddm5$fit)$metadata$time$chain, Model = "DDM-5"),
-  data_modify(attributes(m_lba$fit)$metadata$time$chain, Model = "LBA"),
-  data_modify(attributes(m_lnr$fit)$metadata$time$chain, Model = "LNR"),
-  data_modify(attributes(m_rdm$fit)$metadata$time$chain, Model = "RDM")
-) |>
-  data_modify(Model = factor(Model, levels = c("LNR", "DDM", "DDM-5", "RDM", "LBA")))
+models <- list(
+  DDM = m_ddm, `DDM-5` = m_ddm5, LNR = m_lnr, LBA = m_lba, RDM = m_rdm
+)
+model_levels <- names(models)
 
-duration_median <- aggregate(total ~ Model, data = duration, FUN = median)
+duration <- do.call(rbind, lapply(model_levels, function(nm) {
+  data_modify(attributes(models[[nm]]$fit)$metadata$time$chain, Model = nm)
+})) |>
+  data_modify(Model = factor(Model, levels = model_levels), Minutes = total / 60)
 
-duration_median |>
-  ggplot(aes(x = Model, y = total, fill = Model)) +
-  geom_col() +
-  geom_text(aes(label = round(total, 1)), vjust = -0.5, size = 3.5) +
-  labs(y = "Median Sampling Duration per Chain (s)") +
-  scale_fill_material_d(guide = "none") +
+duration_range <- duration |>
+  summarize(
+    duration_min = min(Minutes),
+    duration_median = median(Minutes),
+    duration_max = max(Minutes),
+    .by = Model
+  )
+
+quality <- do.call(rbind, lapply(model_levels, function(nm) {
+  est <- models[[nm]]$criteria$loo$estimates
+  data.frame(Model = nm, elpd = est["elpd_loo", "Estimate"], elpd_se = est["elpd_loo", "SE"])
+})) |>
+  data_modify(Model = factor(Model, levels = model_levels))
+
+fit_summary <- merge(duration_range, quality, by = "Model")
+
+fit_summary |>
+  ggplot(aes(x = duration_median, y = elpd, color = Model)) +
+  geom_errorbar(aes(xmin = duration_min, xmax = duration_max), orientation = "y") +
+  geom_errorbar(aes(ymin = elpd - elpd_se, ymax = elpd + elpd_se), width = 0) +
+  geom_point(size = 2.5) +
+  ggrepel::geom_text_repel(aes(label = Model), size = 3.2, show.legend = FALSE) +
+  scale_color_material_d(guide = "none") +
+  labs(
+    x = "Sampling Duration per Chain (min) - median, range across the 4 chains",
+    y = "Fit Quality (elpd_loo ± 1 SE)"
+  ) +
   theme_minimal()
 ```
 
@@ -440,24 +466,30 @@ Code
 ``` r
 
 pred <- rbind(
-  estimate_prediction(m_ddm, data = df, iterations = 50, keep_iterations = TRUE) |>
+  estimate_prediction(m_ddm, data = df, iterations = 50, 
+                      keep_iterations = TRUE, ci = NULL) |>
     reshape_iterations() |>
     data_modify(Model = "DDM"),
-  estimate_prediction(m_ddm5, data = df, iterations = 50, keep_iterations = TRUE) |>
+  estimate_prediction(m_ddm5, data = df, iterations = 50, 
+                      keep_iterations = TRUE, ci = NULL) |>
     reshape_iterations() |>
     data_modify(Model = "DDM-5"),
-  estimate_prediction(m_lba, data = df, iterations = 50, keep_iterations = TRUE) |>
-    reshape_iterations() |>
-    data_modify(Model = "LBA"),
-  estimate_prediction(m_lnr, data = df, iterations = 50, keep_iterations = TRUE) |>
+  estimate_prediction(m_lnr, data = df, iterations = 50, 
+                      keep_iterations = TRUE, ci = NULL) |>
     reshape_iterations() |>
     data_modify(Model = "LNR"),
-  estimate_prediction(m_rdm, data = df, iterations = 50, keep_iterations = TRUE) |>
+  estimate_prediction(m_lba, data = df, iterations = 50, 
+                      keep_iterations = TRUE, ci = NULL) |>
+    reshape_iterations() |>
+    data_modify(Model = "LBA"),
+  estimate_prediction(m_rdm, data = df, iterations = 50, 
+                      keep_iterations = TRUE, ci = NULL) |>
     reshape_iterations() |>
     data_modify(Model = "RDM")
 ) |>
-  datawizard::data_select(select = c("Row", "Component", "iter_value", "iter_group", "iter_index", "Model")) |>
-  datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model"), values_from = "iter_value", names_from = "Component")
+  datawizard::data_select(select = c("Row", "Component", "Condition", "iter_value", "iter_group", "iter_index", "Model")) |>
+  datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model", "Condition"), values_from = "iter_value", names_from = "Component") |> 
+  data_modify(Model = factor(Model, levels = c("DDM", "DDM-5", "LNR", "LBA", "RDM")))
 
 # The LBA occasionally predicts enormous RTs (a near-zero drift rate takes a
 # very long time to reach the threshold). `stat_density()` spreads its
@@ -476,31 +508,38 @@ bw <- 0.02  # Histogram bin width
 # number of trials of that response) scales each half by its own frequency.
 p <- ggplot(df, aes(x = RT)) +
   # Observed data
-  geom_histogram(data = df[df$Error == 0, ], aes(y = after_stat(count) / (n_obs * bw)),
-                 binwidth = bw, fill = "darkgreen", alpha = 0.3) +
-  geom_histogram(data = df[df$Error == 1, ], aes(y = -after_stat(count) / (n_obs * bw)),
-                 binwidth = bw, fill = "darkred", alpha = 0.3) +
+  geom_histogram(data = df[df$Error == 0, ], aes(y = after_stat(count) / (nrow(df) * 0.02),
+                                                 fill = Condition),
+                 binwidth = 0.02, alpha = 0.6, position = "identity") +
+  geom_histogram(data = df[df$Error == 1, ], aes(y = -after_stat(count) / (nrow(df) * 0.02),
+                                                 fill = Condition),
+                 binwidth = 0.02, alpha = 0.6, position = "identity") +
   # One faint line per posterior draw
-  geom_line(data = correct,
-            aes(x = rt, y = after_stat(count) / n_obs, color = Model,
-                group = interaction(Model, iter_group)),
-            stat = "density", alpha = 0.05, linewidth = 0.3) +
-  geom_line(data = error,
-            aes(x = rt, y = -after_stat(count) / n_obs, color = Model,
-                group = interaction(Model, iter_group)),
-            stat = "density", alpha = 0.05, linewidth = 0.3) +
+  # geom_line(data = correct,
+  #           aes(x = rt, y = after_stat(count) / n_obs, color = Model,
+  #               group = interaction(Model, iter_group, Condition)),
+  #           stat = "density", alpha = 0.05, linewidth = 0.3) +
+  # geom_line(data = error,
+  #           aes(x = rt, y = -after_stat(count) / n_obs, color = Model,
+  #               group = interaction(Model, iter_group, Condition)),
+  #           stat = "density", alpha = 0.05, linewidth = 0.3) +
   # Posterior predictive density, pooled over draws
   geom_line(data = correct,
-            aes(x = rt, y = after_stat(count) / (n_obs * n_iter), color = Model),
-            stat = "density", linewidth = 0.9) +
+            aes(x = rt, y = after_stat(count) / (n_obs * n_iter), 
+                color = Model, linetype = Condition),
+            stat = "density", linewidth = 1.2) +
   geom_line(data = error,
-            aes(x = rt, y = -after_stat(count) / (n_obs * n_iter), color = Model),
-            stat = "density", linewidth = 0.9) +
+            aes(x = rt, y = -after_stat(count) / (n_obs * n_iter), 
+                color = Model, linetype = Condition),
+            stat = "density", linewidth = 1.2) +
   geom_hline(yintercept = 0, color = "grey40", linewidth = 0.3) +
   scale_color_material_d(palette = "rainbow") +
-  guides(color = guide_legend(override.aes = list(alpha = 1, linewidth = 1.2))) +
+  scale_fill_manual(values = c("Accuracy"="#3F51B5", "Speed"="#F4511E")) +
+  guides(color = guide_legend(override.aes = list(alpha = 1, linewidth = 1.2)),
+         linetype = "none") +
   coord_cartesian(xlim = c(0.25, 1.25)) +
   labs(x = "RT (s)", y = "Density (up = Correct, down = Error)", color = "Model") +
+  # facet_wrap(~Model) +
   theme_minimal()
 p
 ```

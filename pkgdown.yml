@@ -2,11 +2,13 @@ pandoc: 3.8.3
 pkgdown: 2.2.1
 pkgdown_sha: ~
 articles:
-  decision_making: decision_making.html
-  reliability: reliability.html
-  rt_models: rt_models.html
-  subjective_ratings: subjective_ratings.html
-last_built: 2026-08-16T21:26Z
+  articles/decision_making: decision_making.html
+  articles/outliers: outliers.html
+  overview: overview.html
+  articles/reliability: reliability.html
+  articles/rt_models: rt_models.html
+  articles/subjective_ratings: subjective_ratings.html
+last_built: 2026-08-21T10:34Z
 urls:
-  reference: https://github.com/DominiqueMakowski/cogmod/reference
-  article: https://github.com/DominiqueMakowski/cogmod/articles
+  reference: https://dominiquemakowski.github.io/cogmod/reference
+  article: https://dominiquemakowski.github.io/cogmod/articles

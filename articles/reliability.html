@@ -18,7 +18,7 @@
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><script src="reliability_files/libs/quarto-html/popper.min.js"></script><script src="reliability_files/libs/quarto-html/tippy.umd.min.js"></script><link href="reliability_files/libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="reliability_files/libs/quarto-html/light-border.css" rel="stylesheet">
 <!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Assessing Reliability and Interindividual Variability">
-<meta property="og:image" content="https://github.com/DominiqueMakowski/cogmod/logo.svg">
+<meta property="og:image" content="https://dominiquemakowski.github.io/cogmod/logo.svg">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -28,7 +28,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.22</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -41,18 +41,21 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/subjective_ratings.html">Subjective Ratings</a></li>
+<li><a class="dropdown-item" href="../articles/overview.html">Overview</a></li>
+    <li><a class="dropdown-item" href="../articles/subjective_ratings.html">Subjective Ratings</a></li>
     <li><a class="dropdown-item" href="../articles/rt_models.html">RT-only Models</a></li>
+    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/decision_making.html">Decision Making Models</a></li>
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
   </ul>
 </li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
-<li class="nav-item"><a class="nav-link" href="https://github.com/DominiqueMakowski/cogmod/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/DominiqueMakowski/cogmod/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -66,7 +69,7 @@
 
 
 
-      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/main/vignettes/reliability.qmd"><code>vignettes/reliability.qmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/main/vignettes/articles/reliability.qmd" class="external-link"><code>vignettes/articles/reliability.qmd</code></a></small>
       <div class="d-none name"><code></code></div>
     </div>
 
@@ -77,7 +80,7 @@
 
     <div class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/DominiqueMakowski/cogmod">cogmod</a></span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/DominiqueMakowski/cogmod" class="external-link">cogmod</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://easystats.github.io/easystats/" class="external-link">easystats</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
@@ -95,7 +98,7 @@
 <div class="cell">
 <details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># The data are generated from a **shifted LogNormal** process (see cogmod's</span></span>
-<span><span class="co"># rt_lognormal() family): a non-decision time `ndt` - the incompressible</span></span>
+<span><span class="co"># cogmod_lognormal() family): a non-decision time `ndt` - the incompressible</span></span>
 <span><span class="co"># encoding + motor delay - to which a LogNormal-distributed decision time is</span></span>
 <span><span class="co"># added.</span></span>
 <span><span class="co">#</span></span>
@@ -255,30 +258,26 @@
 <p>This back-of-the-envelope correction is the whole idea behind reliability, but doing it by hand has obvious limits: it treats each participant’s score as a fixed number to be de-noised afterwards, it does not propagate the uncertainty into anything we do next (e.g., correlating the scores with a symptom questionnaire), and it says nothing about the shape of the RT distribution the scores came from. <strong>A model can do all of this in one go</strong>, by estimating the between-participant variability and the trial-level noise jointly instead of separating them after the fact.</p>
 </section><section class="level2"><h2 id="modeling">Modeling<a class="anchor" aria-label="anchor" href="#modeling"></a>
 </h2>
-<p>We now fit a <strong>mixed <a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html#shifted-lognormal" class="external-link">shifted LogNormal model</a></strong>, which mirrors the way the data were generated: the effect of <code>Condition</code> is estimated at the population level (fixed effects) <em>and</em> allowed to vary across participants (random slopes).</p>
-<p>Because the family has more than one parameter, we can do the same for the other two: <code>sigma</code> (how variable a participant’s decision times are) and <code>tau</code> (their non-decision time, as a proportion of the minimum RT). Giving each of them the same <code>Condition + (Condition | Participant)</code> structure means that every participant gets their own dispersion and their own shift - and their own condition effects on both - rather than being forced to share the group’s. This costs a fair number of parameters, but it is the only way to find out whether these quantities carry individual differences of their own, and, as we will see below, whether they are reliable enough to be used as scores.</p>
+<p>We now fit a <strong>mixed <a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html#shifted-lognormal">shifted LogNormal model</a></strong>, which mirrors the way the data were generated: the effect of <code>Condition</code> is estimated at the population level (fixed effects) <em>and</em> allowed to vary across participants (random slopes).</p>
+<p>Because the family has more than one parameter, we can do the same for the other two that carry individual differences here: <code>sigma</code> (how variable a participant’s decision times are) and <code>ndt</code> (their non-decision time, estimated directly in seconds). Giving each of them the same <code>Condition + (Condition | Participant)</code> structure means that every participant gets their own dispersion and their own shift - and their own condition effects on both - rather than being forced to share the group’s. This costs a fair number of parameters, but it is the only way to find out whether these quantities carry individual differences of their own, and, as we will see below, whether they are reliable enough to be used as scores.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span> <span class="op">+</span> <span class="op">(</span><span class="va">Condition</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span> <span class="op">+</span> <span class="op">(</span><span class="va">Condition</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
-<span>  <span class="va">tau</span> <span class="op">~</span> <span class="va">Condition</span> <span class="op">+</span> <span class="op">(</span><span class="va">Condition</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
-<span>  minrt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">RT</span><span class="op">)</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rt_lognormal.html">rt_lognormal</a></span><span class="op">(</span><span class="op">)</span></span>
+<span>  <span class="va">ndt</span> <span class="op">~</span> <span class="va">Condition</span> <span class="op">+</span> <span class="op">(</span><span class="va">Condition</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rcogmod_lognormal.html">cogmod_lognormal</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"Intercept"</span>, dpar <span class="op">=</span> <span class="st">"tau"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">validate_prior</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">sim</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">sim</span>,</span>
-<span>  prior <span class="op">=</span> <span class="va">priors</span>,</span>
-<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/rt_lognormal.html">rt_lognormal_stanvars</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  init <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  prior <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">sim</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">sim</span><span class="op">)</span>,</span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">1000</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
-<p>The random-effects parts are the key ingredient: they tell the model that each participant has their own intercept <em>and</em> their own condition effects, their own <code>sigma</code> and their own <code>tau</code>, and they estimate how much each of these varies. Note also that we do not need to transform the RTs: <code>family = rt_lognormal()</code> handles the skew directly - and, through <code>tau</code>, the non-decision time - so the coefficients are simply expressed on the log scale of the decision time.</p>
+<p>The random-effects parts are the key ingredient: they tell the model that each participant has their own intercept <em>and</em> their own condition effects, their own <code>sigma</code> and their own <code>ndt</code>, and they estimate how much each of these varies. Note also that we do not need to transform the RTs: <code>family = cogmod_lognormal()</code> handles the skew directly - and, through <code>ndt</code>, the non-decision time - so the coefficients are simply expressed on the log scale of the decision time.</p>
 <p>Let us first look at the <strong>fixed effects</strong>, i.e., the population-level answer to “is there an effect of condition?”.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
@@ -288,30 +287,30 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)</span></span>
 <span><span class="co">#&gt; -------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept) |  -0.44 | [-0.56, -0.31] |   100% | 1.011 |        816</span></span>
-<span><span class="co">#&gt; ConditionB  |   0.10 | [ 0.00,  0.21] | 97.15% | 1.001 |       1070</span></span>
-<span><span class="co">#&gt; ConditionC  |  -0.04 | [-0.23,  0.14] | 64.85% | 1.005 |        941</span></span>
+<span><span class="co">#&gt; (Intercept) |  -0.47 | [-0.57, -0.38] |   100% | 1.014 |        649</span></span>
+<span><span class="co">#&gt; ConditionB  |   0.10 | [ 0.04,  0.17] | 99.80% | 1.004 |       1113</span></span>
+<span><span class="co">#&gt; ConditionC  |  -0.02 | [-0.15,  0.10] | 62.90% | 1.003 |       1163</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; # ndt Parameters</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Parameter   |   Median |         95% CI |     pd |  Rhat | ESS (tail)</span></span>
+<span><span class="co">#&gt; ---------------------------------------------------------------------</span></span>
+<span><span class="co">#&gt; (Intercept) |    -1.72 | [-1.95, -1.53] |   100% | 1.001 |       1037</span></span>
+<span><span class="co">#&gt; ConditionB  |     0.01 | [-0.24,  0.24] | 53.75% | 1.003 |        958</span></span>
+<span><span class="co">#&gt; ConditionC  | 6.98e-03 | [-0.28,  0.29] | 51.90% | 1.001 |       1355</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; # sigma Parameters</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)</span></span>
 <span><span class="co">#&gt; -------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept) |  -1.39 | [-1.51, -1.28] |   100% | 1.004 |        850</span></span>
-<span><span class="co">#&gt; ConditionB  |   0.04 | [-0.09,  0.16] | 74.90% | 1.004 |       1032</span></span>
-<span><span class="co">#&gt; ConditionC  |   0.04 | [-0.13,  0.23] | 68.45% | 1.003 |       1205</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; # tau Parameters</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Parameter   | Median |        95% CI |     pd |  Rhat | ESS (tail)</span></span>
-<span><span class="co">#&gt; ------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept) |   0.07 | [-0.92, 0.87] | 55.80% | 1.003 |        913</span></span>
-<span><span class="co">#&gt; ConditionB  |   0.02 | [-0.98, 0.97] | 51.30% | 1.002 |        949</span></span>
-<span><span class="co">#&gt; ConditionC  |   0.24 | [-1.07, 1.73] | 62.85% | 1.004 |        896</span></span>
+<span><span class="co">#&gt; (Intercept) |  -1.35 | [-1.43, -1.27] |   100% | 1.001 |       1134</span></span>
+<span><span class="co">#&gt; ConditionB  |   0.04 | [-0.05,  0.12] | 80.00% | 1.002 |       1047</span></span>
+<span><span class="co">#&gt; ConditionC  |   0.02 | [-0.08,  0.13] | 65.00% | 1.002 |       1285</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Uncertainty intervals (equal-tailed) computed using a MCMC distribution</span></span>
 <span><span class="co">#&gt;   approximation.</span></span></code></pre></div>
 </div>
-<p>This reproduces the classic conclusion: an effect of condition B (0.10 on the log scale, 95% CI [0.00, 0.21], <em>pd</em> = 97%), and nothing at all for condition C (-0.04, 95% CI [-0.23, 0.14], <em>pd</em> = 65%), whose credible interval is comfortably centered on zero. The <code>sigma</code> and <code>tau</code> blocks tell a similar story for the other two parameters: no condition effect on the dispersion or on the non-decision time comes close to being convincing (all <em>pd</em> &lt; 75%), which is as it should be, since we simulated both as constant.</p>
+<p>This reproduces the classic conclusion: an effect of condition B (0.10 on the log scale, 95% CI [0.00, 0.21], <em>pd</em> = 97%), and nothing at all for condition C (-0.04, 95% CI [-0.23, 0.14], <em>pd</em> = 65%), whose credible interval is comfortably centered on zero. The <code>sigma</code> and <code>ndt</code> blocks tell a similar story for the other two parameters: no condition effect on the dispersion or on the non-decision time comes close to being convincing (all <em>pd</em> &lt; 75%), which is as it should be, since we simulated both as constant.</p>
 <p>The crucial addition is the <strong>random effects</strong>, which quantify how much participants differ from each other on each of these parameters:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
@@ -320,40 +319,40 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Parameter               | Median |        95% CI |     pd |  Rhat | ESS (tail)</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept)             |   0.20 | [ 0.16, 0.28] |   100% | 1.015 |        793</span></span>
-<span><span class="co">#&gt; ConditionB              |   0.01 | [ 0.00, 0.04] |   100% | 1.006 |        739</span></span>
-<span><span class="co">#&gt; ConditionC              |   0.27 | [ 0.20, 0.37] |   100% | 1.002 |       1267</span></span>
-<span><span class="co">#&gt; Intercept ~ ConditionB  |  -0.08 | [-0.90, 0.83] | 54.45% | 1.001 |       1137</span></span>
-<span><span class="co">#&gt; Intercept ~ ConditionC  |  -0.22 | [-0.55, 0.16] | 87.80% | 1.000 |       1447</span></span>
-<span><span class="co">#&gt; ConditionB ~ ConditionC |   0.32 | [-0.69, 0.90] | 75.90% | 1.016 |        324</span></span>
+<span><span class="co">#&gt; (Intercept)             |   0.21 | [ 0.16, 0.28] |   100% | 1.013 |        732</span></span>
+<span><span class="co">#&gt; ConditionB              |   0.01 | [ 0.00, 0.03] |   100% | 1.012 |        860</span></span>
+<span><span class="co">#&gt; ConditionC              |   0.27 | [ 0.21, 0.37] |   100% | 1.011 |        955</span></span>
+<span><span class="co">#&gt; Intercept ~ ConditionB  |  -0.13 | [-0.87, 0.79] | 58.90% | 1.001 |       1516</span></span>
+<span><span class="co">#&gt; Intercept ~ ConditionC  |  -0.22 | [-0.53, 0.15] | 88.55% | 1.005 |       1258</span></span>
+<span><span class="co">#&gt; ConditionB ~ ConditionC |   0.28 | [-0.74, 0.92] | 69.15% | 1.041 |        130</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; # sigma Parameters (Participant)</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Parameter               |    Median |        95% CI |     pd |  Rhat | ESS (tail)</span></span>
-<span><span class="co">#&gt; ---------------------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept)             |      0.03 | [ 0.00, 0.07] |   100% | 1.002 |       1061</span></span>
-<span><span class="co">#&gt; ConditionB              |      0.03 | [ 0.00, 0.09] |   100% | 1.002 |        980</span></span>
-<span><span class="co">#&gt; ConditionC              |      0.04 | [ 0.00, 0.11] |   100% | 1.005 |       1323</span></span>
-<span><span class="co">#&gt; Intercept ~ ConditionB  |     -0.04 | [-0.87, 0.88] | 53.35% | 1.001 |       1679</span></span>
-<span><span class="co">#&gt; Intercept ~ ConditionC  |     -0.06 | [-0.87, 0.82] | 54.65% | 1.003 |       1497</span></span>
-<span><span class="co">#&gt; ConditionB ~ ConditionC | -2.50e-03 | [-0.88, 0.87] | 50.30% | 1.001 |       1614</span></span>
+<span><span class="co">#&gt; Parameter               | Median |        95% CI |     pd |  Rhat | ESS (tail)</span></span>
+<span><span class="co">#&gt; ------------------------------------------------------------------------------</span></span>
+<span><span class="co">#&gt; (Intercept)             |   0.02 | [ 0.00, 0.06] |   100% | 1.004 |        640</span></span>
+<span><span class="co">#&gt; ConditionB              |   0.03 | [ 0.00, 0.08] |   100% | 1.007 |        712</span></span>
+<span><span class="co">#&gt; ConditionC              |   0.04 | [ 0.00, 0.11] |   100% | 1.014 |        733</span></span>
+<span><span class="co">#&gt; Intercept ~ ConditionB  |  -0.10 | [-0.90, 0.84] | 56.65% | 1.001 |       1195</span></span>
+<span><span class="co">#&gt; Intercept ~ ConditionC  |  -0.07 | [-0.89, 0.85] | 54.20% | 1.000 |        803</span></span>
+<span><span class="co">#&gt; ConditionB ~ ConditionC |   0.01 | [-0.88, 0.88] | 51.00% | 1.005 |       1042</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; # tau Parameters (Participant)</span></span>
+<span><span class="co">#&gt; # ndt Parameters (Participant)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Parameter                       | Median |        95% CI |     pd |  Rhat | ESS (tail)</span></span>
 <span><span class="co">#&gt; --------------------------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept)                     |   0.15 | [ 0.01, 0.45] |   100% | 1.001 |        814</span></span>
-<span><span class="co">#&gt; tau_ConditionB                  |   0.10 | [ 0.00, 0.30] |   100% | 1.000 |        839</span></span>
-<span><span class="co">#&gt; tau_ConditionC                  |   0.34 | [ 0.01, 0.96] |   100% | 0.999 |       1160</span></span>
-<span><span class="co">#&gt; tau_Intercept ~ tau_ConditionB  |  -0.06 | [-0.88, 0.88] | 53.15% | 1.004 |       1064</span></span>
-<span><span class="co">#&gt; tau_Intercept ~ tau_ConditionC  |  -0.03 | [-0.85, 0.84] | 52.30% | 1.001 |       1660</span></span>
-<span><span class="co">#&gt; tau_ConditionB ~ tau_ConditionC |   0.14 | [-0.84, 0.90] | 58.95% | 1.000 |       1575</span></span>
+<span><span class="co">#&gt; (Intercept)                     |   0.06 | [ 0.00, 0.16] |   100% | 1.006 |       1123</span></span>
+<span><span class="co">#&gt; ndt_ConditionB                  |   0.04 | [ 0.00, 0.13] |   100% | 1.003 |        900</span></span>
+<span><span class="co">#&gt; ndt_ConditionC                  |   0.11 | [ 0.01, 0.26] |   100% | 1.011 |        737</span></span>
+<span><span class="co">#&gt; ndt_Intercept ~ ndt_ConditionB  |   0.02 | [-0.85, 0.84] | 51.20% | 0.999 |       1148</span></span>
+<span><span class="co">#&gt; ndt_Intercept ~ ndt_ConditionC  |   0.06 | [-0.82, 0.86] | 53.90% | 1.001 |       1101</span></span>
+<span><span class="co">#&gt; ndt_ConditionB ~ ndt_ConditionC |   0.14 | [-0.82, 0.90] | 58.50% | 1.005 |       1221</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Uncertainty intervals (equal-tailed) computed using a MCMC distribution</span></span>
 <span><span class="co">#&gt;   approximation.</span></span></code></pre></div>
 </div>
 <p>Here the two effects finally become distinguishable. The SD of the <code>ConditionB</code> slope is 0.01, i.e., essentially nothing: participants barely differ in how much B affects them. The SD of the <code>ConditionC</code> slope, in contrast, is 0.27 - more than twenty times larger. This is the model formally telling us that <em>there is a lot going on in condition C, it just does not go in the same direction for everybody</em>. Note also that the model recovers the true between-participant SD of the B effect (~0.01) rather than the inflated ~31 ms spread of the raw empirical differences: the measurement noise has been correctly assigned to the residual term instead of being mistaken for interindividual variability.</p>
-<p>The <code>sigma</code> and <code>tau</code> blocks also report non-zero SDs (around 0.03-0.04 for <code>sigma</code>, and 0.10-0.34 for <code>tau</code>). Resist the temptation to read these as evidence of individual differences. A random-effect SD is a variance, not a ratio: it is expressed on the scale of its own parameter, it is bounded below by zero (so its posterior can never be centered on zero, and its <em>pd</em> is uninformative), and it says nothing about how precisely each participant’s value is known. Turning it into a verdict requires comparing it to that precision - which is exactly what the next section does.</p>
+<p>The <code>sigma</code> and <code>ndt</code> blocks also report non-zero SDs (around 0.03-0.04 for <code>sigma</code>, and 0.10-0.34 for <code>ndt</code>). Resist the temptation to read these as evidence of individual differences. A random-effect SD is a variance, not a ratio: it is expressed on the scale of its own parameter, it is bounded below by zero (so its posterior can never be centered on zero, and its <em>pd</em> is uninformative), and it says nothing about how precisely each participant’s value is known. Turning it into a verdict requires comparing it to that precision - which is exactly what the next section does.</p>
 </section><section class="level2"><h2 id="group-level-indices-extraction">Group-Level Indices Extraction<a class="anchor" aria-label="anchor" href="#group-level-indices-extraction"></a>
 </h2>
 <p>Beyond knowing that participants differ, we often want to know <em>how</em> each individual differs - for instance to correlate these individual effects with another variable (a questionnaire score, a diagnosis, another task). These participant-level deviations can be extracted with <code><a href="https://easystats.github.io/modelbased/reference/estimate_grouplevel.html" class="external-link">modelbased::estimate_grouplevel()</a></code>.</p>
@@ -362,20 +361,20 @@
 <code class="sourceCode R"><span><span class="va">random</span> <span class="op">&lt;-</span> <span class="fu">estimate_grouplevel</span><span class="op">(</span><span class="va">m</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">random</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Component   | Group       | Level | Parameter  |    Median |  MAD |         95% CI</span></span>
-<span><span class="co">#&gt; ----------------------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; conditional | Participant | S01   | ConditionB | -6.44e-04 | 0.01 | [-0.04,  0.03]</span></span>
-<span><span class="co">#&gt; conditional | Participant | S01   | ConditionC |     -0.08 | 0.07 | [-0.25,  0.07]</span></span>
-<span><span class="co">#&gt; conditional | Participant | S01   | Intercept  |     -0.23 | 0.05 | [-0.33, -0.13]</span></span>
-<span><span class="co">#&gt; conditional | Participant | S02   | ConditionB | -2.68e-03 | 0.01 | [-0.05,  0.02]</span></span>
-<span><span class="co">#&gt; conditional | Participant | S02   | ConditionC |     -0.25 | 0.07 | [-0.39, -0.11]</span></span>
-<span><span class="co">#&gt; conditional | Participant | S02   | Intercept  |      0.27 | 0.05 | [ 0.18,  0.36]</span></span></code></pre></div>
+<span><span class="co">#&gt; Component   | Group       | Level | Parameter  |    Median |      MAD |         95% CI</span></span>
+<span><span class="co">#&gt; --------------------------------------------------------------------------------------</span></span>
+<span><span class="co">#&gt; conditional | Participant | S01   | ConditionB | -4.34e-04 | 9.00e-03 | [-0.03,  0.03]</span></span>
+<span><span class="co">#&gt; conditional | Participant | S01   | ConditionC |     -0.07 |     0.07 | [-0.22,  0.07]</span></span>
+<span><span class="co">#&gt; conditional | Participant | S01   | Intercept  |     -0.24 |     0.05 | [-0.33, -0.14]</span></span>
+<span><span class="co">#&gt; conditional | Participant | S02   | ConditionB | -2.95e-03 |     0.01 | [-0.04,  0.02]</span></span>
+<span><span class="co">#&gt; conditional | Participant | S02   | ConditionC |     -0.25 |     0.07 | [-0.39, -0.11]</span></span>
+<span><span class="co">#&gt; conditional | Participant | S02   | Intercept  |      0.27 |     0.05 | [ 0.18,  0.37]</span></span></code></pre></div>
 </div>
 <p>Each row is one participant’s deviation from the population-level (fixed) effect, together with its uncertainty. We can visualize all of them at once - <code>plot(random)</code> gives a quick default version, but building the forest plot by hand lets us give each parameter its own color:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">random</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="co"># `Component` distinguishes mu (conditional) from sigma and tau</span></span>
+<span>  <span class="co"># `Component` distinguishes mu (conditional) from sigma and ndt</span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>Parameter <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">Parameter</span>, <span class="st">" ("</span>, <span class="va">Component</span>, <span class="st">")"</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">Median</span>, y <span class="op">=</span> <span class="va">Level</span>, color <span class="op">=</span> <span class="va">Parameter</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_vline</a></span><span class="op">(</span>xintercept <span class="op">=</span> <span class="fl">0</span>, linetype <span class="op">=</span> <span class="st">"dashed"</span><span class="op">)</span> <span class="op">+</span></span>
@@ -397,7 +396,7 @@
 </div>
 </div>
 <p>The contrast between the two effects is now expressed as model parameters rather than as raw averages. For <code>ConditionB</code>, all the individual deviations are packed within ±0.01 of zero and every single credible interval includes zero: the model concludes that, once measurement noise is accounted for, participants essentially share the same effect. For <code>ConditionC</code>, the deviations span -0.40 to +0.57 and 18 of the 30 clearly exclude zero - these are genuine, statistically supported individual differences. The same is true of the <code>Intercept</code>, which captures how fast each participant is overall.</p>
-<p>The <code>sigma</code> and <code>tau</code> panels look different again: their point estimates are all bunched up around zero while their intervals are wide. That combination - no spread, much uncertainty - is the visual signature of a parameter about which the data carry no individual-level information, and it is worth learning to recognize, because it is easy to mistake a wide-but-centered set of intervals for “an effect we failed to detect”.</p>
+<p>The <code>sigma</code> and <code>ndt</code> panels look different again: their point estimates are all bunched up around zero while their intervals are wide. That combination - no spread, much uncertainty - is the visual signature of a parameter about which the data carry no individual-level information, and it is worth learning to recognize, because it is easy to mistake a wide-but-centered set of intervals for “an effect we failed to detect”.</p>
 <p>Because these estimates come from a model, they are also <strong>shrunk</strong> towards the population mean in proportion to how noisy each participant’s data is: participants with fewer or more variable trials are pulled more strongly towards the average. This is a feature, not a bug - it is the model-based counterpart of the noise correction we attempted by hand above, applied participant by participant rather than to the group as a whole. It prevents us from over-interpreting extreme values that the raw empirical differences produce by chance, and it is why model-based individual scores are generally more reliable than difference scores computed by hand - all the more so when participants provide few trials, are noisy, or contribute unbalanced numbers of observations.</p>
 </section><section class="level2"><h2 id="quantifying-variability-the-d-vour-index">Quantifying Variability: the D-vour Index<a class="anchor" aria-label="anchor" href="#quantifying-variability-the-d-vour-index"></a>
 </h2>
@@ -420,20 +419,20 @@ D_{\text{vour}} = \frac{\sigma_{\text{between}}^2}{\sigma_{\text{between}}^2 + \
 <div class="sourceCode cell-code" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">performance_dvour</span><span class="op">(</span><span class="va">random</span><span class="op">)</span></span>
 <span><span class="co">#&gt;     Component       Group  Parameter     D_vour</span></span>
-<span><span class="co">#&gt; 1 conditional Participant ConditionB 0.07432459</span></span>
-<span><span class="co">#&gt; 2 conditional Participant ConditionC 0.92436057</span></span>
-<span><span class="co">#&gt; 3 conditional Participant  Intercept 0.94331901</span></span>
-<span><span class="co">#&gt; 4       sigma Participant ConditionB 0.03787823</span></span>
-<span><span class="co">#&gt; 5       sigma Participant ConditionC 0.05744583</span></span>
-<span><span class="co">#&gt; 6       sigma Participant  Intercept 0.08422147</span></span>
-<span><span class="co">#&gt; 7         tau Participant ConditionB 0.04194411</span></span>
-<span><span class="co">#&gt; 8         tau Participant ConditionC 0.11866675</span></span>
-<span><span class="co">#&gt; 9         tau Participant  Intercept 0.05515361</span></span></code></pre></div>
+<span><span class="co">#&gt; 1 conditional Participant ConditionB 0.07140210</span></span>
+<span><span class="co">#&gt; 2 conditional Participant ConditionC 0.93032310</span></span>
+<span><span class="co">#&gt; 3 conditional Participant  Intercept 0.94483827</span></span>
+<span><span class="co">#&gt; 4         ndt Participant ConditionB 0.05964280</span></span>
+<span><span class="co">#&gt; 5         ndt Participant ConditionC 0.09908817</span></span>
+<span><span class="co">#&gt; 6         ndt Participant  Intercept 0.08155732</span></span>
+<span><span class="co">#&gt; 7       sigma Participant ConditionB 0.02604177</span></span>
+<span><span class="co">#&gt; 8       sigma Participant ConditionC 0.07793225</span></span>
+<span><span class="co">#&gt; 9       sigma Participant  Intercept 0.05532574</span></span></code></pre></div>
 </div>
 <p>The ordering is the one we expected - <code>ConditionC</code> at 0.92 is highly reliable, <code>ConditionB</code> is not - but the model is far more severe than our by-hand version: B falls from 0.59 to <strong>0.07</strong>. The disagreement is instructive. The empirical scores still contain the trial noise that the model has reassigned to the residual term, and that noise inflates their apparent between-participant spread. Taken at face value, the empirical 0.59 would have suggested that B was borderline usable; the model says it carries essentially no individual-level information at all.</p>
 <p>Notice also the <code>Intercept</code>, at 0.94. The most reliable individual measure this task produces is simply <strong>how fast each participant is overall</strong> - the very quantity the experimental design treats as a nuisance to be subtracted away. This is the usual situation rather than an accident of our simulation, and it is worth keeping in mind before building a clinical index out of a difference score.</p>
-<p>Because we gave <code>sigma</code> and <code>tau</code> their own predictors and random effects, the output also contains one row per parameter <em>per component</em>, and each gets its own reliability verdict. This is worth doing systematically: nothing guarantees that the parameters carrying the individual differences are the ones we manipulated. Here, we know they are not, because we generated every participant’s decision times with the same <code>sdlog = 0.22</code> and the same non-decision time of 150 ms - and indeed all six <code>sigma</code> and <code>tau</code> rows land below 0.12, the index correctly reporting that whatever spread we saw in their group-level estimates is uncertainty rather than genuine differences. Treat this as a <strong>negative control</strong>: it is the behaviour we want the index to have, and it is the pattern to expect for a parameter that is truly homogeneous across people.</p>
-<p>Real data usually behave differently. Response-time variability in particular is often <em>more</em> discriminating between individuals than the mean - it is one of the central points of <a href="https://pubmed.ncbi.nlm.nih.gov/32437184/" class="external-link">Williams et al. (2021)</a> - and non-decision time is a natural candidate for a stable, person-specific quantity. Had these been the reliable components in our data, the sensible clinical index would have been <code>sigma</code> or <code>tau</code>, not a condition contrast at all.</p>
+<p>Because we gave <code>sigma</code> and <code>ndt</code> their own predictors and random effects, the output also contains one row per parameter <em>per component</em>, and each gets its own reliability verdict. This is worth doing systematically: nothing guarantees that the parameters carrying the individual differences are the ones we manipulated. Here, we know they are not, because we generated every participant’s decision times with the same <code>sdlog = 0.22</code> and the same non-decision time of 150 ms - and indeed all six <code>sigma</code> and <code>ndt</code> rows land below 0.12, the index correctly reporting that whatever spread we saw in their group-level estimates is uncertainty rather than genuine differences. Treat this as a <strong>negative control</strong>: it is the behaviour we want the index to have, and it is the pattern to expect for a parameter that is truly homogeneous across people.</p>
+<p>Real data usually behave differently. Response-time variability in particular is often <em>more</em> discriminating between individuals than the mean - it is one of the central points of <a href="https://pubmed.ncbi.nlm.nih.gov/32437184/" class="external-link">Williams et al. (2021)</a> - and non-decision time is a natural candidate for a stable, person-specific quantity. Had these been the reliable components in our data, the sensible clinical index would have been <code>sigma</code> or <code>ndt</code>, not a condition contrast at all.</p>
 <p>As for any such index, the thresholds are conventions rather than laws. Values above <strong>0.75</strong> indicate strong group-level differences, values around <strong>0.5</strong> call for caution (within- and between-group variability are comparable), and values below <strong>0.5</strong> indicate that measurement noise dominates. A useful intermediate landmark is <strong>2/3</strong> (0.666), which corresponds to a 2:1 ratio of between-group variance to uncertainty, and can be taken as the threshold for <em>moderately reliable</em> random effect estimates.</p>
 </section><section class="level2"><h2 id="related-indices-and-constructs">Related indices and constructs<a class="anchor" aria-label="anchor" href="#related-indices-and-constructs"></a>
 </h2>
@@ -442,7 +441,7 @@ D_{\text{vour}} = \frac{\sigma_{\text{between}}^2}{\sigma_{\text{between}}^2 + \
 <li>It is formally close to an <strong>intraclass correlation coefficient (ICC)</strong>, with the important difference that the denominator uses the <em>uncertainty of the estimates</em> rather than the raw within-participant variance. Concretely, an ICC asks “how large are the differences between participants compared to the trial-to-trial noise?”, so it stays low whenever single trials are noisy - even if each participant’s score is, in the end, precisely estimated. D-vour asks the question that actually matters for an individual-level instrument: “how large are the differences between participants compared to how well we know where each of them stands?”. Collecting more trials per participant shrinks that uncertainty and increases D-vour, while leaving the raw within-participant variance - and hence the ICC - essentially untouched.</li>
 <li>It is a normalized version of the <strong>signal-to-noise ratio</strong> proposed by <a href="https://journals.sagepub.com/doi/full/10.1177/09637214231220923" class="external-link">Rouder &amp; Mehrvarz (2024)</a>, who show that this quantity - unlike classical reliability coefficients - characterizes the <em>task</em> itself rather than the particular sample size it was administered with. The related <code><a href="https://easystats.github.io/performance/reference/performance_reliability.html" class="external-link">performance::performance_reliability()</a></code> implements that trial-count-adjusted variant, and the two are worth reporting together.</li>
 <li>It is one quantitative expression of the <strong>reliability paradox</strong> described by <a href="https://link.springer.com/article/10.3758/s13428-017-0935-1" class="external-link">Hedge, Powell &amp; Sumner (2018)</a>: the tasks with the most robust experimental effects are often the <em>worst</em> at measuring individual differences, precisely because a manipulation that affects everybody in the same way (our condition B) minimizes between-participant variance. This is not a statistical curiosity: it is a structural reason why many well-established paradigms transfer poorly to clinical or differential settings.</li>
-<li>The hierarchical-modelling perspective it rests on is developed in <a href="https://pubmed.ncbi.nlm.nih.gov/32437184/" class="external-link">Williams et al. (2021)</a>, whose mixed-effects location-scale framework is the reason we gave <code>sigma</code> and <code>tau</code> their own random effects above: in <code>cogmod</code>’s families, the dispersion, the shift or the drift rate can each carry their own reliability, and each deserves to be checked separately.</li>
+<li>The hierarchical-modelling perspective it rests on is developed in <a href="https://pubmed.ncbi.nlm.nih.gov/32437184/" class="external-link">Williams et al. (2021)</a>, whose mixed-effects location-scale framework is the reason we gave <code>sigma</code> and <code>ndt</code> their own random effects above: in <code>cogmod</code>’s families, the dispersion, the shift or the drift rate can each carry their own reliability, and each deserves to be checked separately.</li>
 </ul>
 <p>The practical recommendation that follows is simple: <strong>compute D-vour for every parameter you intend to use as an individual-level score</strong>, and report it alongside the effect itself. A parameter with a large fixed effect and a low D-vour is a good group-level manipulation check and a bad individual-level instrument.</p>
 </section><section class="level2"><h2 id="conclusion">Conclusion<a class="anchor" aria-label="anchor" href="#conclusion"></a>
