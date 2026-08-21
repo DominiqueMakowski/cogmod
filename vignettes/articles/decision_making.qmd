@@ -39,7 +39,7 @@ the two accumulators/boundaries of the models below.
 
 Evidence accumulation models are considerably more
 expensive to sample than the RT-only models. We therefore use a smaller
-subset of the data here, only one participant, so that
+subset of the data here, only three participant, so that
 the models below can be fit in a reasonable amount of time for demonstration purposes.
 
 ```{r}
@@ -61,7 +61,7 @@ df <- data.frame(
 ) 
 
 
-df <- df[df$Participant %in% c(1, 2) & df$RT <= 2, ]
+df <- df[df$Participant %in% c(1, 2, 3) & df$RT <= 2, ]
 
 # Show 10 first rows
 head(df, 10)
@@ -298,7 +298,7 @@ m_lba <- brms::add_criterion(m_lba, "loo")  # Add model performance criterion
 #| eval: false
 #| echo: false
 
-saveRDS(m_lba, file = "models/m_lba2.rds")
+saveRDS(m_lba, file = "../models/m_lba2.rds")
 ```
 
 
@@ -351,7 +351,7 @@ m_rdm <- brms::add_criterion(m_rdm, "loo")  # Add model performance criterion
 #| eval: false
 #| echo: false
 
-saveRDS(m_rdm, file = "models/m_rdm.rds")
+saveRDS(m_rdm, file = "../models/m_rdm.rds")
 ```
 
 **Identifiability of `sigmabias` and `boundary`**: 
@@ -373,9 +373,9 @@ around this model class (e.g. `EMC2`, the successor to `DMC`) do not fix
 either parameter outright either - they regularize the ridge with
 weakly-informative priors and partial pooling across participants and
 conditions rather than pin the split down directly. `cogmod` takes the same
-route at the level of a single fit: a weakly informative prior on
-`sigmabias` is enough to remove the divergences, and for the RDM
-`cogmod_priors()` supplies one - `normal(0, 1)` on the softplus scale.
+route at the level of a single fit: a prior on `sigmabias` might help, and for 
+the RDM `cogmod_priors()` supplies a weakly informative one (`normal(0, 1)`) on 
+the softplus scale.
 
 A prior of that shape does not make `sigmabias` itself trustworthy, though, so prefer
 `boundary + sigmabias` whenever you interpret a threshold or compare one
@@ -400,13 +400,13 @@ m_ddm <- readRDS(url(paste0(path, "m_ddm.rds")))
 m_ddm5 <- readRDS(url(paste0(path, "m_ddm5.rds")))
 m_lba <- readRDS(url(paste0(path, "m_lba2.rds")))
 m_lnr <- readRDS(url(paste0(path, "m_lnr.rds")))
-# m_rdm <- readRDS(url(paste0(path, "m_rdm.rds")))
+m_rdm <- readRDS(url(paste0(path, "m_rdm.rds")))
 ```
 
 ```{r}
 #| code-fold: false
 
-loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr) |>
+loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
   parameters(include_ENP = TRUE)
 ```
 
@@ -499,13 +499,15 @@ pred <- rbind(
   estimate_prediction(m_lba, data = df, iterations = 50, 
                       keep_iterations = TRUE, ci = NULL) |>
     reshape_iterations() |>
-    data_modify(Model = "LBA")
-  # estimate_prediction(m_rdm, data = df, iterations = 50, keep_iterations = TRUE) |>
-  #   reshape_iterations() |>
-  #   data_modify(Model = "RDM")
+    data_modify(Model = "LBA"),
+  estimate_prediction(m_rdm, data = df, iterations = 50, 
+                      keep_iterations = TRUE, ci = NULL) |>
+    reshape_iterations() |>
+    data_modify(Model = "RDM")
 ) |>
   datawizard::data_select(select = c("Row", "Component", "Condition", "iter_value", "iter_group", "iter_index", "Model")) |>
-  datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model", "Condition"), values_from = "iter_value", names_from = "Component")
+  datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model", "Condition"), values_from = "iter_value", names_from = "Component") |> 
+  data_modify(Model = factor(Model, levels = c("DDM", "DDM-5", "LNR", "LBA", "RDM")))
 
 # The LBA occasionally predicts enormous RTs (a near-zero drift rate takes a
 # very long time to reach the threshold). `stat_density()` spreads its
