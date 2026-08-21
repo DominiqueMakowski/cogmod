@@ -17,6 +17,15 @@
 #' so the mean decision time is `mu * sigma` and the median reaction time is
 #' `ndt` plus the Gamma median.
 #'
+#' The Gamma is not merely a convenient skewed shape: Tejo et al. (2019) derive
+#' it as a first-passage time for an accumulator whose **starting point varies
+#' across trials**, which places it beside [cogmod_invgaussian()] (diffusion from
+#' a fixed start) and [cogmod_bisa()] (one-directional discrete cycles). The
+#' drift rate is not identified from the fit though - it enters only the
+#' back-calculation of the implied starting-point distribution - so `mu` and
+#' `sigma` stay a shape and a scale here rather than becoming a drift and a
+#' boundary.
+#'
 #' `ndt` and `poutlier` mean exactly what they do in [cogmod_lognormal()],
 #' and [with_outliers()], [without_outliers()], [p_outlier()] and
 #' [cogmod_priors()] all work here too. See `?rcogmod_lognormal` for why `ndt` is
@@ -58,6 +67,12 @@
 #' @inheritParams cogmod_lnr
 #' @param mu Shape of the Gamma decision time. Must be positive.
 #' @param sigma Scale of the Gamma decision time. Must be positive.
+#'
+#' @references
+#' - Tejo, M., Araya, H., Niklitschek-Soto, S., & Marmolejo-Ramos, F. (2019).
+#'     Theoretical models of reaction times arising from simple-choice tasks.
+#'     *Cognitive Neurodynamics*, *13*(4), 409-416.
+#'     \doi{10.1007/s11571-019-09532-1}
 #'
 #' @examples
 #' rts <- rcogmod_gamma(1000, mu = 3, sigma = 0.15, ndt = 0.3, poutlier = 0.02)

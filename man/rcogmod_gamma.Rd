@@ -85,6 +85,15 @@ Functions:
 so the mean decision time is \code{mu * sigma} and the median reaction time is
 \code{ndt} plus the Gamma median.
 
+The Gamma is not merely a convenient skewed shape: Tejo et al. (2019) derive
+it as a first-passage time for an accumulator whose \strong{starting point varies
+across trials}, which places it beside \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}} (diffusion from
+a fixed start) and \code{\link[=cogmod_bisa]{cogmod_bisa()}} (one-directional discrete cycles). The
+drift rate is not identified from the fit though - it enters only the
+back-calculation of the implied starting-point distribution - so \code{mu} and
+\code{sigma} stay a shape and a scale here rather than becoming a drift and a
+boundary.
+
 \code{ndt} and \code{poutlier} mean exactly what they do in \code{\link[=cogmod_lognormal]{cogmod_lognormal()}},
 and \code{\link[=with_outliers]{with_outliers()}}, \code{\link[=without_outliers]{without_outliers()}}, \code{\link[=p_outlier]{p_outlier()}} and
 \code{\link[=cogmod_priors]{cogmod_priors()}} all work here too. See \code{?rcogmod_lognormal} for why \code{ndt} is
@@ -129,4 +138,12 @@ rts <- rcogmod_gamma(1000, mu = 3, sigma = 0.15, ndt = 0.3, poutlier = 0.02)
 dcogmod_gamma(0.1, ndt = 0.3, poutlier = 0.02)
 dcogmod_gamma(0.1, ndt = 0.3, poutlier = 0)
 
+}
+\references{
+\itemize{
+\item Tejo, M., Araya, H., Niklitschek-Soto, S., & Marmolejo-Ramos, F. (2019).
+Theoretical models of reaction times arising from simple-choice tasks.
+\emph{Cognitive Neurodynamics}, \emph{13}(4), 409-416.
+\doi{10.1007/s11571-019-09532-1}
+}
 }

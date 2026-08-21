@@ -204,9 +204,9 @@ editor_options:
 
 ## Traditional models can be misleading
 
-Consider a dataset of reaction times (RTs) from 20 participants tested under two
-experimental conditions (25 trials each), available in `cogmod`.
-A traditional approach would involve fitting a linear mixed model testing the effect of
+Consider a dataset containing reaction times (RTs) from 20 participants tested under two
+experimental conditions (25 trials each).
+A traditional analysis approach would involve fitting a linear mixed model testing the effect of
 condition, with participants entered as random intercepts:
 
 ```r
@@ -214,10 +214,10 @@ lmer(RT ~ Condition + (1 | Participant),
      data = cogmod::badlm)
 ```
 
-It finds no significant difference ($b = -0.001$, $t(996) = -0.08$, $p = .94$;
-@fig-motivation B), which one could misleadingly report as an absence of any
+Because this analysis yields no significant difference ($b = -0.001$, $t(996) = -0.08$, $p = .94$;
+@fig-motivation B), one could misleadingly interpret and report it as an absence of any
 difference in the RTs of the two conditions. 
-Yet the two distributions could hardly be more different (@fig-motivation A): 
+Yet the two distributions are actually completely different (@fig-motivation A): 
 condition A produces a lot of very fast and very slow responses, whereas condition B yields 
 much more consistent RTs. But because the mean of their distribution is similar, 
 the analysis does not capture any other differences. 
@@ -293,7 +293,7 @@ Older adults, for instance, are reliably slower, but a meta-analysis of
 diffusion model analyses locates the general age effect on boundary
 separation and non-decision time, with drift rate differences that are
 task-dependent and occasionally reversed [@theisen2021age]. A latency
-difference reported as "cognitive slowing" would be more accurately framed as a statement about
+difference reported as "cognitive slowing" could be more accurately framed as a statement about
 caution or motor execution. Computational neuropsychology
 [@steinke2020computational] proposes to keep the tasks and replace those
 scores with parameters that refer to identifiable components of processing,
@@ -344,8 +344,7 @@ to be restated in a toolbox-specific syntax, and features like complex random ef
 `cogmod` aims to address these limitations by facilitting the application of 
 these models inside a framework researchers already use. 
 Every model is defined as a `brms` custom family
-[@burkner2017brms], and therefore a Stan model [@carpenter2017stan]
-specified with ordinary `brms` formula syntax. Everything a `brms` user
+[@burkner2017brms] specified with ordinary `brms` formula syntax. Everything a `brms` user
 already knows then applies unchanged to a Drift Diffusion Model or an
 ordered-Beta rating model: distributional regression on every parameter,
 multilevel structure, priors, convergence diagnostics, posterior predictive

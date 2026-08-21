@@ -94,7 +94,10 @@ What gets set, on the link scale (\code{log} for \code{ndt}, \code{logit} for \c
 else in these families it is stated in \strong{seconds}, which is the unit the
 package expects throughout. \code{poutlier} is a proportion and
 does not move: \code{normal(-5, 1)} is centred at about 0.7\% and puts roughly 95\%
-of its mass between 0.1\% and 5\%.
+of its mass between 0.1\% and 5\%. That is where the empirical estimates sit -
+pooling across four lexical-decision megastudies, Miller (2024) puts the
+outlier proportion below 0.5\% and argues that the 5-10\% assumed in most
+simulation work is unrealistically large.
 
 \code{shape} exists only for \code{\link[=cogmod_loggamma]{cogmod_loggamma()}}. \code{normal(0, 0.5)} is centred on the
 LogNormal shape and keeps the sampler clear of \code{sigma * shape >= 1}, where the
@@ -288,6 +291,14 @@ priors <- c(
   replace = TRUE
 )
 
+}
+\references{
+\itemize{
+\item Miller, J. (2024). Estimating the proportions and latencies of reaction
+time outliers: A pooling method and case study of lexical decision
+tasks. \emph{Behavior Research Methods}, \emph{56}(7), 7280-7306.
+\doi{10.3758/s13428-024-02419-y}
+}
 }
 \seealso{
 \code{\link[=cogmod_inits]{cogmod_inits()}}, \code{\link[=cogmod_stanvars]{cogmod_stanvars()}}

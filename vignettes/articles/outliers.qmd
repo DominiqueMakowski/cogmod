@@ -561,7 +561,9 @@ f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1 + (1 | Participant),
 
 brms::brm(f, data = df,
           prior = cogmod_priors(f, df),
-          stanvars = cogmod_stanvars(f))
+          init = cogmod_init(f, df),
+          stanvars = cogmod_stanvars(f),
+          backend = "cmdstanr")
 ```
 
 It reads `brms::get_prior()` rather than guessing, so it cannot produce a prior
@@ -571,8 +573,7 @@ smooths are all handled because none of them are assumed. It touches only slots
 proper `student_t` intercepts `brms` already gives them. The result is passed
 through `brms::validate_prior()`, so what comes back is a `brmsprior` object:
 the same class returned by `brms::get_prior()` and `brms::prior()`. It prints
-as the complete prior table, but can be composed with `c()`. Use
-`replace = TRUE` to replace a default:
+as the complete prior table, but can be composed with `c()`. 
 
 ```{r}
 #| eval: false
@@ -581,8 +582,7 @@ as the complete prior table, but can be composed with `c()`. Use
 
 priors <- c(
   cogmod_priors(f, df),
-  brms::prior(normal(-2, 0.3), class = "Intercept", dpar = "ndt"),
-  replace = TRUE
+  brms::prior(normal(-2, 0.3), class = "Intercept", dpar = "ndt")
 )
 ```
 
@@ -775,7 +775,11 @@ returned by `p_outlier()`:
 f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
               family = cogmod_lognormal())
 
-m <- brms::brm(f, data = df, stanvars = cogmod_stanvars(f))
+m <- brms::brm(f, data = df, 
+               prior = cogmod_priors(f, df), 
+               init = cogmod_init(f, df),
+               stanvars = cogmod_stanvars(f),
+               backend = "cmdstanr")
 
 head(p_outlier(m))
 ```

@@ -986,6 +986,12 @@ saveRDS(m_invweibull, file = "../models/m_invweibull.rds")
 
 #### Gamma
 
+`mu` is the shape and `sigma` the scale of the Gamma decision time. Beyond being
+a convenient skewed shape, the Gamma also has a first-passage-time reading, as
+the hitting time of an accumulator whose starting point varies across trials -
+see [Tejo et al. (2019)](https://doi.org/10.1007/s11571-019-09532-1) for a
+discussion.
+
 ```{r}
 #| eval: false
 #| code-fold: false

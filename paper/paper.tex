@@ -252,10 +252,10 @@ posterior predictive checks, leave-one-out cross-validation and
 family of models, use simulated, laboratory and clinical data. Five
 evidence accumulation architectures are fitted to the same choices and
 reaction times, compared in a single call, and the misfit of the
-simplest one traced to a specific missing parameter. Ten reaction time
-families are then compared with the choice discarded, before the same
-likelihood is used to ask whether its parameters are precise enough to
-serve as individual-level scores, and to reanalyse a task-switching
+simplest one traced to a specific missing parameter. Sixteen reaction
+time families are then compared with the choice discarded, before the
+same likelihood is used to ask whether its parameters are precise enough
+to serve as individual-level scores, and to reanalyse a task-switching
 dataset in which the conventional executive-control index does not
 separate ADHD participants from controls at all, while the model
 localises the group difference in two components that cancel at the
@@ -508,10 +508,8 @@ row then shows what one model is made of and the distribution that
 follows from it, drawn back over the same data. The 141 ms difference
 between instruction conditions is first a single number, then a shift
 plus a shorter tail, then a statement about how evidence was
-accumulated. The ex-Gaussian curves use the posterior means reported in
-Example 2; the shifted Wald curves are maximum-likelihood fits, since
-the text does not report its non-decision
-time.}{\label{fig-approaches}}}}
+accumulated. The ex-Gaussian and shifted Wald curves both use the
+posterior means reported in Example 2.}{\label{fig-approaches}}}}
 
 \includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{figures/fig_approaches.png}
 
@@ -615,7 +613,7 @@ means, are effectively out of reach
 application of these models inside a framework researchers already use.
 Every model is defined as a \texttt{brms} custom family
 (\citeproc{ref-burkner2017brms}{Bürkner, 2017}), and therefore a Stan
-model (\citeproc{ref-carpenter2017stan}{Carpenter et al., 2017})
+model (\citeproc{ref-carpenter2017stan}{B. Carpenter et al., 2017})
 specified with ordinary \texttt{brms} formula syntax. Everything a
 \texttt{brms} user already knows then applies unchanged to a Drift
 Diffusion Model or an ordered-Beta rating model: distributional
@@ -650,6 +648,14 @@ post-processing.
 
 In practice, using a \texttt{cogmod} model requires two arguments beyond
 a standard \texttt{brm()} call: \texttt{family} and \texttt{stanvars}.
+Two further helpers, \texttt{cogmod\_priors()} and
+\texttt{cogmod\_inits()}, are strictly speaking optional but should be
+treated as part of the call: the families carry parameters measured in
+seconds and parameters that \texttt{brms} cannot recognise by name, and
+the outlier mixture described below has a degenerate mode that a prior
+has to fence off. Everything in the package is stated in
+\textbf{seconds}, and nothing rescales itself, so RTs in milliseconds
+must be divided by 1000 before fitting.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -662,17 +668,19 @@ a standard \texttt{brm()} call: \texttt{family} and \texttt{stanvars}.
 \NormalTok{    (Condition }\SpecialCharTok{|}\NormalTok{ Participant),}
 \NormalTok{  sigma }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition }\SpecialCharTok{+}
 \NormalTok{    (Condition }\SpecialCharTok{|}\NormalTok{ Participant),}
-\NormalTok{  tau }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition }\SpecialCharTok{+}
+\NormalTok{  ndt }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition }\SpecialCharTok{+}
 \NormalTok{    (Condition }\SpecialCharTok{|}\NormalTok{ Participant),}
-  \AttributeTok{minrt =} \FunctionTok{min}\NormalTok{(df}\SpecialCharTok{$}\NormalTok{RT),}
-  \AttributeTok{family =} \FunctionTok{rt\_lognormal}\NormalTok{()}
+\NormalTok{  poutlier }\SpecialCharTok{\textasciitilde{}} \DecValTok{1}\NormalTok{,}
+  \AttributeTok{family =} \FunctionTok{cogmod\_lognormal}\NormalTok{()}
 \NormalTok{)}
 
 \CommentTok{\# Fit the model}
 \NormalTok{m }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
 \NormalTok{  f,}
   \AttributeTok{data =}\NormalTok{ df,}
-  \AttributeTok{stanvars =} \FunctionTok{rt\_lognormal\_stanvars}\NormalTok{(),}
+  \AttributeTok{prior =} \FunctionTok{cogmod\_priors}\NormalTok{(f, df),}
+  \AttributeTok{init =} \FunctionTok{cogmod\_inits}\NormalTok{(f, df),}
+  \AttributeTok{stanvars =} \FunctionTok{cogmod\_stanvars}\NormalTok{(f),}
   \AttributeTok{backend =} \StringTok{"cmdstanr"}
 \NormalTok{)}
 \end{Highlighting}
@@ -705,20 +713,24 @@ writing. As adding a new model is a self-contained piece of work, the
 set is expected to grow to track cutting-edge advances in computational
 psychology. The package's documentation website contains the list of
 available models, with each family's distributional parameters, link
-functions and defaults, as well as hands-on tutorials.
+functions and defaults, as well as hands-on tutorials. Because that set
+is still moving, the family constructors share a single
+\texttt{cogmod\_*} naming scheme, and any name that has been retired
+remains available as an exact synonym so that existing scripts and
+stored fits keep working.
 
 \begin{figure*}[!htbp]
 
 {\caption{{Response formats covered by \texttt{cogmod} and the main
 families available for each at the time of writing; the package website
-carries the current list. Five further descriptive RT families are also
-available (\texttt{rt\_weibull()}, \texttt{rt\_logweibull()},
-\texttt{rt\_invweibull()}, \texttt{rt\_gamma()} and
-\texttt{rt\_invgamma()}) and are compared against the others in Example
-2. Every family comes with a \texttt{\_stanvars()} function supplying
-the corresponding Stan code, and with \texttt{d*()} and \texttt{r*()}
-functions for density evaluation and
-simulation.}{\label{fig-overview}}}}
+carries the current list. Six further descriptive RT families are also
+available (\texttt{cogmod\_weibull()}, \texttt{cogmod\_logweibull()},
+\texttt{cogmod\_invweibull()}, \texttt{cogmod\_gamma()},
+\texttt{cogmod\_invgamma()} and \texttt{cogmod\_bisa()}) and are
+compared against the others in Example 2. Every family comes with a
+\texttt{\_stanvars()} function supplying the corresponding Stan code,
+and with \texttt{d*()} and \texttt{r*()} functions for density
+evaluation and simulation.}{\label{fig-overview}}}}
 
 \includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{figures/fig_overview.png}
 
@@ -751,77 +763,104 @@ Workflow}\label{example-1-five-decision-models-one-workflow}
 To illustrate the typical workflow of fitting evidence accumulation
 models, we will fit them to the lexical decision task data of
 Wagenmakers et al. (\citeproc{ref-wagenmakers2008diffusion}{2008})
-(Experiment 1), bundled with the package as \texttt{wagenmakers2008}:
-participants classified letter strings as words or non-words under
-instructions emphasising either \textbf{speed} or \textbf{accuracy}.
-Following the original authors, trials faster than 200 ms or slower than
-2 s were excluded. This example uses a single participant
-(\(n = 1{,}917\) trials, 8.4\% of them errors) with no random effects
-for clarity.
+(Experiment 1), distributed in the \texttt{rtdists} package as
+\texttt{speed\_acc}: participants classified letter strings as words or
+non-words under instructions emphasising either \textbf{speed} or
+\textbf{accuracy}. Responses slower than 2 s were excluded. This example
+uses three participants (\(n = 4{,}620\) trials, 7.3\% of them errors),
+pooled without random effects for clarity - a simplification we return
+to at the end of the section.
 
 In order to fit a basic Drift Diffusion Model (DDM) in \texttt{cogmod},
 one needs to specify 1) a formula for each of the parameters, 2) the
-model family (\texttt{ddm()}) and attach the custom family Stan code
-with \texttt{ddm\_stanvars()}. As it is common in the field, the
+model family (\texttt{cogmod\_ddm()}) and attach the custom family Stan
+code with \texttt{cogmod\_stanvars()}. As it is common in the field, the
 ``decision'' being modelled is \textbf{correct vs.~error}, which is
 added to the formula with a \texttt{dec()} term on the response side of
 the formula. Everything else is the ordinary \texttt{brms} syntax:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{df }\OtherTok{\textless{}{-}}\NormalTok{ cogmod}\SpecialCharTok{::}\NormalTok{wagenmakers2008}
-\NormalTok{df }\OtherTok{\textless{}{-}}\NormalTok{ df[df}\SpecialCharTok{$}\NormalTok{Participant }\SpecialCharTok{==} \DecValTok{1}\NormalTok{, ]}
+\FunctionTok{data}\NormalTok{(speed\_acc, }\AttributeTok{package =} \StringTok{"rtdists"}\NormalTok{)}
+\NormalTok{df }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}
+  \AttributeTok{Condition =} \FunctionTok{unname}\NormalTok{(}\FunctionTok{c}\NormalTok{(}\AttributeTok{accuracy =} \StringTok{"Accuracy"}\NormalTok{, }\AttributeTok{speed =} \StringTok{"Speed"}\NormalTok{)[}
+    \FunctionTok{as.character}\NormalTok{(speed\_acc}\SpecialCharTok{$}\NormalTok{condition)]),}
+  \AttributeTok{RT =}\NormalTok{ speed\_acc}\SpecialCharTok{$}\NormalTok{rt,}
+  \AttributeTok{Error =} \FunctionTok{as.integer}\NormalTok{(}\FunctionTok{as.character}\NormalTok{(speed\_acc}\SpecialCharTok{$}\NormalTok{response) }\SpecialCharTok{!=}
+                       \FunctionTok{as.character}\NormalTok{(speed\_acc}\SpecialCharTok{$}\NormalTok{stim\_cat)),}
+  \AttributeTok{Participant =} \FunctionTok{as.integer}\NormalTok{(}\FunctionTok{as.character}\NormalTok{(speed\_acc}\SpecialCharTok{$}\NormalTok{id))}
+\NormalTok{)}
+\NormalTok{df }\OtherTok{\textless{}{-}}\NormalTok{ df[df}\SpecialCharTok{$}\NormalTok{Participant }\SpecialCharTok{\%in\%} \FunctionTok{c}\NormalTok{(}\DecValTok{1}\NormalTok{, }\DecValTok{2}\NormalTok{, }\DecValTok{3}\NormalTok{) }\SpecialCharTok{\&}\NormalTok{ df}\SpecialCharTok{$}\NormalTok{RT }\SpecialCharTok{\textless{}=} \DecValTok{2}\NormalTok{, ]}
 
 \NormalTok{f }\OtherTok{\textless{}{-}} \FunctionTok{bf}\NormalTok{(}
 \NormalTok{  RT }\SpecialCharTok{|} \FunctionTok{dec}\NormalTok{(Error) }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,}
-\NormalTok{  bs }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition, }
-\NormalTok{  bias }\SpecialCharTok{\textasciitilde{}} \DecValTok{1}\NormalTok{, }
-\NormalTok{  tau }\SpecialCharTok{\textasciitilde{}} \DecValTok{1}\NormalTok{,  }
-  \AttributeTok{minrt =} \FunctionTok{min}\NormalTok{(df}\SpecialCharTok{$}\NormalTok{RT),}
-  \AttributeTok{sigmadrift =} \DecValTok{0}\NormalTok{, }\AttributeTok{sigmabias =} \DecValTok{0}\NormalTok{, }\AttributeTok{sigmatau =} \DecValTok{0}\NormalTok{,}
-  \AttributeTok{family =} \FunctionTok{ddm}\NormalTok{()}
+\NormalTok{  boundary }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,}
+\NormalTok{  bias }\SpecialCharTok{\textasciitilde{}} \DecValTok{1}\NormalTok{,}
+\NormalTok{  ndt }\SpecialCharTok{\textasciitilde{}} \DecValTok{1}\NormalTok{,}
+\NormalTok{  poutlier }\SpecialCharTok{\textasciitilde{}} \DecValTok{1}\NormalTok{,}
+  \AttributeTok{sigmadrift =} \DecValTok{0}\NormalTok{, }\AttributeTok{sigmabias =} \DecValTok{0}\NormalTok{, }\AttributeTok{sigmandt =} \DecValTok{0}\NormalTok{,}
+  \AttributeTok{family =} \FunctionTok{cogmod\_ddm}\NormalTok{()}
 \NormalTok{)}
 
-\NormalTok{m\_ddm }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(f, }\AttributeTok{data =}\NormalTok{ df, }\AttributeTok{stanvars =} \FunctionTok{ddm\_stanvars}\NormalTok{(), }\AttributeTok{init =} \DecValTok{0}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{m\_ddm }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(f, }\AttributeTok{data =}\NormalTok{ df,}
+             \AttributeTok{prior =} \FunctionTok{cogmod\_priors}\NormalTok{(f, df),}
+             \AttributeTok{init =} \FunctionTok{cogmod\_inits}\NormalTok{(f, df),}
+             \AttributeTok{stanvars =} \FunctionTok{cogmod\_stanvars}\NormalTok{(f)) }\SpecialCharTok{|\textgreater{}}
   \FunctionTok{add\_criterion}\NormalTok{(}\StringTok{"loo"}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 The first unnamed parameter, referred to as \texttt{mu} in the Stan code
 as per \texttt{brms} convention, actually corresponds to the drift rate.
-The other parameters correspond to boundary separation (\texttt{bs}),
-starting point bias (\texttt{bias}), and non-decision time (\texttt{tau}
-and \texttt{minrt}), respectively.
-
-Non-decision time deserves a comment, because it is the parameter most
-likely to break a fit. It is bounded on both sides --- it cannot be
-negative, and it cannot exceed the fastest response in the data, since
-the decision time of that trial would then be negative and its density
-zero --- and a sampler that is free to step across either bound will
-fail to initialize or diverge. \texttt{cogmod} removes the problem by
-construction rather than by a prior. The \texttt{minrt} argument fixes a
-constant, normally the fastest observed RT, and \texttt{tau} is
-estimated on a logit link as the \emph{proportion} of it that is taken
-up by encoding and motor execution, so that the non-decision time
-entering the likelihood is \texttt{tau} \(\times\) \texttt{minrt} and is
-confined to the admissible interval whatever the sampler proposes. The
-cost of this convenience is that \texttt{tau} is expressed relative to
-an order statistic of the sample, which we return to in the Limitations.
+The other parameters correspond to boundary separation
+(\texttt{boundary}), starting point bias (\texttt{bias}), and
+non-decision time (\texttt{ndt}), respectively. Estimating non-decision
+time is a common source of difficulty in fitting diffusion models: a
+shifted distribution assigns zero density to any response faster than
+\texttt{ndt}, which puts a hard wall in the likelihood at the fastest
+observed response. Every family that carries an \texttt{ndt} therefore
+mixes in a small contaminant component, of weight \texttt{poutlier},
+that keeps early responses at positive density. The wall becomes a
+finite cost, and \texttt{ndt} is estimated directly in seconds rather
+than relative to a sample statistic. The contaminant is a half Normal
+with a fixed scale of 0.2 s, deliberately lighter-tailed than any
+decision density in the package: a heavier component eventually explains
+slow responses better than the model does, and drags \texttt{ndt} up
+behind it. Two helpers make the mixture inspectable rather than merely
+assumed - \texttt{p\_outlier()} returns each trial's posterior
+probability of having come from the contaminant, and
+\texttt{with\_outliers()} switches predictions between the decision
+process alone and the fitted mixture. On these data the mechanism is
+visible trial by trial: of the 4,285 correct responses modelled in
+Example 2, the four faster than 200 ms are assigned to the contaminant
+with probability 1.00, the response at 329 ms with probability 0.51, and
+by 353 ms the probability is 0.008, against a mean of 0.0015 across all
+trials. The model discriminates by evidence rather than by a cutoff,
+which is what having the component buys over trimming the same trials by
+hand. Not every family is built this way, and the distinction follows
+the parameter: the descriptive \texttt{cogmod\_exgaussian()} of Example
+2 has neither \texttt{ndt} nor \texttt{poutlier}, since its exponential
+component already absorbs the shift, and nor do the rating families of
+Example 3.
 
 The three \texttt{sigma*} arguments fix the between-trial variabilities
 of the full seven-parameter diffusion model
 (\citeproc{ref-ratcliff2008diffusion}{Ratcliff \& McKoon, 2008}) at
-zero, giving the ``simple'' four-parameter DDM --- a common
+zero, giving the ``simple'' four-parameter DDM, which is a common
 simplification, since the variability parameters are expensive to sample
 and notoriously hard to recover
-(\citeproc{ref-boehm2018estimating}{Boehm et al., 2018}), and we free
-one of them below. The effect of \texttt{Condition} is also estimated
+(\citeproc{ref-boehm2018estimating}{Boehm et al., 2018}). Setting them
+to exactly zero is also cheaper than a prior concentrated near zero,
+because the Stan code falls back to a dedicated density rather than to
+numerical quadrature. The effect of \texttt{Condition} is also estimated
 for the boundary separation, which is the textbook hypothesis for a
-speed-accuracy manipulation, which the results support: boundary
-separation drops from 1.45 to 1.22 under speed instructions (95\% CI on
-the linear predictor \([-0.40, -0.23]\), \(pd = 100\%\)), while the
-drift rate is not credibly affected (\(0.17\), 95\% CI
-\([-0.04, 0.38]\), \(pd = 94\%\)).
+speed-accuracy manipulation, and the results support it: boundary
+separation drops sharply under speed instructions (95\% CI on the linear
+predictor \([-0.65, -0.55]\)). The drift rate also falls, by a smaller
+and less certain amount (\(-0.17\), 95\% CI \([-0.29, -0.04]\)), which
+is not what the textbook account predicts; with three participants
+pooled and no random effects, some of that is likely to be
+between-participant differences with nowhere else to go.
 
 \subsection{Four more architectures}\label{four-more-architectures}
 
@@ -840,16 +879,20 @@ single diffusion with two accumulators racing towards a threshold, and
 differ in how each accumulator gets there: by drawing its finishing time
 from a LogNormal, by accumulating linearly with between-trial
 variability in its rate, or by diffusing with within-trial noise alone.
-In the last two, a weakly informative prior on \texttt{sigmabias} is
-needed, because the start-point range and the threshold increment enter
-the likelihood only through their sum.
+In the last two, the start-point range and the threshold increment enter
+the likelihood only through their sum, so \texttt{sigmabias} needs
+either a weakly informative prior or to be pinned at zero;
+\texttt{cogmod\_priors()} supplies the former, and the safer habit when
+a threshold is to be interpreted is to read
+\texttt{boundary\ +\ sigmabias} rather than either alone.
 
 Because each fit is a \texttt{brmsfit} carrying a \texttt{loo}
 criterion, comparing the five is one call:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{loo\_compare}\NormalTok{(m\_ddm, m\_ddm5, m\_lnr, m\_lba, m\_rdm)}
+\FunctionTok{loo\_compare}\NormalTok{(m\_ddm, m\_ddm5, m\_lnr,}
+\NormalTok{            m\_lba, m\_rdm)}
 \end{Highlighting}
 \end{Shaded}
 
@@ -857,13 +900,13 @@ criterion, comparing the five is one call:
 
 \begin{longtable}[]{@{}lrrrrrr@{}}
 \caption{Leave-one-out cross-validation for five evidence accumulation
-models fitted to the choices and reaction times of one participant
-(\(n = 1{,}917\)). ENP is the effective number of parameters; Difference
+models fitted to the choices and reaction times of three participants
+(\(n = 4{,}620\)). ENP is the effective number of parameters; Difference
 is the difference in expected log predictive density relative to the
 best model, with its standard error. Time is the median sampling
-duration per chain (4 chains, 500 iterations, on a consumer laptop). One
-observation has a Pareto \(k\) above 0.7 in every model except the LBA,
-so the differences are approximate.}\label{tbl-eam}\tabularnewline
+duration per chain (4 chains, 500 iterations, on a consumer laptop). All
+Pareto \(k\) values are below 0.5, so the estimates are
+reliable.}\label{tbl-eam}\tabularnewline
 \toprule\noalign{}
 Model & LOOIC & ENP & ELPD & Difference & SE & Time (s) \\
 \midrule\noalign{}
@@ -874,11 +917,11 @@ Model & LOOIC & ENP & ELPD & Difference & SE & Time (s) \\
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-LBA & −1921.4 & 8.06 & 960.7 & 0.0 & 0.0 & 335.8 \\
-LNR & −1809.4 & 10.44 & 904.7 & −56.0 & 11.5 & 11.4 \\
-DDM-5 & −1769.0 & 12.53 & 884.5 & −76.2 & 15.8 & 129.0 \\
-RDM & −1722.6 & 14.03 & 861.3 & −99.4 & 20.7 & 296.9 \\
-DDM & −1560.3 & 15.07 & 780.2 & −180.6 & 21.1 & 34.7 \\
+LBA & −2657.7 & 8.42 & 1328.9 & 0.0 & 0.0 & 665.1 \\
+LNR & −2633.0 & 9.86 & 1316.5 & −12.3 & 10.1 & 69.6 \\
+DDM-5 & −2507.3 & 10.74 & 1253.7 & −75.2 & 17.3 & 484.9 \\
+DDM & −2436.3 & 10.70 & 1218.2 & −110.7 & 19.1 & 241.7 \\
+RDM & −2419.4 & 6.96 & 1209.7 & −119.2 & 18.1 & 806.9 \\
 \end{longtable}
 
 \end{twocolumntable}
@@ -886,79 +929,94 @@ DDM & −1560.3 & 15.07 & 780.2 & −180.6 & 21.1 & 34.7 \\
 \subsection{The comparison as a
 diagnosis}\label{the-comparison-as-a-diagnosis}
 
-The ranking in Table~\ref{tbl-eam} is one participant's worth of
+The ranking in Table~\ref{tbl-eam} is three participants' worth of
 evidence and is not the point. What the comparison is \emph{for} is
-visible in the model that comes last, 181 ELPD points behind. The simple
-DDM carries exactly the mechanism the manipulation is believed to act
-on, \texttt{Condition} on the boundary separation, and it recovered the
-expected effect; three of the four models that outpredict it have no
+visible in the simple DDM, 111 ELPD points behind the best model. It
+carries exactly the mechanism the manipulation is believed to act on,
+\texttt{Condition} on the boundary separation, and it recovered the
+expected effect; the two models that clearly outpredict it have no
 threshold parameter free to move at all. Its deficit lies on an axis
 nobody was testing, and a posterior predictive check locates it
-(Figure~\ref{fig-eam} A): the model puts its error distribution well to
-the left of the observed errors, while the three races put theirs on top
-of them. In the upper half of the same panel all five models are close,
-which is the part worth remembering: a model's problem can be invisible
-if one only looks at the RTs of correct responses.
+(Figure~\ref{fig-eam} A): the model puts its error distribution to the
+left of the observed errors. In the upper half of the same panel all
+five models are close, which is the part worth remembering: a model's
+problem can be invisible if one only looks at the RTs of correct
+responses.
 
 \begin{figure*}[!htbp]
 
 {\caption{{Five evidence accumulation models fitted to the choices and
-reaction times of one participant. \textbf{(A)} Posterior predictive
+reaction times of three participants. \textbf{(A)} Posterior predictive
 check: observed trials as histograms, 100 predictive draws per model as
 faint lines and their pooled density in bold, with correct responses
 drawn upwards and errors downwards. Both halves are scaled by the
 \emph{proportion} of that response, so the area under each curve is its
 predicted frequency and the check is on the joint distribution of
-choices and RTs. \textbf{(B)} The same check reduced to one statistic
-per draw, the predicted difference between the mean error RT and the
-mean correct RT, against the value observed in the data. \textbf{(C)}
-Predictive accuracy against sampling cost. Predicted RTs above 3 s
-(0.04\% of draws, produced by near-zero drift rates in the races) are
-excluded from panels A and B.}{\label{fig-eam}}}}
+choices and RTs. Draws are taken with \texttt{with\_outliers()}, so the
+check is on the same mixture the likelihood scores. \textbf{(B)} The
+same check reduced to one statistic per draw, the predicted difference
+between the mean error RT and the mean correct RT, against the value
+observed in the data. \textbf{(C)} Predictive accuracy against sampling
+cost. Predicted RTs above 3 s (0.05\% of draws, produced by near-zero
+drift rates in the races) are excluded from panels A and
+B.}{\label{fig-eam}}}}
 
 \includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{figures/fig_eam.png}
 
 \end{figure*}
 
 Reduced to a single statistic (Figure~\ref{fig-eam} B), the DDM predicts
-errors 106 ms \emph{faster} than correct responses (95\% CI
-\([-134, -80]\)) against an observed \(+39\) ms. Slow errors at an
-unchanged leading edge are the signature of between-trial variability in
-drift rate: errors are then contributed disproportionately by the trials
-that happened to draw a low drift, which lengthens the error tail
-without moving its onset (\citeproc{ref-ratcliff2008diffusion}{Ratcliff
-\& McKoon, 2008}). That is precisely the parameter DDM-5 frees, and
-freeing it is worth 104 ELPD points, moves the DDM from last to third,
-and closes the gap (\(+10\) ms, \([-51, +83]\)). The races need no such
-parameter, since each already carries a separate drift rate for the
-error accumulator.
+errors 100 ms \emph{faster} than correct responses (95\% CI
+\([-119, -79]\)) against an observed \(-15\) ms: the direction is right,
+the magnitude is not. Errors that are barely faster than correct
+responses, at an unchanged leading edge, are the signature of
+between-trial variability in drift rate: errors are then contributed
+disproportionately by the trials that happened to draw a low drift,
+which lengthens the error tail without moving its onset
+(\citeproc{ref-ratcliff2008diffusion}{Ratcliff \& McKoon, 2008}). That
+is precisely the parameter DDM-5 frees, and freeing it is worth 36 ELPD
+points and closes about a third of the gap on the statistic (\(-64\) ms,
+\([-95, -30]\)). The races need no such parameter, since each already
+carries a separate drift rate for the error accumulator.
 
-The lesson is about diagnosis rather than about which family wins. A
-poor fit had an identifiable cause, the cause pointed at one parameter,
-and freeing that parameter recovered the fit --- with the comparison,
-the predictive check and the re-fit in one session and one syntax. The
-alternative arrangement, in which each architecture lives in its own
-package, does not forbid this sequence so much as make it unlikely to be
-attempted.
+The complication is worth stating rather than smoothing over: the model
+that matches this particular statistic best is the RDM (\(-7\) ms,
+\([-27, +14]\)), and the RDM is last in Table~\ref{tbl-eam}. A
+predictive check on one statistic and a global measure of predictive fit
+are answering different questions, and they need not agree. What the
+check buys is not a ranking but a \emph{direction} - it says which
+parameter is missing, which the LOOIC column alone never does.
+
+The lesson is therefore about diagnosis rather than about which family
+wins. A poor fit had an identifiable cause, the cause pointed at one
+parameter, and freeing that parameter improved both the fit and the
+statistic --- with the comparison, the predictive check and the re-fit
+in one session and one syntax. The alternative arrangement, in which
+each architecture lives in its own package, does not forbid this
+sequence so much as make it unlikely to be attempted.
 
 \subsection{What the architectures
 cost}\label{what-the-architectures-cost}
 
 Figure~\ref{fig-eam} C reports the other half of the decision, and it
 does not rank the models the same way. The LBA is nominally best and
-takes 336 seconds per chain; the LNR is 56 ELPD points behind it (SE
-11.5) at 11 seconds, thirty times cheaper. Freeing drift variability is
-not free either: DDM-5 costs 3.7 times the simple DDM. On a single
-participant these are minutes; multiplied by a hierarchical model over a
-full sample, they are the difference between an afternoon and a week,
-and this is the boundary at which the specialized samplers of EMC2
+takes 665 seconds per chain; the LNR is 12 ELPD points behind it (SE
+10.1) at 70 seconds, nearly ten times cheaper --- a difference well
+within noise for a tenth of the cost, which on these data makes the LNR
+the sensible default. Freeing drift variability is not free either:
+DDM-5 costs twice the simple DDM. On three participants these are
+minutes; multiplied by a hierarchical model over a full sample, they are
+the difference between an afternoon and a week, and this is the boundary
+at which the specialized samplers of EMC2
 (\citeproc{ref-stevenson2026bayesian}{Stevenson et al., 2026}) and HSSM
 (\citeproc{ref-fengler2026hssm}{Fengler et al., 2026}) earn their place.
 
-Two caveats bound the example. Errors are rare here (161 trials), so the
+Two caveats bound the example. Errors are rare here (335 trials), so the
 between-trial variability parameters are weakly identified and the
-comparison of the two DDMs is correspondingly soft; and a single
-participant fitted with short chains is a demonstration, not a result.
+comparison of the two DDMs is correspondingly soft; and three
+participants pooled without random effects, fitted with short chains, is
+a demonstration rather than a result. Example 2 returns to what that
+pooling costs.
 
 \section{Example 2: Reaction Times Without
 Choices}\label{example-2-reaction-times-without-choices}
@@ -967,14 +1025,14 @@ Many datasets carry no informative choice. Accuracy is at ceiling, the
 task has one response, or errors are too few to estimate anything from
 --- which is the usual situation in the clinical instruments this
 example ends on. What is left is a duration, and the question becomes
-which distribution to give it. We keep the same experiment for the first
-part of this example, now using the correct responses of three
-participants (\(n = 4{,}281\) trials) and discarding the choice.
+which distribution to give it. We keep the same trials as Example 1, now
+dropping the 335 errors and modelling the correct responses of the same
+three participants (\(n = 4{,}285\)).
 
 \subsection{From a mean to a shape}\label{from-a-mean-to-a-shape}
 
 A Gaussian model gives the familiar answer: responses were 141 ms faster
-under speed instructions (95\% CI \([129, 153]\)). Moving to a
+under speed instructions (95\% CI \([129, 152]\)). Moving to a
 likelihood built for the shape of reaction times costs one changed
 argument and two extra formulas:
 
@@ -983,39 +1041,50 @@ argument and two extra formulas:
 \NormalTok{f }\OtherTok{\textless{}{-}} \FunctionTok{bf}\NormalTok{(RT }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,}
 \NormalTok{        sigma }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,}
 \NormalTok{        tau }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,}
-        \AttributeTok{family =} \FunctionTok{rt\_exgaussian}\NormalTok{())}
+        \AttributeTok{family =} \FunctionTok{cogmod\_exgaussian}\NormalTok{())}
 
-\NormalTok{m }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(f, }\AttributeTok{data =}\NormalTok{ df, }\AttributeTok{stanvars =} \FunctionTok{rt\_exgaussian\_stanvars}\NormalTok{())}
+\NormalTok{m }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(f, }\AttributeTok{data =}\NormalTok{ df,}
+         \AttributeTok{prior =} \FunctionTok{cogmod\_priors}\NormalTok{(f, df),}
+         \AttributeTok{init =} \FunctionTok{cogmod\_inits}\NormalTok{(f, df),}
+         \AttributeTok{stanvars =} \FunctionTok{cogmod\_stanvars}\NormalTok{(f))}
 \end{Highlighting}
 \end{Shaded}
 
 The three parameters reproduce the Gaussian estimate exactly
-(\(472 + 217 = 689\) ms under accuracy instructions, \(423 + 126 = 549\)
-ms under speed), but they attribute it: \textbf{65\% of the 141 ms
-speed-up is a shortening of the tail}, only 35\% a shift in the bulk. A
+(\(476 + 213 = 689\) ms under accuracy instructions, \(429 + 120 = 549\)
+ms under speed), but they attribute it: \textbf{67\% of the 141 ms
+speed-up is a shortening of the tail}, only 33\% a shift in the bulk. A
 speed instruction does not move every response earlier; it removes the
 slow ones. That is the whole argument of the distributional approach in
 one comparison, and it costs nothing to run.
 
-\subsection{Ten families, one call}\label{ten-families-one-call}
+Note that \texttt{mu} here is in seconds directly. It is the
+\emph{location} of the Gaussian component rather than a scale, so it
+sits on an \texttt{identity} link and is free to go negative - which for
+fast, heavily-tailed data is sometimes where it belongs, with
+\texttt{tau} carrying the mass. Constraining it positive, as
+\texttt{cogmod} once did, distorts exactly the \texttt{mu}/\texttt{tau}
+split that makes the decomposition above worth reporting.
+
+\subsection{Sixteen families, one call}\label{sixteen-families-one-call}
 
 The ex-Gaussian is a choice among many, and because every
 \texttt{cogmod} model is a \texttt{brmsfit}, deciding between them is
 the ordinary \texttt{loo} workflow
 (\citeproc{ref-vehtari2017practical}{Vehtari et al., 2017}) rather than
-a bespoke one. Each fit is the same two lines with a different family,
+a bespoke one. Each fit is the same few lines with a different family,
 and the comparison is a single call:
 
 \begin{Shaded}
 \begin{Highlighting}[]
 \NormalTok{m\_exgaussian }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
   \FunctionTok{bf}\NormalTok{(RT }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition, sigma }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition, tau }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,}
-     \AttributeTok{family =} \FunctionTok{rt\_exgaussian}\NormalTok{()),}
-  \AttributeTok{data =}\NormalTok{ df, }\AttributeTok{stanvars =} \FunctionTok{rt\_exgaussian\_stanvars}\NormalTok{()}
+     \AttributeTok{family =} \FunctionTok{cogmod\_exgaussian}\NormalTok{()),}
+  \AttributeTok{data =}\NormalTok{ df, }\AttributeTok{stanvars =} \FunctionTok{cogmod\_stanvars}\NormalTok{(f)}
 \NormalTok{) }\SpecialCharTok{|\textgreater{}} \FunctionTok{add\_criterion}\NormalTok{(}\StringTok{"loo"}\NormalTok{)}
 
-\CommentTok{\# the other nine differ only in \textasciigrave{}family\textasciigrave{}, its \textasciigrave{}stanvars\textasciigrave{}, and which}
-\CommentTok{\# distributional parameters exist to receive \textasciigrave{}Condition\textasciigrave{}}
+\CommentTok{\# the other fifteen differ only in \textasciigrave{}family\textasciigrave{} and which distributional}
+\CommentTok{\# parameters exist to receive \textasciigrave{}Condition\textasciigrave{}}
 
 \FunctionTok{loo\_compare}\NormalTok{(m\_gaussian, m\_exgaussian, m\_lognormal, m\_wald, m\_lba, ...)}
 \end{Highlighting}
@@ -1023,35 +1092,81 @@ and the comparison is a single call:
 
 \begin{twocolumntable}
 
-\begin{longtable}[]{@{}lrrrrrr@{}}
-\caption{Leave-one-out cross-validation for ten RT families fitted to
-the same data (\(n = 4{,}281\)). The LBA here is \texttt{rt\_lba()}, the
-single-accumulator variant that predicts a duration only, not the racing
-model of Table~\ref{tbl-eam}. ENP is the effective number of parameters;
-Difference is the difference in expected log predictive density relative
-to the best model, with its standard error. Time is the median sampling
-duration per chain (4 chains, 500 iterations, on a consumer
-laptop).}\label{tbl-loo}\tabularnewline
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.1373}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.1373}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.0980}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.1176}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.2353}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.0784}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.1961}}@{}}
+\caption{Leave-one-out cross-validation for sixteen RT families fitted
+to the same data (\(n = 4{,}285\)). The LBA here is
+\texttt{cogmod\_lba1()}, the single-accumulator variant that predicts a
+duration only, not the racing model of Table~\ref{tbl-eam}; the
+recinormal is that same family with \texttt{sigmabias\ =\ 0}. ENP is the
+effective number of parameters; Difference is the difference in expected
+log predictive density relative to the best model, with its standard
+error. Time is the median sampling duration per chain (4 chains, 500
+iterations, on a consumer laptop). Three families - the ex-Gaussian, the
+Gamma and the Weibull - have at least one Pareto \(k\) above 0.7, so
+their positions are approximate and, on the evidence of the diagnostic,
+optimistic.}\label{tbl-loo}\tabularnewline
 \toprule\noalign{}
-Model & LOOIC & ENP & ELPD & Difference & SE & Time (s) \\
+\begin{minipage}[b]{\linewidth}\raggedright
+Model
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+LOOIC
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+ENP
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+ELPD
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Difference
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+SE
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Time (s)
+\end{minipage} \\
 \midrule\noalign{}
 \endfirsthead
 \toprule\noalign{}
-Model & LOOIC & ENP & ELPD & Difference & SE & Time (s) \\
+\begin{minipage}[b]{\linewidth}\raggedright
+Model
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+LOOIC
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+ENP
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+ELPD
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Difference
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+SE
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Time (s)
+\end{minipage} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-LBA & −4845.1 & 7.29 & 2422.6 & 0.0 & 0.0 & 572.0 \\
-Inverse Weibull & −4840.8 & 4.72 & 2420.4 & −2.2 & 5.9 & 98.3 \\
-LogWeibull & −4840.4 & 5.03 & 2420.2 & −2.4 & 6.0 & 79.7 \\
-Inverse Gamma & −4831.7 & 8.31 & 2415.9 & −6.7 & 6.2 & 66.5 \\
-ExGaussian & −4793.3 & 6.41 & 2396.6 & −25.9 & 9.5 & 19.7 \\
-Shifted LogNormal & −4763.0 & 8.80 & 2381.5 & −41.1 & 11.1 & 22.6 \\
-Shifted Wald & −4728.7 & 10.84 & 2364.4 & −58.2 & 15.1 & 52.0 \\
-Gamma & −4393.2 & 7.53 & 2196.6 & −225.9 & 24.8 & 39.4 \\
-Weibull & −3680.4 & 9.33 & 1840.2 & −582.4 & 39.0 & 20.2 \\
-Gaussian & −1904.2 & 7.82 & 952.1 & −1470.5 & 73.3 & 0.1 \\
+Log-Student & −4801.1 & 7.75 & 2400.5 & 0.0 & 0.0 & 101.6 \\
+Wald + drift variability & −4796.6 & 7.33 & 2398.3 & −2.2 & 1.6 &
+579.1 \\
+LogGamma & −4795.0 & 7.37 & 2397.5 & −3.0 & 2.7 & 225.1 \\
+Inverse Gamma & −4792.0 & 6.84 & 2396.0 & −4.5 & 3.3 & 143.9 \\
+Single-accumulator LBA & −4789.7 & 8.07 & 2394.8 & −5.7 & 2.9 & 370.6 \\
+Recinormal (LATER) & −4783.4 & 6.07 & 2391.7 & −8.8 & 2.6 & 199.8 \\
+LogWeibull & −4772.7 & 5.41 & 2386.4 & −14.2 & 6.0 & 75.2 \\
+Inverse Weibull & −4772.5 & 5.24 & 2386.3 & −14.3 & 6.1 & 93.8 \\
+Shifted LogNormal & −4763.3 & 8.42 & 2381.6 & −18.9 & 6.7 & 35.8 \\
+Ex-Wald & −4744.8 & 9.69 & 2372.4 & −28.1 & 8.6 & 941.8 \\
+Shifted Wald & −4723.5 & 9.35 & 2361.7 & −38.8 & 10.0 & 78.6 \\
+Birnbaum--Saunders & −4703.4 & 10.22 & 2351.7 & −48.8 & 11.3 & 56.8 \\
+ExGaussian & −4607.9 & 13.45 & 2304.0 & −96.6 & 31.6 & 41.3 \\
+Gamma & −4569.6 & 11.85 & 2284.8 & −115.8 & 18.6 & 118.5 \\
+Weibull & −4292.3 & 25.96 & 2146.2 & −254.4 & 27.7 & 1267.4 \\
+Gaussian & −1888.8 & 7.18 & 944.4 & −1456.1 & 73.8 & \textless0.1 \\
 \end{longtable}
 
 \end{twocolumntable}
@@ -1060,15 +1175,28 @@ The ranking itself is one dataset's worth of evidence and is not the
 point. What matters is that three questions become answerable in an
 afternoon that would otherwise each require a separate toolchain:
 whether the Gaussian default is defensible (it is worse than the
-next-worst family by 888 units of expected log predictive density);
-whether the two or three families the literature settled on are the
-right ones (the inverse Weibull, log-Weibull and inverse Gamma, none
-with any appreciable presence in the RT literature, are
-indistinguishable from the best here); and what the better fits cost
-(the LBA is nominally best and samples roughly 30 times slower than the
-ex-Gaussian, for a gain within noise of families five times faster). The
-last of these is a column in Table~\ref{tbl-loo} rather than an
-inference the reader must assemble across papers.
+next-worst family by 1,202 units of expected log predictive density);
+whether the families the literature settled on are the right ones (four
+of the top five are the log-Student, the log-Gamma, the inverse Gamma
+and the single-accumulator LBA, none with any appreciable presence in
+the RT literature, while the ex-Gaussian - one of the two most reported
+families in the field - sits fourth from bottom); and what the better
+fits cost (the ex-Wald (\citeproc{ref-schwarz2001ex}{Schwarz, 2001})
+takes 942 seconds per chain and is outpredicted by the log-Student at a
+ninth of that, while the shifted LogNormal reaches ninth place in 36
+seconds). The last of these is a column in Table~\ref{tbl-loo} rather
+than an inference the reader must assemble across papers.
+
+The two nested pairs in the table are worth a second look, because they
+are the kind of comparison this arrangement makes cheap. Freeing
+between-trial variability in drift rate moves the Wald from 38.8 points
+behind to 2.2 (\texttt{sigmadrift}, the RT-only counterpart of the DDM-5
+of Example 1), and pinning the LBA's start-point range at zero - which
+gives the recinormal, or LATER model of R. H. S. Carpenter and Williams
+(\citeproc{ref-carpenter1995neural}{1995}) - costs 3.1 points and cuts
+the sampling time nearly in half. Both are one edited argument, and both
+are like-for-like: the nested model shares its likelihood with the
+general one.
 
 As in Example 1, \emph{where} a model fails is the more informative
 question, and the posterior predictive checks that answer it come out of
@@ -1076,45 +1204,49 @@ the same call as for any \texttt{brmsfit}, since \texttt{cogmod}
 supplies \texttt{posterior\_predict\_*} methods for every family ---
 \texttt{modelbased::estimate\_prediction()} returns draws ready for
 plotting (\citeproc{ref-makowski2020modelbased}{Makowski et al., 2020}).
-Figure~\ref{fig-ppcheck} shows the nine non-Gaussian families over the
-observed distributions: the Weibull and the Gamma, which the table
+Figure~\ref{fig-ppcheck} shows all sixteen families over the observed
+distributions: the Gaussian, the Weibull and the Gamma, which the table
 places far behind, miss the peak and the tail in visibly different ways,
 while the families at the top of the table are hard to tell apart by
 eye.
 
 \begin{figure*}[!htbp]
 
-{\caption{{Nine of the ten families of Table~\ref{tbl-loo}, fitted to
-the same 4,281 trials and drawn back over them (the Gaussian is
-omitted). Histograms are the observed RTs in the two instruction
-conditions; lines are posterior predictive draws. InvGaussian is the
-shifted Wald. Reproduced from the package's \emph{RT-only models}
-vignette, which works through the families one by
-one.}{\label{fig-ppcheck}}}}
+{\caption{{The sixteen families of Table~\ref{tbl-loo}, fitted to the
+same 4,285 trials and drawn back over them. Histograms are the observed
+RTs in the two instruction conditions; lines are posterior predictive
+draws. InvGaussian is the shifted Wald, ReciNormal the LATER model, and
+Wald-4 the Wald with between-trial drift variability freed. Reproduced
+from the package's \emph{RT-only Models} vignette, which works through
+the families one by one.}{\label{fig-ppcheck}}}}
 
 \includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{figures/fig_ppcheck.png}
 
 \end{figure*}
 
-Two caveats apply to reading the table. These models pool three
+Three caveats apply to reading the table. These models pool three
 participants without random effects, so families that absorb
 between-participant heterogeneity more gracefully are advantaged; a
-hierarchical comparison is easy to specify but expensive to fit. And LOO
-measures predictive fit, not theoretical adequacy. The shifted Wald sits
-below five descriptive families while being the only one of the six
-whose parameters refer to a process --- and even its parameters have to
-be read with care here. Placing \texttt{Condition} on its boundary
-separation, the textbook hypothesis for a speed-accuracy manipulation,
-returns the opposite of the textbook account: a large increase in drift
-rate under speed instructions (2.93 to 4.16) and no change in boundary
-separation (95\% CI on the linear predictor \([-0.12, 0.15]\)). That is
-a limitation of the model rather than a discovery about the data. A
-single-boundary Wald sees only correct responses, and with RTs alone
-drift rate and boundary separation are weakly identified and trade off
-against each other (\citeproc{ref-matzke2009psychological}{Matzke \&
-Wagenmakers, 2009}). Fixing one of the two is the usual remedy; the
-other is to give the model the errors as well, which is what Example 1
-did.
+hierarchical comparison is easy to specify but expensive to fit. The
+three families flagged in the caption for high Pareto \(k\) are exactly
+the ones whose predictive draws sit worst over the data, which is what a
+failing importance-sampling diagnostic usually means - their positions
+should be read as upper bounds. And LOO measures predictive fit, not
+theoretical adequacy. The plain shifted Wald sits eleventh of sixteen,
+below six purely descriptive families, while being one of the five in
+the table whose parameters refer to a process --- and even its
+parameters have to be read with care here. Placing \texttt{Condition} on
+its boundary separation, the textbook hypothesis for a speed-accuracy
+manipulation, returns the opposite of the textbook account: a large
+increase in drift rate under speed instructions (2.67 to 3.83) and no
+change in boundary separation (95\% CI on the linear predictor
+\([-0.27, 0.13]\)). That is a limitation of the model rather than a
+discovery about the data. A single-boundary Wald sees only correct
+responses, and with RTs alone drift rate and boundary separation are
+weakly identified and trade off against each other
+(\citeproc{ref-matzke2009psychological}{Matzke \& Wagenmakers, 2009}).
+Fixing one of the two is the usual remedy; the other is to give the
+model the errors as well, which is what Example 1 did.
 
 \subsection{From a group effect to an individual
 score}\label{from-a-group-effect-to-an-individual-score}
@@ -1151,19 +1283,18 @@ parameter of the family:
 \NormalTok{    (Condition }\SpecialCharTok{|}\NormalTok{ Participant),}
 \NormalTok{  sigma }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition }\SpecialCharTok{+}
 \NormalTok{    (Condition }\SpecialCharTok{|}\NormalTok{ Participant),}
-\NormalTok{  tau }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition }\SpecialCharTok{+}
+\NormalTok{  ndt }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition }\SpecialCharTok{+}
 \NormalTok{    (Condition }\SpecialCharTok{|}\NormalTok{ Participant),}
-  \AttributeTok{minrt =} \FunctionTok{min}\NormalTok{(sim}\SpecialCharTok{$}\NormalTok{RT),}
-  \AttributeTok{family =} \FunctionTok{rt\_lognormal}\NormalTok{()}
+  \AttributeTok{family =} \FunctionTok{cogmod\_lognormal}\NormalTok{()}
 \NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 The fixed effects reproduce the classic conclusion: a credible effect of
-condition B (\(b = 0.10\), 95\% CI \([-0.00, 0.21]\), \(pd = 97\%\)) and
-nothing for condition C (\(b = -0.04\), 95\% CI \([-0.23, 0.14]\),
-\(pd = 65\%\)). The random-effect SDs invert the picture: 0.01 for the
-condition B slope against 0.27 for the condition C slope, more than
+condition B (\(b = 0.10\), 95\% CI \([0.04, 0.17]\), \(pd = 99.8\%\))
+and nothing for condition C (\(b = -0.02\), 95\% CI \([-0.15, 0.10]\),
+\(pd = 63\%\)). The random-effect SDs invert the picture: 0.01 for the
+condition B slope against 0.28 for the condition C slope, more than
 twenty times larger. The effect that ``worked'' is the one on which
 participants do not differ.
 
@@ -1171,7 +1302,7 @@ The contrast with the analysis one would normally run is instructive.
 Computing each participant's mean RT difference by hand yields a
 between-participant SD of \textasciitilde31 ms for B − A, though the
 data were generated with essentially no true variability; a bootstrap
-shows why, with a per-participant standard error of \textasciitilde25
+shows why, with a per-participant standard error of \textasciitilde26
 ms. By estimating between-participant variability and trial-level noise
 jointly, the model assigns that spread to the residual term where it
 belongs and recovers the true SD. This is the model-based counterpart of
@@ -1210,8 +1341,8 @@ directly, so the whole check is
 
 Table~\ref{tbl-dvour} reports the result for every parameter of the
 model. The ordering is the expected one; the magnitudes are what matter.
-Condition C reaches 0.92 while condition B collapses to 0.07, far below
-the 0.59 the same index returns on the raw empirical difference scores,
+Condition C reaches 0.93 while condition B collapses to 0.07, far below
+the 0.58 the same index returns on the raw empirical difference scores,
 which still contain the trial noise the model has reassigned to the
 residual. Taken at face value, the empirical value would have marked
 condition B as borderline usable. The model says it carries no
@@ -1223,8 +1354,11 @@ individual-level information at all.
 \caption{D-vour (Variance-Over-Uncertainty Ratio) for every parameter of
 the mixed shifted LogNormal model. Values above 0.75 indicate strong
 group-level differences; values around 0.5 call for caution; values
-below 0.5 indicate that measurement noise
-dominates.}\label{tbl-dvour}\tabularnewline
+below 0.5 indicate that measurement noise dominates.
+\texttt{estimate\_grouplevel()} labels the \texttt{mu} block
+``conditional'', since it is the response formula; it is written as
+\texttt{mu} here to match the family's parameter
+names.}\label{tbl-dvour}\tabularnewline
 \toprule\noalign{}
 Component & Parameter & D-vour \\
 \midrule\noalign{}
@@ -1236,14 +1370,14 @@ Component & Parameter & D-vour \\
 \bottomrule\noalign{}
 \endlastfoot
 \texttt{mu} & Intercept & 0.94 \\
-\texttt{mu} & ConditionC & 0.92 \\
+\texttt{mu} & ConditionC & 0.93 \\
 \texttt{mu} & ConditionB & 0.07 \\
-\texttt{sigma} & Intercept & 0.08 \\
-\texttt{sigma} & ConditionC & 0.06 \\
-\texttt{sigma} & ConditionB & 0.04 \\
-\texttt{tau} & ConditionC & 0.12 \\
-\texttt{tau} & Intercept & 0.06 \\
-\texttt{tau} & ConditionB & 0.04 \\
+\texttt{ndt} & ConditionC & 0.10 \\
+\texttt{ndt} & Intercept & 0.08 \\
+\texttt{ndt} & ConditionB & 0.06 \\
+\texttt{sigma} & ConditionC & 0.08 \\
+\texttt{sigma} & Intercept & 0.06 \\
+\texttt{sigma} & ConditionB & 0.03 \\
 \end{longtable}
 
 \end{ThreePartTable}
@@ -1253,16 +1387,16 @@ most reliable individual-level quantity the task produces is the
 \texttt{mu} intercept (0.94) --- \emph{how fast each participant is
 overall}, which the experimental design treats as a nuisance to be
 subtracted away. That is the usual situation, not an artefact of this
-simulation. Second, because \texttt{sigma} and \texttt{tau} carry their
+simulation. Second, because \texttt{sigma} and \texttt{ndt} carry their
 own predictors and random effects, they get their own reliability
-verdicts. Here they are correctly near zero, since every participant was
-simulated with the same dispersion and the same non-decision time --- a
-useful negative control. Real data often look different: RT variability
-can discriminate between individuals better than the mean does
-(\citeproc{ref-williams2021beneath}{Williams et al., 2021}), and
+verdicts. Here all six are correctly near zero, since every participant
+was simulated with the same dispersion and the same non-decision time
+--- a useful negative control. Real data often look different: RT
+variability can discriminate between individuals better than the mean
+does (\citeproc{ref-williams2021beneath}{Williams et al., 2021}), and
 non-decision time is a natural candidate for a stable person-specific
 quantity. Had those been the reliable components, the sensible clinical
-index would have been \texttt{sigma} or \texttt{tau}, and not a
+index would have been \texttt{sigma} or \texttt{ndt}, and not a
 condition contrast at all.
 
 The recommendation is simple, and a multi-parameter framework is what
@@ -1323,25 +1457,25 @@ effects by participant:
 \NormalTok{    (Switching }\SpecialCharTok{|}\NormalTok{ Participant),}
 \NormalTok{  sigma }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Diagnosis }\SpecialCharTok{*}\NormalTok{ Switching }\SpecialCharTok{+}
 \NormalTok{    (}\DecValTok{1} \SpecialCharTok{|}\NormalTok{ Participant),}
-\NormalTok{  tau }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Diagnosis }\SpecialCharTok{+}\NormalTok{ (}\DecValTok{1} \SpecialCharTok{|}\NormalTok{ Participant),}
-  \AttributeTok{minrt =} \FunctionTok{min}\NormalTok{(d}\SpecialCharTok{$}\NormalTok{RT),}
-  \AttributeTok{family =} \FunctionTok{rt\_lognormal}\NormalTok{()}
+\NormalTok{  ndt }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Diagnosis }\SpecialCharTok{+}\NormalTok{ (}\DecValTok{1} \SpecialCharTok{|}\NormalTok{ Participant),}
+\NormalTok{  poutlier }\SpecialCharTok{\textasciitilde{}} \DecValTok{1}\NormalTok{,}
+  \AttributeTok{family =} \FunctionTok{cogmod\_lognormal}\NormalTok{()}
 \NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 The model agrees about the switch cost: the interaction is null on the
-location (\(pd = 86\%\)) and on the dispersion (\(pd = 64\%\)). The
+location (\(pd = 83\%\)) and on the dispersion (\(pd = 59\%\)). The
 conventional analysis was right about the question it asked. But
 diagnosis registers on all three parameters at once, and in opposing
 directions. On the response scale (Figure~\ref{fig-adhd}), the ADHD
-group's decision component is \textbf{113 ms slower} (95\% CI
-\([33, 212]\), \(pd = 99.8\%\)), their non-decision time is \textbf{73
-ms faster} (\([-136, -28]\), \(pd = 99.9\%\)), and their log-scale
-dispersion is lower (\(pd = 98.5\%\)). The two large effects very nearly
-cancel, leaving a total mean difference of 38 ms (\([-34, 121]\),
-\(pd = 84\%\)) --- which is precisely the null the \emph{t}-test
-reported.
+group's decision component is \textbf{96 ms slower} (95\% CI
+\([26, 178]\), \(pd = 99.7\%\)), their non-decision time is \textbf{48
+ms faster} (\([-75, -16]\), \(pd = 99.9\%\)), and their log-scale
+dispersion is lower (\(pd = 96\%\)). The two effects largely cancel,
+leaving a total mean difference of 49 ms that still straddles zero
+(\([-17, 124]\), \(pd = 92\%\)) --- the null the \emph{t}-test reported,
+arrived at from two credible components pointing opposite ways.
 
 \begin{figure*}[!htbp]
 
@@ -1367,7 +1501,7 @@ cost would have recovered this, because the switch cost is not where the
 effect is.
 
 Three caveats bound what this shows. The decision and non-decision
-parameters trade off in the posterior (\(r = -0.56\)), the same weak
+parameters trade off in the posterior (\(r = -0.44\)), the same weak
 identification that limited the shifted Wald above, so the split between
 them is less certain than either interval taken alone; what is robust is
 that a group difference exists in the shape of the distributions and not
@@ -1398,9 +1532,9 @@ responses pile up at the endpoints, because answering ``completely
 agree'' is a different kind of act from answering ``agree quite a lot''.
 A mean rating cannot tell the two apart.
 
-\texttt{betagate()} is \texttt{cogmod}'s reparameterization of the
-ordered Beta model (\citeproc{ref-kubinec2023ordered}{Kubinec, 2023}),
-in which an observed 0 or 1 arises when an underlying continuous
+\texttt{cogmod\_betagate()} is \texttt{cogmod}'s reparameterization of
+the ordered Beta model (\citeproc{ref-kubinec2023ordered}{Kubinec,
+2023}), in which an observed 0 or 1 arises when an underlying continuous
 tendency passes a lower or upper ``gate''. Its four parameters are
 separately interpretable: \texttt{mu} is that underlying tendency,
 \texttt{phi} the consistency of the non-extreme responses, \texttt{pex}
@@ -1414,16 +1548,16 @@ formula:
 \NormalTok{        phi }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,}
 \NormalTok{        pex }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,}
 \NormalTok{        bex }\SpecialCharTok{\textasciitilde{}}\NormalTok{ Condition,}
-        \AttributeTok{family =} \FunctionTok{betagate}\NormalTok{())}
+        \AttributeTok{family =} \FunctionTok{cogmod\_betagate}\NormalTok{())}
 
-\NormalTok{m }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(f, }\AttributeTok{data =}\NormalTok{ df, }\AttributeTok{stanvars =} \FunctionTok{betagate\_stanvars}\NormalTok{())}
+\NormalTok{m }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(f, }\AttributeTok{data =}\NormalTok{ df, }\AttributeTok{stanvars =} \FunctionTok{cogmod\_betagate\_stanvars}\NormalTok{())}
 \end{Highlighting}
 \end{Shaded}
 
-We simulated 1,000 ratings (\texttt{rbetagate()}) from two conditions in
-which the manipulation raised both the underlying tendency and the
-inclination to answer at the top of the scale. The mean rating rises
-from 0.57 to 0.83, and a \emph{t}-test duly returns one number
+We simulated 1,000 ratings (\texttt{rcogmod\_betagate()}) from two
+conditions in which the manipulation raised both the underlying tendency
+and the inclination to answer at the top of the scale. The mean rating
+rises from 0.57 to 0.83, and a \emph{t}-test duly returns one number
 (\(t = 17.5\), \(p < .001\)). Table~\ref{tbl-betagate} shows what the
 four parameters return instead. The underlying tendency does rise, but
 so does extreme responding, from 10\% to 36\% of trials, and those
@@ -1488,7 +1622,7 @@ Choosing between them is the same problem as choosing an RT family, and
 it is solved the same way: \texttt{loo\_compare()} and
 \texttt{modelbased::estimate\_prediction()} behave here exactly as they
 did for the accumulator models of Example 1, and the package's
-\emph{Subjective ratings} vignette runs the comparison.
+\emph{Subjective Ratings} vignette runs the comparison.
 
 The simulation is not the point; the arrangement is. A response format
 that ordinarily calls for its own specialised package is here one more
@@ -1510,9 +1644,9 @@ it ships today matter less than the arrangement, which is built so that
 the set can grow without any of the surrounding workflow changing. The
 three examples show what this buys. Five accumulator architectures
 fitted to the same choices and RTs are compared in one call, and the
-worst of them is not merely ranked but diagnosed: a predictive check
+simplest of them is not merely ranked but diagnosed: a predictive check
 names the missing parameter, and freeing it is one line (Example 1).
-Dropping the choice, ten RT families are compared just as cheaply;
+Dropping the choice, sixteen RT families are compared just as cheaply;
 because every parameter of the chosen one can carry random effects, the
 reliability of each as an individual-level score becomes a routine
 check, and in clinical data the same decomposition recovers a group
@@ -1531,10 +1665,11 @@ to evidence, threshold or encoding, and Beta-Gate separates how highly a
 participant rates something from how readily they answer at the ends of
 the scale. Fit and interpretability usually improve together along this
 sequence, though Table~\ref{tbl-loo} is a reminder that they need not:
-the shifted Wald is outpredicted by five descriptive families whose
-parameters mean nothing in particular. Choosing a likelihood is choosing
-which questions can be asked at all, and the choice deserves to be made
-rather than inherited.
+the shifted Wald is outpredicted by six descriptive families whose
+parameters mean nothing in particular, and the ex-Gaussian, whose
+decomposition earns its keep in the same example, is outpredicted by
+seven. Choosing a likelihood is choosing which questions can be asked at
+all, and the choice deserves to be made rather than inherited.
 
 \subsection{Computational
 neuropsychology}\label{computational-neuropsychology}
@@ -1612,25 +1747,20 @@ package does not, and cannot, prevent this. Prior predictive checks,
 parameter recovery on simulated data and the standard Bayesian workflow
 (\citeproc{ref-gelman2020bayesian}{Gelman et al., 2020}) remain the
 user's responsibility; the \texttt{d*()} and \texttt{r*()} functions
-provided for every family exist to make those checks cheap.
-
-\textbf{Sample-dependent non-decision time.} Expressing \texttt{tau} as
-a proportion of \texttt{min(RT)} bounds it sensibly and makes it
-comparable across families, but \texttt{min(RT)} is itself a noisy order
-statistic that shrinks as trials accumulate and depends on the outlier
-criterion. The parameter is therefore mildly sample-dependent, and
-comparisons across datasets with very different trial counts or trimming
-rules should be made with that in mind.
+provided for every family - and the \texttt{p*()} cumulative
+distribution functions available for the diffusion, racing diffusion and
+Wald families - exist to make those checks cheap.
 
 \textbf{Maturity.} The package is under active development, and the set
 of families reported here is a snapshot rather than a specification.
-Some, the confidence signal detection model in particular, are marked
-experimental, and parameterizations may still change; the package
-website and \texttt{NEWS.md} track the current state. Several
-descriptive RT families have little precedent in this literature, and
-while Example 2 suggests they deserve attention, their behaviour is
-correspondingly less well documented than the ex-Gaussian's or the
-shifted LogNormal's.
+Parameterizations may still change, and have: \texttt{ndt} was until
+recently a fraction of a user-supplied minimum RT rather than a quantity
+in seconds, and the ex-Gaussian's \texttt{mu} was constrained positive.
+The package website and \texttt{NEWS.md} track the current state, and
+record what to change in existing code. Several descriptive RT families
+have little precedent in this literature, and while Example 2 suggests
+they deserve attention, their behaviour is correspondingly less well
+documented than the ex-Gaussian's or the shifted LogNormal's.
 
 \textbf{Scope.} \texttt{cogmod} currently covers single-stage decisions
 and rating responses. Reinforcement learning models, sequential-sampling
@@ -1684,18 +1814,27 @@ between them an empirical question rather than an inherited convention.
 
 \texttt{cogmod} is open source (MIT licence) and available at
 \url{https://github.com/DominiqueMakowski/cogmod}, with documentation at
-\url{https://dominiquemakowski.github.io/cogmod/}. The
-\texttt{wagenmakers2008} data are redistributed with the package, and
-the simulated data used in the Introduction are bundled as
-\texttt{badlm} (with their generating script in \texttt{data-raw/}). The
-clinical data of Example 2 are not redistributed; they are downloaded
-from OpenNeuro (\texttt{ds000030}) by a script in the same repository,
-which also performs the trial-level extraction described above. All
-models reported here, the scripts used to fit them, and the code
-reproducing every figure and table are available in that repository.
-None of the analyses were preregistered; the Introduction, Example 3 and
-the reliability section of Example 2 use simulated data, while Example 1
-and the rest of Example 2 reanalyse previously published data.
+\url{https://dominiquemakowski.github.io/cogmod/}. The lexical decision
+data of Wagenmakers et al.
+(\citeproc{ref-wagenmakers2008diffusion}{2008}) are not redistributed
+with the package; they are read from the \texttt{rtdists} package, where
+they appear as \texttt{speed\_acc} courtesy of the original authors, and
+the subset used here is reconstructed by \texttt{paper/wagenmakers.R} in
+the repository. The simulated data used in the Introduction are bundled
+as \texttt{badlm} (with their generating script in \texttt{data-raw/}).
+The clinical data of Example 2 are not redistributed; they are
+downloaded from OpenNeuro (\texttt{ds000030}) by
+\texttt{paper/download\_cnp.R} in the same repository, and
+\texttt{paper/example\_cnp.R} performs the trial-level extraction
+described above. All models reported here, the scripts used to fit them,
+and the code reproducing every figure and table are available in that
+repository; the two model-comparison tables are regenerated by
+\texttt{paper/make\_tables.R} from the fits the package vignettes own,
+so the paper and the documentation cannot report different numbers for
+the same model. None of the analyses were preregistered; the
+Introduction, Example 3 and the reliability section of Example 2 use
+simulated data, while Example 1 and the rest of Example 2 reanalyse
+previously published data.
 
 \section{References}\label{references}
 
@@ -1737,6 +1876,11 @@ Betancourt, M., Brubaker, M., Guo, J., Li, P., \& Riddell, A. (2017).
 {Stan}: A probabilistic programming language. \emph{Journal of
 Statistical Software}, \emph{76}(1), 1--32.
 \url{https://doi.org/10.18637/jss.v076.i01}
+
+\bibitem[\citeproctext]{ref-carpenter1995neural}
+Carpenter, R. H. S., \& Williams, M. L. L. (1995). Neural computation of
+log likelihood in control of saccadic eye movements. \emph{Nature},
+\emph{377}(6544), 59--62. \url{https://doi.org/10.1038/377059a0}
 
 \bibitem[\citeproctext]{ref-cranmer2020frontier}
 Cranmer, K., Brehmer, J., \& Louppe, G. (2020). The frontier of
@@ -1926,6 +2070,12 @@ Rouder, J. N., Province, J. M., Morey, R. D., Gomez, P., \& Heathcote,
 A. (2015). The lognormal race: A cognitive-process model of choice and
 latency with desirable psychometric properties. \emph{Psychometrika},
 \emph{80}(2), 491--513. \url{https://doi.org/10.1007/s11336-013-9396-3}
+
+\bibitem[\citeproctext]{ref-schwarz2001ex}
+Schwarz, W. (2001). The ex-{Wald} distribution as a descriptive model of
+response times. \emph{Behavior Research Methods, Instruments, \&
+Computers}, \emph{33}(4), 457--469.
+\url{https://doi.org/10.3758/bf03195403}
 
 \bibitem[\citeproctext]{ref-shinn2020flexible}
 Shinn, M., Lam, N. H., \& Murray, J. D. (2020). A flexible framework for

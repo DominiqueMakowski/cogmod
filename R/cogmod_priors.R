@@ -78,7 +78,10 @@
 #' else in these families it is stated in **seconds**, which is the unit the
 #' package expects throughout. `poutlier` is a proportion and
 #' does not move: `normal(-5, 1)` is centred at about 0.7% and puts roughly 95%
-#' of its mass between 0.1% and 5%.
+#' of its mass between 0.1% and 5%. That is where the empirical estimates sit -
+#' pooling across four lexical-decision megastudies, Miller (2024) puts the
+#' outlier proportion below 0.5% and argues that the 5-10% assumed in most
+#' simulation work is unrealistically large.
 #'
 #' `shape` exists only for [cogmod_loggamma()]. `normal(0, 0.5)` is centred on the
 #' LogNormal shape and keeps the sampler clear of `sigma * shape >= 1`, where the
@@ -263,6 +266,12 @@
 #'   arguments such as `data2` or `knots`.
 #'
 #' @return A `brmsprior` object, to pass to `brms::brm(prior = )`.
+#'
+#' @references
+#' - Miller, J. (2024). Estimating the proportions and latencies of reaction
+#'     time outliers: A pooling method and case study of lexical decision
+#'     tasks. *Behavior Research Methods*, *56*(7), 7280-7306.
+#'     \doi{10.3758/s13428-024-02419-y}
 #'
 #' @seealso [cogmod_inits()], [cogmod_stanvars()]
 #'
