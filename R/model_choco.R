@@ -13,8 +13,6 @@
 #' distribution is controlled by the `pex` and `bex` parameters, influecing the ease of crossing
 #' the gate (and thus the probability of extreme values).
 #'
-#' \if{html}{\figure{cogmod_choco.png}{options: width="100\%" alt="Figure: CHOCO distribution"}}
-#'
 #' @param n Number of simulated trials.
 #' @param p Proportion parameter determining the balance between the left and right sides
 #'   *after excluding* the probability mass at the middle (`pmid`). `P(Right Side | Not Middle) = p`.
@@ -55,18 +53,24 @@
 #' @examples
 #' # Simulate data with different parameterizations
 #' # 10% at mid, 50/50 split otherwise, symmetric confidence/precision
-#' x1 <- rcogmod_choco(n=5000, p = 0.5, confright = 0.5, precright = 4,
-#'   confleft = 0.5, precleft = 4, pex = 0.1, bex = 0.5, pmid = 0, mid = 0.5)
+#' x1 <- rcogmod_choco(
+#'   n = 5000, p = 0.5, confright = 0.5, precright = 4,
+#'   confleft = 0.5, precleft = 4, pex = 0.1, bex = 0.5, pmid = 0, mid = 0.5
+#' )
 #' hist(x1, breaks = 50, main = "CHOCO: Symmetric Confidence/Precision", xlab = "y")
 #'
 #' # No mid mass, 70% probability on right, higher confidence left (closer to 0)
-#' x2 <- rcogmod_choco(n=5000, p = 0.7, confright = 0.5, precright = 3,
-#'   confleft = 0.8, precleft = 5, pex = 0.15, bex = 0.7, pmid = 0, mid = 0.5)
+#' x2 <- rcogmod_choco(
+#'   n = 5000, p = 0.7, confright = 0.5, precright = 3,
+#'   confleft = 0.8, precleft = 5, pex = 0.15, bex = 0.7, pmid = 0, mid = 0.5
+#' )
 #' hist(x2, breaks = 50, main = "CHOCO: Asymmetric p, Higher Conf Left", xlab = "y")
 #'
 #' # Lower confidence overall (closer to mid), high probability in the middle
-#' x3 <- rcogmod_choco(n=5000, p = 0.5, confright = 0.2, precright = 3,
-#'   confleft = 0.2, precleft = 3, pex = 0, bex = 0.5, pmid = 0.05, mid = 0.5)
+#' x3 <- rcogmod_choco(
+#'   n = 5000, p = 0.5, confright = 0.2, precright = 3,
+#'   confleft = 0.2, precleft = 3, pex = 0, bex = 0.5, pmid = 0.05, mid = 0.5
+#' )
 #' hist(x3, breaks = 50, main = "CHOCO: Low confidence overall", xlab = "y")
 #' @rdname rcogmod_choco
 #' @export
@@ -329,7 +333,7 @@ dcogmod_choco <- function(
 
 #' @keywords internal
 .cogmod_choco_lpdf <- function() {
-"
+  "
 // mu is the probability p of the right side (0 < mu < 1) (named 'mu' as per Stan convention for main parameters)
 real cogmod_choco_lpdf(
     real y,
@@ -342,7 +346,7 @@ real cogmod_choco_lpdf(
     real bex,         // balance of extremes (-> right vs left)
     real pmid         // P(mid)
 ) {
-    // Hardcoded Middle-Point 
+    // Hardcoded Middle-Point
     real mid = 0.5;
     real eps = 1e-10;
 
@@ -448,12 +452,12 @@ cogmod_choco_lpdf_expose <- function() {
   stancode <- paste0(
     "functions {\n",
     .cogmod_choco_lpdf(),
-    "\n}" )
+    "\n}"
+  )
   mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(stancode))
   mod$expose_functions()
   mod$functions$cogmod_choco_lpdf
 }
-
 
 
 #' @rdname rcogmod_choco
@@ -486,14 +490,18 @@ cogmod_choco <- function(
   link_pmid = "logit"
 ) {
   brms::custom_family(
-    name  = "cogmod_choco",
-    dpars = c("mu","confright","precright","confleft",
-              "precleft","pex","bex","pmid"),
-    links = c(link_mu, link_confright, link_precright,
-              link_confleft, link_precleft, link_pex, link_bex,
-              link_pmid),
-    lb = c(0,0,0,0,0,0,0,0),
-    ub = c(1,1,NA,1,NA,1,1,1),
+    name = "cogmod_choco",
+    dpars = c(
+      "mu", "confright", "precright", "confleft",
+      "precleft", "pex", "bex", "pmid"
+    ),
+    links = c(
+      link_mu, link_confright, link_precright,
+      link_confleft, link_precleft, link_pex, link_bex,
+      link_pmid
+    ),
+    lb = c(0, 0, 0, 0, 0, 0, 0, 0),
+    ub = c(1, 1, NA, 1, NA, 1, 1, 1),
     type = "real"
   )
 }
@@ -510,17 +518,19 @@ log_lik_cogmod_choco <- function(i, prep) {
   y_scalar <- prep$data$Y[i]
 
   # Extract model draws (vectors) for the i-th observation
-  mu         <- brms::get_dpar(prep, "mu", i = i)
-  confright  <- brms::get_dpar(prep, "confright", i = i)
-  precright  <- brms::get_dpar(prep, "precright", i = i)
-  confleft   <- brms::get_dpar(prep, "confleft", i = i)
-  precleft   <- brms::get_dpar(prep, "precleft", i = i)
-  pex        <- brms::get_dpar(prep, "pex", i = i)
-  bex        <- brms::get_dpar(prep, "bex", i = i)
-  pmid       <- brms::get_dpar(prep, "pmid", i = i)
+  mu <- brms::get_dpar(prep, "mu", i = i)
+  confright <- brms::get_dpar(prep, "confright", i = i)
+  precright <- brms::get_dpar(prep, "precright", i = i)
+  confleft <- brms::get_dpar(prep, "confleft", i = i)
+  precleft <- brms::get_dpar(prep, "precleft", i = i)
+  pex <- brms::get_dpar(prep, "pex", i = i)
+  bex <- brms::get_dpar(prep, "bex", i = i)
+  pmid <- brms::get_dpar(prep, "pmid", i = i)
 
   n_draws <- length(mu)
-  if (n_draws == 0) return(numeric(0))
+  if (n_draws == 0) {
+    return(numeric(0))
+  }
 
   y_vec <- rep(y_scalar, length.out = n_draws)
 
@@ -549,22 +559,22 @@ log_lik_cogmod_choco <- function(i, prep) {
 posterior_predict_cogmod_choco <- function(i, prep, ...) {
   # Extract draws for each parameter for the i-th observation
   # brms::get_dpar should return vectors respecting prep$ndraws
-  mu         <- brms::get_dpar(prep, "mu", i = i)
-  confright  <- brms::get_dpar(prep, "confright", i = i)
-  precright  <- brms::get_dpar(prep, "precright", i = i)
-  confleft   <- brms::get_dpar(prep, "confleft", i = i)
-  precleft   <- brms::get_dpar(prep, "precleft", i = i)
-  pex        <- brms::get_dpar(prep, "pex", i = i)
-  bex        <- brms::get_dpar(prep, "bex", i = i)
-  pmid       <- brms::get_dpar(prep, "pmid", i = i)
+  mu <- brms::get_dpar(prep, "mu", i = i)
+  confright <- brms::get_dpar(prep, "confright", i = i)
+  precright <- brms::get_dpar(prep, "precright", i = i)
+  confleft <- brms::get_dpar(prep, "confleft", i = i)
+  precleft <- brms::get_dpar(prep, "precleft", i = i)
+  pex <- brms::get_dpar(prep, "pex", i = i)
+  bex <- brms::get_dpar(prep, "bex", i = i)
+  pmid <- brms::get_dpar(prep, "pmid", i = i)
 
   # Determine number of draws from the length of the parameter vectors
   # This length should correspond to prep$ndraws if ndraws was specified
   n_draws <- length(mu)
   if (n_draws == 0) {
-      # If get_dpar returns zero length, return an empty matrix.
-      # The number of rows should ideally match prep$ndraws, but 0 is safer if prep$ndraws is unreliable.
-      return(matrix(numeric(0), nrow = 0, ncol = 1))
+    # If get_dpar returns zero length, return an empty matrix.
+    # The number of rows should ideally match prep$ndraws, but 0 is safer if prep$ndraws is unreliable.
+    return(matrix(numeric(0), nrow = 0, ncol = 1))
   }
 
   # Generate exactly n_draws predictions using the extracted parameters
@@ -590,12 +600,12 @@ posterior_predict_cogmod_choco <- function(i, prep, ...) {
 #' @export
 posterior_epred_cogmod_choco <- function(prep) {
   # Fetch parameters - these might be matrices (draws x obs) or vectors (draws)
-  mu         <- brms::get_dpar(prep, "mu")
-  confright  <- brms::get_dpar(prep, "confright")
-  confleft   <- brms::get_dpar(prep, "confleft")
-  pex        <- brms::get_dpar(prep, "pex")
-  bex        <- brms::get_dpar(prep, "bex")
-  pmid       <- brms::get_dpar(prep, "pmid")
+  mu <- brms::get_dpar(prep, "mu")
+  confright <- brms::get_dpar(prep, "confright")
+  confleft <- brms::get_dpar(prep, "confleft")
+  pex <- brms::get_dpar(prep, "pex")
+  bex <- brms::get_dpar(prep, "bex")
+  pmid <- brms::get_dpar(prep, "pmid")
   # Note: precright and precleft are not needed for the expected value calculation
 
   # Determine dimensions
@@ -633,16 +643,16 @@ posterior_epred_cogmod_choco <- function(prep) {
 
     # Side probabilities
     p_not_mid <- 1 - pmid_j
-    p_left  <- p_not_mid * (1 - mu_j)
+    p_left <- p_not_mid * (1 - mu_j)
     p_right <- p_not_mid * mu_j
-    prob_mid   <- pmid_j
+    prob_mid <- pmid_j
 
     # Underlying Beta-Gate params means and extreme probs
     # Note: mu_left is 1 - confleft
-    mu_right_latent  <- confright_j
-    mu_left_latent   <- 1 - confleft_j
+    mu_right_latent <- confright_j
+    mu_left_latent <- 1 - confleft_j
     pex_right <- pex_j * bex_j
-    pex_left  <- pex_j * (1 - bex_j)
+    pex_left <- pex_j * (1 - bex_j)
 
     # Expected value for latent left and right Beta-Gate components
     # E[BetaGate(mu, phi, pex, bex=0)] = (1 - pex) * mu
@@ -659,8 +669,8 @@ posterior_epred_cogmod_choco <- function(prep) {
 
     # Combine weighted expected values
     epred[, j] <- p_left * e_left_rescaled +
-                  p_right * e_right_rescaled +
-                  prob_mid * mid # E[mid] is just the threshold value
+      p_right * e_right_rescaled +
+      prob_mid * mid # E[mid] is just the threshold value
   }
 
   epred

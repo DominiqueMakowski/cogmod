@@ -72,3 +72,4 @@ paper/paper_cache/
 # paper/make_figures.R from rtdists. Not redistributed - see the Open
 # Practices Statement in paper/paper.qmd.
 paper/wagenmakers2008.csv
+paper/reviewers.txt

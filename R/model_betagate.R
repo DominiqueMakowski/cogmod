@@ -13,8 +13,6 @@
 #' (zeros and ones). The difference from the Ordered Beta is the way the cutpoints are defined,
 #' as well as the scale of the precision parameter phi.
 #'
-#' \if{html}{\figure{cogmod_betagate.png}{options: width="100\%" alt="Figure: Beta-Gate distribution"}}
-#'
 #' It differs from the Zero-One-Inflated Beta (ZOIB) model in that the ZOIB model has `zoi`
 #' and `coi` parameters, directly controlling the likelihood of extreme values. Instead,
 #' Beta-Gate uses `pex` and `bex` to define "cutpoints" after which extreme values become likely.
@@ -287,7 +285,7 @@ dcogmod_betagate <- function(x, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5, log = F
 
 #' @keywords internal
 .cogmod_betagate_lpdf <- function() {
-"
+  "
 // Log probability density function for the Beta-Gate distribution
 real cogmod_betagate_lpdf(real y, real mu, real phi, real pex, real bex) {
   // Tolerance for floating point comparisons near 0 and 1
@@ -378,7 +376,7 @@ cogmod_betagate <- function(link_mu = "logit", link_phi = "softplus", link_pex =
     links = c(link_mu, link_phi, link_pex, link_bex),
     lb = c(NA, 0, 0, 0), # Lower bounds: phi>0, pex>=0, bex>=0
     ub = c(NA, NA, 1, 1), # Upper bounds: pex<=1, bex<=1
-    type = "real"       # Outcome variable type
+    type = "real" # Outcome variable type
   )
 }
 
@@ -392,14 +390,16 @@ log_lik_cogmod_betagate <- function(i, prep) {
   y_scalar <- prep$data$Y[i] # This is a single value
 
   # Extract model draws (vectors) for the i-th observation
-  mu  <- brms::get_dpar(prep, "mu", i = i)
+  mu <- brms::get_dpar(prep, "mu", i = i)
   phi <- brms::get_dpar(prep, "phi", i = i)
   pex <- brms::get_dpar(prep, "pex", i = i)
   bex <- brms::get_dpar(prep, "bex", i = i)
 
   # Determine number of draws
   n_draws <- length(mu)
-  if (n_draws == 0) return(numeric(0)) # Handle case with no draws
+  if (n_draws == 0) {
+    return(numeric(0))
+  } # Handle case with no draws
 
   # Replicate the scalar y to match the number of draws
   y_vec <- rep(y_scalar, length.out = n_draws)
@@ -420,13 +420,15 @@ log_lik_cogmod_betagate <- function(i, prep) {
 #' @export
 posterior_predict_cogmod_betagate <- function(i, prep, ...) {
   # Extract draws for each parameter for the i-th observation
-  mu    <- brms::get_dpar(prep, "mu", i = i)
-  phi   <- brms::get_dpar(prep, "phi", i = i)
-  pex   <- brms::get_dpar(prep, "pex", i = i)
-  bex   <- brms::get_dpar(prep, "bex", i = i)
+  mu <- brms::get_dpar(prep, "mu", i = i)
+  phi <- brms::get_dpar(prep, "phi", i = i)
+  pex <- brms::get_dpar(prep, "pex", i = i)
+  bex <- brms::get_dpar(prep, "bex", i = i)
 
   n_draws <- length(mu) # Number of posterior draws
-  if (n_draws == 0) return(matrix(numeric(0), ncol = 1)) # Handle case with no draws
+  if (n_draws == 0) {
+    return(matrix(numeric(0), ncol = 1))
+  } # Handle case with no draws
 
   # Use rcogmod_betagate() to generate predictions for each draw
   final_out <- rcogmod_betagate(n = n_draws, mu = mu, phi = phi, pex = pex, bex = bex)
@@ -440,7 +442,7 @@ posterior_predict_cogmod_betagate <- function(i, prep, ...) {
 #' @export
 posterior_epred_cogmod_betagate <- function(prep) {
   # Extract draws for the necessary parameters (draws x observations matrices)
-  mu  <- brms::get_dpar(prep, "mu")
+  mu <- brms::get_dpar(prep, "mu")
   phi <- brms::get_dpar(prep, "phi") # phi is not directly needed for epred, but kept for consistency
   pex <- brms::get_dpar(prep, "pex")
   bex <- brms::get_dpar(prep, "bex")
