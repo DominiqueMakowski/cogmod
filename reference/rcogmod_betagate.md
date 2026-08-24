@@ -15,8 +15,6 @@ past the gates are considered extremes (zeros and ones). The difference
 from the Ordered Beta is the way the cutpoints are defined, as well as
 the scale of the precision parameter phi.
 
-![Figure: Beta-Gate distribution](figures/cogmod_betagate.png)
-
 It differs from the Zero-One-Inflated Beta (ZOIB) model in that the ZOIB
 model has `zoi` and `coi` parameters, directly controlling the
 likelihood of extreme values. Instead, Beta-Gate uses `pex` and `bex` to
