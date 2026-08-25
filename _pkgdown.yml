@@ -19,6 +19,8 @@ navbar:
                   href: articles/decision_making.html
                 - text: "Assessing Reliability"
                   href: articles/reliability.html
+                - text: "Performance"
+                  href: articles/performance.html
 
 reference:
     - title: "Subjective Scales Data"

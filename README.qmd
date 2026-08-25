@@ -71,6 +71,12 @@ Measures from cognitive tasks, such as decision-making paradigms involving fast 
 ```{r}
 #| eval: false
 
+install.packages("cogmod")
+```
+
+```{r}
+#| eval: false
+
 if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
 
 remotes::install_github("DominiqueMakowski/cogmod")
@@ -127,3 +133,4 @@ See the [Subjective Ratings](https://dominiquemakowski.github.io/cogmod/articles
 - [ ] **Shifted sinh-arcsinh (log-SHASH)** ([Jones & Pewsey, 2009](https://doi.org/10.1093/biomet/asp053)) - location, scale, skewness and tail weight as four separate parameters. Where `cogmod_loggamma()` ties skew and
   tail weight together through one `shape`, SHASH decouples them.
 - [ ] Add and check `cogmod_priors()` and `cogmod_inits()` for subjective scale models.
+- [ ] Go/No-go models: https://ampl-psych.github.io/EMC2/reference/DDMGNG.html
