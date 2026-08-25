@@ -8,6 +8,8 @@
   Time](https://dominiquemakowski.github.io/cogmod/articles/outliers.md):
 - [Overview of
   cogmod](https://dominiquemakowski.github.io/cogmod/articles/overview.md):
+- [Improving Sampling Efficiency and
+  Performance](https://dominiquemakowski.github.io/cogmod/articles/performance.md):
 - [Assessing Reliability and Interindividual
   Variability](https://dominiquemakowski.github.io/cogmod/articles/reliability.md):
 - [How to Properly Analyze Reaction Times

@@ -60,6 +60,14 @@
   decouple skew from tail weight with parameters that stay
   interpretable.
 
+- New vignette, `vignette("performance")`, covering how to speed up
+  sampling for the choice+RT families: approximating a fit first with
+  Pathfinder before committing to full MCMC, chain and within-chain
+  (multithreading) parallelization, spreading short warmup runs across
+  an HPC job array and recombining them with
+  [`brms::combine_models()`](https://paulbuerkner.com/brms/reference/combine_models.html),
+  and amortized inference (e.g. BayesFlow) as a longer-term direction.
+
 ### Breaking changes
 
 - **[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)’s

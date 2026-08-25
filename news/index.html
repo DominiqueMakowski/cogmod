@@ -24,6 +24,7 @@
     <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/decision_making.html">Decision Making Models</a></li>
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
+    <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
   </ul></li>
 <li class="active nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -52,6 +53,7 @@
 <p><code>shape</code> is also badly confounded with <code>mu</code>: fitted by maximum likelihood to the lexical-decision data used in the vignettes, the two correlate about -0.98 at the optimum, and the other estimates move with it (on one condition <code>mu</code> goes 0.429 to 0.508, <code>sigma</code> 0.051 to 0.037, <code>tau</code> 0.119 to 0.162). <code>shape</code> re-slices the same bulk-and-tail split rather than adding an independent axis. <code><a href="../reference/cogmod_priors.html">cogmod_priors()</a></code> therefore gives it a deliberately informative <code>normal(0, 0.5)</code> on the <code>log</code> link - centred on <code>shape = 1</code>, the ex-Gaussian - and <code><a href="../reference/cogmod_inits.html">cogmod_inits()</a></code> starts it there.</p>
 <p>Use it when fit is the point. When the <code>mu</code>/<code>tau</code> decomposition is the point, <code><a href="../reference/rcogmod_exgaussian.html">cogmod_exgaussian()</a></code> is the family to fit; when a better-fitting descriptive family is the point, <code><a href="../reference/rcogmod_logstudent.html">cogmod_logstudent()</a></code> and <code><a href="../reference/rcogmod_loggamma.html">cogmod_loggamma()</a></code> decouple skew from tail weight with parameters that stay interpretable.</p>
 </li>
+<li><p>New vignette, <code>vignette("performance")</code>, covering how to speed up sampling for the choice+RT families: approximating a fit first with Pathfinder before committing to full MCMC, chain and within-chain (multithreading) parallelization, spreading short warmup runs across an HPC job array and recombining them with <code><a href="https://paulbuerkner.com/brms/reference/combine_models.html" class="external-link">brms::combine_models()</a></code>, and amortized inference (e.g. BayesFlow) as a longer-term direction.</p></li>
 </ul></div>
 <div class="section level3">
 <h3 id="breaking-changes-0-3-0">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-0-3-0"></a></h3>

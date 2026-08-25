@@ -1,0 +1,193 @@
+# Improving Sampling Efficiency and Performance
+
+``` r
+
+library(cogmod)
+library(brms)
+library(cmdstanr)
+```
+
+Evidence accumulation models are slow and expensive to sample, and a
+fully mixed model with a comprehensive random effects structure can
+easily take hours or days (or weeks) for real-life datasets. Below are
+some suggestions to help.
+
+## The Model
+
+Below is an example of a mixed DDM, with random intercepts and slopes on
+most distributional parameter of interest. We also added a random
+intercept to `poutlier`, with the assumption that the proportion of very
+fast trials (anticipatory / inhibition failure responses vary across
+participants).
+
+``` r
+
+f <- bf(
+  RT | dec(Error) ~ Condition + (1 + Condition | Participant),
+  boundary ~ Condition + (1 + Condition | Participant),
+  bias ~ Condition + (1 + Condition | Participant),
+  ndt ~ Condition + (1 + Condition | Participant),
+  poutlier ~ 1 + (1 | Participant),
+  sigmadrift = 0,
+  sigmabias = 0,
+  sigmandt = 0,
+  family = cogmod_ddm()
+)
+
+m <- brm(f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 2000, backend = "cmdstanr"
+)
+```
+
+## Approximating with Faster Algorithms
+
+Before committing to a long MCMC run, it is often worth getting a quick,
+approximate answer first.
+[Pathfinder](https://mc-stan.org/docs/reference-manual/pathfinder.html)
+(Zhang et al., [2022](https://arxiv.org/abs/2108.03782)) is a good first
+choice and significant improvements over other Variational Inference
+(VI) algorithms like *meanfield ADVI* or *full-rank ADVI*. It is
+implemented in `cmdstanr` and can be used in `brms` with the
+`algorithm = "pathfinder"` argument.
+
+``` r
+
+m_pathfinder <- brm(f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  backend = "cmdstanr",
+  algorithm = "pathfinder",
+  chains = 16,
+  single_path_draws = 4000,
+  max_lbfgs_iters = 8000
+)
+```
+
+Note that `chains` does not mean MCMC chains here, but controls the
+number of Pathfinder **paths**, and more paths give the importance
+resampling step more diverse material to draw from. Increasing
+`single_path_draws` and `max_lbfgs_iters` similarly buys a better
+approximation at very little extra cost. Also, consider using the
+`threads` argument to parallelize the pathfinder draws across multiple
+cores.
+
+Pathfinder draws are not a substitute for MCMC posteriors, they
+approximate the posterior and are not guaranteed to be well calibrated,
+especially for variance components and correlations. However, its
+results can potentially be used to **tighten the priors**, which in turn
+might help with MCMC convergence and sampling efficiency.
+
+## MCMC Performance
+
+The next step is to leverage the compounding benefits of two kinds of
+parallelization:
+
+- **Chain parallelization.** Run each of the `chains` on its own core
+  via `backend = "cmdstanr"` and
+  `options(mc.cores = parallel::detectCores())` (or the `cores` argument
+  to [`brm()`](https://paulbuerkner.com/brms/reference/brm.html)). This
+  is essentially free and should always be on.
+- **Within-chain parallelization (multithreading).** `cmdstanr` can
+  split a single chain’s likelihood evaluation across multiple threads
+  with `threads = threading(n)`, passed to
+  [`brm()`](https://paulbuerkner.com/brms/reference/brm.html) alongside
+  `backend = "cmdstanr"`. This has real overhead: Stan has to partition
+  the data and reduce the per-thread results back together, so it only
+  pays off once the per-observation likelihood is expensive enough
+  and/or the dataset is large enough that the reduction overhead is
+  small relative to the work being split.
+
+``` r
+
+m <- brm(f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  backend = "cmdstanr",
+  chains = 4,
+  cores = 4,
+  threads = threading(4)
+)
+```
+
+Combining the two means a machine with, say, 16 cores can run 4 chains
+with 4 threads each, or fewer chains with more threads each if warmup is
+the bottleneck rather than the number of independent chains needed for
+convergence diagnostics.
+
+## High-Performance Clusters (HPCs)
+
+Chain and thread parallelization is limited by the cores on one machine.
+The next step is to spread chains across many machines - typically many
+short jobs on an HPC scheduler rather than one long job. Because warmup
+dominates total sampling time for these models, recruiting many nodes
+for a **short** run (fewer post-warmup iterations each) is usually more
+efficient than recruiting a few nodes for a long one: each job pays the
+fixed compilation and warmup cost once, but the post-warmup work is what
+actually needs to scale with the number of draws you want.
+
+A typical job array (SLURM shown here) runs one or two chains per node,
+threading each chain across the cores left over after dividing them
+among the node’s chains:
+
+``` r
+
+task_id <- as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID", unset = "1"))
+total_cores <- as.numeric(Sys.getenv("SLURM_CPUS_PER_TASK", unset = "2"))
+
+chains_per_node <- 2
+threads_per_chain <- total_cores / chains_per_node  # e.g. 16 cores / 2 chains = 8 threads per chain
+
+warmup <- 1000
+iter <- warmup + 200  # short post-warmup draw per node; combined across nodes below
+
+m_node <- brm(f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  backend = "cmdstanr",
+  chains = chains_per_node,
+  cores = chains_per_node,
+  threads = threading(threads_per_chain),
+  warmup = warmup,
+  iter = iter,
+  seed = task_id,
+  file = paste0("m_node_", task_id, ".rds")
+)
+```
+
+Each array task produces its own `brmsfit` with a handful of chains.
+Once all tasks have finished, combine them into a single fit with
+[`brms::combine_models()`](https://paulbuerkner.com/brms/reference/combine_models.html),
+which concatenates the post-warmup draws across fits (they must share
+the same model structure and data):
+
+``` r
+
+fits <- lapply(list.files(pattern = "^m_node_.*\\.rds$"), readRDS)
+m <- do.call(brms::combine_models, fits)
+```
+
+The result behaves like a single
+[`brm()`](https://paulbuerkner.com/brms/reference/brm.html) fit with
+`chains_per_node * n_nodes` chains worth of draws, obtained in roughly
+the time a single node’s chains would have taken.
+
+## Future Directions
+
+A different line of work sidesteps the repeated sampling of MCMC/VI
+entirely: **amortized inference**, where a neural network is trained
+(once, offline, potentially at significant upfront cost) to map observed
+data directly to an approximate posterior, so that inference on new
+datasets afterwards is close to instantaneous rather than requiring a
+fresh MCMC run each time. [BayesFlow](https://bayesflow.org/) is the
+most actively developed toolkit in this space, and has already been
+applied to evidence accumulation and other cognitive models.
