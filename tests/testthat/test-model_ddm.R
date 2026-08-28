@@ -254,6 +254,30 @@ test_that("pcogmod_ddm behaves like a CDF", {
 })
 
 
+test_that("pcogmod_ddm is the choice probability at infinite time", {
+  # The series can only approach the choice probability - every term is
+  # exp(-R t) - so infinite time is taken analytically rather than from it, and
+  # used to be left at the pre-allocated zero instead.
+  g <- list(drift = -4, boundary = 0.6, bias = 0.25, ndt = 0.2, poutlier = 0)
+  for (resp in c(0L, 1L)) {
+    expect_equal(
+      do.call(pcogmod_ddm, c(list(Inf, response = resp), g)),
+      do.call(pcogmod_ddm, c(list(1e6, response = resp), g)),
+      info = sprintf("response %d", resp)
+    )
+  }
+  expect_equal(do.call(pcogmod_ddm, c(list(Inf), g)), 1)
+  expect_equal(do.call(pcogmod_ddm, c(list(Inf, lower.tail = FALSE), g)), 0)
+  # An infinite time among finite ones must not disturb them, and -Inf is still
+  # before any response.
+  expect_equal(
+    do.call(pcogmod_ddm, c(list(c(0.5, Inf, -Inf), response = 0L), g)),
+    c(do.call(pcogmod_ddm, c(list(0.5, response = 0L), g)),
+      do.call(pcogmod_ddm, c(list(Inf, response = 0L), g)), 0)
+  )
+})
+
+
 test_that("pcogmod_ddm agrees with the sampler it is inverted from", {
   skip_on_cran()
   set.seed(4)

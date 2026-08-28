@@ -737,6 +737,14 @@ cogmod_ddm <- function(
   out <- numeric(length(t))
   if (!length(t)) return(out)
   plo <- .ddm_plower(v, a, w)
+  # At infinite time the process has been absorbed with certainty, so the
+  # defective CDF has reached the choice probability of its own boundary. The
+  # series cannot reach it - every term is exp(-R t), so the survival there is
+  # exactly zero rather than small - and it is taken from `.ddm_plower()`
+  # instead. Without this the branch below leaves the pre-allocated zero, which
+  # is the value at t = 0, not at t = Inf.
+  absorbed <- is.infinite(t) & t > 0
+  out[absorbed] <- plo[absorbed]
   # Below the floor the CDF is under about 1e-15, and the series would need a
   # prohibitive number of terms to say so. Returning zero there is both cheaper
   # and, to double precision, right.

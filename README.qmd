@@ -29,7 +29,7 @@ editor_options:
 This R package is dedicated to facilitate the application of computational models of cognition in R under a Bayesian framework.
 These are useful in the field of cognitive science and computational neuropsycholology. 
 
-If you have suggestions for improvement, please [get in touch](https://github.com/DominiqueMakowski/cogmod/issues)! See also this related attempt at [**creating tutorials**](https://dominiquemakowski.github.io/CognitiveModels/).
+If you have suggestions for improvement, please [get in touch](https://github.com/DominiqueMakowski/cogmod/issues)!
 
 ## Features
 
@@ -134,3 +134,4 @@ See the [Subjective Ratings](https://dominiquemakowski.github.io/cogmod/articles
   tail weight together through one `shape`, SHASH decouples them.
 - [ ] Add and check `cogmod_priors()` and `cogmod_inits()` for subjective scale models.
 - [ ] Go/No-go models: https://ampl-psych.github.io/EMC2/reference/DDMGNG.html
+- [ ] Kumaraswamy model for easy bounded 0-1 data
