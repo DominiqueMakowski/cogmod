@@ -557,6 +557,8 @@ m_wald <- brm(
 m_wald <- brms::add_criterion(m_wald, "loo")
 ```
 
+![](../reference/figures/animations/anim_wald.gif)
+
 ### Linear Ballistic Accumulator
 
 The LBA is normally a *race*: one accumulator per response option, each
@@ -635,98 +637,87 @@ research is needed to establish whether they offer any real advantage -
 in terms of fit, of interpretability, or of computational behaviour -
 over the more established options.
 
-- [Recinormal (LATER)](#tabset-1-1)
-- [Wald-4](#tabset-1-2)
-- [ExWald](#tabset-1-3)
-- [Birnbaum-Saunders (BiSa)](#tabset-1-4)
-- [LogStudent](#tabset-1-5)
-- [Weibull](#tabset-1-6)
-- [LogWeibull (Shifted Gumbel)](#tabset-1-7)
-- [Inverse Weibull (Shifted Fréchet)](#tabset-1-8)
-- [Gamma](#tabset-1-9)
-- [Inverse Gamma](#tabset-1-10)
+#### Recinormal (LATER)
 
-&nbsp;
+The **recinormal** (reciprocal-of-normal) distribution is at the basis
+of the **LATER** model - Linear Approach To Threshold with Ergodic Rate:
+if the rate of linear accumulation varies normally from trial to trial,
+then `1 / RT` is normally distributed, so RT itself is recinormal. This
+idea is in fact *older* than most sequential-sampling models. Carpenter
+proposed it in 1981, then formalized it with Williams in
+[1995](https://doi.org/10.1038/377059a0), after noticing that the usual
+skewed RT histogram never matched any standard statistical distribution,
+and reasoning that since RT is the outcome of a *rate* process - a
+signal rising to threshold, like a reaction reaching completion - it
+made more sense to model the variability in that underlying rate than to
+keep fitting shapes to its result. Switching the analysis from RT to
+`1 / RT` and finding a clean Gaussian was the payoff of that reframing.
 
-- The **recinormal** (reciprocal-of-normal) distribution is at the basis
-  of the **LATER** model - Linear Approach To Threshold with Ergodic
-  Rate: if the rate of linear accumulation varies normally from trial to
-  trial, then `1 / RT` is normally distributed, so RT itself is
-  recinormal. This idea is in fact *older* than most sequential-sampling
-  models. Carpenter proposed it in 1981, then formalized it with
-  Williams in [1995](https://doi.org/10.1038/377059a0), after noticing
-  that the usual skewed RT histogram never matched any standard
-  statistical distribution, and reasoning that since RT is the outcome
-  of a *rate* process - a signal rising to threshold, like a reaction
-  reaching completion - it made more sense to model the variability in
-  that underlying rate than to keep fitting shapes to its result.
-  Switching the analysis from RT to `1 / RT` and finding a clean
-  Gaussian was the payoff of that reframing.
+In the terms of the previous section, this is exactly where the LBA was
+heading: set the start-point range `sigmabias` to zero and the
+accumulator starts from the same place on *every* trial, so the only
+thing left varying is the rate of rise. The decision time is then simply
+`b / rate`, and a normally distributed rate makes `1 / (RT - ndt)`
+normally distributed in turn. (The `- ndt` is the one refinement on the
+classical statement above: any time spent on encoding and motor
+execution is not part of the rate process, so it has to come off before
+the reciprocal is taken.)
 
-  In the terms of the previous section, this is exactly where the LBA
-  was heading: set the start-point range `sigmabias` to zero and the
-  accumulator starts from the same place on *every* trial, so the only
-  thing left varying is the rate of rise. The decision time is then
-  simply `b / rate`, and a normally distributed rate makes
-  `1 / (RT - ndt)` normally distributed in turn. (The `- ndt` is the one
-  refinement on the classical statement above: any time spent on
-  encoding and motor execution is not part of the rate process, so it
-  has to come off before the reciprocal is taken.)
+What makes LATER attractive is that its two parameters are directly
+interpretable, and interpretable as something you can *see*, often
+called **promptness** - how quickly the response comes, rather than how
+long it takes - and `mu` and `sigma` are simply its mean and standard
+deviation. This is what a *reciprobit* plot displays: promptness on a
+probit axis, on which a LATER model is a straight line, `mu` sets its
+position and `sigma` its slope. Carpenter’s central claim is read off
+exactly that plot - manipulating the prior probability of a stimulus
+shifts the line sideways (a change in `mu`, the rate of rise), while
+manipulating urgency swivels it about its intercept (a change in the
+threshold).
 
-  What makes LATER attractive is that its two parameters are directly
-  interpretable, and interpretable as something you can *see*, often
-  called **promptness** - how quickly the response comes, rather than
-  how long it takes - and `mu` and `sigma` are simply its mean and
-  standard deviation. This is what a *reciprobit* plot displays:
-  promptness on a probit axis, on which a LATER model is a straight
-  line, `mu` sets its position and `sigma` its slope. Carpenter’s
-  central claim is read off exactly that plot - manipulating the prior
-  probability of a stimulus shifts the line sideways (a change in `mu`,
-  the rate of rise), while manipulating urgency swivels it about its
-  intercept (a change in the threshold).
+Going the other way is instructive too. LATER lets the *rate* vary from
+trial to trial but treats the level the signal starts from as fixed;
+letting that vary as well gives the **extended LATER (E-LATER)** model
+of [Nakahara et
+al. (2006)](https://doi.org/10.1016/j.neunet.2006.07.001) - which is to
+say that the LBA’s `sigmabias` is not an LBA-specific device but the
+same extension the oculomotor literature arrived at independently, the
+two differing mainly in the distribution assumed for the starting level.
 
-  Going the other way is instructive too. LATER lets the *rate* vary
-  from trial to trial but treats the level the signal starts from as
-  fixed; letting that vary as well gives the **extended LATER
-  (E-LATER)** model of [Nakahara et
-  al. (2006)](https://doi.org/10.1016/j.neunet.2006.07.001) - which is
-  to say that the LBA’s `sigmabias` is not an LBA-specific device but
-  the same extension the oculomotor literature arrived at independently,
-  the two differing mainly in the distribution assumed for the starting
-  level.
+There is no separate family for this: LATER **is**
+[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+with `sigmabias` fixed at zero. Two parameters have to be fixed rather
+than one. As the evidence scale is arbitrary in the sense described
+above - multiplying `mu`, `sigma`, `sigmabias` and `boundary` by any
+common constant leaves the likelihood unchanged - so one of them has to
+be fixed to break that. Compared to the 1-accumulator LBA, for LATER the
+natural choice is `boundary = 1`, which leaves `mu` and `sigma` reading
+directly as the mean and SD of promptness.
 
-  There is no separate family for this: LATER **is**
-  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
-  with `sigmabias` fixed at zero. Two parameters have to be fixed rather
-  than one. As the evidence scale is arbitrary in the sense described
-  above - multiplying `mu`, `sigma`, `sigmabias` and `boundary` by any
-  common constant leaves the likelihood unchanged - so one of them has
-  to be fixed to break that. Compared to the 1-accumulator LBA, for
-  LATER the natural choice is `boundary = 1`, which leaves `mu` and
-  `sigma` reading directly as the mean and SD of promptness.
+``` r
 
-  ``` r
+f <- bf(
+  RT ~ Condition,
+  sigma ~ Condition,
+  ndt ~ Condition,
+  sigmabias = 0,   # no start-point variability: this is what makes it LATER
+  boundary = 1,    # absorbs the threshold, so mu and sigma are promptness
+  family = cogmod_lba1()
+)
 
-  f <- bf(
-    RT ~ Condition,
-    sigma ~ Condition,
-    ndt ~ Condition,
-    sigmabias = 0,   # no start-point variability: this is what makes it LATER
-    boundary = 1,    # absorbs the threshold, so mu and sigma are promptness
-    family = cogmod_lba1()
-  )
+m_recinormal <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
 
-  m_recinormal <- brm(
-    f,
-    data = df,
-    prior = cogmod_priors(f, df),
-    init = cogmod_inits(f, df),
-    stanvars = cogmod_stanvars(f),
-    chains = 4, iter = 500, backend = "cmdstanr"
-  )
+m_recinormal <- brms::add_criterion(m_recinormal, "loo")
+```
 
-  m_recinormal <- brms::add_criterion(m_recinormal, "loo")
-  ```
+#### Wald-4
 
 This mode corresponds to the Shifted Wald model with an extra parameter
 corresponding to the variability of the drift rate. That extra parameter
@@ -771,6 +762,8 @@ m_wald4 <- brm(
 m_wald4 <- brms::add_criterion(m_wald4, "loo")
 ```
 
+#### ExWald
+
 ``` r
 
 f <- bf(
@@ -792,6 +785,8 @@ m_exwald <- brm(
 
 m_exwald <- brms::add_criterion(m_exwald, "loo")
 ```
+
+#### Birnbaum-Saunders (BiSa)
 
 The Birnbaum-Saunders (or *fatigue life*) model is the Wald’s near
 neighbour, and it is stated in the same parameters - `mu` is a drift
@@ -828,6 +823,8 @@ m_bisa <- brm(
 m_bisa <- brms::add_criterion(m_bisa, "loo")
 ```
 
+#### LogStudent
+
 The LogStudent-*t* model varies kurtosis where LogGamma varies skew (see
 below). As dof grows the Student-*t* becomes the Normal, with lighter
 tails.
@@ -853,6 +850,8 @@ m_logstudent <- brm(
 
 m_logstudent <- brms::add_criterion(m_logstudent, "loo")
 ```
+
+#### Weibull
 
 This one is really slow, with bad convergence on our data, which is
 caused by the geometry of that model rather than an expensive density,
@@ -900,6 +899,8 @@ m_weibull <- brm(
 m_weibull <- brms::add_criterion(m_weibull, "loo")
 ```
 
+#### LogWeibull (Shifted Gumbel)
+
 ``` r
 
 f <- bf(
@@ -921,6 +922,8 @@ m_logweibull <- brm(
 m_logweibull <- brms::add_criterion(m_logweibull, "loo")
 ```
 
+#### Inverse Weibull (Shifted Fréchet)
+
 ``` r
 
 f <- bf(
@@ -941,6 +944,8 @@ m_invweibull <- brm(
 
 m_invweibull <- brms::add_criterion(m_invweibull, "loo")
 ```
+
+#### Gamma
 
 `mu` is the shape and `sigma` the scale of the Gamma decision time.
 Beyond being a convenient skewed shape, the Gamma also has a
@@ -969,6 +974,8 @@ m_gamma <- brm(
 
 m_gamma <- brms::add_criterion(m_gamma, "loo")
 ```
+
+#### Inverse Gamma
 
 ``` r
 
@@ -1354,22 +1361,21 @@ df_srt |>
 
 ### Model Selection
 
-- [Normal](#tabset-2-1)
-- [ExGaussian](#tabset-2-2)
+#### Normal
 
-&nbsp;
+``` r
 
-- ``` r
+f <- bf(RT ~ 1 + (1|Participant))
 
-  f <- bf(RT ~ 1 + (1|Participant))
+m_normal <- brm(f,
+  data = df_srt,
+  chains = 4, iter = 1250, warmup = 750, thin = 2, backend = "cmdstanr"
+)
 
-  m_normal <- brm(f,
-    data = df_srt,
-    chains = 4, iter = 1250, warmup = 750, thin = 2, backend = "cmdstanr"
-  )
+m_normal <- brms::add_criterion(m_normal, "loo")
+```
 
-  m_normal <- brms::add_criterion(m_normal, "loo")
-  ```
+#### ExGaussian
 
 ``` r
 

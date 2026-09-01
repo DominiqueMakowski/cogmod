@@ -340,6 +340,7 @@
 <span></span>
 <span><span class="va">m_wald</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_wald</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
+<p><img src="../reference/figures/animations/anim_wald.gif"></p>
 </section><section class="level3"><h3 id="linear-ballistic-accumulator">Linear Ballistic Accumulator<a class="anchor" aria-label="anchor" href="#linear-ballistic-accumulator"></a>
 </h3>
 <p>The LBA is normally a <em>race</em>: one accumulator per response option, each rising linearly and ballistically - no within-trial noise - from a start point drawn uniformly on <code>[0, A]</code> at a drift rate drawn from a normal, until one of them reaches the threshold <code>b</code>. The first to arrive determines both the response and the RT. With no choice to model there is nothing to race, so what is used here is the <strong>single-accumulator</strong> version: the RT is simply that one accumulator’s finishing time, <code>(b - start) / drift</code>, plus non-decision time. All of the RT variability therefore comes from across-trial variability in the start point (<code>sigmabias</code>, the <code>A</code> above) and in the drift rate, rather than from moment-to-moment noise within the trial.</p>
@@ -370,20 +371,8 @@
 </section><section class="level3"><h3 id="other-models">Other Models<a class="anchor" aria-label="anchor" href="#other-models"></a>
 </h3>
 <p>Note that the families presented below have not been used nearly as often in the RT literature as the ones above, and their properties in this context are correspondingly less well documented. They are nonetheless capable of generating close fits to RT data, and more research is needed to establish whether they offer any real advantage - in terms of fit, of interpretability, or of computational behaviour - over the more established options.</p>
-<div class="panel-tabset">
-<ul id="tabset-1" class="panel-tabset-tabby">
-<li><a data-tabby-default="" href="#tabset-1-1">Recinormal (LATER)</a></li>
-<li><a href="#tabset-1-2">Wald-4</a></li>
-<li><a href="#tabset-1-3">ExWald</a></li>
-<li><a href="#tabset-1-4">Birnbaum-Saunders (BiSa)</a></li>
-<li><a href="#tabset-1-5">LogStudent</a></li>
-<li><a href="#tabset-1-6">Weibull</a></li>
-<li><a href="#tabset-1-7">LogWeibull (Shifted Gumbel)</a></li>
-<li><a href="#tabset-1-8">Inverse Weibull (Shifted Fréchet)</a></li>
-<li><a href="#tabset-1-9">Gamma</a></li>
-<li><a href="#tabset-1-10">Inverse Gamma</a></li>
-</ul>
-<ul class="nav nav-tabs" id="NA" role="tablist"><li role="presentation" class="nav-item"><button data-bs-toggle="tab" data-bs-target="#NA" id="NA-tab" type="button" role="tab" aria-controls="NA" aria-selected="true" class="active nav-link">
+<section class="level4"><h4 id="recinormal-later">Recinormal (LATER)<a class="anchor" aria-label="anchor" href="#recinormal-later"></a>
+</h4>
 <p>The <strong>recinormal</strong> (reciprocal-of-normal) distribution is at the basis of the <strong>LATER</strong> model - Linear Approach To Threshold with Ergodic Rate: if the rate of linear accumulation varies normally from trial to trial, then <code>1 / RT</code> is normally distributed, so RT itself is recinormal. This idea is in fact <em>older</em> than most sequential-sampling models. Carpenter proposed it in 1981, then formalized it with Williams in <a href="https://doi.org/10.1038/377059a0" class="external-link">1995</a>, after noticing that the usual skewed RT histogram never matched any standard statistical distribution, and reasoning that since RT is the outcome of a <em>rate</em> process - a signal rising to threshold, like a reaction reaching completion - it made more sense to model the variability in that underlying rate than to keep fitting shapes to its result. Switching the analysis from RT to <code>1 / RT</code> and finding a clean Gaussian was the payoff of that reframing.</p>
 <p>In the terms of the previous section, this is exactly where the LBA was heading: set the start-point range <code>sigmabias</code> to zero and the accumulator starts from the same place on <em>every</em> trial, so the only thing left varying is the rate of rise. The decision time is then simply <code>b / rate</code>, and a normally distributed rate makes <code>1 / (RT - ndt)</code> normally distributed in turn. (The <code>- ndt</code> is the one refinement on the classical statement above: any time spent on encoding and motor execution is not part of the rate process, so it has to come off before the reciprocal is taken.)</p>
 <p>What makes LATER attractive is that its two parameters are directly interpretable, and interpretable as something you can <em>see</em>, often called <strong>promptness</strong> - how quickly the response comes, rather than how long it takes - and <code>mu</code> and <code>sigma</code> are simply its mean and standard deviation. This is what a <em>reciprobit</em> plot displays: promptness on a probit axis, on which a LATER model is a straight line, <code>mu</code> sets its position and <code>sigma</code> its slope. Carpenter’s central claim is read off exactly that plot - manipulating the prior probability of a stimulus shifts the line sideways (a change in <code>mu</code>, the rate of rise), while manipulating urgency swivels it about its intercept (a change in the threshold).</p>
@@ -411,10 +400,8 @@
 <span></span>
 <span><span class="va">m_recinormal</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_recinormal</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</button></li></ul>
-<div class="tab-content"><div class="active  tab-pane" id="NA" role="tabpanel" aria-labelledby="NA-tab">
-
-<div id="tabset-1-2">
+</section><section class="level4"><h4 id="wald-4">Wald-4<a class="anchor" aria-label="anchor" href="#wald-4"></a>
+</h4>
 <p>This mode corresponds to the Shifted Wald model with an extra parameter corresponding to the variability of the drift rate. That extra parameter makes it a <strong>hybrid of the Wald and LATER models</strong>: it is the only one here carrying <em>both</em> sources of randomness. The Wald has moment-to-moment noise within the trial and a drift rate that is the same on every trial; LATER has no within-trial noise at all and puts all of the variability into a drift rate that is redrawn each trial; Wald-4 has both at once, and each is nested inside it. Set <code>sigmadrift = 0</code> and the across-trial variability disappears, leaving the plain Wald exactly. Push the other way - letting the accumulated evidence grow large relative to the diffusion noise, which here means scaling <code>mu</code>, <code>boundary</code> and <code>sigmadrift</code> up together - and the within-trial noise becomes negligible, leaving the recinormal of the previous section. That second limit is approached rather than reached (the relative error falls off as the square of the scaling factor), so it is not something you fix in the formula, but it is worth knowing it is there: it means that large values of all three parameters describe very nearly the same distribution as small ones, which is a ridge, and part of why <code><a href="../reference/cogmod_priors.html">cogmod_priors()</a></code> puts a prior on <code>sigmadrift</code>.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb13"><pre class="downlit sourceCode r">
@@ -437,8 +424,8 @@
 <span></span>
 <span><span class="va">m_wald4</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_wald4</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</div>
-<div id="tabset-1-3">
+</section><section class="level4"><h4 id="exwald">ExWald<a class="anchor" aria-label="anchor" href="#exwald"></a>
+</h4>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -460,8 +447,8 @@
 <span></span>
 <span><span class="va">m_exwald</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_exwald</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</div>
-<div id="tabset-1-4">
+</section><section class="level4"><h4 id="birnbaum-saunders-bisa">Birnbaum-Saunders (BiSa)<a class="anchor" aria-label="anchor" href="#birnbaum-saunders-bisa"></a>
+</h4>
 <p>The Birnbaum-Saunders (or <em>fatigue life</em>) model is the Wald’s near neighbour, and it is stated in the same parameters - <code>mu</code> is a drift rate and <code>boundary</code> a threshold in both - so the only thing that differs between them is <em>how</em> the evidence arrives. Where the Wald accumulates by diffusion, and evidence can move either way at any instant, here it arrives in discrete cycles that only ever push towards the boundary: what is random is the <strong>size</strong> of each increment, never its sign.</p>
 <p>The result is an equal mixture of a Wald and that Wald’s length-biased version, which makes it slower and more dispersed than the Wald at the same parameters while keeping the same exponential-order right tail. It has no extra parameter to pay for that, and the density is closed form throughout.</p>
 <div class="cell">
@@ -484,8 +471,8 @@
 <span></span>
 <span><span class="va">m_bisa</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_bisa</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</div>
-<div id="tabset-1-5">
+</section><section class="level4"><h4 id="logstudent">LogStudent<a class="anchor" aria-label="anchor" href="#logstudent"></a>
+</h4>
 <p>The LogStudent-<em>t</em> model varies kurtosis where LogGamma varies skew (see below). As dof grows the Student-<em>t</em> becomes the Normal, with lighter tails.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb16"><pre class="downlit sourceCode r">
@@ -508,8 +495,8 @@
 <span></span>
 <span><span class="va">m_logstudent</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_logstudent</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</div>
-<div id="tabset-1-6">
+</section><section class="level4"><h4 id="weibull">Weibull<a class="anchor" aria-label="anchor" href="#weibull"></a>
+</h4>
 <p>This one is really slow, with bad convergence on our data, which is caused by the geometry of that model rather than an expensive density, and it applies to the Gamma too. Near the shift the Weibull density behaves like <code>(RT - ndt)^(mu - 1)</code>, where <code>mu</code> is the shape. Differentiating the outlier mixture with respect to <code>ndt</code> therefore leaves a term in <code>(RT - ndt)^(mu - 2)</code>, which is <strong>unbounded at every observation whenever mu (the shape) is below 2</strong>. The posterior is still proper - the outlier component sees to that - but the gradient spikes wherever <code>ndt</code> sits close to a response, and on these data it sits at 0.40 s, right inside the dense left edge where consecutive responses are a millisecond or two apart.</p>
 <p>The obvious remedies do not work, and it is worth knowing why before reaching for them. A prior on <code>mu</code> (the shape) or <code>ndt</code> don’t help. Fixing <code>ndt</code> at the fastest observed response would work by removing the parameter, but it introduces a false rigid assumption about one fo the key parameters.</p>
 <p>The slow sampling and bad convergence is here a sign of a bad fit (as shown below). What the sampler is struggling with is the model contorting itself to represent a left edge it cannot otherwise reach. That is not a reason to write the Weibull off for reaction times in general: there can be cases where it is perfectly well behaved, just not in our data.</p>
@@ -533,8 +520,8 @@
 <span></span>
 <span><span class="va">m_weibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_weibull</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</div>
-<div id="tabset-1-7">
+</section><section class="level4"><h4 id="logweibull-shifted-gumbel">LogWeibull (Shifted Gumbel)<a class="anchor" aria-label="anchor" href="#logweibull-shifted-gumbel"></a>
+</h4>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -555,8 +542,8 @@
 <span></span>
 <span><span class="va">m_logweibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_logweibull</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</div>
-<div id="tabset-1-8">
+</section><section class="level4"><h4 id="inverse-weibull-shifted-fréchet">Inverse Weibull (Shifted Fréchet)<a class="anchor" aria-label="anchor" href="#inverse-weibull-shifted-fr%C3%A9chet"></a>
+</h4>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -577,8 +564,8 @@
 <span></span>
 <span><span class="va">m_invweibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_invweibull</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</div>
-<div id="tabset-1-9">
+</section><section class="level4"><h4 id="gamma">Gamma<a class="anchor" aria-label="anchor" href="#gamma"></a>
+</h4>
 <p><code>mu</code> is the shape and <code>sigma</code> the scale of the Gamma decision time. Beyond being a convenient skewed shape, the Gamma also has a first-passage-time reading, as the hitting time of an accumulator whose starting point varies across trials - see <a href="https://doi.org/10.1007/s11571-019-09532-1" class="external-link">Tejo et al. (2019)</a> for a discussion.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb20"><pre class="downlit sourceCode r">
@@ -600,8 +587,8 @@
 <span></span>
 <span><span class="va">m_gamma</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_gamma</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</div>
-<div id="tabset-1-10">
+</section><section class="level4"><h4 id="inverse-gamma">Inverse Gamma<a class="anchor" aria-label="anchor" href="#inverse-gamma"></a>
+</h4>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -622,10 +609,7 @@
 <span></span>
 <span><span class="va">m_invgamma</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_invgamma</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</div>
-</div></div>
-</div>
-</section><section class="level3"><h3 id="loggamma">LogGamma<a class="anchor" aria-label="anchor" href="#loggamma"></a>
+</section></section><section class="level3"><h3 id="loggamma">LogGamma<a class="anchor" aria-label="anchor" href="#loggamma"></a>
 </h3>
 <p>Every model above commits to a distributional shape in advance: fitting a Weibull asserts a Weibull, and the only way to ask whether that was the right choice is to fit the alternatives separately and rank them. The LogGamma is different in kind, because it carries a free <code>shape</code> parameter that indexes a <em>continuum</em> running through those families rather than picking one of them. At <code>shape = 0</code> it is exactly the shifted LogNormal; at <code>shape = 1</code> the Weibull; at <code>shape = sigma</code> the Gamma; at <code>shape = -1</code> the inverse Weibull. Values in between interpolate smoothly, with the right tail thinning monotonically as <code>shape</code> increases - power-law for negative values, lognormal at zero, and progressively lighter than the Weibull above one. It is the shifted LogNormal with the shape assumption relaxed rather than assumed.</p>
 <p>This makes it useful as an exploratory step even when it is not the model you intend to report. Rather than fitting five families and comparing them with <code>loo</code> - a non-nested comparison that returns a ranking but no interpretable quantity - you can fit this one and read the posterior of <code>shape</code> directly. An interval comfortably covering 0 is evidence that the LogNormal is adequate and the simpler model can be preferred; an interval around 1 points to the Weibull instead; mass well below 0 says the right tail is heavier than any of them. Because <code>shape</code> accepts predictors like any other distributional parameter, you can also ask whether the <em>shape</em> of the RT distribution itself shifts between conditions, and not merely its location and scale.</p>
@@ -979,12 +963,8 @@
 </div>
 <section class="level3"><h3 id="model-selection">Model Selection<a class="anchor" aria-label="anchor" href="#model-selection"></a>
 </h3>
-<div class="panel-tabset">
-<ul id="tabset-2" class="panel-tabset-tabby">
-<li><a data-tabby-default="" href="#tabset-2-1">Normal</a></li>
-<li><a href="#tabset-2-2">ExGaussian</a></li>
-</ul>
-<ul class="nav nav-tabs" id="NA" role="tablist"><li role="presentation" class="nav-item"><button data-bs-toggle="tab" data-bs-target="#NA" id="NA-tab" type="button" role="tab" aria-controls="NA" aria-selected="true" class="active nav-link">
+<section class="level4"><h4 id="normal">Normal<a class="anchor" aria-label="anchor" href="#normal"></a>
+</h4>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb29"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span><span class="va">RT</span> <span class="op">~</span> <span class="fl">1</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span><span class="op">|</span><span class="va">Participant</span><span class="op">)</span><span class="op">)</span></span>
@@ -996,10 +976,8 @@
 <span></span>
 <span><span class="va">m_normal</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_normal</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</button></li></ul>
-<div class="tab-content"><div class="active  tab-pane" id="NA" role="tabpanel" aria-labelledby="NA-tab">
-
-<div id="tabset-2-2">
+</section><section class="level4"><h4 id="exgaussian-1">ExGaussian<a class="anchor" aria-label="anchor" href="#exgaussian-1"></a>
+</h4>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb30"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -1019,10 +997,7 @@
 <span></span>
 <span><span class="va">m_exgauss</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_exgauss</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</div>
-</div></div>
-</div>
-<section class="level4"><h4 id="model-comparison-1">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison-1"></a>
+</section><section class="level4"><h4 id="model-comparison-1">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison-1"></a>
 </h4>
 </section></section></section><script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
