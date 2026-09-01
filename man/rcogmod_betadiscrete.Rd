@@ -95,11 +95,24 @@ Beta model -- directly in \code{brms::bf()} (as is done for \code{pmid} in \code
 \item{...}{Additional arguments.}
 }
 \value{
-\code{dcogmod_betadiscrete()} returns the probability mass; \code{pcogmod_betadiscrete()}
-returns the cumulative probability; \code{qcogmod_betadiscrete()} returns the
-quantile (an integer between 0 and \code{k}); \code{rcogmod_betadiscrete()} returns
-simulated ratings. All are vectorized over \code{x}/\code{q}/\code{p}, \code{mu}, \code{phi},
-\code{pzero} and \code{k}.
+\code{dcogmod_betadiscrete()} returns the probability mass;
+\code{pcogmod_betadiscrete()} returns the cumulative probability;
+\code{qcogmod_betadiscrete()} returns the quantile (an integer between 0 and
+\code{k}); \code{rcogmod_betadiscrete()} returns simulated ratings. All are numeric
+vectors, vectorized over \code{x}/\code{q}/\code{p}, \code{mu}, \code{phi}, \code{pzero} and \code{k}.
+\code{cogmod_betadiscrete()} returns a \code{brms::custom_family} object, to put on
+a \code{brms::bf()} formula. \code{cogmod_betadiscrete_stanvars()} returns a
+\code{brms::stanvars} object holding the family's Stan \code{functions} block, to
+pass to \code{brms::brm()}, and \code{cogmod_betadiscrete_lpmf_expose()} compiles
+that Stan code and returns it as an R function, for checking the mass
+function outside of a model. The remaining functions are \code{brms}
+post-processing methods, called by \code{brms} rather than directly:
+\code{log_lik_cogmod_betadiscrete()} returns a numeric vector holding one
+log-likelihood value per posterior draw for observation \code{i},
+\code{posterior_predict_cogmod_betadiscrete()} a draws x 1 matrix of ratings
+simulated for observation \code{i}, and
+\code{posterior_epred_cogmod_betadiscrete()} a draws x observations matrix of
+expected ratings.
 }
 \description{
 The Discrete Beta (DBT) distribution models ordinal rating data on a fixed
@@ -162,10 +175,10 @@ i.e., \code{vint(N - 1)} and estimate \code{pzero}.
 \examples{
 x <- 1:10
 probs <- dcogmod_betadiscrete(x, mu = 0.66, phi = 3.51, k = 10)
-# barplot(probs, names.arg = x)
+barplot(probs, names.arg = x)
 
 y <- rcogmod_betadiscrete(1000, mu = 0.66, phi = 3.51, k = 10)
-# hist(y, breaks = 0:10)
+hist(y, breaks = 0:10)
 
 # discrete Uniform special case
 dcogmod_betadiscrete(1:5, mu = 0.5, phi = 1, k = 5)
@@ -173,23 +186,31 @@ dcogmod_betadiscrete(1:5, mu = 0.5, phi = 1, k = 5)
 # hurdle at zero: 20\% chance of a 0, otherwise pure Discrete Beta
 dcogmod_betadiscrete(0:5, mu = 0.66, phi = 3.51, k = 5, pzero = 0.2)
 
-# You can expose the lpmf function as follows:
-# cogmod_betadiscrete_lpmf <- cogmod_betadiscrete_lpmf_expose()
-# cogmod_betadiscrete_lpmf(y = 7, mu = 0.66, phi = 3.51, pzero = 0, k = 10)
+\donttest{
+# Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+# which live outside CRAN - see the package website to install them.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  lpmf <- cogmod_betadiscrete_lpmf_expose()
+  lpmf(y = 7, mu = 0.66, phi = 3.51, pzero = 0, k = 10)
+}
+}
 
 # Fitting with brms. Because `k` is fixed data rather than a distributional
 # parameter, it is passed through the brms::vint() addition term. Put the
 # family on the formula, and cogmod_stanvars() supplies the Stan code for it.
-# f <- brms::bf(rating | vint(k) ~ predictor, family = cogmod_betadiscrete())
-# fit <- brms::brm(f, data = data, stanvars = cogmod_stanvars(f))
+f <- brms::bf(rating | vint(k) ~ predictor, family = cogmod_betadiscrete())
+cogmod_stanvars(f)
 
 # To also model the hurdle probability (e.g., proportion of zero ratings):
-# f <- brms::bf(rating | vint(k) ~ predictor, pzero ~ predictor,
-#               family = cogmod_betadiscrete())
+brms::bf(rating | vint(k) ~ predictor, pzero ~ predictor,
+  family = cogmod_betadiscrete()
+)
 
 # To fix pzero at exactly 0, e.g. because your scale has no hurdle:
-# f <- brms::bf(rating | vint(k) ~ predictor, pzero = 0,
-#               family = cogmod_betadiscrete())
+brms::bf(rating | vint(k) ~ predictor, pzero = 0,
+  family = cogmod_betadiscrete()
+)
 
 }
 \references{

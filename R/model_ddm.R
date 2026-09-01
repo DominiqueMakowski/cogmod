@@ -186,6 +186,29 @@
 #'   \item{response}{The boundary reached, `1` for upper and `0` for lower,
 #'     matching the `dec()` coding used by the `brms` families.}
 #'
+#'   `dcogmod_ddm()` returns the defective density at each element of `x` - the
+#'   log density if `log = TRUE` - and `pcogmod_ddm()` the defective cumulative
+#'   probability at each element of `q`, both for the response given in
+#'   `response` and recycled to the length of the longest argument.
+#'   `cogmod_ddm()` returns a `brms::custom_family` object, to put on a
+#'   `brms::bf()` formula. `cogmod_ddm_stanvars()` returns a `brms::stanvars`
+#'   object holding the family's Stan `functions` block, to pass to
+#'   `brms::brm()`, and `cogmod_ddm_lpdf_expose()` compiles that Stan code and
+#'   returns it as an R function, for checking the density outside of a model.
+#'   The remaining functions are `brms` post-processing methods, called by
+#'   `brms` rather than directly: `log_lik_cogmod_ddm()` returns a numeric
+#'   vector holding one log-likelihood value per posterior draw for observation
+#'   `i`, `posterior_predict_cogmod_ddm()` a draws x 2 matrix of reaction times
+#'   and choices simulated for observation `i`, and
+#'   `posterior_epred_cogmod_ddm()` a draws x observations matrix of expected
+#'   reaction times (marginal over the two responses, and only approximate once
+#'   the between-trial variability parameters are non-zero).
+#'
+#' @references
+#' - Ratcliff, R., & McKoon, G. (2008). The diffusion decision model: Theory and
+#'     data for two-choice decision tasks. *Neural Computation*, *20*(4),
+#'     873-922. \doi{10.1162/neco.2008.12-06-420}
+#'
 #' @seealso [rcogmod_rdm()], [rcogmod_lba2()], [rcogmod_lnr()]
 #'
 #' @examples
@@ -261,9 +284,18 @@ dcogmod_ddm <- function(x, drift = 0, boundary = 1, bias = 0.5, ndt = 0.2,
 #' all: passing one is an error rather than a silently wrong number. Integrate
 #' [dcogmod_ddm()] over `q` if you need them.
 #'
+#' With a `response`, `pcogmod_ddm()` returns the **defective** CDF
+#' `P(RT <= q, choice = response)`, which does not reach one: its limit is the
+#' probability of that boundary, given by `pcogmod_ddm(Inf, response = k)`. The
+#' upper tail is then the matching defective survival
+#' `P(RT > q, choice = response)`, so the two add to that response's own
+#' probability rather than to one. Marginally (`response = NULL`) they add to
+#' one as usual. [pcogmod_rdm()] follows the same convention.
+#'
 #' @param q Vector of quantiles (reaction times, in seconds).
 #' @param lower.tail Logical; if TRUE (default) the probability is
-#'   `P(RT <= q)`, otherwise `P(RT > q)`.
+#'   `P(RT <= q)`, otherwise `P(RT > q)`. With a `response`, both are defective
+#'   - see Details.
 #' @param log.p Logical; if TRUE, probabilities are returned on the log scale.
 #' @export
 pcogmod_ddm <- function(q, drift = 0, boundary = 1, bias = 0.5, ndt = 0.2,
@@ -295,9 +327,28 @@ pcogmod_ddm <- function(q, drift = 0, boundary = 1, bias = 0.5, ndt = 0.2,
     g_out <- g_out / 2
   }
 
+  # The attainable mass, which is what the two tails have to add back up to.
+  # Marginally that is one; for a defective CDF it is the probability of that
+  # response, so `lower.tail = FALSE` gives the defective survival
+  # `P(RT > q, choice = response)` rather than `1 - P(RT <= q, choice =
+  # response)`. The latter is `P(RT > q OR choice != response)`, which is not a
+  # quantity anyone asks for - at `q = Inf` it returned the probability of the
+  # *other* response instead of zero. Same convention as `pcogmod_rdm()`.
+  #
+  # `.ddm_plower()` is the limit `.ddm_cdf_lower()` itself takes at infinite
+  # time, so the total is built the same way as the two defective CDFs above.
+  if (is.null(response)) {
+    total <- 1
+  } else {
+    p_lo <- .ddm_plower(params$mu, params$boundary, params$bias)
+    p_up <- .ddm_plower(-params$mu, params$boundary, 1 - params$bias)
+    total <- params$poutlier / 2 +
+      (1 - params$poutlier) * ifelse(params$response == 1, p_up, p_lo)
+  }
+
   out <- params$poutlier * g_out + (1 - params$poutlier) * dec
-  out <- pmin(pmax(out, 0), 1)
-  if (!lower.tail) out <- 1 - out
+  out <- pmin(pmax(out, 0), total)
+  if (!lower.tail) out <- total - out
   if (log.p) log(out) else out
 }
 
@@ -610,6 +661,9 @@ cogmod_ddm <- function(
 .ddm_ldens <- function(t, k, p) {
   tv <- as.vector(t)
   n <- length(tv)
+  # `brms::dwiener()` returns `list()` rather than `numeric(0)` on empty input,
+  # and that list then reaches the arithmetic in `.log_mix()`.
+  if (n == 0) return(numeric(0))
   rec <- function(v) rep_len(as.vector(v), n)
 
   pars <- list(
@@ -1020,14 +1074,17 @@ real cogmod_ddm_decision_lpdf(real t, real v, real boundary, real w,
 
 #' @rdname rcogmod_ddm
 #' @examples
-#' \dontrun{
-#' # You can expose the lpdf function as follows:
-#' insight::check_if_installed("cmdstanr")
-#' lpdf <- cogmod_ddm_lpdf_expose()
-#' lpdf(
-#'   Y = 0.5, mu = 0.5, boundary = 1, bias = 0.5, sigmadrift = 0,
-#'   sigmabias = 0, sigmandt = 0, ndt = 0.2, poutlier = 0.02, dec = 1
-#' )
+#' \donttest{
+#' # Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+#' # which live outside CRAN - see the package website to install them.
+#' if (requireNamespace("cmdstanr", quietly = TRUE) &&
+#'     !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+#'   lpdf <- cogmod_ddm_lpdf_expose()
+#'   lpdf(
+#'     Y = 0.5, mu = 0.5, boundary = 1, bias = 0.5, sigmadrift = 0,
+#'     sigmabias = 0, sigmandt = 0, ndt = 0.2, poutlier = 0.02, dec = 1
+#'   )
+#' }
 #' }
 #'
 #' @export

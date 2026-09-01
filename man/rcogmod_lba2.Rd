@@ -123,6 +123,23 @@ default is \code{NULL}, which defers to the flag carried on the model - see
 \item{rt}{The simulated reaction time.}
 \item{response}{The winning accumulator, coded \code{0} or \code{1}, matching the
 \code{dec()} coding used by the \code{brms} families.}
+
+\code{dcogmod_lba2()} returns the defective density at each element of \code{x} -
+the log density if \code{log = TRUE} - for the response given in \code{response},
+recycled to the length of the longest argument. \code{cogmod_lba2()} returns a
+\code{brms::custom_family} object, to put on a \code{brms::bf()} formula.
+\code{cogmod_lba2_stanvars()} returns a \code{brms::stanvars} object holding the
+family's Stan \code{functions} block, to pass to \code{brms::brm()}, and
+\code{cogmod_lba2_lpdf_expose()} compiles that Stan code and returns it as an R
+function, for checking the density outside of a model. The remaining
+functions are \code{brms} post-processing methods, called by \code{brms} rather than
+directly: \code{log_lik_cogmod_lba2()} returns a numeric vector holding one
+log-likelihood value per posterior draw for observation \code{i}, and
+\code{posterior_predict_cogmod_lba2()} a draws x 2 matrix of reaction times and
+choices simulated for observation \code{i}.
+\code{posterior_epred_cogmod_lba2()} returns nothing: the expected reaction
+time of a race has no closed form, so it errors rather than report one -
+summarise \code{posterior_predict()} draws instead.
 }
 \description{
 The Linear Ballistic Accumulator (LBA) treats a choice as a race between two
@@ -287,14 +304,17 @@ head(data)
 dcogmod_lba2(0.1, ndt = 0.2, response = 0, poutlier = 0.02)
 dcogmod_lba2(0.1, ndt = 0.2, response = 0, poutlier = 0)
 
-\dontrun{
-# You can expose the lpdf function as follows:
-insight::check_if_installed("cmdstanr")
-lpdf <- cogmod_lba2_lpdf_expose()
-lpdf(
-  Y = 0.5, mu = 3, driftone = 2, sigmazero = 1, sigmaone = 1,
-  sigmabias = 0.5, boundary = 0.5, ndt = 0.2, poutlier = 0.02, dec = 0
-)
+\donttest{
+# Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+# which live outside CRAN - see the package website to install them.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  lpdf <- cogmod_lba2_lpdf_expose()
+  lpdf(
+    Y = 0.5, mu = 3, driftone = 2, sigmazero = 1, sigmaone = 1,
+    sigmabias = 0.5, boundary = 0.5, ndt = 0.2, poutlier = 0.02, dec = 0
+  )
+}
 }
 
 }

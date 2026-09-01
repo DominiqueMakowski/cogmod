@@ -113,7 +113,10 @@ with the outlier component.}
 \item{q}{Vector of quantiles (reaction times, in seconds).}
 
 \item{lower.tail}{Logical; if TRUE (default) the probability is
-\code{P(RT <= q)}, otherwise \code{P(RT > q)}.}
+\code{P(RT <= q)}, otherwise \code{P(RT > q)}. With a \code{response}, both are defective
+\itemize{
+\item see Details.
+}}
 
 \item{log.p}{Logical; if TRUE, probabilities are returned on the log scale.}
 
@@ -145,6 +148,24 @@ the flag carried on the model - see \code{\link[=with_outliers]{with_outliers()}
 \item{rt}{The simulated reaction time.}
 \item{response}{The boundary reached, \code{1} for upper and \code{0} for lower,
 matching the \code{dec()} coding used by the \code{brms} families.}
+
+\code{dcogmod_ddm()} returns the defective density at each element of \code{x} - the
+log density if \code{log = TRUE} - and \code{pcogmod_ddm()} the defective cumulative
+probability at each element of \code{q}, both for the response given in
+\code{response} and recycled to the length of the longest argument.
+\code{cogmod_ddm()} returns a \code{brms::custom_family} object, to put on a
+\code{brms::bf()} formula. \code{cogmod_ddm_stanvars()} returns a \code{brms::stanvars}
+object holding the family's Stan \code{functions} block, to pass to
+\code{brms::brm()}, and \code{cogmod_ddm_lpdf_expose()} compiles that Stan code and
+returns it as an R function, for checking the density outside of a model.
+The remaining functions are \code{brms} post-processing methods, called by
+\code{brms} rather than directly: \code{log_lik_cogmod_ddm()} returns a numeric
+vector holding one log-likelihood value per posterior draw for observation
+\code{i}, \code{posterior_predict_cogmod_ddm()} a draws x 2 matrix of reaction times
+and choices simulated for observation \code{i}, and
+\code{posterior_epred_cogmod_ddm()} a draws x observations matrix of expected
+reaction times (marginal over the two responses, and only approximate once
+the between-trial variability parameters are non-zero).
 }
 \description{
 The Drift Diffusion Model (DDM) describes a two-choice decision as noisy
@@ -336,6 +357,14 @@ quadrature layer on top - and \code{sigmadrift}, which the density handles with 
 closed-form correction, has no such form here - so they are not arguments at
 all: passing one is an error rather than a silently wrong number. Integrate
 \code{\link[=dcogmod_ddm]{dcogmod_ddm()}} over \code{q} if you need them.
+
+With a \code{response}, \code{pcogmod_ddm()} returns the \strong{defective} CDF
+\code{P(RT <= q, choice = response)}, which does not reach one: its limit is the
+probability of that boundary, given by \code{pcogmod_ddm(Inf, response = k)}. The
+upper tail is then the matching defective survival
+\code{P(RT > q, choice = response)}, so the two add to that response's own
+probability rather than to one. Marginally (\code{response = NULL}) they add to
+one as usual. \code{\link[=pcogmod_rdm]{pcogmod_rdm()}} follows the same convention.
 }
 
 \examples{
@@ -349,16 +378,26 @@ head(data)
 dcogmod_ddm(0.1, ndt = 0.2, response = 1, poutlier = 0.02)
 dcogmod_ddm(0.1, ndt = 0.2, response = 1, poutlier = 0)
 
-\dontrun{
-# You can expose the lpdf function as follows:
-insight::check_if_installed("cmdstanr")
-lpdf <- cogmod_ddm_lpdf_expose()
-lpdf(
-  Y = 0.5, mu = 0.5, boundary = 1, bias = 0.5, sigmadrift = 0,
-  sigmabias = 0, sigmandt = 0, ndt = 0.2, poutlier = 0.02, dec = 1
-)
+\donttest{
+# Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+# which live outside CRAN - see the package website to install them.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  lpdf <- cogmod_ddm_lpdf_expose()
+  lpdf(
+    Y = 0.5, mu = 0.5, boundary = 1, bias = 0.5, sigmadrift = 0,
+    sigmabias = 0, sigmandt = 0, ndt = 0.2, poutlier = 0.02, dec = 1
+  )
+}
 }
 
+}
+\references{
+\itemize{
+\item Ratcliff, R., & McKoon, G. (2008). The diffusion decision model: Theory and
+data for two-choice decision tasks. \emph{Neural Computation}, \emph{20}(4),
+873-922. \doi{10.1162/neco.2008.12-06-420}
+}
 }
 \seealso{
 \code{\link[=rcogmod_rdm]{rcogmod_rdm()}}, \code{\link[=rcogmod_lba2]{rcogmod_lba2()}}, \code{\link[=rcogmod_lnr]{rcogmod_lnr()}}

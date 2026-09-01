@@ -103,6 +103,26 @@ default is \code{NULL}, which defers to the flag carried on the model - see
 
 \item{...}{Additional arguments.}
 }
+\value{
+\code{rcogmod_lnr()} returns a data frame with \code{n} rows and two columns,
+\code{rt} (the simulated reaction time, in seconds) and \code{response} (the
+boundary reached, \code{0} or \code{1}, matching the \code{dec()} coding used by the
+\code{brms} family). \code{dcogmod_lnr()} returns the defective density at each
+element of \code{x} - the log density if \code{log = TRUE} - recycled to the length
+of the longest argument. \code{cogmod_lnr()} returns a \code{brms::custom_family}
+object, to put on a \code{brms::bf()} formula. \code{cogmod_lnr_stanvars()} returns
+a \code{brms::stanvars} object holding the family's Stan \code{functions} block, to
+pass to \code{brms::brm()}, and \code{cogmod_lnr_lpdf_expose()} compiles that Stan
+code and returns it as an R function, for checking the density outside of
+a model. The remaining functions are \code{brms} post-processing methods,
+called by \code{brms} rather than directly: \code{log_lik_cogmod_lnr()} returns a
+numeric vector holding one log-likelihood value per posterior draw for
+observation \code{i}, and \code{posterior_predict_cogmod_lnr()} a draws x 2 matrix
+of reaction times and choices simulated for observation \code{i}.
+\code{posterior_epred_cogmod_lnr()} returns nothing: the expected reaction
+time of a race has no closed form, so it errors rather than report one -
+summarise \code{posterior_predict()} draws instead.
+}
 \description{
 The Log-Normal Race (LNR) model is useful for modeling reaction times and
 choices in decision-making tasks. Each choice option (accumulator) draws a
@@ -244,14 +264,17 @@ head(data)
 dcogmod_lnr(0.1, ndt = 0.2, response = 0, poutlier = 0.02)
 dcogmod_lnr(0.1, ndt = 0.2, response = 0, poutlier = 0)
 
-\dontrun{
-# You can expose the lpdf function as follows:
-insight::check_if_installed("cmdstanr")
-lpdf <- cogmod_lnr_lpdf_expose()
-lpdf(
-  Y = 0.5, mu = 0.5, nuone = 0.2, sigmazero = 1.0, sigmaone = 0.8,
-  ndt = 0.2, poutlier = 0.02, dec = 0
-)
+\donttest{
+# Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+# which live outside CRAN - see the package website to install them.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  lpdf <- cogmod_lnr_lpdf_expose()
+  lpdf(
+    Y = 0.5, mu = 0.5, nuone = 0.2, sigmazero = 1.0, sigmaone = 0.8,
+    ndt = 0.2, poutlier = 0.02, dec = 0
+  )
+}
 }
 
 }
@@ -260,5 +283,6 @@ lpdf(
 \item Rouder, J. N., Province, J. M., Morey, R. D., Gomez, P., & Heathcote, A. (2015).
 The lognormal race: A cognitive-process model of choice and latency with desirable
 psychometric properties. Psychometrika, 80(2), 491-513.
+\doi{10.1007/s11336-013-9396-3}
 }
 }

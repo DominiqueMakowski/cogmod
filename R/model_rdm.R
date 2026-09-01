@@ -11,7 +11,9 @@
 #' Functions:
 #' - `rcogmod_rdm()`: Simulates random draws from the RDM.
 #' - `dcogmod_rdm()`: Computes the density (likelihood).
-#' - `pcogmod_rdm()`: Computes the CDF of the reaction time.
+#' - `pcogmod_rdm()`: Computes the CDF of the reaction time, marginally over the
+#'   choice or defectively for one response.
+#' - `qcogmod_rdm()`: Computes the corresponding quantiles.
 #' - `cogmod_rdm()`: Creates a `brms::custom_family()` for use in `brms` models.
 #' - `cogmod_rdm_stanvars()`: Generates the `stanvars` to pass to `brm()`.
 #' - `p_outlier()`: Per-trial posterior probability of being an outlier.
@@ -43,6 +45,13 @@
 #' accumulator that never responds: driftless Brownian motion still reaches any
 #' positive level with probability one, so a zero-drift accumulator is slow but
 #' still finishes, and can still win the race.
+#'
+#' A start-point range of **exactly zero is allowed** too, and is a model rather
+#' than a degenerate parameter: both accumulators then start at `0` on every
+#' trial and the race is between two plain Walds - equation 2 of Tillman et al.
+#' (2020), which is the limit the density already takes. [cogmod_lba1()] and
+#' [cogmod_lba2()] have always allowed it. Note that this does not make the
+#' `sigmabias` direction any better identified - see Fitting below.
 #'
 #' `ndt` is expressed **directly, in seconds** (through a log link in the `brms`
 #' family). Nothing about it is taken from the data: it is not bounded by the
@@ -126,6 +135,8 @@
 #' `sigmabias -> 0` ridge (the plain Wald race) and produce divergent
 #' transitions, and a `softplus` link reaches zero only at minus infinity - a
 #' flat prior over an unbounded flat region, which is an improper posterior.
+#' That the endpoint is now a legal parameter value does not help: the link
+#' never reaches it, so the flat direction is as long as it ever was.
 #' [cogmod_priors()] fences both off, exactly as it does for [cogmod_lba1()],
 #' which shares this parameterisation.
 #'
@@ -153,8 +164,10 @@
 #' @param boundary Threshold offset, `boundary = b - bias`, where `b` is the
 #'   decision threshold and `bias` the maximum starting point. Must be positive.
 #' @param bias Maximum starting point. The starting point of each accumulator on
-#'   each trial is drawn from `Uniform(0, bias)`. Must be positive. Called
-#'   `sigmabias` in the `brms` family, to match [cogmod_lba2()].
+#'   each trial is drawn from `Uniform(0, bias)`. Must be non-negative; zero is
+#'   allowed and gives the plain Wald race, in which both accumulators start at
+#'   `0` on every trial. Range: `[0, Inf)`. Called `sigmabias` in the `brms`
+#'   family, to match [cogmod_lba2()].
 #' @param ndt Non-decision time (shift parameter), in seconds. Represents the
 #'   time taken for processes unrelated to the decision (e.g., encoding, motor
 #'   response). Must be non-negative. Range: `[0, Inf)`.
@@ -166,6 +179,26 @@
 #'   \item{rt}{The simulated reaction time.}
 #'   \item{response}{The winning accumulator, coded `0` for `vzero` and `1` for
 #'     `vone`, matching the `dec()` coding used by the `brms` families.}
+#'
+#'   `dcogmod_rdm()` returns the density at each element of `x` - the log
+#'   density if `log = TRUE` - `pcogmod_rdm()` the cumulative probability at
+#'   each element of `q`, and `qcogmod_rdm()` the quantile at each element of
+#'   `p`, in seconds. With a `response` the latter two are defective, i.e.
+#'   scaled to that response's own probability rather than to one. All are
+#'   numeric vectors, recycled to the length of the longest argument.
+#'   `cogmod_rdm()` returns a `brms::custom_family` object, to put on a
+#'   `brms::bf()` formula. `cogmod_rdm_stanvars()` returns a `brms::stanvars`
+#'   object holding the family's Stan `functions` block, to pass to
+#'   `brms::brm()`, and `cogmod_rdm_lpdf_expose()` compiles that Stan code and
+#'   returns it as an R function, for checking the density outside of a model.
+#'   The remaining functions are `brms` post-processing methods, called by
+#'   `brms` rather than directly: `log_lik_cogmod_rdm()` returns a numeric
+#'   vector holding one log-likelihood value per posterior draw for observation
+#'   `i`, and `posterior_predict_cogmod_rdm()` a draws x 2 matrix of reaction
+#'   times and choices simulated for observation `i`.
+#'   `posterior_epred_cogmod_rdm()` returns nothing: the expected reaction time
+#'   of a race has no closed form, so it errors rather than report one -
+#'   summarise `posterior_predict()` draws instead.
 #'
 #' @references
 #' - Michael, J. R., Schucany, W. R., & Haas, R. W. (1976). Generating Random Variates Using
@@ -191,6 +224,16 @@
 #' # Responses faster than ndt keep positive density, unlike the unmixed model
 #' dcogmod_rdm(0.1, ndt = 0.2, response = 0, poutlier = 0.02)
 #' dcogmod_rdm(0.1, ndt = 0.2, response = 0, poutlier = 0)
+#'
+#' # Defective CDF of one response: at q = Inf it is that response's probability
+#' pcogmod_rdm(c(0.4, 0.6, Inf), vzero = 2.5, vone = 1.6, response = 0)
+#'
+#' # The RT quantiles of each response, for a quantile-probability plot
+#' sapply(0:1, function(k) {
+#'   qcogmod_rdm(c(0.1, 0.3, 0.5, 0.7, 0.9),
+#'     vzero = 2.5, vone = 1.6, response = k, scale_p = TRUE
+#'   )
+#' })
 #'
 #' @export
 rcogmod_rdm <- function(n, vzero = 3, vone = 2, boundary = 0.5, bias = 0.2,
@@ -232,23 +275,41 @@ dcogmod_rdm <- function(x, vzero = 3, vone = 2, boundary = 0.5, bias = 0.2,
 #' @rdname rcogmod_rdm
 #' @param q Vector of quantiles (reaction times).
 #' @param lower.tail If `TRUE` (default) return `P(RT <= q)`, otherwise the
-#'   survival `P(RT > q)`.
+#'   survival `P(RT > q)`. With a `response`, both are defective - see Details.
 #' @param log.p If `TRUE`, probabilities are returned on the log scale.
 #' @details
-#' `pcogmod_rdm()` describes the RT of the trial as a whole - whichever
-#' accumulator wins, and whether or not the trial came from the outlier
-#' component - since `P(min(T0, T1) > q) = S0(q) * S1(q)`. There is no comparably
-#' simple closed form for the per-response defective CDF, so `pcogmod_rdm()`
-#' takes no `response` argument.
+#' `pcogmod_rdm()` with `response = NULL` (the default) describes the RT of the
+#' trial as a whole - whichever accumulator wins, and whether or not the trial
+#' came from the outlier component - since `P(min(T0, T1) > q) = S0(q) * S1(q)`.
+#' That is a closed form and is exact.
+#'
+#' With a `response`, it returns the **defective** CDF
+#' `P(RT <= q, choice = response)`, which is what a defective-CDF or
+#' quantile-probability plot needs. It does not reach one: its limit is the
+#' probability of that response, which `pcogmod_rdm(Inf, response = k)` gives.
+#' There is no closed form for it, so it is obtained by quadrature over the
+#' defective density: accurate to about `1e-8` rather than to machine precision,
+#' and about ten times slower per element (roughly 3 ms against 0.3 ms), since
+#' the marginal is a vectorised closed form and this is a loop.
+#' `lower.tail = FALSE` integrates the upper side directly rather than
+#' subtracting, so the defective survival stays accurate into the tail.
 #' @export
 pcogmod_rdm <- function(q, vzero = 3, vone = 2, boundary = 0.5, bias = 0.2,
-                        ndt = 0.2, poutlier = 0, lower.tail = TRUE, log.p = FALSE) {
-  # `response` is required alongside `x`, but plays no part in the RT
-  # distribution marginally over the choice, so a placeholder goes in and is
-  # never read.
-  params <- .prepare_choice("cogmod_rdm", x = q, response = 0, ndt = ndt,
-                            poutlier = poutlier, mu = vzero, driftone = vone,
+                        ndt = 0.2, poutlier = 0, response = NULL,
+                        lower.tail = TRUE, log.p = FALSE) {
+  # `response` is required alongside `x` by `.prepare_choice()`, but plays no
+  # part in the RT distribution marginally over the choice, so a placeholder
+  # goes in and is never read.
+  params <- .prepare_choice("cogmod_rdm", x = q,
+                            response = if (is.null(response)) 0 else response,
+                            ndt = ndt, poutlier = poutlier,
+                            mu = vzero, driftone = vone,
                             sigmabias = bias, boundary = boundary)
+
+  if (!is.null(response)) {
+    pr <- .rdm_pdefective(params, lower.tail = lower.tail)
+    return(if (log.p) log(pr) else pr)
+  }
 
   # Survival of the race: P(min(T0, T1) > q) = S0(q) * S1(q), carried in log
   # space because each factor underflows to exactly zero long before the product
@@ -265,9 +326,111 @@ pcogmod_rdm <- function(q, vzero = 3, vone = 2, boundary = 0.5, bias = 0.2,
                                     lower.tail = FALSE, log.p = TRUE)
   logS_out[params$x <= 0] <- 0
 
-  logS <- .log_mix(params$poutlier, logS_out, logS_dec)
+  # Clamped because a survival cannot exceed one: at `q <= 0` both components
+  # are exactly log(1), and `.log_mix()` lands 2e-17 above zero there rather
+  # than on it, which turns `.log1m_exp()` into NaN instead of the -Inf it
+  # should be.
+  logS <- pmin(.log_mix(params$poutlier, logS_out, logS_dec), 0)
   out <- if (lower.tail) .log1m_exp(logS) else logS
+  # `.log_mix()` sends a missing value to -Inf, which would surface here as a
+  # CDF of exactly 1 - the one answer a missing input must not give. The
+  # defective branch above propagates NA, so this one has to as well.
+  out[is.na(params$x)] <- NA_real_
   if (log.p) out else exp(out)
+}
+
+
+#' @rdname rcogmod_rdm
+#' @param p Vector of probabilities. With `response = NULL` these are ordinary
+#'   probabilities of the marginal RT distribution. With a `response` they are
+#'   read off the *defective* CDF unless `scale_p = TRUE`, so they must be below
+#'   the probability of that response; anything above it has no quantile and
+#'   comes back `NA` with a warning.
+#' @param scale_p Logical. If `TRUE`, `p` is taken as a fraction of the chosen
+#'   response's own probability rather than of the whole distribution, so that
+#'   `p = 0.5` is that response's median. This is what a quantile-probability
+#'   plot wants. Ignored when `response` is `NULL`. Default `FALSE`.
+#' @param interval Length-2 numeric giving the initial bracket, in seconds, for
+#'   the root search. The upper end is doubled until it covers the requested
+#'   probability, so this only affects speed.
+#' @details
+#' `qcogmod_rdm()` inverts `pcogmod_rdm()` by root-finding, and so inherits its
+#' quadrature error where a `response` is given. It is the natural way to get
+#' the RT quantiles of each response for a quantile-probability plot: ask for
+#' `p = c(0.1, 0.3, 0.5, 0.7, 0.9)` with `scale_p = TRUE`, once per response.
+#' @export
+qcogmod_rdm <- function(p, vzero = 3, vone = 2, boundary = 0.5, bias = 0.2,
+                        ndt = 0.2, poutlier = 0, response = NULL,
+                        scale_p = FALSE, lower.tail = TRUE, log.p = FALSE,
+                        interval = c(0, 10)) {
+  if (log.p) p <- exp(p)
+  if (!lower.tail) p <- 1 - p
+  params <- .prepare_choice("cogmod_rdm", x = p,
+                            response = if (is.null(response)) 0 else response,
+                            ndt = ndt, poutlier = poutlier,
+                            mu = vzero, driftone = vone,
+                            sigmabias = bias, boundary = boundary)
+  if (!is.numeric(interval) || length(interval) != 2 || anyNA(interval) ||
+      interval[1] < 0 || interval[2] <= interval[1]) {
+    stop("`interval` must be two increasing non-negative numbers.",
+         call. = FALSE)
+  }
+
+  cdf <- function(q, i) {
+    one <- lapply(params[.RDM_PAR_NAMES], function(v) v[i])
+    one$x <- q
+    if (is.null(response)) {
+      # The closed form, reached through the same argument path users take.
+      do.call(pcogmod_rdm, list(q = q, vzero = one$mu, vone = one$driftone,
+                                boundary = one$boundary, bias = one$sigmabias,
+                                ndt = one$ndt, poutlier = one$poutlier))
+    } else {
+      .rdm_pdefective(one, lower.tail = TRUE)
+    }
+  }
+
+  m <- params$ndraws
+  out <- rep(NA_real_, m)
+  if (m == 0) return(out)
+  target <- params$x
+
+  # The attainable mass. One is exact for the marginal; for a defective CDF it
+  # is that response's probability, and it costs one more quadrature call.
+  pmax_i <- if (is.null(response)) rep(1, m) else vapply(seq_len(m), function(i)
+    cdf(Inf, i), numeric(1))
+
+  if (scale_p && !is.null(response)) target <- target * pmax_i
+
+  bad <- is.na(target) | target < 0 | target > 1
+  over <- !bad & target > pmax_i
+  if (any(over)) {
+    warning("`p` exceeds the attainable probability for ",
+            if (is.null(response)) "the distribution" else "this response",
+            "; returning NA.", call. = FALSE)
+  }
+  out[!bad & target <= 0] <- 0
+  # The supremum is only reached in the limit, so ask for it and get Inf back
+  # rather than whatever finite number the root search happened to stop at.
+  out[!bad & !over & target >= pmax_i] <- Inf
+
+  todo <- which(!bad & !over & target > 0 & target < pmax_i)
+  for (i in todo) {
+    lo <- interval[1]
+    hi <- interval[2]
+    # Double the bracket rather than trusting the default: `ndt` alone can sit
+    # above it, and a slow accumulator's upper quantiles run well past 10 s.
+    tries <- 0L
+    while (cdf(hi, i) < target[i] && tries < 40L) {
+      lo <- hi
+      hi <- hi * 2
+      tries <- tries + 1L
+    }
+    if (cdf(hi, i) < target[i]) next # left as NA; unreachable in practice
+    out[i] <- stats::uniroot(function(z) cdf(z, i) - target[i],
+                             lower = lo, upper = hi,
+                             tol = .Machine$double.eps^0.5)$root
+  }
+  out
 }
 
 
@@ -646,7 +809,7 @@ cogmod_rdm <- function(
     is.na(bias) |
     is.na(ndt) |
     (boundary <= 0) |
-    (bias <= 0) |
+    (bias < 0) |
     (ndt < 0)
 
   ok <- !invalid
@@ -687,7 +850,7 @@ cogmod_rdm <- function(
     is.na(bias) |
     is.na(ndt) |
     (boundary <= 0) |
-    (bias <= 0) |
+    (bias < 0) |
     (ndt < 0)
 
   ok <- !invalid
@@ -779,13 +942,31 @@ cogmod_rdm <- function(
   AA <- bias[live]
   bb <- kk + AA
 
+  res <- rep(NA_real_, length(tt))
+
+  # Small start-point range: the difference quotient in the threshold cancels,
+  # so use the plain Wald CDF at the midpoint threshold, exactly as the density
+  # and the survival do. At `bias = 0` the midpoint *is* the threshold and this
+  # is the plain Wald, which is the only branch that can serve that case - the
+  # two below both divide by `A`.
+  small <- (AA / stt) < .RDM_EPS_A
+  if (any(small)) {
+    bm <- kk[small] + AA[small] / 2
+    ts <- tt[small]
+    sts <- stt[small]
+    ns <- nn[small]
+    res[small] <- .log_add_exp(
+      stats::pnorm((ns * ts - bm) / sts, log.p = TRUE),
+      2 * ns * bm + stats::pnorm(-(bm + ns * ts) / sts, log.p = TRUE)
+    )
+  }
+
   # Driftless limit: C = (2 sqrt(t) / A) * (g(-k/sqrt(t)) - g(-b/sqrt(t))).
   # NOTE: the factor of 2 here was missing before. Nothing in the package
   # reaches this branch except `.pwald()` itself - the race likelihood goes
   # through `.swald()`, which has a driftless branch of its own - so it went
   # unnoticed, but the Stan version reaches it whenever drift approaches 0.
-  res <- rep(NA_real_, length(tt))
-  z <- abs(nn) < .RDM_EPS_V
+  z <- !small & abs(nn) < .RDM_EPS_V
   if (any(z)) {
     lgap <- .log_sub_exp(
       .log_gfun(-kk[z] / stt[z]),
@@ -794,7 +975,7 @@ cogmod_rdm <- function(
     res[z] <- log(2) + log(stt[z]) - log(AA[z]) + lgap
   }
 
-  g <- !z
+  g <- !small & !z
   if (any(g)) {
     tg <- tt[g]
     sg <- stt[g]
@@ -845,6 +1026,103 @@ cogmod_rdm <- function(
   kk <- as.vector(p$boundary)
   aa <- as.vector(p$sigmabias)
   .wald_lpdf_core(tv, win, kk, aa) + .wald_lccdf_core(tv, los, kk, aa)
+}
+
+
+# Names `.prepare_choice()` puts on the recycled parameter vectors, in the order
+# `qcogmod_rdm()` needs to slice one trial out of them.
+.RDM_PAR_NAMES <- c("mu", "driftone", "sigmabias", "boundary", "ndt",
+                    "poutlier", "response")
+
+
+# Quadrature over one sub-divided range, so that a density concentrated far
+# from either endpoint cannot be stepped over. `stats::integrate()` is adaptive
+# but starts from a single 15-point rule on the whole interval, and a race with
+# a fast accumulator puts essentially all of its mass in the first tenth of a
+# second of a range that may run to infinity.
+#' @noRd
+.rdm_quad <- function(f, lo, hi, brk) {
+  cuts <- sort(unique(c(lo, brk[brk > lo & brk < hi], hi)))
+  total <- 0
+  for (j in seq_len(length(cuts) - 1L)) {
+    total <- total + stats::integrate(
+      f, cuts[j], cuts[j + 1L],
+      rel.tol = .Machine$double.eps^0.5, subdivisions = 200L
+    )$value
+  }
+  total
+}
+
+
+# Defective CDF `P(RT <= q, choice = k)` (or its upper-tail complement
+# `P(RT > q, choice = k)`), including the outlier component.
+#
+# The decision half has no closed form - unlike the *marginal* CDF, where the
+# race survival factorises as S0 * S1 - so it is integrated numerically. That
+# also settles the scale: quadrature cannot deliver a log-space answer in the
+# far tail, so this works on the natural scale throughout and `pcogmod_rdm()`
+# takes the log of it afterwards rather than pretending otherwise.
+#
+# `lower.tail = FALSE` integrates from `q` upwards rather than subtracting from
+# the total, which keeps the defective survival accurate where the two would
+# cancel.
+#' @noRd
+.rdm_pdefective <- function(p, lower.tail = TRUE) {
+  n <- length(p$x)
+  out <- numeric(n)
+  if (n == 0) return(out)
+  K <- 2 # .choice_spec("cogmod_rdm")$K, fixed for this family
+
+  win <- ifelse(p$response == 0, p$mu, p$driftone)
+  los <- ifelse(p$response == 0, p$driftone, p$mu)
+
+  for (i in seq_len(n)) {
+    q <- p$x[i]
+    if (is.na(q)) {
+      out[i] <- NA_real_
+      next
+    }
+    kk <- p$boundary[i]
+    aa <- p$sigmabias[i]
+    vw <- win[i]
+    vl <- los[i]
+
+    # Defective density of the decision component in decision time `u`: the
+    # winner's density times the loser's survival, the same product the
+    # likelihood uses.
+    dens <- function(u) {
+      m <- length(u)
+      exp(.wald_lpdf_core(u, rep(vw, m), rep(kk, m), rep(aa, m)) +
+            .wald_lccdf_core(u, rep(vl, m), rep(kk, m), rep(aa, m)))
+    }
+
+    # Where the winner's mass sits, used only to place the breakpoints. With a
+    # drift it is the mean first passage time; without one the finishing time is
+    # Levy and has no mean, so its scale parameter stands in.
+    bm <- kk + aa / 2
+    tau <- if (vw > .RDM_EPS_V) bm / vw else bm^2
+    brk <- tau * c(0.05, 0.1, 0.25, 0.5, 1, 2, 4, 8, 16, 32)
+
+    tdec <- q - p$ndt[i] # decision time available at `q`
+    dec <- if (lower.tail) {
+      if (tdec <= 0) 0 else .rdm_quad(dens, 0, tdec, brk)
+    } else {
+      .rdm_quad(dens, max(tdec, 0), Inf, brk)
+    }
+
+    # The outlier component, on the same footing. The half Normal carries no
+    # shift, and the 1 / K is the uniform guess over the response options.
+    con <- if (q <= 0) {
+      if (lower.tail) 0 else 1
+    } else {
+      z <- q / .POUTLIER_SCALE
+      if (lower.tail) 2 * stats::pnorm(z) - 1 else 2 * stats::pnorm(-z)
+    }
+
+    out[i] <- p$poutlier[i] * con / K + (1 - p$poutlier[i]) * dec
+  }
+  # Quadrature can overshoot by a few ulps; a probability cannot.
+  pmin(pmax(out, 0), 1)
 }
 
 
@@ -1087,14 +1365,17 @@ real cogmod_rdm_wald_lsurv(real t, real nu, real k, real A) {
 
 #' @rdname rcogmod_rdm
 #' @examples
-#' \dontrun{
-#' # You can expose the lpdf function as follows:
-#' insight::check_if_installed("cmdstanr")
-#' lpdf <- cogmod_rdm_lpdf_expose()
-#' lpdf(
-#'   Y = 0.5, mu = 2, driftone = 1.5, sigmabias = 0.2, boundary = 0.5,
-#'   ndt = 0.2, poutlier = 0.02, dec = 0
-#' )
+#' \donttest{
+#' # Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+#' # which live outside CRAN - see the package website to install them.
+#' if (requireNamespace("cmdstanr", quietly = TRUE) &&
+#'     !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+#'   lpdf <- cogmod_rdm_lpdf_expose()
+#'   lpdf(
+#'     Y = 0.5, mu = 2, driftone = 1.5, sigmabias = 0.2, boundary = 0.5,
+#'     ndt = 0.2, poutlier = 0.02, dec = 0
+#'   )
+#' }
 #' }
 #'
 #' @export

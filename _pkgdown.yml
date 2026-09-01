@@ -62,8 +62,3 @@ reference:
           - with_outliers
           # - conf_sdt  # commented out until the confidence SDT model is ready
           - badlm
-    - title: "Deprecated"
-      desc: >
-          The pre-`cogmod_*` names, kept as exact synonyms for now.
-      contents:
-          - cogmod-deprecated

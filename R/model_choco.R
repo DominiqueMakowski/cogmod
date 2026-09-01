@@ -50,6 +50,24 @@
 #' - Kubinec, R. (2023). Ordered beta regression: a parsimonious, well-fitting model for continuous data with
 #'     lower and upper bounds. Political Analysis, 31(4), 519-536. (Describes the underlying ordered beta model)
 #'
+#' @return `rcogmod_choco()` returns a numeric vector of `n` simulated ratings
+#'   on the unit interval `[0, 1]`, including exact `0`s and `1`s from the
+#'   extreme-response gates and exact `mid` values. `dcogmod_choco()` returns
+#'   the density at each element of `x` - the log density if `log = TRUE` -
+#'   recycled to the length of the longest argument; at `0`, `1` and `mid` it
+#'   is the probability mass rather than a density. `cogmod_choco()` returns a
+#'   `brms::custom_family` object, to put on a `brms::bf()` formula.
+#'   `cogmod_choco_stanvars()` returns a `brms::stanvars` object holding the
+#'   family's Stan `functions` block, to pass to `brms::brm()`, and
+#'   `cogmod_choco_lpdf_expose()` compiles that Stan code and returns it as an
+#'   R function, for checking the density outside of a model. The remaining
+#'   functions are `brms` post-processing methods, called by `brms` rather than
+#'   directly: `log_lik_cogmod_choco()` returns a numeric vector holding one
+#'   log-likelihood value per posterior draw for observation `i`,
+#'   `posterior_predict_cogmod_choco()` a draws x 1 matrix of ratings simulated
+#'   for observation `i`, and `posterior_epred_cogmod_choco()` a
+#'   draws x observations matrix of expected ratings.
+#'
 #' @examples
 #' # Simulate data with different parameterizations
 #' # 10% at mid, 50/50 split otherwise, symmetric confidence/precision
@@ -471,17 +489,19 @@ cogmod_choco_stanvars <- function() {
 #' @rdname rcogmod_choco
 #' @param link_mu,link_confright,link_precright,link_confleft,link_precleft,link_pex,link_bex,link_pmid Link functions for the parameters.
 #' @examples
-#' # Example usage in a brms formula:
-#' # bf(y ~ x1 + (1|group),
-#' #    confright ~ x3,
-#' #    confleft ~ x3,
-#' #    precright ~ 1,
-#' #    precleft ~ 1,
-#' #    pex ~ s(age),
-#' #    bex ~ 1,
-#' #    pmid ~ 1,
-#' #    family = cogmod_choco())
 #' cogmod_choco()
+#'
+#' # Example usage in a brms formula:
+#' brms::bf(y ~ x1 + (1 | group),
+#'   confright ~ x3,
+#'   confleft ~ x3,
+#'   precright ~ 1,
+#'   precleft ~ 1,
+#'   pex ~ age,
+#'   bex ~ 1,
+#'   pmid ~ 1,
+#'   family = cogmod_choco()
+#' )
 #' @export
 cogmod_choco <- function(
   link_mu = "logit", link_confright = "logit", link_precright = "softplus",

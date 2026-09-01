@@ -137,10 +137,20 @@
     # registry: driftless Brownian motion still reaches a positive level with
     # probability one, so a zero-drift accumulator is slow rather than absent and
     # can still win the race. The Stan check below rejects the same set.
-    lb_open = c(FALSE, FALSE, TRUE, TRUE),
+    #
+    # A start-point range of exactly zero is legitimate too, and for the same
+    # kind of reason: it is a model rather than an invalid parameter. Both
+    # accumulators then start at 0 on every trial and the race is a plain Wald
+    # one - Tillman et al. (2020) equation 2, which is what the density's
+    # midpoint branch already collapses to at A = 0. cogmod_lba2() and
+    # cogmod_lba1() have always allowed it; the RDM excluding it was an
+    # inconsistency, not a decision. Note this does not make the
+    # sigmabias -> 0 ridge below any less flat: the softplus link still reaches
+    # zero only at minus infinity, so cogmod_priors() still has to fence it.
+    lb_open = c(FALSE, FALSE, FALSE, TRUE),
     K = 2L,
     vars = "dec[n]",
-    stan_check = "boundary <= 0 || sigmabias <= 0 || mu < 0 || driftone < 0",
+    stan_check = "boundary <= 0 || sigmabias < 0 || mu < 0 || driftone < 0",
     stan_dens = paste0(
       "cogmod_rdm_wald_ldens(t_adj, dec == 0 ? mu : driftone,",
       " boundary, sigmabias)\n",
@@ -593,8 +603,17 @@
     if (is.null(response)) {
       stop("`response` must be provided alongside `x`.", call. = FALSE)
     }
-    m <- max(length(x), lens)
-    if (m == 0) stop("At least one input vector must have non-zero length.")
+    # A zero-length quantile gives a zero-length answer, as it does for every
+    # d/p/q function in base R. Taking `max()` over the parameter lengths
+    # instead turned `numeric(0)` into a length-1 NA - `rep_len(numeric(0), 1)`
+    # is NA - which then reached the density as a missing value.
+    if (length(x) == 0L) {
+      m <- 0L
+    } else if (any(lens == 0L)) {
+      stop("Parameters must not be zero-length when `x` is not.", call. = FALSE)
+    } else {
+      m <- max(length(x), lens)
+    }
   } else if (!is.null(n)) {
     if (length(n) > 1) n <- length(n)
     if (length(n) != 1 || n < 0 || n != floor(n)) {
@@ -622,10 +641,20 @@
 #' @keywords internal
 .ldec_choice <- function(name, t, k, p) {
   spec <- .choice_spec(name)
-  ok <- is.finite(t) & t > 0
-  # pmax() only keeps the density functions from being handed a non-positive
-  # number; those entries are overwritten with -Inf immediately afterwards.
-  ld <- spec$ldens(pmax(t, 1e-300), k, p)
+  # As for `.ldec()`: substitute a value the density will accept wherever the
+  # time or a parameter is not one, and overwrite those results with -Inf below.
+  # See `.dens_mask()` for why handing them the missing value instead throws.
+  msk <- .dens_mask(spec, t, p)
+  ok <- msk$ok
+  # The response selects which accumulator won, so a missing one is no more
+  # usable than a missing drift rate. It is not a dpar, so `.dens_mask()` does
+  # not see it.
+  kf <- !is.finite(k)
+  if (any(kf)) {
+    ok[] <- ok & rep_len(!kf, length(ok))
+    k[kf] <- 0
+  }
+  ld <- spec$ldens(msk$t, k, msk$p)
   ld[!ok] <- -Inf
   ld[is.na(ld)] <- -Inf
   dim(ld) <- dim(t)

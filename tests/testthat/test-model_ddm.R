@@ -732,3 +732,64 @@ test_that("cogmod_ddm recovers ndt above the fastest observed response", {
   expect_true(with_outliers(fit)$family$predict_outliers)
   expect_false(without_outliers(fit)$family$predict_outliers)
 })
+
+
+test_that("the defective tails of pcogmod_ddm add to the response probability", {
+  # `lower.tail = FALSE` used to return `1 - P(RT <= q, choice = k)`, which is
+  # `P(RT > q OR choice != k)` - at q = Inf it gave the probability of the
+  # *other* response instead of zero. It is now the defective survival
+  # `P(RT > q, choice = k)`, integrated on the same footing as the lower tail,
+  # so the two add to that response's own mass. Same convention as
+  # `pcogmod_rdm()`.
+  pars <- list(drift = 0.8, boundary = 1, bias = 0.45, ndt = 0.2)
+  for (poutlier in c(0, 0.1)) {
+    pk <- vapply(0:1, function(k) {
+      do.call(pcogmod_ddm, c(list(q = Inf, response = k), pars,
+                             list(poutlier = poutlier)))
+    }, numeric(1))
+    expect_equal(sum(pk), 1, tolerance = 1e-10)
+
+    for (k in 0:1) {
+      # the survival of a response is exhausted at infinite time
+      expect_equal(
+        do.call(pcogmod_ddm, c(list(q = Inf, response = k,
+                                    lower.tail = FALSE), pars,
+                               list(poutlier = poutlier))),
+        0, tolerance = 1e-10
+      )
+      for (q in c(0.3, 1, 5)) {
+        lo <- do.call(pcogmod_ddm, c(list(q = q, response = k), pars,
+                                     list(poutlier = poutlier)))
+        hi <- do.call(pcogmod_ddm, c(list(q = q, response = k,
+                                          lower.tail = FALSE), pars,
+                                     list(poutlier = poutlier)))
+        expect_equal(lo + hi, pk[k + 1], tolerance = 1e-12,
+                     info = sprintf("k = %d, q = %.1f, poutlier = %.2f",
+                                    k, q, poutlier))
+      }
+    }
+  }
+
+  # The marginal is untouched: there the attainable mass is one.
+  for (q in c(0.4, 1, 3)) {
+    lo <- do.call(pcogmod_ddm, c(list(q = q), pars, list(poutlier = 0.05)))
+    hi <- do.call(pcogmod_ddm, c(list(q = q, lower.tail = FALSE), pars,
+                                 list(poutlier = 0.05)))
+    expect_equal(lo + hi, 1, tolerance = 1e-12)
+  }
+
+  # And the lower tail still integrates the defective density.
+  for (k in 0:1) {
+    for (q in c(0.4, 0.8, 2)) {
+      expect_equal(
+        do.call(pcogmod_ddm, c(list(q = q, response = k), pars,
+                               list(poutlier = 0.05))),
+        stats::integrate(function(z) {
+          do.call(dcogmod_ddm, c(list(x = z, response = k), pars,
+                                 list(poutlier = 0.05)))
+        }, lower = 0, upper = q, rel.tol = 1e-10)$value,
+        tolerance = 1e-8
+      )
+    }
+  }
+})

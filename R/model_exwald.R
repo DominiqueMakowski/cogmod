@@ -84,10 +84,26 @@
 #'     response times. *Behavior Research Methods, Instruments, & Computers*,
 #'     *33*(4), 457-469. \doi{10.3758/bf03195403}
 #'
+#' @return `rcogmod_exwald()` returns a numeric vector of `n` simulated
+#'   reaction times, in seconds. `dcogmod_exwald()` returns the density at
+#'   each element of `x` - the log density if `log = TRUE` - recycled to the
+#'   length of the longest argument. `cogmod_exwald()` returns a
+#'   `brms::custom_family` object, to put on a `brms::bf()` formula.
+#'   `cogmod_exwald_stanvars()` returns a `brms::stanvars` object holding the
+#'   family's Stan `functions` block, to pass to `brms::brm()`, and
+#'   `cogmod_exwald_lpdf_expose()` compiles that Stan code and returns it as
+#'   an R function, for checking the density outside of a model. The remaining
+#'   functions are `brms` post-processing methods, called by `brms` rather
+#'   than directly: `log_lik_cogmod_exwald()` returns a numeric vector holding
+#'   one log-likelihood value per posterior draw for observation `i`, and
+#'   `posterior_predict_cogmod_exwald()` a draws x 1 matrix of reaction times
+#'   simulated for observation `i`. `posterior_epred_cogmod_exwald()` returns
+#'   a draws x observations matrix of expected reaction times.
+#'
 #' @examples
 #' rts <- rcogmod_exwald(1000, mu = 3, boundary = 0.5, tau = 0.15,
 #'                       ndt = 0.2, poutlier = 0.02)
-#' # hist(rts, breaks = 100, xlab = "RT (s)")
+#' hist(rts, breaks = 100, xlab = "RT (s)")
 #'
 #' # The mean is boundary / mu + tau, on top of ndt.
 #' mean(rcogmod_exwald(1e5, mu = 3, boundary = 0.5, tau = 0.15, ndt = 0.2))

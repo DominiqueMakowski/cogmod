@@ -116,10 +116,30 @@
 #'     random between-trial variability: The racing diffusion model of speeded decision making.
 #'     *Psychonomic Bulletin & Review*, *27*(5), 911-936. \doi{10.3758/s13423-020-01719-6}
 #'
+#' @return `rcogmod_invgaussian()` returns a numeric vector of `n` simulated
+#'   reaction times, in seconds. `dcogmod_invgaussian()` returns the density
+#'   at each element of `x` - the log density if `log = TRUE` - recycled to
+#'   the length of the longest argument. `pcogmod_invgaussian()` returns the
+#'   cumulative probability at each element of `q`, honouring `lower.tail` and
+#'   `log.p`. `cogmod_invgaussian()` returns a `brms::custom_family` object,
+#'   to put on a `brms::bf()` formula. `cogmod_invgaussian_stanvars()` returns
+#'   a `brms::stanvars` object holding the family's Stan `functions` block, to
+#'   pass to `brms::brm()`, and `cogmod_invgaussian_lpdf_expose()` compiles
+#'   that Stan code and returns it as an R function, for checking the density
+#'   outside of a model. The remaining functions are `brms` post-processing
+#'   methods, called by `brms` rather than directly:
+#'   `log_lik_cogmod_invgaussian()` returns a numeric vector holding one
+#'   log-likelihood value per posterior draw for observation `i`, and
+#'   `posterior_predict_cogmod_invgaussian()` a draws x 1 matrix of reaction
+#'   times simulated for observation `i`.
+#'   `posterior_epred_cogmod_invgaussian()` returns a draws x observations
+#'   matrix of expected reaction times, with `Inf` wherever the mean does not
+#'   exist.
+#'
 #' @examples
 #' # Simulate 1000 RTs with 2% outliers
 #' rts <- rcogmod_invgaussian(1000, drift = 3, boundary = 0.5, ndt = 0.2, poutlier = 0.02)
-#' # hist(rts, breaks = 50, xlab = "RT (s)")
+#' hist(rts, breaks = 50, xlab = "RT (s)")
 #'
 #' # The same, with the drift varying across trials: a longer right tail
 #' rts_sv <- rcogmod_invgaussian(1000, drift = 3, boundary = 0.5, ndt = 0.2,
@@ -166,11 +186,15 @@ pcogmod_invgaussian <- function(q, drift = 3, boundary = 0.5, ndt = 0.2,
 
   t <- params$x - params$ndt
   cdf_dec <- rep(NA_real_, params$ndraws)
-  cdf_dec[t <= 0] <- 0
-  inf_idx <- is.infinite(t) & t > 0
+  # `t <= 0` is NA for a missing quantile, which makes `any(calc)` below NA and
+  # the `if()` on it throw - the same failure `.dens_mask()` fixes on the
+  # density side. Missing entries are excluded from all three masks here and
+  # left at the NA they came in as.
+  cdf_dec[!is.na(t) & t <= 0] <- 0
+  inf_idx <- !is.na(t) & is.infinite(t) & t > 0
   cdf_dec[inf_idx] <- 1
 
-  calc <- (t > 0) & !inf_idx
+  calc <- !is.na(t) & t > 0 & !inf_idx
   if (any(calc)) {
     # Closed form at sigmadrift = 0, quadrature over the drift above it - see
     # .pwald_raw(), which is where the reason for the difference is written down.

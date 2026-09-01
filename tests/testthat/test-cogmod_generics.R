@@ -463,12 +463,13 @@ test_that("the R parameter checks reject exactly what Stan rejects", {
   expect_error(rcogmod_gamma(5, mu = 0), "mu")
   expect_error(rcogmod_invgaussian(5, boundary = -0.1), "boundary")
   expect_error(rcogmod_lba1(5, sigmabias = -1), "sigmabias")
-  # cogmod_lba1()'s bound on `sigmabias` is closed at zero, where cogmod_rdm()'s
-  # is open, and the registry's lb/ub is what makes the two differ. Zero is a
-  # nested model for the LBA - the recinormal, or LATER - so it has to be
-  # reachable; the RDM has no such limit and still rejects it.
+  # `sigmabias` is closed at zero throughout: it is a nested model rather than a
+  # boundary violation everywhere it appears - the recinormal (or LATER) for
+  # cogmod_lba1(), the plain Wald race for cogmod_rdm(). Negative is still an
+  # error, and the registry's lb/lb_open is the single place that says so.
   expect_silent(rcogmod_lba1(5, sigmabias = 0))
-  expect_error(rcogmod_rdm(5, bias = 0), "sigmabias")
+  expect_silent(rcogmod_rdm(5, bias = 0))
+  expect_error(rcogmod_rdm(5, bias = -1), "sigmabias")
   # shape is unconstrained for the log-gamma, so it must not be rejected
   expect_silent(rcogmod_loggamma(5, shape = -3))
   # ndt = 0 and poutlier = 0 are legitimate, not boundary violations
@@ -503,4 +504,131 @@ test_that("the suite's shared Stan model stands in for *_lpdf_expose()", {
     suffix <- if (identical(nm, "cogmod_betadiscrete")) "_lpmf" else "_lpdf"
     expect_true(is.function(stan_fun(nm, suffix)), label = nm)
   }
+})
+
+
+# Missing, infinite and empty input ---------------------------------------
+
+test_that("every mixture density takes a missing, infinite or empty time", {
+  # These used to split the package in two. The densities that are arithmetic
+  # all the way down returned 0 for a missing reaction time; the ones whose
+  # cores branch on a comparison - the Wald, the LBA, the DDM - threw
+  # "missing value where TRUE/FALSE needed" instead, because `any(NA)` is NA
+  # and `if (NA)` is an error. `.dens_mask()` now substitutes a value the
+  # density will accept and the result is overwritten with -Inf, which is what
+  # `.ldec()` and `.ldec_choice()` already intended for these rows.
+  #
+  # A zero-length time was the same failure by a different route:
+  # `.prepare_*()` recycled `numeric(0)` up to the parameters, and
+  # `rep_len(numeric(0), 1)` is NA.
+  for (nm in cogmod:::.OUTLIER_FAMILIES) {
+    spec <- cogmod:::.mixture_spec(nm)
+    dfun <- get(sub("^cogmod_", "dcogmod_", nm))
+    args <- list()
+    if (!is.null(spec$K) && spec$K > 1) args$response <- 0
+
+    expect_equal(do.call(dfun, c(list(x = NA_real_), args)), 0, label = nm)
+    expect_equal(do.call(dfun, c(list(x = Inf), args)), 0, label = nm)
+    expect_equal(do.call(dfun, c(list(x = -1), args)), 0, label = nm)
+    expect_equal(do.call(dfun, c(list(x = numeric(0)), args)), numeric(0),
+                 label = nm)
+    # log = TRUE is the same statement on the other scale
+    expect_equal(do.call(dfun, c(list(x = NA_real_, log = TRUE), args)), -Inf,
+                 label = nm)
+  }
+})
+
+
+test_that("a bad entry costs only its own position in a vector", {
+  # The point of returning rather than throwing: one missing reaction time in a
+  # column must not take the other rows down with it.
+  x <- c(0.5, NA, 0.8, Inf, -1)
+  good <- c(1L, 3L)
+  for (nm in cogmod:::.OUTLIER_FAMILIES) {
+    spec <- cogmod:::.mixture_spec(nm)
+    dfun <- get(sub("^cogmod_", "dcogmod_", nm))
+    args <- list()
+    if (!is.null(spec$K) && spec$K > 1) args$response <- 0
+
+    got <- do.call(dfun, c(list(x = x), args))
+    expect_length(got, length(x))
+    expect_equal(got[-good], rep(0, 3), label = nm)
+    # and the surviving entries match what they get on their own
+    expect_equal(got[good], do.call(dfun, c(list(x = x[good]), args)),
+                 label = nm)
+  }
+})
+
+
+test_that("a missing parameter gives zero density, not an error", {
+  # Same failure as a missing time, reached through the other argument: the
+  # comparison the core branches on is NA either way. `.prepare_*()` validates
+  # bounds with `na.rm = TRUE`, so an NA parameter passes validation and
+  # reaches the density.
+  expect_equal(dcogmod_rdm(0.5, response = 0, vzero = NA_real_), 0)
+  expect_equal(dcogmod_rdm(0.5, response = 0, bias = NA_real_), 0)
+  expect_equal(dcogmod_rdm(0.5, response = 0, ndt = NA_real_), 0)
+  expect_equal(dcogmod_lba1(0.5, sigmabias = NA_real_), 0)
+  expect_equal(dcogmod_lba2(0.5, response = 0, sigmabias = NA_real_), 0)
+  expect_equal(dcogmod_ddm(0.5, response = 0, boundary = NA_real_), 0)
+  # A missing response selects no accumulator, so it is no more usable than a
+  # missing drift rate. Through `d*()` it is caught earlier still, by the same
+  # validation that rejects a response outside 0:1 - warn and return zero.
+  # `.ldec_choice()` masks it as well, for `p_outlier()`, which reads the
+  # response off the fitted model rather than through this validation.
+  expect_warning(expect_equal(dcogmod_rdm(0.5, response = NA_real_), 0),
+                 "response")
+  # and only the affected row is lost
+  expect_equal(dcogmod_rdm(c(0.5, 0.5), response = 0, vzero = c(NA, 3))[2],
+               dcogmod_rdm(0.5, response = 0, vzero = 3))
+})
+
+
+test_that("the CDFs return NA for a missing quantile and nothing for none", {
+  # A CDF has no equivalent of "zero density": there is no defensible number
+  # for the probability below a quantile nobody gave, so these propagate NA
+  # rather than inventing one. `pcogmod_rdm()` used to return exactly 1 and
+  # `pcogmod_invgaussian()` used to throw.
+  pfuns <- list(
+    pcogmod_invgaussian = list(),
+    pcogmod_geg = list(),
+    pcogmod_ddm = list(),
+    pcogmod_rdm = list()
+  )
+  for (nm in names(pfuns)) {
+    f <- get(nm)
+    expect_true(is.na(do.call(f, c(list(q = NA_real_), pfuns[[nm]]))),
+                label = nm)
+    expect_equal(do.call(f, c(list(q = numeric(0)), pfuns[[nm]])), numeric(0),
+                 label = nm)
+  }
+  # and the defective forms, plus the quantile function
+  expect_true(is.na(pcogmod_ddm(NA_real_, response = 0)))
+  expect_true(is.na(pcogmod_rdm(NA_real_, response = 0)))
+  expect_equal(pcogmod_rdm(numeric(0), response = 0), numeric(0))
+  expect_true(is.na(qcogmod_rdm(NA_real_, response = 0, scale_p = TRUE)))
+  expect_equal(qcogmod_rdm(numeric(0)), numeric(0))
+})
+
+
+test_that("a zero-length parameter alongside a real quantile is rejected", {
+  # `rep_len(numeric(0), n)` silently produces NAs, which would now be read as
+  # a deliberately missing parameter and answered with zero density. That is a
+  # call that cannot mean anything, so the preparation refuses it - surfacing,
+  # as every other parameter complaint does, as a warning and a zero density
+  # rather than an error, so that one bad posterior draw cannot abort a whole
+  # call.
+  expect_warning(
+    d <- dcogmod_rdm(c(0.4, 0.6), response = 0, vzero = numeric(0)),
+    "zero-length"
+  )
+  expect_equal(d, c(0, 0))
+  expect_warning(
+    d <- dcogmod_lognormal(c(0.4, 0.6), sigma = numeric(0)),
+    "zero-length"
+  )
+  expect_equal(d, c(0, 0))
+  # An empty quantile is not the same thing, and is answered rather than
+  # refused.
+  expect_silent(expect_equal(dcogmod_lognormal(numeric(0)), numeric(0)))
 })

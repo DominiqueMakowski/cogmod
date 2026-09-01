@@ -65,7 +65,23 @@ or 0, respectively.}
 \item{...}{Additional arguments.}
 }
 \value{
-A vector of simulated outcomes in the range 0-1.
+\code{rcogmod_betagate()} returns a numeric vector of \code{n} simulated
+ratings on the unit interval \verb{[0, 1]}, including the exact \code{0}s and \code{1}s
+produced by the gates. \code{dcogmod_betagate()} returns the density at each
+element of \code{x} - the log density if \code{log = TRUE} - recycled to the length
+of the longest argument; at \code{0} and \code{1} it is the probability mass rather
+than a density. \code{cogmod_betagate()} returns a \code{brms::custom_family}
+object, to put on a \code{brms::bf()} formula. \code{cogmod_betagate_stanvars()}
+returns a \code{brms::stanvars} object holding the family's Stan \code{functions}
+block, to pass to \code{brms::brm()}, and \code{cogmod_betagate_lpdf_expose()}
+compiles that Stan code and returns it as an R function, for checking the
+density outside of a model. The remaining functions are \code{brms}
+post-processing methods, called by \code{brms} rather than directly:
+\code{log_lik_cogmod_betagate()} returns a numeric vector holding one
+log-likelihood value per posterior draw for observation \code{i},
+\code{posterior_predict_cogmod_betagate()} a draws x 1 matrix of ratings
+simulated for observation \code{i}, and \code{posterior_epred_cogmod_betagate()} a
+draws x observations matrix of expected ratings.
 }
 \description{
 The Beta-Gate model represents subjective ratings as a mixture of a continuous Beta distribution
@@ -114,22 +130,28 @@ for producing ones more easily, while \code{bex < 0.5} suggests a bias towards z
 \examples{
 # Symmetric gates (c0=0.05, c1=0.95), pex=0.1, bex=0.5
 x1 <- rcogmod_betagate(10000, mu = 0.5, phi = 3, pex = 0.1, bex = 0.5)
-# hist(x1, breaks=50, main="rcogmod_betagate: Symmetric Cutpoints (pex=0.1)")
+hist(x1, breaks=50, main="rcogmod_betagate: Symmetric Cutpoints (pex=0.1)")
 
 # Asymmetric gates (c0=0.15, c1=0.95), pex=0.2, bex=0.25
 x2 <- rcogmod_betagate(10000, mu = 0.5, phi = 3, pex = 0.2, bex = 0.25)
-# hist(x2, breaks=50, main="rcogmod_betagate: Asymmetric Cutpoints (pex=0.2, bex=0.25)")
+hist(x2, breaks=50, main="rcogmod_betagate: Asymmetric Cutpoints (pex=0.2, bex=0.25)")
 
 # No gating (pure Beta)
 x3 <- rcogmod_betagate(10000, mu = 0.7, phi = 5, pex = 0, bex = 0.5)
-# hist(x3, breaks=50, main="rcogmod_betagate: No Extreme Values (pex=0)")
+hist(x3, breaks=50, main="rcogmod_betagate: No Extreme Values (pex=0)")
 
 x <- seq(0, 1, length.out = 1001)
 densities <- dcogmod_betagate(x, mu = 0.5, phi = 5, pex = 0.2, bex = 0.5)
 plot(x, densities, type = "l", main = "Density Function", xlab = "y", ylab = "Density")
-# You can expose the lpdf function as follows:
-# cogmod_betagate_lpdf <- cogmod_betagate_lpdf_expose()
-# cogmod_betagate_lpdf(y = 0.5, mu = 0.6, phi = 10, pex = 0.2, bex = 0.5)
+\donttest{
+# Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+# which live outside CRAN - see the package website to install them.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  lpdf <- cogmod_betagate_lpdf_expose()
+  lpdf(y = 0.5, mu = 0.6, phi = 10, pex = 0.2, bex = 0.5)
+}
+}
 
 }
 \references{

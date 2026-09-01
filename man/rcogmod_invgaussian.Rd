@@ -111,6 +111,27 @@ either way. See \code{\link[=with_outliers]{with_outliers()}}.}
 
 \item{...}{Additional arguments.}
 }
+\value{
+\code{rcogmod_invgaussian()} returns a numeric vector of \code{n} simulated
+reaction times, in seconds. \code{dcogmod_invgaussian()} returns the density
+at each element of \code{x} - the log density if \code{log = TRUE} - recycled to
+the length of the longest argument. \code{pcogmod_invgaussian()} returns the
+cumulative probability at each element of \code{q}, honouring \code{lower.tail} and
+\code{log.p}. \code{cogmod_invgaussian()} returns a \code{brms::custom_family} object,
+to put on a \code{brms::bf()} formula. \code{cogmod_invgaussian_stanvars()} returns
+a \code{brms::stanvars} object holding the family's Stan \code{functions} block, to
+pass to \code{brms::brm()}, and \code{cogmod_invgaussian_lpdf_expose()} compiles
+that Stan code and returns it as an R function, for checking the density
+outside of a model. The remaining functions are \code{brms} post-processing
+methods, called by \code{brms} rather than directly:
+\code{log_lik_cogmod_invgaussian()} returns a numeric vector holding one
+log-likelihood value per posterior draw for observation \code{i}, and
+\code{posterior_predict_cogmod_invgaussian()} a draws x 1 matrix of reaction
+times simulated for observation \code{i}.
+\code{posterior_epred_cogmod_invgaussian()} returns a draws x observations
+matrix of expected reaction times, with \code{Inf} wherever the mean does not
+exist.
+}
 \description{
 Density, distribution function, random generation, and \code{brms} custom family
 for the Shifted Wald distribution, also known as the Shifted Inverse Gaussian.
@@ -204,7 +225,7 @@ median or a quantile instead.
 \examples{
 # Simulate 1000 RTs with 2\% outliers
 rts <- rcogmod_invgaussian(1000, drift = 3, boundary = 0.5, ndt = 0.2, poutlier = 0.02)
-# hist(rts, breaks = 50, xlab = "RT (s)")
+hist(rts, breaks = 50, xlab = "RT (s)")
 
 # The same, with the drift varying across trials: a longer right tail
 rts_sv <- rcogmod_invgaussian(1000, drift = 3, boundary = 0.5, ndt = 0.2,

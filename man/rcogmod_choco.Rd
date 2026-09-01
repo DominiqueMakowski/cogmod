@@ -98,6 +98,25 @@ the left or right components.}
 
 \item{...}{Additional arguments.}
 }
+\value{
+\code{rcogmod_choco()} returns a numeric vector of \code{n} simulated ratings
+on the unit interval \verb{[0, 1]}, including exact \code{0}s and \code{1}s from the
+extreme-response gates and exact \code{mid} values. \code{dcogmod_choco()} returns
+the density at each element of \code{x} - the log density if \code{log = TRUE} -
+recycled to the length of the longest argument; at \code{0}, \code{1} and \code{mid} it
+is the probability mass rather than a density. \code{cogmod_choco()} returns a
+\code{brms::custom_family} object, to put on a \code{brms::bf()} formula.
+\code{cogmod_choco_stanvars()} returns a \code{brms::stanvars} object holding the
+family's Stan \code{functions} block, to pass to \code{brms::brm()}, and
+\code{cogmod_choco_lpdf_expose()} compiles that Stan code and returns it as an
+R function, for checking the density outside of a model. The remaining
+functions are \code{brms} post-processing methods, called by \code{brms} rather than
+directly: \code{log_lik_cogmod_choco()} returns a numeric vector holding one
+log-likelihood value per posterior draw for observation \code{i},
+\code{posterior_predict_cogmod_choco()} a draws x 1 matrix of ratings simulated
+for observation \code{i}, and \code{posterior_epred_cogmod_choco()} a
+draws x observations matrix of expected ratings.
+}
 \description{
 Simulates data from the Choice-Confidence (CHOCO) model. This model is useful for
 subjective ratings (e.g., Likert-type scales) where responses represent a choice
@@ -151,17 +170,19 @@ x3 <- rcogmod_choco(
   confleft = 0.2, precleft = 3, pex = 0, bex = 0.5, pmid = 0.05, mid = 0.5
 )
 hist(x3, breaks = 50, main = "CHOCO: Low confidence overall", xlab = "y")
-# Example usage in a brms formula:
-# bf(y ~ x1 + (1|group),
-#    confright ~ x3,
-#    confleft ~ x3,
-#    precright ~ 1,
-#    precleft ~ 1,
-#    pex ~ s(age),
-#    bex ~ 1,
-#    pmid ~ 1,
-#    family = cogmod_choco())
 cogmod_choco()
+
+# Example usage in a brms formula:
+brms::bf(y ~ x1 + (1 | group),
+  confright ~ x3,
+  confleft ~ x3,
+  precright ~ 1,
+  precleft ~ 1,
+  pex ~ age,
+  bex ~ 1,
+  pmid ~ 1,
+  family = cogmod_choco()
+)
 }
 \references{
 \itemize{

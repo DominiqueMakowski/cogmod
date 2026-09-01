@@ -68,6 +68,23 @@ either way. See \code{\link[=with_outliers]{with_outliers()}}.}
 
 \item{...}{Additional arguments.}
 }
+\value{
+\code{rcogmod_bisa()} returns a numeric vector of \code{n} simulated reaction
+times, in seconds. \code{dcogmod_bisa()} returns the density at each element
+of \code{x} - the log density if \code{log = TRUE} - recycled to the length of the
+longest argument. \code{cogmod_bisa()} returns a \code{brms::custom_family} object,
+to put on a \code{brms::bf()} formula. \code{cogmod_bisa_stanvars()} returns a
+\code{brms::stanvars} object holding the family's Stan \code{functions} block, to
+pass to \code{brms::brm()}, and \code{cogmod_bisa_lpdf_expose()} compiles that Stan
+code and returns it as an R function, for checking the density outside of
+a model. The remaining functions are \code{brms} post-processing methods,
+called by \code{brms} rather than directly: \code{log_lik_cogmod_bisa()} returns a
+numeric vector holding one log-likelihood value per posterior draw for
+observation \code{i}, and \code{posterior_predict_cogmod_bisa()} a draws x 1 matrix
+of reaction times simulated for observation \code{i}.
+\code{posterior_epred_cogmod_bisa()} returns a draws x observations matrix of
+expected reaction times.
+}
 \description{
 Density, random generation, and \code{brms} custom family for the shifted
 Birnbaum-Saunders distribution, also known as the fatigue life distribution:
@@ -175,7 +192,7 @@ mixture structure instead, at no cost in parameters.
 
 \examples{
 rts <- rcogmod_bisa(1000, mu = 3, boundary = 0.5, ndt = 0.2, poutlier = 0.02)
-# hist(rts, breaks = 100, xlab = "RT (s)")
+hist(rts, breaks = 100, xlab = "RT (s)")
 
 # The mean is the Wald's, boundary / mu, plus 1 / (2 * mu^2).
 mean(rcogmod_bisa(1e5, mu = 3, boundary = 0.5, ndt = 0.2))

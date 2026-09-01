@@ -70,12 +70,29 @@
 #' @references
 #' - Matzke, D., & Wagenmakers, E. J. (2009). Psychological interpretation of the ex-Gaussian
 #'     and shifted Wald parameters: A diffusion model analysis. *Psychonomic Bulletin & Review*,
-#'     *16*(5), 798–817. \doi{10.3758/PBR.16.5.798}
+#'     *16*(5), 798-817. \doi{10.3758/PBR.16.5.798}
+#'
+#' @return `rcogmod_exgaussian()` returns a numeric vector of `n` simulated
+#'   reaction times, in seconds. `dcogmod_exgaussian()` returns the density at
+#'   each element of `x` - the log density if `log = TRUE` - recycled to the
+#'   length of the longest argument. `cogmod_exgaussian()` returns a
+#'   `brms::custom_family` object, to put on a `brms::bf()` formula.
+#'   `cogmod_exgaussian_stanvars()` returns a `brms::stanvars` object holding
+#'   the family's Stan `functions` block, to pass to `brms::brm()`, and
+#'   `cogmod_exgaussian_lpdf_expose()` compiles that Stan code and returns it
+#'   as an R function, for checking the density outside of a model. The
+#'   remaining functions are `brms` post-processing methods, called by `brms`
+#'   rather than directly: `log_lik_cogmod_exgaussian()` returns a numeric
+#'   vector holding one log-likelihood value per posterior draw for
+#'   observation `i`, `posterior_predict_cogmod_exgaussian()` a draws x 1
+#'   matrix of reaction times simulated for observation `i`, and
+#'   `posterior_epred_cogmod_exgaussian()` a draws x observations matrix of
+#'   expected reaction times.
 #'
 #' @examples
 #' # Simulate 1000 RTs
 #' rts <- rcogmod_exgaussian(1000, mu = 0.5, sigma = 0.1, tau = 0.2)
-#' # hist(rts, breaks = 50, main = "Simulated Ex-Gaussian RTs", xlab = "Reaction Time")
+#' hist(rts, breaks = 50, main = "Simulated Ex-Gaussian RTs", xlab = "Reaction Time")
 #'
 #' @export
 rcogmod_exgaussian <- function(n, mu = 0.5, sigma = 0.1, tau = 0.2) {
@@ -182,7 +199,6 @@ dcogmod_exgaussian <- function(x, mu = 0.5, sigma = 0.1, tau = 0.2, log = FALSE)
 #' @param link_mu,link_sigma,link_tau Character of the type of link used to
 #'   model the ex-Gaussian parameters. Defaults to `"identity"` for `mu` and
 #'   `"softplus"` for `sigma` and `tau` (see Details).
-#' @return A `brms::custom_family` object.
 #' @export
 cogmod_exgaussian <- function(
     link_mu = "identity",

@@ -683,8 +683,17 @@
 
   lens <- c(vapply(dec, length, integer(1)), length(ndt), length(poutlier))
   if (!is.null(x)) {
-    m <- max(length(x), lens)
-    if (m == 0) stop("At least one input vector must have non-zero length.")
+    # A zero-length quantile gives a zero-length answer, as it does for every
+    # d/p/q function in base R. Taking `max()` over the parameter lengths
+    # instead turned `numeric(0)` into a length-1 NA - `rep_len(numeric(0), 1)`
+    # is NA - which then reached the density as a missing value.
+    if (length(x) == 0L) {
+      m <- 0L
+    } else if (any(lens == 0L)) {
+      stop("Parameters must not be zero-length when `x` is not.", call. = FALSE)
+    } else {
+      m <- max(length(x), lens)
+    }
   } else if (!is.null(n)) {
     if (length(n) > 1) n <- length(n)
     if (length(n) != 1 || n < 0 || n != floor(n)) {
@@ -710,11 +719,14 @@
 #' @keywords internal
 .ldec <- function(name, t, p) {
   spec <- .shifted_spec(name)
-  ok <- is.finite(t) & t > 0
-  # pmax() only keeps the density functions from being handed a non-positive
-  # number; those entries are overwritten with -Inf immediately afterwards.
-  ld <- spec$ldens(pmax(t, 1e-300), p)
-  ld[!ok] <- -Inf
+  # `.dens_mask()` substitutes a value the density will accept wherever the time
+  # or a parameter is not one - non-positive, infinite or missing - and says
+  # which entries those were; they are overwritten with -Inf immediately below.
+  # It replaces a bare `pmax(t, 1e-300)`, which covered the non-positive case
+  # but let NA through to a branch that cannot take it. See `.dens_mask()`.
+  msk <- .dens_mask(spec, t, p)
+  ld <- spec$ldens(msk$t, msk$p)
+  ld[!msk$ok] <- -Inf
   ld[is.na(ld)] <- -Inf
   dim(ld) <- dim(t)
   ld
@@ -1704,17 +1716,33 @@ real cogmod_loggamma_lkernel(real shape, real w) {
 #'   predictions are summarised changes.
 #'
 #' @examples
-#' # f <- bf(RT ~ Condition, ndt ~ 1, poutlier ~ 1, family = cogmod_lognormal())
-#' # m <- brms::brm(f, data = df, stanvars = cogmod_stanvars(f))
-#' #
-#' # # the decision process alone - the default, everywhere downstream
-#' # brms::posterior_epred(m)
-#' # modelbased::estimate_means(m, by = "Condition")
-#' # marginaleffects::avg_predictions(m, by = "Condition")
-#' #
-#' # # the fitted mixture, e.g. for a like-for-like predictive check
-#' # brms::pp_check(with_outliers(m))
-#' # without_outliers(m)  # back to the default
+#' \donttest{
+#' # Fitting needs cmdstanr, which lives outside CRAN - see the package website.
+#' if (requireNamespace("cmdstanr", quietly = TRUE) &&
+#'     !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+#'   df <- data.frame(
+#'     RT = rcogmod_lognormal(200, ndt = 0.3, poutlier = 0.05),
+#'     Condition = rep(c("A", "B"), each = 100)
+#'   )
+#'   f <- brms::bf(RT ~ Condition, ndt ~ 1, poutlier ~ 1,
+#'     family = cogmod_lognormal()
+#'   )
+#'   m <- brms::brm(f,
+#'     data = df, stanvars = cogmod_stanvars(f),
+#'     prior = cogmod_priors(f, df), init = cogmod_inits(f, df),
+#'     backend = "cmdstanr", chains = 1, iter = 500, refresh = 0
+#'   )
+#'
+#'   # the decision process alone - the default, everywhere downstream
+#'   head(brms::posterior_epred(m)[, 1])
+#'
+#'   # the fitted mixture, e.g. for a like-for-like predictive check
+#'   m2 <- with_outliers(m)
+#'   head(brms::posterior_epred(m2)[, 1])
+#'
+#'   without_outliers(m2) # back to the default
+#' }
+#' }
 #'
 #' @export
 with_outliers <- function(object) {
@@ -1782,9 +1810,20 @@ without_outliers <- function(object) {
 #'   `summary = FALSE`.
 #'
 #' @examples
-#' # f <- bf(RT ~ 1, ndt ~ 1, poutlier ~ 1, family = cogmod_lognormal())
-#' # m <- brms::brm(f, data = df, stanvars = cogmod_stanvars(f))
-#' # head(p_outlier(m))
+#' \donttest{
+#' # Fitting needs cmdstanr, which lives outside CRAN - see the package website.
+#' if (requireNamespace("cmdstanr", quietly = TRUE) &&
+#'     !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+#'   df <- data.frame(RT = rcogmod_lognormal(200, ndt = 0.3, poutlier = 0.05))
+#'   f <- brms::bf(RT ~ 1, ndt ~ 1, poutlier ~ 1, family = cogmod_lognormal())
+#'   m <- brms::brm(f,
+#'     data = df, stanvars = cogmod_stanvars(f),
+#'     prior = cogmod_priors(f, df), init = cogmod_inits(f, df),
+#'     backend = "cmdstanr", chains = 1, iter = 500, refresh = 0
+#'   )
+#'   head(p_outlier(m))
+#' }
+#' }
 #'
 #' @export
 p_outlier <- function(object, summary = TRUE) {

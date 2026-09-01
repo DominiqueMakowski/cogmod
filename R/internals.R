@@ -146,6 +146,44 @@
 }
 
 
+# Replace every input the density cannot be evaluated at with one it can, and
+# report which those were, so the caller can overwrite their result with -Inf.
+#
+# This exists because "cannot be evaluated at" and "returns zero density at" are
+# not the same thing here. The density cores branch on comparisons - the Wald's
+# `if (any(A / sqrt(t) < .RDM_EPS_A))`, the LBA's and the DDM's equivalents -
+# and a comparison against NA is NA, which makes a scalar `if()` throw rather
+# than return. So a missing reaction time, or a missing parameter, aborted the
+# whole call instead of producing the zero that `.ldec()` and `.ldec_choice()`
+# both go on to write for it. Measured against the sixteen mixture families:
+# four threw on a missing time (cogmod_lba1, cogmod_lba2, cogmod_rdm,
+# cogmod_ddm) and two on an infinite one (cogmod_loggamma, cogmod_lba2); the
+# rest returned the zero already, their densities being arithmetic all the way
+# down.
+#
+# The substitute for a bad parameter is `spec$init`, the registry's own starting
+# point for that family - by construction a set the density accepts. The
+# substitute for a bad time is 1, for the same reason and no other. Both results
+# are discarded.
+#' @keywords internal
+.dens_mask <- function(spec, t, p) {
+  ok <- is.finite(t) & t > 0
+  for (d in spec$dpars) {
+    v <- p[[d]]
+    nf <- !is.finite(v)
+    if (any(nf)) {
+      # `ok[] <-` rather than `ok <-`: `t` is a draws x observations matrix when
+      # p_outlier() is the caller, and the dim has to survive.
+      ok[] <- ok & rep_len(!nf, length(ok))
+      v[nf] <- spec$init[[d]]
+      p[[d]] <- v
+    }
+  }
+  if (!all(ok)) t[!ok] <- 1
+  list(t = t, p = p, ok = ok)
+}
+
+
 # Rejection sampling algorithm by Robert (Stat. Comp (1995), 5, 121-5)
 # for simulating from the truncated normal distribution.
 # Copied from the msm package

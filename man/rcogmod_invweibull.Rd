@@ -73,6 +73,25 @@ either way. See \code{\link[=with_outliers]{with_outliers()}}.}
 
 \item{...}{Additional arguments.}
 }
+\value{
+\code{rcogmod_invweibull()} returns a numeric vector of \code{n} simulated
+reaction times, in seconds. \code{dcogmod_invweibull()} returns the density at
+each element of \code{x} - the log density if \code{log = TRUE} - recycled to the
+length of the longest argument. \code{cogmod_invweibull()} returns a
+\code{brms::custom_family} object, to put on a \code{brms::bf()} formula.
+\code{cogmod_invweibull_stanvars()} returns a \code{brms::stanvars} object holding
+the family's Stan \code{functions} block, to pass to \code{brms::brm()}, and
+\code{cogmod_invweibull_lpdf_expose()} compiles that Stan code and returns it
+as an R function, for checking the density outside of a model. The
+remaining functions are \code{brms} post-processing methods, called by \code{brms}
+rather than directly: \code{log_lik_cogmod_invweibull()} returns a numeric
+vector holding one log-likelihood value per posterior draw for
+observation \code{i}, and \code{posterior_predict_cogmod_invweibull()} a draws x 1
+matrix of reaction times simulated for observation \code{i}.
+\code{posterior_epred_cogmod_invweibull()} returns a draws x observations
+matrix of expected reaction times, with \code{Inf} wherever the mean does not
+exist.
+}
 \description{
 Density, random generation, and \code{brms} custom family for the shifted
 Inverse Weibull distribution. A Inverse Weibull-distributed decision time is shifted by a
@@ -105,7 +124,7 @@ mean there. \code{\link[=cogmod_loggamma]{cogmod_loggamma()}} nests this family 
 }
 \examples{
 rts <- rcogmod_invweibull(1000, mu = 3, sigma = 0.4, ndt = 0.3, poutlier = 0.02)
-# hist(rts, breaks = 100, xlab = "RT (s)")
+hist(rts, breaks = 100, xlab = "RT (s)")
 
 # Responses faster than ndt keep positive density, unlike the unmixed model
 dcogmod_invweibull(0.1, ndt = 0.3, poutlier = 0.02)

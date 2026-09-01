@@ -196,7 +196,7 @@ test_that("dcogmod_rdm returns 0 density for invalid parameters", {
   args <- list(x = 0.5, vzero = 2.5, vone = 1.6, boundary = 0.5, bias = 0.2,
                ndt = 0.2, response = 0)
   for (bad in list(list(vzero = -0.1), list(vone = -1), list(boundary = 0),
-                   list(boundary = -1), list(bias = 0), list(bias = -1),
+                   list(boundary = -1), list(bias = -1),
                    list(ndt = -0.1), list(poutlier = 1.5),
                    list(response = 2))) {
     expect_warning(d <- do.call(dcogmod_rdm, modifyList(args, bad)),
@@ -262,6 +262,269 @@ test_that("pcogmod_rdm keeps the far-tail survival in log space", {
                     ndt = 0.1, poutlier = 0, lower.tail = FALSE, log.p = TRUE)
   expect_true(is.finite(ls))
   expect_lt(ls, -50)
+})
+
+
+test_that("the defective CDF integrates the defective density", {
+  pars <- list(vzero = 2.5, vone = 1.5, boundary = 0.5, bias = 0.3, ndt = 0.25)
+  for (poutlier in c(0, 0.05)) {
+    for (k in 0:1) {
+      for (q in c(0.3, 0.5, 0.9, 2)) {
+        got <- do.call(pcogmod_rdm, c(list(q = q, response = k), pars,
+                                      list(poutlier = poutlier)))
+        num <- stats::integrate(
+          function(z) {
+            do.call(dcogmod_rdm, c(list(x = z, response = k), pars,
+                                   list(poutlier = poutlier)))
+          },
+          lower = 0, upper = q, subdivisions = 3000, rel.tol = 1e-11
+        )$value
+        expect_equal(got, num, tolerance = 1e-6,
+                     info = sprintf("k = %d, q = %.2f, poutlier = %.2f",
+                                    k, q, poutlier))
+      }
+    }
+  }
+})
+
+
+test_that("the defective CDFs sum to the marginal one", {
+  # The marginal CDF is a closed form and the defective ones are quadrature, so
+  # this checks the two paths against each other rather than each against
+  # itself.
+  pars <- list(vzero = 2.5, vone = 1.5, boundary = 0.5, bias = 0.3, ndt = 0.25)
+  for (poutlier in c(0, 0.05)) {
+    for (q in c(0.3, 0.6, 1.5)) {
+      per_k <- vapply(0:1, function(k) {
+        do.call(pcogmod_rdm, c(list(q = q, response = k), pars,
+                               list(poutlier = poutlier)))
+      }, numeric(1))
+      marg <- do.call(pcogmod_rdm, c(list(q = q), pars,
+                                     list(poutlier = poutlier)))
+      expect_equal(sum(per_k), marg, tolerance = 1e-7,
+                   info = sprintf("q = %.2f, poutlier = %.2f", q, poutlier))
+    }
+  }
+})
+
+
+test_that("the defective CDF tends to the response probability", {
+  pars <- list(vzero = 2.5, vone = 1.5, boundary = 0.5, bias = 0.3, ndt = 0.25)
+  for (poutlier in c(0, 0.1)) {
+    pk <- vapply(0:1, function(k) {
+      do.call(pcogmod_rdm, c(list(q = Inf, response = k), pars,
+                             list(poutlier = poutlier)))
+    }, numeric(1))
+    expect_equal(sum(pk), 1, tolerance = 1e-7)
+
+    # The upper tail is integrated from q upwards rather than subtracted, so the
+    # two sides have to be checked to add back up.
+    for (k in 0:1) {
+      for (q in c(0.4, 1, 3)) {
+        lo <- do.call(pcogmod_rdm, c(list(q = q, response = k), pars,
+                                     list(poutlier = poutlier)))
+        hi <- do.call(pcogmod_rdm, c(list(q = q, response = k,
+                                          lower.tail = FALSE), pars,
+                                     list(poutlier = poutlier)))
+        expect_equal(lo + hi, pk[k + 1], tolerance = 1e-7)
+      }
+    }
+  }
+  # log.p is the log of it.
+  expect_equal(
+    do.call(pcogmod_rdm, c(list(q = 0.6, response = 1, log.p = TRUE), pars)),
+    log(do.call(pcogmod_rdm, c(list(q = 0.6, response = 1), pars))),
+    tolerance = 1e-12
+  )
+})
+
+
+test_that("pcogmod_rdm is 0 below the support and NA for a missing quantile", {
+  pars <- list(vzero = 2.5, vone = 1.5, boundary = 0.5, bias = 0.3, ndt = 0.25)
+  q <- c(-1, 0, NA)
+  # Marginally, `.log_mix()` maps NA onto a log-survival of -Inf, which would
+  # otherwise come back out here as a CDF of exactly 1.
+  expect_equal(do.call(pcogmod_rdm, c(list(q = q), pars,
+                                      list(poutlier = 0.02))),
+               c(0, 0, NA))
+  expect_equal(do.call(pcogmod_rdm, c(list(q = q, response = 0), pars,
+                                      list(poutlier = 0.02))),
+               c(0, 0, NA))
+  # And the survival at the other end of the same range.
+  expect_equal(do.call(pcogmod_rdm, c(list(q = q, lower.tail = FALSE), pars,
+                                      list(poutlier = 0.02))),
+               c(1, 1, NA))
+})
+
+
+test_that("the defective CDF matches the simulated joint distribution", {
+  skip_on_cran()
+  pars <- list(vzero = 2.5, vone = 1.5, boundary = 0.5, bias = 0.3, ndt = 0.25)
+  set.seed(7)
+  d <- do.call(rcogmod_rdm, c(list(n = 2e5), pars, list(poutlier = 0.02)))
+  for (k in 0:1) {
+    for (q in c(0.4, 0.6, 1, 2)) {
+      expect_equal(
+        mean(d$rt <= q & d$response == k),
+        do.call(pcogmod_rdm, c(list(q = q, response = k), pars,
+                               list(poutlier = 0.02))),
+        tolerance = 0.005,
+        info = sprintf("k = %d, q = %.2f", k, q)
+      )
+    }
+  }
+})
+
+
+# qcogmod_rdm -------------------------------------------------------------
+
+test_that("qcogmod_rdm inverts pcogmod_rdm", {
+  pars <- list(vzero = 2.5, vone = 1.5, boundary = 0.5, bias = 0.3, ndt = 0.25)
+  pr <- c(0.1, 0.3, 0.5, 0.7, 0.9)
+
+  # Marginal: p is an ordinary probability.
+  q <- do.call(qcogmod_rdm, c(list(p = pr), pars, list(poutlier = 0.02)))
+  expect_equal(do.call(pcogmod_rdm, c(list(q = q), pars,
+                                      list(poutlier = 0.02))),
+               pr, tolerance = 1e-6)
+  expect_false(is.unsorted(q))
+
+  # Per response, scaled: p is a fraction of that response's own mass, which is
+  # what a quantile-probability plot asks for.
+  for (k in 0:1) {
+    q <- do.call(qcogmod_rdm, c(list(p = pr, response = k, scale_p = TRUE),
+                                pars, list(poutlier = 0.02)))
+    mass <- do.call(pcogmod_rdm, c(list(q = Inf, response = k), pars,
+                                   list(poutlier = 0.02)))
+    got <- do.call(pcogmod_rdm, c(list(q = q, response = k), pars,
+                                  list(poutlier = 0.02)))
+    expect_equal(got / mass, pr, tolerance = 1e-6)
+  }
+
+  # Unscaled, p is read off the defective CDF directly.
+  k <- 1
+  mass <- do.call(pcogmod_rdm, c(list(q = Inf, response = k), pars))
+  target <- c(0.05, 0.15, 0.25)
+  q <- do.call(qcogmod_rdm, c(list(p = target, response = k), pars))
+  expect_equal(do.call(pcogmod_rdm, c(list(q = q, response = k), pars)),
+               target, tolerance = 1e-6)
+  expect_lt(max(target), mass)
+})
+
+
+test_that("qcogmod_rdm handles the edges of the attainable range", {
+  pars <- list(vzero = 2.5, vone = 1.5, boundary = 0.5, bias = 0.3, ndt = 0.25)
+
+  # Zero is the infimum, and the supremum is only reached in the limit.
+  expect_equal(do.call(qcogmod_rdm, c(list(p = c(0, 1), response = 0,
+                                           scale_p = TRUE), pars)),
+               c(0, Inf))
+
+  # Above the response's own mass there is no quantile at all.
+  expect_warning(
+    got <- do.call(qcogmod_rdm, c(list(p = 0.9, response = 1), pars)),
+    "exceeds the attainable probability"
+  )
+  expect_true(is.na(got))
+
+  # The bracket only affects speed: an ndt above it, and quantiles well past it,
+  # both still come back.
+  slow <- list(vzero = 0.6, vone = 0.5, boundary = 1.5, bias = 0.3, ndt = 12)
+  q <- do.call(qcogmod_rdm, c(list(p = 0.9, interval = c(0, 1)), slow))
+  expect_gt(q, 12)
+  expect_equal(do.call(pcogmod_rdm, c(list(q = q), slow)), 0.9,
+               tolerance = 1e-6)
+  expect_error(do.call(qcogmod_rdm, c(list(p = 0.5, interval = 3), pars)),
+               "two increasing")
+
+  # lower.tail and log.p are the same request, differently written.
+  expect_equal(
+    do.call(qcogmod_rdm, c(list(p = 0.75), pars)),
+    do.call(qcogmod_rdm, c(list(p = 0.25, lower.tail = FALSE), pars))
+  )
+  expect_equal(
+    do.call(qcogmod_rdm, c(list(p = 0.4), pars)),
+    do.call(qcogmod_rdm, c(list(p = log(0.4), log.p = TRUE), pars))
+  )
+})
+
+
+test_that("qcogmod_rdm recovers the quantiles of simulated data", {
+  skip_on_cran()
+  pars <- list(vzero = 2.5, vone = 1.5, boundary = 0.5, bias = 0.3, ndt = 0.25)
+  pr <- c(0.1, 0.3, 0.5, 0.7, 0.9)
+  set.seed(11)
+  d <- do.call(rcogmod_rdm, c(list(n = 2e5), pars, list(poutlier = 0.02)))
+  for (k in 0:1) {
+    got <- do.call(qcogmod_rdm, c(list(p = pr, response = k, scale_p = TRUE),
+                                  pars, list(poutlier = 0.02)))
+    emp <- as.numeric(stats::quantile(d$rt[d$response == k], pr))
+    expect_equal(got, emp, tolerance = 0.01,
+                 info = sprintf("response %d", k))
+  }
+})
+
+
+# Agreement with rtdists --------------------------------------------------
+
+test_that("the density and defective CDF agree with rtdists", {
+  # rtdists gained the RDM in 2026 (rtdists/rtdists#23), from the same Tillman
+  # et al. (2020) equations but a separate lineage - Van Zandt's digt/pigt, on
+  # the natural scale. An independent implementation is worth more than any
+  # self-consistency check, so compare where both are accurate.
+  #
+  # Their `b` is the absolute threshold, ours the offset: b = boundary + bias.
+  # Their responses are 1-based, ours 0-based. Nothing else differs.
+  #
+  # Only ordinary parameters are compared. Their natural-scale arithmetic
+  # returns exactly 0 for a density that underflows - at drift 4 it does so from
+  # about t = 5 - which is the whole reason ours is in log space, so the tails
+  # are not a like-for-like comparison and are left out.
+  skip_on_cran()
+  skip_if_not_installed("rtdists")
+  skip_if_not(exists("dRDM", envir = asNamespace("rtdists")),
+              "installed rtdists predates the RDM")
+
+  dRDM <- get("dRDM", envir = asNamespace("rtdists"))
+  pRDM <- get("pRDM", envir = asNamespace("rtdists"))
+
+  A <- 0.3
+  boundary <- 0.5
+  ndt <- 0.25
+  v <- c(2.5, 1.5)
+  rt <- seq(0.35, 2.5, length.out = 25)
+
+  for (k in 0:1) {
+    theirs <- dRDM(rt, rep(k + 1L, length(rt)), A = A, b = boundary + A,
+                   t0 = ndt, v = v, silent = TRUE)
+    ours <- dcogmod_rdm(rt, vzero = v[1], vone = v[2], boundary = boundary,
+                        bias = A, ndt = ndt, response = k, poutlier = 0)
+    expect_equal(ours, theirs, tolerance = 1e-8,
+                 info = sprintf("density, response %d", k))
+
+    theirs <- pRDM(rt, rep(k + 1L, length(rt)), A = A, b = boundary + A,
+                   t0 = ndt, v = v, silent = TRUE)
+    ours <- pcogmod_rdm(rt, vzero = v[1], vone = v[2], boundary = boundary,
+                        bias = A, ndt = ndt, response = k, poutlier = 0)
+    expect_equal(ours, theirs, tolerance = 1e-6,
+                 info = sprintf("defective CDF, response %d", k))
+  }
+
+  # A zero start-point range and a zero drift are legal for both.
+  expect_equal(
+    dcogmod_rdm(rt, vzero = v[1], vone = v[2], boundary = boundary, bias = 0,
+                ndt = ndt, response = 0, poutlier = 0),
+    dRDM(rt, rep(1L, length(rt)), A = 0, b = boundary, t0 = ndt, v = v,
+         silent = TRUE),
+    tolerance = 1e-8
+  )
+  expect_equal(
+    dcogmod_rdm(rt, vzero = 0, vone = v[2], boundary = boundary, bias = A,
+                ndt = ndt, response = 1, poutlier = 0),
+    dRDM(rt, rep(2L, length(rt)), A = A, b = boundary + A, t0 = ndt,
+         v = c(0, v[2]), silent = TRUE),
+    tolerance = 1e-8
+  )
 })
 
 
@@ -338,7 +601,7 @@ test_that("rcogmod_rdm produces responses below ndt only via outliers", {
 test_that("rcogmod_rdm errors on invalid parameters", {
   expect_error(rcogmod_rdm(10, vzero = -1), "mu")
   expect_error(rcogmod_rdm(10, boundary = 0), "boundary")
-  expect_error(rcogmod_rdm(10, bias = 0), "sigmabias")
+  expect_error(rcogmod_rdm(10, bias = -1), "sigmabias")
   expect_error(rcogmod_rdm(10, ndt = -1), "ndt")
   expect_error(rcogmod_rdm(10, poutlier = 2), "poutlier")
 })
@@ -397,6 +660,89 @@ test_that("the driftless Wald CDF is correct (regression: was off by a factor of
     .swald(1.1, v, 1, 0.3, 0.1, log.p = TRUE)
   }, numeric(1))
   expect_lt(max(abs(diff(s))), 1e-5)
+})
+
+
+test_that("the Wald density is the published one (Tillman et al., 2020)", {
+  # Everything else in this file checks the implementation against itself - it
+  # integrates to one, the survival complements the CDF, Stan matches R. All of
+  # that would pass a log-space rewrite that was self-consistently wrong. These
+  # three pin it to the equations as printed, in the paper's own notation, where
+  # `b` is the absolute threshold and `A` the start-point range, so
+  # `boundary = b - A`.
+  rt <- seq(0.05, 3, length.out = 50)
+  b <- 1
+  A <- 0.4
+  v <- 2
+  ours <- function(t, A, b, v) {
+    n <- length(t)
+    .dwald(t, rep(v, n), rep(b - A, n), rep(A, n), rep(0, n))
+  }
+
+  # Equation 5: with start-point variability.
+  alpha <- (b - A - rt * v) / sqrt(rt)
+  beta <- (b - rt * v) / sqrt(rt)
+  eq5 <- (1 / A) * (-v * pnorm(alpha) + dnorm(alpha) / sqrt(rt) +
+                      v * pnorm(beta) - dnorm(beta) / sqrt(rt))
+  expect_equal(ours(rt, A, b, v), eq5, tolerance = 1e-12)
+
+  # Equation 6: start-point variability with a drift rate of zero.
+  eq6 <- (1 / A) * (dnorm((b - A) / sqrt(rt)) / sqrt(rt) -
+                      dnorm(b / sqrt(rt)) / sqrt(rt))
+  expect_equal(ours(rt, A, b, 0), eq6, tolerance = 1e-12)
+
+  # Equation 2: the plain shifted Wald, which is what the model becomes when the
+  # start point stops varying. Exact at bias = 0, and approached from above.
+  eq2 <- b * (2 * pi * rt^3)^(-1 / 2) * exp(-(1 / (2 * rt)) * (v * rt - b)^2)
+  expect_equal(ours(rt, 0, b, v), eq2, tolerance = 1e-12)
+  expect_lt(max(abs(ours(rt, 1e-5, b, v) - eq2) / eq2), 1e-4)
+})
+
+
+test_that("a start-point range of exactly zero is the plain Wald", {
+  # `bias = 0` is a model - both accumulators start at 0 every trial - not an
+  # invalid parameter, exactly as for cogmod_lba1() and cogmod_lba2().
+  k <- 1
+  v <- 2
+  t <- c(0.05, 0.3, 0.7, 1.5, 3)
+  n <- length(t)
+  z0 <- rep(0, n)
+
+  # Density, survival and CDF all reduce to the textbook Wald.
+  expect_equal(
+    .dwald(t, rep(v, n), rep(k, n), z0, z0),
+    k * (2 * pi * t^3)^(-1 / 2) * exp(-(1 / (2 * t)) * (v * t - k)^2),
+    tolerance = 1e-12
+  )
+  wald_surv <- pnorm((k - v * t) / sqrt(t)) -
+    exp(2 * v * k) * pnorm(-(k + v * t) / sqrt(t))
+  expect_equal(.swald(t, rep(v, n), rep(k, n), z0, z0), wald_surv,
+               tolerance = 1e-10)
+  expect_equal(.pwald(t, rep(v, n), rep(k, n), z0, z0), 1 - wald_surv,
+               tolerance = 1e-10)
+
+  # The driftless case goes through `.wald_lcdf_direct()`, which had no branch
+  # that could survive a zero range - both of its others divide by it.
+  expect_equal(.pwald(t, z0, rep(k, n), z0, z0), 2 * pnorm(-k / sqrt(t)),
+               tolerance = 1e-10)
+
+  # And it is continuous coming down to it, rather than a special case bolted on.
+  near <- vapply(c(1e-5, 1e-7, 1e-9, 0), function(a) {
+    dcogmod_rdm(0.7, bias = a, response = 0, poutlier = 0, log = TRUE)
+  }, numeric(1))
+  expect_lt(max(abs(diff(near))), 1e-4)
+
+  # It is a legal argument end to end, not just in the internals.
+  expect_equal(
+    integrate(function(z) dcogmod_rdm(z, bias = 0, poutlier = 0), 0, Inf)$value,
+    1, tolerance = 1e-6
+  )
+  d <- rcogmod_rdm(50, bias = 0)
+  expect_true(all(is.finite(d$rt)) && all(d$rt > 0))
+
+  # A negative range is still rejected.
+  expect_warning(expect_equal(dcogmod_rdm(0.7, bias = -1, response = 0), 0),
+                 "sigmabias")
 })
 
 
@@ -585,8 +931,16 @@ test_that("Stan cogmod_rdm_lpdf matches dcogmod_rdm", {
     }
   }
 
+  # a zero start-point range is a model on both sides, not an invalid argument
+  expect_equal(
+    lpdf(0.5, 2, 1, 0, 0.5, 0.2, 0.02, 0L),
+    dcogmod_rdm(0.5, vzero = 2, vone = 1, boundary = 0.5, bias = 0,
+                ndt = 0.2, response = 0, poutlier = 0.02, log = TRUE),
+    tolerance = 1e-8
+  )
+
   # invalid arguments are rejected on both sides
-  expect_equal(lpdf(0.5, 2, 1, 0, 0.5, 0.2, 0.02, 0L), -Inf)   # sigmabias
+  expect_equal(lpdf(0.5, 2, 1, -0.1, 0.5, 0.2, 0.02, 0L), -Inf) # sigmabias
   expect_equal(lpdf(0.5, 2, 1, 0.2, 0, 0.2, 0.02, 0L), -Inf)   # boundary
   expect_equal(lpdf(0.5, -1, 1, 0.2, 0.5, 0.2, 0.02, 0L), -Inf) # mu
   expect_equal(lpdf(0.5, 2, 1, 0.2, 0.5, -0.1, 0.02, 0L), -Inf) # ndt

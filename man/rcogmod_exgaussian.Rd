@@ -54,7 +54,22 @@ model the ex-Gaussian parameters. Defaults to \code{"identity"} for \code{mu} an
 \item{...}{Additional arguments.}
 }
 \value{
-A \code{brms::custom_family} object.
+\code{rcogmod_exgaussian()} returns a numeric vector of \code{n} simulated
+reaction times, in seconds. \code{dcogmod_exgaussian()} returns the density at
+each element of \code{x} - the log density if \code{log = TRUE} - recycled to the
+length of the longest argument. \code{cogmod_exgaussian()} returns a
+\code{brms::custom_family} object, to put on a \code{brms::bf()} formula.
+\code{cogmod_exgaussian_stanvars()} returns a \code{brms::stanvars} object holding
+the family's Stan \code{functions} block, to pass to \code{brms::brm()}, and
+\code{cogmod_exgaussian_lpdf_expose()} compiles that Stan code and returns it
+as an R function, for checking the density outside of a model. The
+remaining functions are \code{brms} post-processing methods, called by \code{brms}
+rather than directly: \code{log_lik_cogmod_exgaussian()} returns a numeric
+vector holding one log-likelihood value per posterior draw for
+observation \code{i}, \code{posterior_predict_cogmod_exgaussian()} a draws x 1
+matrix of reaction times simulated for observation \code{i}, and
+\code{posterior_epred_cogmod_exgaussian()} a draws x observations matrix of
+expected reaction times.
 }
 \description{
 Density, random generation, and \code{brms} custom family for the Ex-Gaussian
@@ -122,13 +137,13 @@ The cost is that \code{brms}'s default intercept prior is no longer sensible for
 \examples{
 # Simulate 1000 RTs
 rts <- rcogmod_exgaussian(1000, mu = 0.5, sigma = 0.1, tau = 0.2)
-# hist(rts, breaks = 50, main = "Simulated Ex-Gaussian RTs", xlab = "Reaction Time")
+hist(rts, breaks = 50, main = "Simulated Ex-Gaussian RTs", xlab = "Reaction Time")
 
 }
 \references{
 \itemize{
 \item Matzke, D., & Wagenmakers, E. J. (2009). Psychological interpretation of the ex-Gaussian
 and shifted Wald parameters: A diffusion model analysis. \emph{Psychonomic Bulletin & Review},
-\emph{16}(5), 798–817. \doi{10.3758/PBR.16.5.798}
+\emph{16}(5), 798-817. \doi{10.3758/PBR.16.5.798}
 }
 }

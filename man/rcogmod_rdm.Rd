@@ -4,6 +4,7 @@
 \alias{rcogmod_rdm}
 \alias{dcogmod_rdm}
 \alias{pcogmod_rdm}
+\alias{qcogmod_rdm}
 \alias{cogmod_rdm}
 \alias{cogmod_rdm_lpdf_expose}
 \alias{cogmod_rdm_stanvars}
@@ -42,8 +43,24 @@ pcogmod_rdm(
   bias = 0.2,
   ndt = 0.2,
   poutlier = 0,
+  response = NULL,
   lower.tail = TRUE,
   log.p = FALSE
+)
+
+qcogmod_rdm(
+  p,
+  vzero = 3,
+  vone = 2,
+  boundary = 0.5,
+  bias = 0.2,
+  ndt = 0.2,
+  poutlier = 0,
+  response = NULL,
+  scale_p = FALSE,
+  lower.tail = TRUE,
+  log.p = FALSE,
+  interval = c(0, 10)
 )
 
 cogmod_rdm(
@@ -78,8 +95,10 @@ is slow, but it still finishes, and can still win. Range: \verb{[0, Inf)}.}
 decision threshold and \code{bias} the maximum starting point. Must be positive.}
 
 \item{bias}{Maximum starting point. The starting point of each accumulator on
-each trial is drawn from \code{Uniform(0, bias)}. Must be positive. Called
-\code{sigmabias} in the \code{brms} family, to match \code{\link[=cogmod_lba2]{cogmod_lba2()}}.}
+each trial is drawn from \code{Uniform(0, bias)}. Must be non-negative; zero is
+allowed and gives the plain Wald race, in which both accumulators start at
+\code{0} on every trial. Range: \verb{[0, Inf)}. Called \code{sigmabias} in the \code{brms}
+family, to match \code{\link[=cogmod_lba2]{cogmod_lba2()}}.}
 
 \item{ndt}{Non-decision time (shift parameter), in seconds. Represents the
 time taken for processes unrelated to the decision (e.g., encoding, motor
@@ -103,9 +122,24 @@ accumulator won - the sum of the two.}
 \item{q}{Vector of quantiles (reaction times).}
 
 \item{lower.tail}{If \code{TRUE} (default) return \code{P(RT <= q)}, otherwise the
-survival \code{P(RT > q)}.}
+survival \code{P(RT > q)}. With a \code{response}, both are defective - see Details.}
 
 \item{log.p}{If \code{TRUE}, probabilities are returned on the log scale.}
+
+\item{p}{Vector of probabilities. With \code{response = NULL} these are ordinary
+probabilities of the marginal RT distribution. With a \code{response} they are
+read off the \emph{defective} CDF unless \code{scale_p = TRUE}, so they must be below
+the probability of that response; anything above it has no quantile and
+comes back \code{NA} with a warning.}
+
+\item{scale_p}{Logical. If \code{TRUE}, \code{p} is taken as a fraction of the chosen
+response's own probability rather than of the whole distribution, so that
+\code{p = 0.5} is that response's median. This is what a quantile-probability
+plot wants. Ignored when \code{response} is \code{NULL}. Default \code{FALSE}.}
+
+\item{interval}{Length-2 numeric giving the initial bracket, in seconds, for
+the root search. The upper end is doubled until it covers the requested
+probability, so this only affects speed.}
 
 \item{link_mu, link_driftone}{Link functions for the two drift rates. \code{mu} is
 \code{vzero}: \code{brms} requires the first distributional parameter of a custom
@@ -134,6 +168,26 @@ default is \code{NULL}, which defers to the flag carried on the model - see
 \item{rt}{The simulated reaction time.}
 \item{response}{The winning accumulator, coded \code{0} for \code{vzero} and \code{1} for
 \code{vone}, matching the \code{dec()} coding used by the \code{brms} families.}
+
+\code{dcogmod_rdm()} returns the density at each element of \code{x} - the log
+density if \code{log = TRUE} - \code{pcogmod_rdm()} the cumulative probability at
+each element of \code{q}, and \code{qcogmod_rdm()} the quantile at each element of
+\code{p}, in seconds. With a \code{response} the latter two are defective, i.e.
+scaled to that response's own probability rather than to one. All are
+numeric vectors, recycled to the length of the longest argument.
+\code{cogmod_rdm()} returns a \code{brms::custom_family} object, to put on a
+\code{brms::bf()} formula. \code{cogmod_rdm_stanvars()} returns a \code{brms::stanvars}
+object holding the family's Stan \code{functions} block, to pass to
+\code{brms::brm()}, and \code{cogmod_rdm_lpdf_expose()} compiles that Stan code and
+returns it as an R function, for checking the density outside of a model.
+The remaining functions are \code{brms} post-processing methods, called by
+\code{brms} rather than directly: \code{log_lik_cogmod_rdm()} returns a numeric
+vector holding one log-likelihood value per posterior draw for observation
+\code{i}, and \code{posterior_predict_cogmod_rdm()} a draws x 2 matrix of reaction
+times and choices simulated for observation \code{i}.
+\code{posterior_epred_cogmod_rdm()} returns nothing: the expected reaction time
+of a race has no closed form, so it errors rather than report one -
+summarise \code{posterior_predict()} draws instead.
 }
 \description{
 The Racing Diffusion Model (RDM) treats a choice as a race between two
@@ -147,18 +201,35 @@ Functions:
 \itemize{
 \item \code{rcogmod_rdm()}: Simulates random draws from the RDM.
 \item \code{dcogmod_rdm()}: Computes the density (likelihood).
-\item \code{pcogmod_rdm()}: Computes the CDF of the reaction time.
+\item \code{pcogmod_rdm()}: Computes the CDF of the reaction time, marginally over the
+choice or defectively for one response.
+\item \code{qcogmod_rdm()}: Computes the corresponding quantiles.
 \item \code{cogmod_rdm()}: Creates a \code{brms::custom_family()} for use in \code{brms} models.
 \item \code{cogmod_rdm_stanvars()}: Generates the \code{stanvars} to pass to \code{brm()}.
 \item \code{p_outlier()}: Per-trial posterior probability of being an outlier.
 }
 }
 \details{
-\code{pcogmod_rdm()} describes the RT of the trial as a whole - whichever
-accumulator wins, and whether or not the trial came from the outlier
-component - since \code{P(min(T0, T1) > q) = S0(q) * S1(q)}. There is no comparably
-simple closed form for the per-response defective CDF, so \code{pcogmod_rdm()}
-takes no \code{response} argument.
+\code{pcogmod_rdm()} with \code{response = NULL} (the default) describes the RT of the
+trial as a whole - whichever accumulator wins, and whether or not the trial
+came from the outlier component - since \code{P(min(T0, T1) > q) = S0(q) * S1(q)}.
+That is a closed form and is exact.
+
+With a \code{response}, it returns the \strong{defective} CDF
+\code{P(RT <= q, choice = response)}, which is what a defective-CDF or
+quantile-probability plot needs. It does not reach one: its limit is the
+probability of that response, which \code{pcogmod_rdm(Inf, response = k)} gives.
+There is no closed form for it, so it is obtained by quadrature over the
+defective density: accurate to about \code{1e-8} rather than to machine precision,
+and about ten times slower per element (roughly 3 ms against 0.3 ms), since
+the marginal is a vectorised closed form and this is a loop.
+\code{lower.tail = FALSE} integrates the upper side directly rather than
+subtracting, so the defective survival stays accurate into the tail.
+
+\code{qcogmod_rdm()} inverts \code{pcogmod_rdm()} by root-finding, and so inherits its
+quadrature error where a \code{response} is given. It is the natural way to get
+the RT quantiles of each response for a quantile-probability plot: ask for
+\code{p = c(0.1, 0.3, 0.5, 0.7, 0.9)} with \code{scale_p = TRUE}, once per response.
 }
 \section{Parameterization}{
 Each accumulator is a diffusion with drift rate \code{v} and unit diffusion
@@ -184,6 +255,13 @@ A drift rate of \strong{exactly zero is allowed}, and is not the same as an
 accumulator that never responds: driftless Brownian motion still reaches any
 positive level with probability one, so a zero-drift accumulator is slow but
 still finishes, and can still win the race.
+
+A start-point range of \strong{exactly zero is allowed} too, and is a model rather
+than a degenerate parameter: both accumulators then start at \code{0} on every
+trial and the race is between two plain Walds - equation 2 of Tillman et al.
+(2020), which is the limit the density already takes. \code{\link[=cogmod_lba1]{cogmod_lba1()}} and
+\code{\link[=cogmod_lba2]{cogmod_lba2()}} have always allowed it. Note that this does not make the
+\code{sigmabias} direction any better identified - see Fitting below.
 
 \code{ndt} is expressed \strong{directly, in seconds} (through a log link in the \code{brms}
 family). Nothing about it is taken from the data: it is not bounded by the
@@ -266,6 +344,8 @@ compensate. With flat priors the sampler tends to wander down the
 \code{sigmabias -> 0} ridge (the plain Wald race) and produce divergent
 transitions, and a \code{softplus} link reaches zero only at minus infinity - a
 flat prior over an unbounded flat region, which is an improper posterior.
+That the endpoint is now a legal parameter value does not help: the link
+never reaches it, so the flat direction is as long as it ever was.
 \code{\link[=cogmod_priors]{cogmod_priors()}} fences both off, exactly as it does for \code{\link[=cogmod_lba1]{cogmod_lba1()}},
 which shares this parameterisation.
 
@@ -298,14 +378,27 @@ head(data)
 dcogmod_rdm(0.1, ndt = 0.2, response = 0, poutlier = 0.02)
 dcogmod_rdm(0.1, ndt = 0.2, response = 0, poutlier = 0)
 
-\dontrun{
-# You can expose the lpdf function as follows:
-insight::check_if_installed("cmdstanr")
-lpdf <- cogmod_rdm_lpdf_expose()
-lpdf(
-  Y = 0.5, mu = 2, driftone = 1.5, sigmabias = 0.2, boundary = 0.5,
-  ndt = 0.2, poutlier = 0.02, dec = 0
-)
+# Defective CDF of one response: at q = Inf it is that response's probability
+pcogmod_rdm(c(0.4, 0.6, Inf), vzero = 2.5, vone = 1.6, response = 0)
+
+# The RT quantiles of each response, for a quantile-probability plot
+sapply(0:1, function(k) {
+  qcogmod_rdm(c(0.1, 0.3, 0.5, 0.7, 0.9),
+    vzero = 2.5, vone = 1.6, response = k, scale_p = TRUE
+  )
+})
+
+\donttest{
+# Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+# which live outside CRAN - see the package website to install them.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  lpdf <- cogmod_rdm_lpdf_expose()
+  lpdf(
+    Y = 0.5, mu = 2, driftone = 1.5, sigmabias = 0.2, boundary = 0.5,
+    ndt = 0.2, poutlier = 0.02, dec = 0
+  )
+}
 }
 
 }

@@ -151,6 +151,26 @@
 #' - Rouder, J. N., Province, J. M., Morey, R. D., Gomez, P., & Heathcote, A. (2015).
 #'   The lognormal race: A cognitive-process model of choice and latency with desirable
 #'   psychometric properties. Psychometrika, 80(2), 491-513.
+#'   \doi{10.1007/s11336-013-9396-3}
+#'
+#' @return `rcogmod_lnr()` returns a data frame with `n` rows and two columns,
+#'   `rt` (the simulated reaction time, in seconds) and `response` (the
+#'   boundary reached, `0` or `1`, matching the `dec()` coding used by the
+#'   `brms` family). `dcogmod_lnr()` returns the defective density at each
+#'   element of `x` - the log density if `log = TRUE` - recycled to the length
+#'   of the longest argument. `cogmod_lnr()` returns a `brms::custom_family`
+#'   object, to put on a `brms::bf()` formula. `cogmod_lnr_stanvars()` returns
+#'   a `brms::stanvars` object holding the family's Stan `functions` block, to
+#'   pass to `brms::brm()`, and `cogmod_lnr_lpdf_expose()` compiles that Stan
+#'   code and returns it as an R function, for checking the density outside of
+#'   a model. The remaining functions are `brms` post-processing methods,
+#'   called by `brms` rather than directly: `log_lik_cogmod_lnr()` returns a
+#'   numeric vector holding one log-likelihood value per posterior draw for
+#'   observation `i`, and `posterior_predict_cogmod_lnr()` a draws x 2 matrix
+#'   of reaction times and choices simulated for observation `i`.
+#'   `posterior_epred_cogmod_lnr()` returns nothing: the expected reaction
+#'   time of a race has no closed form, so it errors rather than report one -
+#'   summarise `posterior_predict()` draws instead.
 #'
 #' @examples
 #' # Simulate data, with 2% of trials from the outlier process
@@ -231,14 +251,17 @@ cogmod_lnr <- function(
 
 #' @rdname rcogmod_lnr
 #' @examples
-#' \dontrun{
-#' # You can expose the lpdf function as follows:
-#' insight::check_if_installed("cmdstanr")
-#' lpdf <- cogmod_lnr_lpdf_expose()
-#' lpdf(
-#'   Y = 0.5, mu = 0.5, nuone = 0.2, sigmazero = 1.0, sigmaone = 0.8,
-#'   ndt = 0.2, poutlier = 0.02, dec = 0
-#' )
+#' \donttest{
+#' # Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+#' # which live outside CRAN - see the package website to install them.
+#' if (requireNamespace("cmdstanr", quietly = TRUE) &&
+#'     !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+#'   lpdf <- cogmod_lnr_lpdf_expose()
+#'   lpdf(
+#'     Y = 0.5, mu = 0.5, nuone = 0.2, sigmazero = 1.0, sigmaone = 0.8,
+#'     ndt = 0.2, poutlier = 0.02, dec = 0
+#'   )
+#' }
 #' }
 #'
 #' @export

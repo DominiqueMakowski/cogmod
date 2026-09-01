@@ -79,7 +79,23 @@ nested model, which is what \code{\link[=cogmod_priors]{cogmod_priors()}} suppli
 \item{...}{Additional arguments.}
 }
 \value{
-A \code{brms::custom_family} object.
+\code{rcogmod_geg()} returns a numeric vector of \code{n} simulated reaction
+times, in seconds. \code{dcogmod_geg()} returns the density at each element of
+\code{x} - the log density if \code{log = TRUE} - and \code{pcogmod_geg()} the cumulative
+probability at each element of \code{q}, honouring \code{lower.tail} and \code{log.p};
+both are recycled to the length of the longest argument. \code{cogmod_geg()}
+returns a \code{brms::custom_family} object, to put on a \code{brms::bf()} formula.
+\code{cogmod_geg_stanvars()} returns a \code{brms::stanvars} object holding the
+family's Stan \code{functions} block, to pass to \code{brms::brm()}, and
+\code{cogmod_geg_lpdf_expose()} compiles that Stan code and returns it as an R
+function, for checking the density outside of a model. The remaining
+functions are \code{brms} post-processing methods, called by \code{brms} rather than
+directly: \code{log_lik_cogmod_geg()} returns a numeric vector holding one
+log-likelihood value per posterior draw for observation \code{i},
+\code{posterior_predict_cogmod_geg()} a draws x 1 matrix of reaction times
+simulated for observation \code{i}, and \code{posterior_epred_cogmod_geg()} a
+draws x observations matrix of expected reaction times, obtained by
+numerical integration.
 }
 \description{
 The Generalised Ex-Gaussian of Marmolejo-Ramos et al. (2023): the ex-Gaussian
@@ -146,7 +162,7 @@ dcogmod_geg(x, 0.4, 0.1, 0.2, shape = 1)
 dcogmod_exgaussian(x, 0.4, 0.1, 0.2)
 
 rts <- rcogmod_geg(1000, mu = 0.4, sigma = 0.1, tau = 0.2, shape = 2)
-# hist(rts, breaks = 50, xlab = "RT (s)")
+hist(rts, breaks = 50, xlab = "RT (s)")
 
 }
 \references{
