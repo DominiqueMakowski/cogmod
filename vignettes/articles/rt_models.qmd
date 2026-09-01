@@ -534,6 +534,10 @@ saveRDS(m_wald, file = "../models/m_wald.rds")
 
 
 
+![](../man/figures/animations/anim_wald.gif)
+
+
+
 ### Linear Ballistic Accumulator
 
 The LBA is normally a *race*: one accumulator per response option, each rising
@@ -619,8 +623,6 @@ context are correspondingly less well documented. They are nonetheless capable
 of generating close fits to RT data, and more research is needed to establish
 whether they offer any real advantage - in terms of fit, of interpretability,
 or of computational behaviour - over the more established options.
-
-::: {.panel-tabset}
 
 #### Recinormal (LATER)
 
@@ -1057,9 +1059,6 @@ saveRDS(m_invgamma, file = "../models/m_invgamma.rds")
 
 
 
-:::
-
-
 ### LogGamma
 
 Every model above commits to a distributional shape in advance: fitting a Weibull
@@ -1431,8 +1430,6 @@ path_doggonogo <- "C:/Users/domma/Dropbox/RECHERCHE/Studies/DoggoNogoValidation/
 ```
 
 
-::: {.panel-tabset}
-
 #### Normal
 
 ```{r}
@@ -1487,8 +1484,6 @@ saveRDS(m_exgauss, file = paste0(path_doggonogo, "/m_srt_exgauss.rds"))
 ```
 
 
-
-:::
 
 #### Model Comparison
 
