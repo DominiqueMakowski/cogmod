@@ -92,9 +92,26 @@ posterior_epred_cogmod_exgaussian(prep)
 
 ## Value
 
-A
+`rcogmod_exgaussian()` returns a numeric vector of `n` simulated
+reaction times, in seconds. `dcogmod_exgaussian()` returns the density
+at each element of `x` - the log density if `log = TRUE` - recycled to
+the length of the longest argument. `cogmod_exgaussian()` returns a
 [`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
-object.
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_exgaussian_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_exgaussian_lpdf_expose()` compiles that Stan code and returns it
+as an R function, for checking the density outside of a model. The
+remaining functions are `brms` post-processing methods, called by `brms`
+rather than directly: `log_lik_cogmod_exgaussian()` returns a numeric
+vector holding one log-likelihood value per posterior draw for
+observation `i`, `posterior_predict_cogmod_exgaussian()` a draws x 1
+matrix of reaction times simulated for observation `i`, and
+`posterior_epred_cogmod_exgaussian()` a draws x observations matrix of
+expected reaction times.
 
 ## Details
 
@@ -155,7 +172,7 @@ now supplies one.
 
 - Matzke, D., & Wagenmakers, E. J. (2009). Psychological interpretation
   of the ex-Gaussian and shifted Wald parameters: A diffusion model
-  analysis. *Psychonomic Bulletin & Review*, *16*(5), 798–817.
+  analysis. *Psychonomic Bulletin & Review*, *16*(5), 798-817.
   [doi:10.3758/PBR.16.5.798](https://doi.org/10.3758/PBR.16.5.798)
 
 ## Examples
@@ -163,5 +180,6 @@ now supplies one.
 ``` r
 # Simulate 1000 RTs
 rts <- rcogmod_exgaussian(1000, mu = 0.5, sigma = 0.1, tau = 0.2)
-# hist(rts, breaks = 50, main = "Simulated Ex-Gaussian RTs", xlab = "Reaction Time")
+hist(rts, breaks = 50, main = "Simulated Ex-Gaussian RTs", xlab = "Reaction Time")
+
 ```

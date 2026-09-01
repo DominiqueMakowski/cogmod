@@ -142,6 +142,31 @@ posterior_epred_cogmod_choco(prep)
 
   Additional arguments.
 
+## Value
+
+`rcogmod_choco()` returns a numeric vector of `n` simulated ratings on
+the unit interval `[0, 1]`, including exact `0`s and `1`s from the
+extreme-response gates and exact `mid` values. `dcogmod_choco()` returns
+the density at each element of `x` - the log density if `log = TRUE` -
+recycled to the length of the longest argument; at `0`, `1` and `mid` it
+is the probability mass rather than a density. `cogmod_choco()` returns
+a
+[`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_choco_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_choco_lpdf_expose()` compiles that Stan code and returns it as
+an R function, for checking the density outside of a model. The
+remaining functions are `brms` post-processing methods, called by `brms`
+rather than directly: `log_lik_cogmod_choco()` returns a numeric vector
+holding one log-likelihood value per posterior draw for observation `i`,
+`posterior_predict_cogmod_choco()` a draws x 1 matrix of ratings
+simulated for observation `i`, and `posterior_epred_cogmod_choco()` a
+draws x observations matrix of expected ratings.
+
 ## Details
 
 **Psychological Interpretation:**
@@ -206,20 +231,30 @@ x3 <- rcogmod_choco(
 )
 hist(x3, breaks = 50, main = "CHOCO: Low confidence overall", xlab = "y")
 
-# Example usage in a brms formula:
-# bf(y ~ x1 + (1|group),
-#    confright ~ x3,
-#    confleft ~ x3,
-#    precright ~ 1,
-#    precleft ~ 1,
-#    pex ~ s(age),
-#    bex ~ 1,
-#    pmid ~ 1,
-#    family = cogmod_choco())
 cogmod_choco()
 #> 
 #> Custom family: cogmod_choco 
 #> Link function: logit 
 #> Parameters: mu, confright, precright, confleft, precleft, pex, bex, pmid 
 #> 
+
+# Example usage in a brms formula:
+brms::bf(y ~ x1 + (1 | group),
+  confright ~ x3,
+  confleft ~ x3,
+  precright ~ 1,
+  precleft ~ 1,
+  pex ~ age,
+  bex ~ 1,
+  pmid ~ 1,
+  family = cogmod_choco()
+)
+#> y ~ x1 + (1 | group) 
+#> confright ~ x3
+#> confleft ~ x3
+#> precright ~ 1
+#> precleft ~ 1
+#> pex ~ age
+#> bex ~ 1
+#> pmid ~ 1
 ```

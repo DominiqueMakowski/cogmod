@@ -119,6 +119,31 @@ posterior_epred_cogmod_logstudent(prep, predict_outliers = NULL)
 
   Additional arguments.
 
+## Value
+
+`rcogmod_logstudent()` returns a numeric vector of `n` simulated
+reaction times, in seconds. `dcogmod_logstudent()` returns the density
+at each element of `x` - the log density if `log = TRUE` - recycled to
+the length of the longest argument. `cogmod_logstudent()` returns a
+[`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_logstudent_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_logstudent_lpdf_expose()` compiles that Stan code and returns it
+as an R function, for checking the density outside of a model. The
+remaining functions are `brms` post-processing methods, called by `brms`
+rather than directly: `log_lik_cogmod_logstudent()` returns a numeric
+vector holding one log-likelihood value per posterior draw for
+observation `i`, and `posterior_predict_cogmod_logstudent()` a draws x 1
+matrix of reaction times simulated for observation `i`.
+`posterior_epred_cogmod_logstudent()` returns nothing: the decision time
+has no finite mean, so it errors rather than report one - summarise
+[`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
+draws instead.
+
 ## Details
 
 `log(RT - ndt)` follows a **Student-t** distribution with location `mu`,
@@ -215,7 +240,8 @@ tail worth having.
 ``` r
 rts <- rcogmod_logstudent(1000, mu = -0.7, sigma = 0.4, dof = 5,
                           ndt = 0.2, poutlier = 0.02)
-# hist(rts, breaks = 100, xlab = "RT (s)")
+hist(rts, breaks = 100, xlab = "RT (s)")
+
 
 # A heavier tail than the LogNormal it nests, on the slow side...
 dcogmod_logstudent(5, dof = 5, ndt = 0.2)

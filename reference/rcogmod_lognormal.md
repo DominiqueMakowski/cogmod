@@ -121,6 +121,29 @@ posterior_epred_cogmod_lognormal(prep, predict_outliers = NULL)
 
   Additional arguments.
 
+## Value
+
+`rcogmod_lognormal()` returns a numeric vector of `n` simulated reaction
+times, in seconds. `dcogmod_lognormal()` returns the density at each
+element of `x` - the log density if `log = TRUE` - recycled to the
+length of the longest argument. `cogmod_lognormal()` returns a
+[`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_lognormal_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_lognormal_lpdf_expose()` compiles that Stan code and returns it
+as an R function, for checking the density outside of a model. The
+remaining functions are `brms` post-processing methods, called by `brms`
+rather than directly: `log_lik_cogmod_lognormal()` returns a numeric
+vector holding one log-likelihood value per posterior draw for
+observation `i`, and `posterior_predict_cogmod_lognormal()` a draws x 1
+matrix of reaction times simulated for observation `i`.
+`posterior_epred_cogmod_lognormal()` returns a draws x observations
+matrix of expected reaction times.
+
 ## Parameterization
 
 The observed reaction time is `ndt + LogNormal(mu, sigma)`, so `mu` and
@@ -315,7 +338,8 @@ against the likelihood should be run on
 ``` r
 # Simulate 1000 RTs with 2% outliers
 rts <- rcogmod_lognormal(1000, mu = -0.7, sigma = 0.5, ndt = 0.3, poutlier = 0.02)
-# hist(rts, breaks = 100, main = "Simulated shifted LogNormal RTs", xlab = "RT (s)")
+hist(rts, breaks = 100, main = "Simulated shifted LogNormal RTs", xlab = "RT (s)")
+
 
 # Responses faster than ndt have positive density, unlike the unmixed model
 dcogmod_lognormal(0.1, ndt = 0.3, poutlier = 0.02)
@@ -324,5 +348,6 @@ dcogmod_lognormal(0.1, ndt = 0.3, poutlier = 0)
 #> [1] 0
 
 # Density of the outlier component alone
-# curve(2 * dnorm(x, 0, 0.2), from = 0, to = 3, n = 1000)
+curve(2 * dnorm(x, 0, 0.2), from = 0, to = 3, n = 1000)
+
 ```

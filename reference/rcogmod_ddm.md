@@ -165,7 +165,9 @@ posterior_epred_cogmod_ddm(prep, predict_outliers = NULL)
 - lower.tail:
 
   Logical; if TRUE (default) the probability is `P(RT <= q)`, otherwise
-  `P(RT > q)`.
+  `P(RT > q)`. With a `response`, both are defective
+
+  - see Details.
 
 - log.p:
 
@@ -224,6 +226,29 @@ posterior_epred_cogmod_ddm(prep, predict_outliers = NULL)
 
   The boundary reached, `1` for upper and `0` for lower, matching the
   `dec()` coding used by the `brms` families.
+
+`dcogmod_ddm()` returns the defective density at each element of `x` -
+the log density if `log = TRUE` - and `pcogmod_ddm()` the defective
+cumulative probability at each element of `q`, both for the response
+given in `response` and recycled to the length of the longest argument.
+`cogmod_ddm()` returns a
+[`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_ddm_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_ddm_lpdf_expose()` compiles that Stan code and returns it as an
+R function, for checking the density outside of a model. The remaining
+functions are `brms` post-processing methods, called by `brms` rather
+than directly: `log_lik_cogmod_ddm()` returns a numeric vector holding
+one log-likelihood value per posterior draw for observation `i`,
+`posterior_predict_cogmod_ddm()` a draws x 2 matrix of reaction times
+and choices simulated for observation `i`, and
+`posterior_epred_cogmod_ddm()` a draws x observations matrix of expected
+reaction times (marginal over the two responses, and only approximate
+once the between-trial variability parameters are non-zero).
 
 ## Response coding
 
@@ -419,6 +444,23 @@ handles with a closed-form correction, has no such form here - so they
 are not arguments at all: passing one is an error rather than a silently
 wrong number. Integrate `dcogmod_ddm()` over `q` if you need them.
 
+With a `response`, `pcogmod_ddm()` returns the **defective** CDF
+`P(RT <= q, choice = response)`, which does not reach one: its limit is
+the probability of that boundary, given by
+`pcogmod_ddm(Inf, response = k)`. The upper tail is then the matching
+defective survival `P(RT > q, choice = response)`, so the two add to
+that response's own probability rather than to one. Marginally
+(`response = NULL`) they add to one as usual.
+[`pcogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+follows the same convention.
+
+## References
+
+- Ratcliff, R., & McKoon, G. (2008). The diffusion decision model:
+  Theory and data for two-choice decision tasks. *Neural Computation*,
+  *20*(4), 873-922.
+  [doi:10.1162/neco.2008.12-06-420](https://doi.org/10.1162/neco.2008.12-06-420)
+
 ## See also
 
 [`rcogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
@@ -447,13 +489,16 @@ dcogmod_ddm(0.1, ndt = 0.2, response = 1, poutlier = 0.02)
 dcogmod_ddm(0.1, ndt = 0.2, response = 1, poutlier = 0)
 #> [1] 0
 
-if (FALSE) { # \dontrun{
-# You can expose the lpdf function as follows:
-insight::check_if_installed("cmdstanr")
-lpdf <- cogmod_ddm_lpdf_expose()
-lpdf(
-  Y = 0.5, mu = 0.5, boundary = 1, bias = 0.5, sigmadrift = 0,
-  sigmabias = 0, sigmandt = 0, ndt = 0.2, poutlier = 0.02, dec = 1
-)
-} # }
+# \donttest{
+# Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+# which live outside CRAN - see the package website to install them.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  lpdf <- cogmod_ddm_lpdf_expose()
+  lpdf(
+    Y = 0.5, mu = 0.5, boundary = 1, bias = 0.5, sigmadrift = 0,
+    sigmabias = 0, sigmandt = 0, ndt = 0.2, poutlier = 0.02, dec = 1
+  )
+}
+# }
 ```

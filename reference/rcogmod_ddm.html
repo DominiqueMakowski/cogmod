@@ -234,7 +234,8 @@ with the outlier component.</p></dd>
 
 <dt id="arg-lower-tail">lower.tail<a class="anchor" aria-label="anchor" href="#arg-lower-tail"></a></dt>
 <dd><p>Logical; if TRUE (default) the probability is
-<code>P(RT &lt;= q)</code>, otherwise <code>P(RT &gt; q)</code>.</p></dd>
+<code>P(RT &lt;= q)</code>, otherwise <code>P(RT &gt; q)</code>. With a <code>response</code>, both are defective</p><ul><li><p>see Details.</p></li>
+</ul></dd>
 
 
 <dt id="arg-log-p">log.p<a class="anchor" aria-label="anchor" href="#arg-log-p"></a></dt>
@@ -286,7 +287,25 @@ the flag carried on the model - see <code><a href="with_outliers.html">with_outl
 <dd><p>The boundary reached, <code>1</code> for upper and <code>0</code> for lower,
 matching the <code>dec()</code> coding used by the <code>brms</code> families.</p></dd>
 
-</dl></div>
+
+</dl><p><code>dcogmod_ddm()</code> returns the defective density at each element of <code>x</code> - the
+log density if <code>log = TRUE</code> - and <code>pcogmod_ddm()</code> the defective cumulative
+probability at each element of <code>q</code>, both for the response given in
+<code>response</code> and recycled to the length of the longest argument.
+<code>cogmod_ddm()</code> returns a <code><a href="https://paulbuerkner.com/brms/reference/custom_family.html" class="external-link">brms::custom_family</a></code> object, to put on a
+<code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">brms::bf()</a></code> formula. <code>cogmod_ddm_stanvars()</code> returns a <code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvars</a></code>
+object holding the family's Stan <code>functions</code> block, to pass to
+<code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code>, and <code>cogmod_ddm_lpdf_expose()</code> compiles that Stan code and
+returns it as an R function, for checking the density outside of a model.
+The remaining functions are <code>brms</code> post-processing methods, called by
+<code>brms</code> rather than directly: <code>log_lik_cogmod_ddm()</code> returns a numeric
+vector holding one log-likelihood value per posterior draw for observation
+<code>i</code>, <code>posterior_predict_cogmod_ddm()</code> a draws x 2 matrix of reaction times
+and choices simulated for observation <code>i</code>, and
+<code>posterior_epred_cogmod_ddm()</code> a draws x observations matrix of expected
+reaction times (marginal over the two responses, and only approximate once
+the between-trial variability parameters are non-zero).</p>
+    </div>
     <div class="section level2">
     <h2 id="response-coding">Response coding<a class="anchor" aria-label="anchor" href="#response-coding"></a></h2>
     <p>The response coded <code>1</code> (<code>response</code> here, <code>dec()</code> in a <code>brms</code> formula) is the
@@ -429,7 +448,21 @@ quadrature layer on top - and <code>sigmadrift</code>, which the density handles
 closed-form correction, has no such form here - so they are not arguments at
 all: passing one is an error rather than a silently wrong number. Integrate
 <code>dcogmod_ddm()</code> over <code>q</code> if you need them.</p>
+<p>With a <code>response</code>, <code>pcogmod_ddm()</code> returns the <strong>defective</strong> CDF
+<code>P(RT &lt;= q, choice = response)</code>, which does not reach one: its limit is the
+probability of that boundary, given by <code>pcogmod_ddm(Inf, response = k)</code>. The
+upper tail is then the matching defective survival
+<code>P(RT &gt; q, choice = response)</code>, so the two add to that response's own
+probability rather than to one. Marginally (<code>response = NULL</code>) they add to
+one as usual. <code><a href="rcogmod_rdm.html">pcogmod_rdm()</a></code> follows the same convention.</p>
     </div>
+    <div class="section level2">
+    <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
+
+<ul><li><p>Ratcliff, R., &amp; McKoon, G. (2008). The diffusion decision model: Theory and
+data for two-choice decision tasks. <em>Neural Computation</em>, <em>20</em>(4),
+873-922. <a href="https://doi.org/10.1162/neco.2008.12-06-420" class="external-link">doi:10.1162/neco.2008.12-06-420</a></p></li>
+</ul></div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="rcogmod_rdm.html">rcogmod_rdm()</a></code>, <code><a href="rcogmod_lba2.html">rcogmod_lba2()</a></code>, <code><a href="rcogmod_lnr.html">rcogmod_lnr()</a></code></p></div>
@@ -456,15 +489,18 @@ all: passing one is an error rather than a silently wrong number. Integrate
 <span class="r-in"><span><span class="fu">dcogmod_ddm</span><span class="op">(</span><span class="fl">0.1</span>, ndt <span class="op">=</span> <span class="fl">0.2</span>, response <span class="op">=</span> <span class="fl">1</span>, poutlier <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="co"># You can expose the lpdf function as follows:</span></span></span>
-<span class="r-in"><span><span class="fu">insight</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/insight/reference/check_if_installed.html" class="external-link">check_if_installed</a></span><span class="op">(</span><span class="st">"cmdstanr"</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">lpdf</span> <span class="op">&lt;-</span> <span class="fu">cogmod_ddm_lpdf_expose</span><span class="op">(</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">lpdf</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  Y <span class="op">=</span> <span class="fl">0.5</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, boundary <span class="op">=</span> <span class="fl">1</span>, bias <span class="op">=</span> <span class="fl">0.5</span>, sigmadrift <span class="op">=</span> <span class="fl">0</span>,</span></span>
-<span class="r-in"><span>  sigmabias <span class="op">=</span> <span class="fl">0</span>, sigmandt <span class="op">=</span> <span class="fl">0</span>, ndt <span class="op">=</span> <span class="fl">0.2</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span>, dec <span class="op">=</span> <span class="fl">1</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+<span class="r-in"><span><span class="co"># \donttest{</span></span></span>
+<span class="r-in"><span><span class="co"># Exposing the Stan function needs cmdstanr and a CmdStan toolchain,</span></span></span>
+<span class="r-in"><span><span class="co"># which live outside CRAN - see the package website to install them.</span></span></span>
+<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"cmdstanr"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span></span></span>
+<span class="r-in"><span>    <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="fu">cmdstanr</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/cmdstanr/reference/set_cmdstan_path.html" class="external-link">cmdstan_version</a></span><span class="op">(</span>error_on_NA <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>  <span class="va">lpdf</span> <span class="op">&lt;-</span> <span class="fu">cogmod_ddm_lpdf_expose</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu">lpdf</span><span class="op">(</span></span></span>
+<span class="r-in"><span>    Y <span class="op">=</span> <span class="fl">0.5</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, boundary <span class="op">=</span> <span class="fl">1</span>, bias <span class="op">=</span> <span class="fl">0.5</span>, sigmadrift <span class="op">=</span> <span class="fl">0</span>,</span></span>
+<span class="r-in"><span>    sigmabias <span class="op">=</span> <span class="fl">0</span>, sigmandt <span class="op">=</span> <span class="fl">0</span>, ndt <span class="op">=</span> <span class="fl">0.2</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span>, dec <span class="op">=</span> <span class="fl">1</span></span></span>
+<span class="r-in"><span>  <span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

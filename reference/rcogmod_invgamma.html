@@ -157,6 +157,25 @@ either way. See <code><a href="with_outliers.html">with_outliers()</a></code>.</
 
 </dl></div>
     <div class="section level2">
+    <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
+    <p><code>rcogmod_invgamma()</code> returns a numeric vector of <code>n</code> simulated
+reaction times, in seconds. <code>dcogmod_invgamma()</code> returns the density at
+each element of <code>x</code> - the log density if <code>log = TRUE</code> - recycled to the
+length of the longest argument. <code>cogmod_invgamma()</code> returns a
+<code><a href="https://paulbuerkner.com/brms/reference/custom_family.html" class="external-link">brms::custom_family</a></code> object, to put on a <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">brms::bf()</a></code> formula.
+<code>cogmod_invgamma_stanvars()</code> returns a <code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvars</a></code> object holding
+the family's Stan <code>functions</code> block, to pass to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code>, and
+<code>cogmod_invgamma_lpdf_expose()</code> compiles that Stan code and returns it as
+an R function, for checking the density outside of a model. The remaining
+functions are <code>brms</code> post-processing methods, called by <code>brms</code> rather
+than directly: <code>log_lik_cogmod_invgamma()</code> returns a numeric vector
+holding one log-likelihood value per posterior draw for observation <code>i</code>,
+and <code>posterior_predict_cogmod_invgamma()</code> a draws x 1 matrix of reaction
+times simulated for observation <code>i</code>. <code>posterior_epred_cogmod_invgamma()</code>
+returns a draws x observations matrix of expected reaction times, with
+<code>Inf</code> wherever the mean does not exist.</p>
+    </div>
+    <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p><code>mu</code> is the <strong>shape</strong> and <code>sigma</code> the <strong>scale</strong> of the inverse Gamma
 decision time, whose mean is <code>sigma / (mu - 1)</code> and exists only for <code>mu &gt; 1</code>.</p>
@@ -176,7 +195,8 @@ territory continuously through negative <code>shape</code>.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">rts</span> <span class="op">&lt;-</span> <span class="fu">rcogmod_invgamma</span><span class="op">(</span><span class="fl">1000</span>, mu <span class="op">=</span> <span class="fl">4</span>, sigma <span class="op">=</span> <span class="fl">1.5</span>, ndt <span class="op">=</span> <span class="fl">0.3</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="co"># hist(rts, breaks = 100, xlab = "RT (s)")</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist</a></span><span class="op">(</span><span class="va">rts</span>, breaks <span class="op">=</span> <span class="fl">100</span>, xlab <span class="op">=</span> <span class="st">"RT (s)"</span><span class="op">)</span></span></span>
+<span class="r-plt img"><img src="rcogmod_invgamma-1.png" alt="" width="700" height="433"></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Responses faster than ndt keep positive density, unlike the unmixed model</span></span></span>
 <span class="r-in"><span><span class="fu">dcogmod_invgamma</span><span class="op">(</span><span class="fl">0.1</span>, ndt <span class="op">=</span> <span class="fl">0.3</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span><span class="op">)</span></span></span>

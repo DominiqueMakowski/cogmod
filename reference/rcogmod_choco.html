@@ -193,6 +193,26 @@ the left or right components.</p></dd>
 
 </dl></div>
     <div class="section level2">
+    <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
+    <p><code>rcogmod_choco()</code> returns a numeric vector of <code>n</code> simulated ratings
+on the unit interval <code>[0, 1]</code>, including exact <code>0</code>s and <code>1</code>s from the
+extreme-response gates and exact <code>mid</code> values. <code>dcogmod_choco()</code> returns
+the density at each element of <code>x</code> - the log density if <code>log = TRUE</code> -
+recycled to the length of the longest argument; at <code>0</code>, <code>1</code> and <code>mid</code> it
+is the probability mass rather than a density. <code>cogmod_choco()</code> returns a
+<code><a href="https://paulbuerkner.com/brms/reference/custom_family.html" class="external-link">brms::custom_family</a></code> object, to put on a <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">brms::bf()</a></code> formula.
+<code>cogmod_choco_stanvars()</code> returns a <code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvars</a></code> object holding the
+family's Stan <code>functions</code> block, to pass to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code>, and
+<code>cogmod_choco_lpdf_expose()</code> compiles that Stan code and returns it as an
+R function, for checking the density outside of a model. The remaining
+functions are <code>brms</code> post-processing methods, called by <code>brms</code> rather than
+directly: <code>log_lik_cogmod_choco()</code> returns a numeric vector holding one
+log-likelihood value per posterior draw for observation <code>i</code>,
+<code>posterior_predict_cogmod_choco()</code> a draws x 1 matrix of ratings simulated
+for observation <code>i</code>, and <code>posterior_epred_cogmod_choco()</code> a
+draws x observations matrix of expected ratings.</p>
+    </div>
+    <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p><strong>Psychological Interpretation:</strong></p><ul><li><p><code>p</code>: Represents the overall tendency to choose the "right" category (e.g., "agree") over the "left"
 category (e.g., "disagree"), given that a choice is made (i.e., not responding exactly at <code>mid</code>).</p></li>
@@ -245,22 +265,32 @@ lower and upper bounds. Political Analysis, 31(4), 519-536. (Describes the under
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist</a></span><span class="op">(</span><span class="va">x3</span>, breaks <span class="op">=</span> <span class="fl">50</span>, main <span class="op">=</span> <span class="st">"CHOCO: Low confidence overall"</span>, xlab <span class="op">=</span> <span class="st">"y"</span><span class="op">)</span></span></span>
 <span class="r-plt img"><img src="rcogmod_choco-3.png" alt="" width="700" height="433"></span>
-<span class="r-in"><span><span class="co"># Example usage in a brms formula:</span></span></span>
-<span class="r-in"><span><span class="co"># bf(y ~ x1 + (1|group),</span></span></span>
-<span class="r-in"><span><span class="co">#    confright ~ x3,</span></span></span>
-<span class="r-in"><span><span class="co">#    confleft ~ x3,</span></span></span>
-<span class="r-in"><span><span class="co">#    precright ~ 1,</span></span></span>
-<span class="r-in"><span><span class="co">#    precleft ~ 1,</span></span></span>
-<span class="r-in"><span><span class="co">#    pex ~ s(age),</span></span></span>
-<span class="r-in"><span><span class="co">#    bex ~ 1,</span></span></span>
-<span class="r-in"><span><span class="co">#    pmid ~ 1,</span></span></span>
-<span class="r-in"><span><span class="co">#    family = cogmod_choco())</span></span></span>
 <span class="r-in"><span><span class="fu">cogmod_choco</span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Custom family: cogmod_choco </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Link function: logit </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Parameters: mu, confright, precright, confleft, precleft, pex, bex, pmid </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Example usage in a brms formula:</span></span></span>
+<span class="r-in"><span><span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span> <span class="op">|</span> <span class="va">group</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  <span class="va">confright</span> <span class="op">~</span> <span class="va">x3</span>,</span></span>
+<span class="r-in"><span>  <span class="va">confleft</span> <span class="op">~</span> <span class="va">x3</span>,</span></span>
+<span class="r-in"><span>  <span class="va">precright</span> <span class="op">~</span> <span class="fl">1</span>,</span></span>
+<span class="r-in"><span>  <span class="va">precleft</span> <span class="op">~</span> <span class="fl">1</span>,</span></span>
+<span class="r-in"><span>  <span class="va">pex</span> <span class="op">~</span> <span class="va">age</span>,</span></span>
+<span class="r-in"><span>  <span class="va">bex</span> <span class="op">~</span> <span class="fl">1</span>,</span></span>
+<span class="r-in"><span>  <span class="va">pmid</span> <span class="op">~</span> <span class="fl">1</span>,</span></span>
+<span class="r-in"><span>  family <span class="op">=</span> <span class="fu">cogmod_choco</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> y ~ x1 + (1 | group) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> confright ~ x3</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> confleft ~ x3</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> precright ~ 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> precleft ~ 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> pex ~ age</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> bex ~ 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> pmid ~ 1</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

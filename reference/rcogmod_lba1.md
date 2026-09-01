@@ -139,6 +139,31 @@ posterior_epred_cogmod_lba1(prep, predict_outliers = NULL)
 
   Additional arguments.
 
+## Value
+
+`rcogmod_lba1()` returns a numeric vector of `n` simulated reaction
+times, in seconds. `dcogmod_lba1()` returns the density at each element
+of `x` - the log density if `log = TRUE` - recycled to the length of the
+longest argument. `cogmod_lba1()` returns a
+[`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_lba1_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_lba1_lpdf_expose()` compiles that Stan code and returns it as an
+R function, for checking the density outside of a model. The remaining
+functions are `brms` post-processing methods, called by `brms` rather
+than directly: `log_lik_cogmod_lba1()` returns a numeric vector holding
+one log-likelihood value per posterior draw for observation `i`, and
+`posterior_predict_cogmod_lba1()` a draws x 1 matrix of reaction times
+simulated for observation `i`. `posterior_epred_cogmod_lba1()` returns
+nothing: the decision time has no finite mean, so it errors rather than
+report one - summarise
+[`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
+draws instead.
+
 ## Details
 
 The full LBA is a race between one accumulator per response option, with
@@ -247,7 +272,8 @@ log likelihood in control of saccadic eye movements. *Nature,
 # Simulate 1000 trials with 2% outliers
 rts <- rcogmod_lba1(1000, drift = 3, sigma = 1, sigmabias = 0.5, boundary = 0.5,
                ndt = 0.3, poutlier = 0.02)
-# hist(rts, breaks = 100, xlab = "RT (s)")
+hist(rts, breaks = 100, xlab = "RT (s)")
+
 
 # sigmabias = 0 is the recinormal (LATER): 1 / (RT - ndt) is normal
 dcogmod_lba1(0.5, drift = 3, sigma = 1, sigmabias = 0, boundary = 0.5, ndt = 0.2)

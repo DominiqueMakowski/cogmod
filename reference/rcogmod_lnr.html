@@ -212,6 +212,27 @@ default is <code>NULL</code>, which defers to the flag carried on the model - se
 
 </dl></div>
     <div class="section level2">
+    <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
+    <p><code>rcogmod_lnr()</code> returns a data frame with <code>n</code> rows and two columns,
+<code>rt</code> (the simulated reaction time, in seconds) and <code>response</code> (the
+boundary reached, <code>0</code> or <code>1</code>, matching the <code>dec()</code> coding used by the
+<code>brms</code> family). <code>dcogmod_lnr()</code> returns the defective density at each
+element of <code>x</code> - the log density if <code>log = TRUE</code> - recycled to the length
+of the longest argument. <code>cogmod_lnr()</code> returns a <code><a href="https://paulbuerkner.com/brms/reference/custom_family.html" class="external-link">brms::custom_family</a></code>
+object, to put on a <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">brms::bf()</a></code> formula. <code>cogmod_lnr_stanvars()</code> returns
+a <code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvars</a></code> object holding the family's Stan <code>functions</code> block, to
+pass to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code>, and <code>cogmod_lnr_lpdf_expose()</code> compiles that Stan
+code and returns it as an R function, for checking the density outside of
+a model. The remaining functions are <code>brms</code> post-processing methods,
+called by <code>brms</code> rather than directly: <code>log_lik_cogmod_lnr()</code> returns a
+numeric vector holding one log-likelihood value per posterior draw for
+observation <code>i</code>, and <code>posterior_predict_cogmod_lnr()</code> a draws x 2 matrix
+of reaction times and choices simulated for observation <code>i</code>.
+<code>posterior_epred_cogmod_lnr()</code> returns nothing: the expected reaction
+time of a race has no closed form, so it errors rather than report one -
+summarise <code><a href="https://mc-stan.org/rstantools/reference/posterior_predict.html" class="external-link">posterior_predict()</a></code> draws instead.</p>
+    </div>
+    <div class="section level2">
     <h2 id="parameterization">Parameterization<a class="anchor" aria-label="anchor" href="#parameterization"></a></h2>
     <p>Each accumulator <code>k</code> finishes at a LogNormal time with <code>meanlog = -nu_k</code> and
 <code>sdlog = sigma_k</code>, so <strong>larger <code>nu</code> means faster</strong>. The observed reaction time
@@ -313,7 +334,8 @@ summarising <code><a href="https://mc-stan.org/rstantools/reference/posterior_pr
 
 <ul><li><p>Rouder, J. N., Province, J. M., Morey, R. D., Gomez, P., &amp; Heathcote, A. (2015).
 The lognormal race: A cognitive-process model of choice and latency with desirable
-psychometric properties. Psychometrika, 80(2), 491-513.</p></li>
+psychometric properties. Psychometrika, 80(2), 491-513.
+<a href="https://doi.org/10.1007/s11336-013-9396-3" class="external-link">doi:10.1007/s11336-013-9396-3</a></p></li>
 </ul></div>
 
     <div class="section level2">
@@ -338,15 +360,18 @@ psychometric properties. Psychometrika, 80(2), 491-513.</p></li>
 <span class="r-in"><span><span class="fu">dcogmod_lnr</span><span class="op">(</span><span class="fl">0.1</span>, ndt <span class="op">=</span> <span class="fl">0.2</span>, response <span class="op">=</span> <span class="fl">0</span>, poutlier <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="co"># You can expose the lpdf function as follows:</span></span></span>
-<span class="r-in"><span><span class="fu">insight</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/insight/reference/check_if_installed.html" class="external-link">check_if_installed</a></span><span class="op">(</span><span class="st">"cmdstanr"</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">lpdf</span> <span class="op">&lt;-</span> <span class="fu">cogmod_lnr_lpdf_expose</span><span class="op">(</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">lpdf</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  Y <span class="op">=</span> <span class="fl">0.5</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, nuone <span class="op">=</span> <span class="fl">0.2</span>, sigmazero <span class="op">=</span> <span class="fl">1.0</span>, sigmaone <span class="op">=</span> <span class="fl">0.8</span>,</span></span>
-<span class="r-in"><span>  ndt <span class="op">=</span> <span class="fl">0.2</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span>, dec <span class="op">=</span> <span class="fl">0</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+<span class="r-in"><span><span class="co"># \donttest{</span></span></span>
+<span class="r-in"><span><span class="co"># Exposing the Stan function needs cmdstanr and a CmdStan toolchain,</span></span></span>
+<span class="r-in"><span><span class="co"># which live outside CRAN - see the package website to install them.</span></span></span>
+<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"cmdstanr"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span></span></span>
+<span class="r-in"><span>    <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="fu">cmdstanr</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/cmdstanr/reference/set_cmdstan_path.html" class="external-link">cmdstan_version</a></span><span class="op">(</span>error_on_NA <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>  <span class="va">lpdf</span> <span class="op">&lt;-</span> <span class="fu">cogmod_lnr_lpdf_expose</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu">lpdf</span><span class="op">(</span></span></span>
+<span class="r-in"><span>    Y <span class="op">=</span> <span class="fl">0.5</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, nuone <span class="op">=</span> <span class="fl">0.2</span>, sigmazero <span class="op">=</span> <span class="fl">1.0</span>, sigmaone <span class="op">=</span> <span class="fl">0.8</span>,</span></span>
+<span class="r-in"><span>    ndt <span class="op">=</span> <span class="fl">0.2</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span>, dec <span class="op">=</span> <span class="fl">0</span></span></span>
+<span class="r-in"><span>  <span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

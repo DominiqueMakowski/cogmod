@@ -171,6 +171,15 @@ inits(1)
 #> [1] -3.861294
 #> 
 
-# brms::brm(f, data = d, prior = cogmod_priors(f, d),
-#           stanvars = cogmod_stanvars(f), init = cogmod_inits(f, d))
+# \donttest{
+# Fitting needs cmdstanr, which lives outside CRAN - see the package website.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  m <- brms::brm(f,
+    data = d, prior = cogmod_priors(f, d),
+    stanvars = cogmod_stanvars(f), init = cogmod_inits(f, d),
+    backend = "cmdstanr", chains = 1, iter = 500, refresh = 0
+  )
+}
+# }
 ```

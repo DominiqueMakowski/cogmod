@@ -184,6 +184,30 @@ posterior_epred_cogmod_lba2(prep)
   The winning accumulator, coded `0` or `1`, matching the `dec()` coding
   used by the `brms` families.
 
+`dcogmod_lba2()` returns the defective density at each element of `x` -
+the log density if `log = TRUE` - for the response given in `response`,
+recycled to the length of the longest argument. `cogmod_lba2()` returns
+a
+[`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_lba2_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_lba2_lpdf_expose()` compiles that Stan code and returns it as an
+R function, for checking the density outside of a model. The remaining
+functions are `brms` post-processing methods, called by `brms` rather
+than directly: `log_lik_cogmod_lba2()` returns a numeric vector holding
+one log-likelihood value per posterior draw for observation `i`, and
+`posterior_predict_cogmod_lba2()` a draws x 2 matrix of reaction times
+and choices simulated for observation `i`.
+`posterior_epred_cogmod_lba2()` returns nothing: the expected reaction
+time of a race has no closed form, so it errors rather than report one -
+summarise
+[`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
+draws instead.
+
 ## Parameterization
 
 Accumulator `k` starts at a point `z ~ Uniform(0, sigmabias)`, drawn
@@ -378,13 +402,16 @@ dcogmod_lba2(0.1, ndt = 0.2, response = 0, poutlier = 0.02)
 dcogmod_lba2(0.1, ndt = 0.2, response = 0, poutlier = 0)
 #> [1] 0
 
-if (FALSE) { # \dontrun{
-# You can expose the lpdf function as follows:
-insight::check_if_installed("cmdstanr")
-lpdf <- cogmod_lba2_lpdf_expose()
-lpdf(
-  Y = 0.5, mu = 3, driftone = 2, sigmazero = 1, sigmaone = 1,
-  sigmabias = 0.5, boundary = 0.5, ndt = 0.2, poutlier = 0.02, dec = 0
-)
-} # }
+# \donttest{
+# Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+# which live outside CRAN - see the package website to install them.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  lpdf <- cogmod_lba2_lpdf_expose()
+  lpdf(
+    Y = 0.5, mu = 3, driftone = 2, sigmazero = 1, sigmaone = 1,
+    sigmabias = 0.5, boundary = 0.5, ndt = 0.2, poutlier = 0.02, dec = 0
+  )
+}
+# }
 ```

@@ -160,6 +160,32 @@ posterior_epred_cogmod_invgaussian(prep, predict_outliers = NULL)
 
   Additional arguments.
 
+## Value
+
+`rcogmod_invgaussian()` returns a numeric vector of `n` simulated
+reaction times, in seconds. `dcogmod_invgaussian()` returns the density
+at each element of `x` - the log density if `log = TRUE` - recycled to
+the length of the longest argument. `pcogmod_invgaussian()` returns the
+cumulative probability at each element of `q`, honouring `lower.tail`
+and `log.p`. `cogmod_invgaussian()` returns a
+[`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_invgaussian_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_invgaussian_lpdf_expose()` compiles that Stan code and returns
+it as an R function, for checking the density outside of a model. The
+remaining functions are `brms` post-processing methods, called by `brms`
+rather than directly: `log_lik_cogmod_invgaussian()` returns a numeric
+vector holding one log-likelihood value per posterior draw for
+observation `i`, and `posterior_predict_cogmod_invgaussian()` a draws x
+1 matrix of reaction times simulated for observation `i`.
+`posterior_epred_cogmod_invgaussian()` returns a draws x observations
+matrix of expected reaction times, with `Inf` wherever the mean does not
+exist.
+
 ## Details
 
 The Wald distribution describes the time it takes for a Wiener diffusion
@@ -290,7 +316,8 @@ and summarise the draws with a median or a quantile instead.
 ``` r
 # Simulate 1000 RTs with 2% outliers
 rts <- rcogmod_invgaussian(1000, drift = 3, boundary = 0.5, ndt = 0.2, poutlier = 0.02)
-# hist(rts, breaks = 50, xlab = "RT (s)")
+hist(rts, breaks = 50, xlab = "RT (s)")
+
 
 # The same, with the drift varying across trials: a longer right tail
 rts_sv <- rcogmod_invgaussian(1000, drift = 3, boundary = 0.5, ndt = 0.2,

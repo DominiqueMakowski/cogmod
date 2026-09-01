@@ -239,7 +239,24 @@ default is <code>NULL</code>, which defers to the flag carried on the model - se
 <dd><p>The winning accumulator, coded <code>0</code> or <code>1</code>, matching the
 <code>dec()</code> coding used by the <code>brms</code> families.</p></dd>
 
-</dl></div>
+
+</dl><p><code>dcogmod_lba2()</code> returns the defective density at each element of <code>x</code> -
+the log density if <code>log = TRUE</code> - for the response given in <code>response</code>,
+recycled to the length of the longest argument. <code>cogmod_lba2()</code> returns a
+<code><a href="https://paulbuerkner.com/brms/reference/custom_family.html" class="external-link">brms::custom_family</a></code> object, to put on a <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">brms::bf()</a></code> formula.
+<code>cogmod_lba2_stanvars()</code> returns a <code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvars</a></code> object holding the
+family's Stan <code>functions</code> block, to pass to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code>, and
+<code>cogmod_lba2_lpdf_expose()</code> compiles that Stan code and returns it as an R
+function, for checking the density outside of a model. The remaining
+functions are <code>brms</code> post-processing methods, called by <code>brms</code> rather than
+directly: <code>log_lik_cogmod_lba2()</code> returns a numeric vector holding one
+log-likelihood value per posterior draw for observation <code>i</code>, and
+<code>posterior_predict_cogmod_lba2()</code> a draws x 2 matrix of reaction times and
+choices simulated for observation <code>i</code>.
+<code>posterior_epred_cogmod_lba2()</code> returns nothing: the expected reaction
+time of a race has no closed form, so it errors rather than report one -
+summarise <code><a href="https://mc-stan.org/rstantools/reference/posterior_predict.html" class="external-link">posterior_predict()</a></code> draws instead.</p>
+    </div>
     <div class="section level2">
     <h2 id="parameterization">Parameterization<a class="anchor" aria-label="anchor" href="#parameterization"></a></h2>
     <p>Accumulator <code>k</code> starts at a point <code>z ~ Uniform(0, sigmabias)</code>, drawn afresh on
@@ -393,15 +410,18 @@ Linear ballistic accumulation. <em>Cognitive Psychology</em>, <em>57</em>(3), 15
 <span class="r-in"><span><span class="fu">dcogmod_lba2</span><span class="op">(</span><span class="fl">0.1</span>, ndt <span class="op">=</span> <span class="fl">0.2</span>, response <span class="op">=</span> <span class="fl">0</span>, poutlier <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="co"># You can expose the lpdf function as follows:</span></span></span>
-<span class="r-in"><span><span class="fu">insight</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/insight/reference/check_if_installed.html" class="external-link">check_if_installed</a></span><span class="op">(</span><span class="st">"cmdstanr"</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">lpdf</span> <span class="op">&lt;-</span> <span class="fu">cogmod_lba2_lpdf_expose</span><span class="op">(</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">lpdf</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  Y <span class="op">=</span> <span class="fl">0.5</span>, mu <span class="op">=</span> <span class="fl">3</span>, driftone <span class="op">=</span> <span class="fl">2</span>, sigmazero <span class="op">=</span> <span class="fl">1</span>, sigmaone <span class="op">=</span> <span class="fl">1</span>,</span></span>
-<span class="r-in"><span>  sigmabias <span class="op">=</span> <span class="fl">0.5</span>, boundary <span class="op">=</span> <span class="fl">0.5</span>, ndt <span class="op">=</span> <span class="fl">0.2</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span>, dec <span class="op">=</span> <span class="fl">0</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+<span class="r-in"><span><span class="co"># \donttest{</span></span></span>
+<span class="r-in"><span><span class="co"># Exposing the Stan function needs cmdstanr and a CmdStan toolchain,</span></span></span>
+<span class="r-in"><span><span class="co"># which live outside CRAN - see the package website to install them.</span></span></span>
+<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"cmdstanr"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span></span></span>
+<span class="r-in"><span>    <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="fu">cmdstanr</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/cmdstanr/reference/set_cmdstan_path.html" class="external-link">cmdstan_version</a></span><span class="op">(</span>error_on_NA <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>  <span class="va">lpdf</span> <span class="op">&lt;-</span> <span class="fu">cogmod_lba2_lpdf_expose</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu">lpdf</span><span class="op">(</span></span></span>
+<span class="r-in"><span>    Y <span class="op">=</span> <span class="fl">0.5</span>, mu <span class="op">=</span> <span class="fl">3</span>, driftone <span class="op">=</span> <span class="fl">2</span>, sigmazero <span class="op">=</span> <span class="fl">1</span>, sigmaone <span class="op">=</span> <span class="fl">1</span>,</span></span>
+<span class="r-in"><span>    sigmabias <span class="op">=</span> <span class="fl">0.5</span>, boundary <span class="op">=</span> <span class="fl">0.5</span>, ndt <span class="op">=</span> <span class="fl">0.2</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span>, dec <span class="op">=</span> <span class="fl">0</span></span></span>
+<span class="r-in"><span>  <span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

@@ -55,7 +55,18 @@ if `summary = FALSE`.
 ## Examples
 
 ``` r
-# f <- bf(RT ~ 1, ndt ~ 1, poutlier ~ 1, family = cogmod_lognormal())
-# m <- brms::brm(f, data = df, stanvars = cogmod_stanvars(f))
-# head(p_outlier(m))
+# \donttest{
+# Fitting needs cmdstanr, which lives outside CRAN - see the package website.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  df <- data.frame(RT = rcogmod_lognormal(200, ndt = 0.3, poutlier = 0.05))
+  f <- brms::bf(RT ~ 1, ndt ~ 1, poutlier ~ 1, family = cogmod_lognormal())
+  m <- brms::brm(f,
+    data = df, stanvars = cogmod_stanvars(f),
+    prior = cogmod_priors(f, df), init = cogmod_inits(f, df),
+    backend = "cmdstanr", chains = 1, iter = 500, refresh = 0
+  )
+  head(p_outlier(m))
+}
+# }
 ```

@@ -171,6 +171,25 @@ default is <code>NULL</code>, which defers to the flag carried on the model - se
 
 </dl></div>
     <div class="section level2">
+    <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
+    <p><code>rcogmod_lognormal()</code> returns a numeric vector of <code>n</code> simulated
+reaction times, in seconds. <code>dcogmod_lognormal()</code> returns the density at
+each element of <code>x</code> - the log density if <code>log = TRUE</code> - recycled to the
+length of the longest argument. <code>cogmod_lognormal()</code> returns a
+<code><a href="https://paulbuerkner.com/brms/reference/custom_family.html" class="external-link">brms::custom_family</a></code> object, to put on a <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">brms::bf()</a></code> formula.
+<code>cogmod_lognormal_stanvars()</code> returns a <code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvars</a></code> object holding
+the family's Stan <code>functions</code> block, to pass to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code>, and
+<code>cogmod_lognormal_lpdf_expose()</code> compiles that Stan code and returns it
+as an R function, for checking the density outside of a model. The
+remaining functions are <code>brms</code> post-processing methods, called by <code>brms</code>
+rather than directly: <code>log_lik_cogmod_lognormal()</code> returns a numeric
+vector holding one log-likelihood value per posterior draw for
+observation <code>i</code>, and <code>posterior_predict_cogmod_lognormal()</code> a draws x 1
+matrix of reaction times simulated for observation <code>i</code>.
+<code>posterior_epred_cogmod_lognormal()</code> returns a draws x observations
+matrix of expected reaction times.</p>
+    </div>
+    <div class="section level2">
     <h2 id="parameterization">Parameterization<a class="anchor" aria-label="anchor" href="#parameterization"></a></h2>
     <p>The observed reaction time is <code>ndt + LogNormal(mu, sigma)</code>, so <code>mu</code> and
 <code>sigma</code> are the mean and SD of the <em>decision time</em> on the log scale, and the
@@ -307,7 +326,8 @@ likelihood should be run on <code><a href="with_outliers.html">with_outliers()</
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Simulate 1000 RTs with 2% outliers</span></span></span>
 <span class="r-in"><span><span class="va">rts</span> <span class="op">&lt;-</span> <span class="fu">rcogmod_lognormal</span><span class="op">(</span><span class="fl">1000</span>, mu <span class="op">=</span> <span class="op">-</span><span class="fl">0.7</span>, sigma <span class="op">=</span> <span class="fl">0.5</span>, ndt <span class="op">=</span> <span class="fl">0.3</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="co"># hist(rts, breaks = 100, main = "Simulated shifted LogNormal RTs", xlab = "RT (s)")</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist</a></span><span class="op">(</span><span class="va">rts</span>, breaks <span class="op">=</span> <span class="fl">100</span>, main <span class="op">=</span> <span class="st">"Simulated shifted LogNormal RTs"</span>, xlab <span class="op">=</span> <span class="st">"RT (s)"</span><span class="op">)</span></span></span>
+<span class="r-plt img"><img src="rcogmod_lognormal-1.png" alt="" width="700" height="433"></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Responses faster than ndt have positive density, unlike the unmixed model</span></span></span>
 <span class="r-in"><span><span class="fu">dcogmod_lognormal</span><span class="op">(</span><span class="fl">0.1</span>, ndt <span class="op">=</span> <span class="fl">0.3</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span><span class="op">)</span></span></span>
@@ -316,7 +336,8 @@ likelihood should be run on <code><a href="with_outliers.html">with_outliers()</
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Density of the outlier component alone</span></span></span>
-<span class="r-in"><span><span class="co"># curve(2 * dnorm(x, 0, 0.2), from = 0, to = 3, n = 1000)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/curve.html" class="external-link">curve</a></span><span class="op">(</span><span class="fl">2</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">dnorm</a></span><span class="op">(</span><span class="va">x</span>, <span class="fl">0</span>, <span class="fl">0.2</span><span class="op">)</span>, from <span class="op">=</span> <span class="fl">0</span>, to <span class="op">=</span> <span class="fl">3</span>, n <span class="op">=</span> <span class="fl">1000</span><span class="op">)</span></span></span>
+<span class="r-plt img"><img src="rcogmod_lognormal-2.png" alt="" width="700" height="433"></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

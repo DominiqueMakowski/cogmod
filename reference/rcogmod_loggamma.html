@@ -181,6 +181,24 @@ default is <code>NULL</code>, which defers to the flag carried on the model - se
 
 </dl></div>
     <div class="section level2">
+    <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
+    <p><code>rcogmod_loggamma()</code> returns a numeric vector of <code>n</code> simulated
+reaction times, in seconds. <code>dcogmod_loggamma()</code> returns the density at
+each element of <code>x</code> - the log density if <code>log = TRUE</code> - recycled to the
+length of the longest argument. <code>cogmod_loggamma()</code> returns a
+<code><a href="https://paulbuerkner.com/brms/reference/custom_family.html" class="external-link">brms::custom_family</a></code> object, to put on a <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">brms::bf()</a></code> formula.
+<code>cogmod_loggamma_stanvars()</code> returns a <code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvars</a></code> object holding
+the family's Stan <code>functions</code> block, to pass to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code>, and
+<code>cogmod_loggamma_lpdf_expose()</code> compiles that Stan code and returns it as
+an R function, for checking the density outside of a model. The remaining
+functions are <code>brms</code> post-processing methods, called by <code>brms</code> rather
+than directly: <code>log_lik_cogmod_loggamma()</code> returns a numeric vector
+holding one log-likelihood value per posterior draw for observation <code>i</code>,
+and <code>posterior_predict_cogmod_loggamma()</code> a draws x 1 matrix of reaction
+times simulated for observation <code>i</code>. <code>posterior_epred_cogmod_loggamma()</code>
+returns a draws x observations matrix of expected reaction times.</p>
+    </div>
+    <div class="section level2">
     <h2 id="what-log-gamma-means-here">What "Log-Gamma" means here<a class="anchor" aria-label="anchor" href="#what-log-gamma-means-here"></a></h2>
     <p>The <strong>log-gamma</strong> distribution is the distribution of <code>log(G)</code> for a Gamma
 variate <code>G</code>. Used as the distribution of the <em>log decision time</em> - in the same
@@ -313,7 +331,8 @@ estimation. <em>Biometrika</em>, 61(3), 539-544. <a href="https://doi.org/10.109
 <span class="r-in"><span>  mu <span class="op">=</span> <span class="op">-</span><span class="fl">0.7</span>, sigma <span class="op">=</span> <span class="fl">0.5</span>, shape <span class="op">=</span> <span class="fl">0.5</span>, ndt <span class="op">=</span> <span class="fl">0.3</span>,</span></span>
 <span class="r-in"><span>  poutlier <span class="op">=</span> <span class="fl">0.02</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="co"># hist(rts, breaks = 100, xlab = "RT (s)")</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist</a></span><span class="op">(</span><span class="va">rts</span>, breaks <span class="op">=</span> <span class="fl">100</span>, xlab <span class="op">=</span> <span class="st">"RT (s)"</span><span class="op">)</span></span></span>
+<span class="r-plt img"><img src="rcogmod_loggamma-1.png" alt="" width="700" height="433"></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Responses faster than ndt keep positive density, as in cogmod_lognormal()</span></span></span>
 <span class="r-in"><span><span class="fu">dcogmod_loggamma</span><span class="op">(</span><span class="fl">0.1</span>, ndt <span class="op">=</span> <span class="fl">0.3</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span><span class="op">)</span></span></span>

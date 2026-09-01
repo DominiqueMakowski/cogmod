@@ -103,6 +103,28 @@ posterior_epred_cogmod_gamma(prep, predict_outliers = NULL)
 
   Additional arguments.
 
+## Value
+
+`rcogmod_gamma()` returns a numeric vector of `n` simulated reaction
+times, in seconds. `dcogmod_gamma()` returns the density at each element
+of `x` - the log density if `log = TRUE` - recycled to the length of the
+longest argument. `cogmod_gamma()` returns a
+[`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_gamma_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_gamma_lpdf_expose()` compiles that Stan code and returns it as
+an R function, for checking the density outside of a model. The
+remaining functions are `brms` post-processing methods, called by `brms`
+rather than directly: `log_lik_cogmod_gamma()` returns a numeric vector
+holding one log-likelihood value per posterior draw for observation `i`,
+and `posterior_predict_cogmod_gamma()` a draws x 1 matrix of reaction
+times simulated for observation `i`. `posterior_epred_cogmod_gamma()`
+returns a draws x observations matrix of expected reaction times.
+
 ## Details
 
 `mu` is the **shape** and `sigma` the **scale** of the Gamma decision
@@ -179,7 +201,8 @@ for the full account.
 
 ``` r
 rts <- rcogmod_gamma(1000, mu = 3, sigma = 0.15, ndt = 0.3, poutlier = 0.02)
-# hist(rts, breaks = 100, xlab = "RT (s)")
+hist(rts, breaks = 100, xlab = "RT (s)")
+
 
 # Responses faster than ndt keep positive density
 dcogmod_gamma(0.1, ndt = 0.3, poutlier = 0.02)

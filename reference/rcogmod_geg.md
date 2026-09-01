@@ -119,9 +119,28 @@ posterior_epred_cogmod_geg(prep)
 
 ## Value
 
-A
+`rcogmod_geg()` returns a numeric vector of `n` simulated reaction
+times, in seconds. `dcogmod_geg()` returns the density at each element
+of `x` - the log density if `log = TRUE` - and `pcogmod_geg()` the
+cumulative probability at each element of `q`, honouring `lower.tail`
+and `log.p`; both are recycled to the length of the longest argument.
+`cogmod_geg()` returns a
 [`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
-object.
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_geg_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_geg_lpdf_expose()` compiles that Stan code and returns it as an
+R function, for checking the density outside of a model. The remaining
+functions are `brms` post-processing methods, called by `brms` rather
+than directly: `log_lik_cogmod_geg()` returns a numeric vector holding
+one log-likelihood value per posterior draw for observation `i`,
+`posterior_predict_cogmod_geg()` a draws x 1 matrix of reaction times
+simulated for observation `i`, and `posterior_epred_cogmod_geg()` a
+draws x observations matrix of expected reaction times, obtained by
+numerical integration.
 
 ## What the shape parameter buys
 
@@ -197,5 +216,6 @@ dcogmod_exgaussian(x, 0.4, 0.1, 0.2)
 #> [1] 0.095635579 1.586332904 0.171090592 0.018032816 0.001900645
 
 rts <- rcogmod_geg(1000, mu = 0.4, sigma = 0.1, tau = 0.2, shape = 2)
-# hist(rts, breaks = 50, xlab = "RT (s)")
+hist(rts, breaks = 50, xlab = "RT (s)")
+
 ```

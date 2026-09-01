@@ -151,6 +151,34 @@ posterior_epred_cogmod_lnr(prep)
 
   Additional arguments.
 
+## Value
+
+`rcogmod_lnr()` returns a data frame with `n` rows and two columns, `rt`
+(the simulated reaction time, in seconds) and `response` (the boundary
+reached, `0` or `1`, matching the `dec()` coding used by the `brms`
+family). `dcogmod_lnr()` returns the defective density at each element
+of `x` - the log density if `log = TRUE` - recycled to the length of the
+longest argument. `cogmod_lnr()` returns a
+[`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_lnr_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_lnr_lpdf_expose()` compiles that Stan code and returns it as an
+R function, for checking the density outside of a model. The remaining
+functions are `brms` post-processing methods, called by `brms` rather
+than directly: `log_lik_cogmod_lnr()` returns a numeric vector holding
+one log-likelihood value per posterior draw for observation `i`, and
+`posterior_predict_cogmod_lnr()` a draws x 2 matrix of reaction times
+and choices simulated for observation `i`.
+`posterior_epred_cogmod_lnr()` returns nothing: the expected reaction
+time of a race has no closed form, so it errors rather than report one -
+summarise
+[`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
+draws instead.
+
 ## Parameterization
 
 Each accumulator `k` finishes at a LogNormal time with `meanlog = -nu_k`
@@ -292,6 +320,7 @@ draws.
   Heathcote, A. (2015). The lognormal race: A cognitive-process model of
   choice and latency with desirable psychometric properties.
   Psychometrika, 80(2), 491-513.
+  [doi:10.1007/s11336-013-9396-3](https://doi.org/10.1007/s11336-013-9396-3)
 
 ## Examples
 
@@ -316,13 +345,16 @@ dcogmod_lnr(0.1, ndt = 0.2, response = 0, poutlier = 0.02)
 dcogmod_lnr(0.1, ndt = 0.2, response = 0, poutlier = 0)
 #> [1] 0
 
-if (FALSE) { # \dontrun{
-# You can expose the lpdf function as follows:
-insight::check_if_installed("cmdstanr")
-lpdf <- cogmod_lnr_lpdf_expose()
-lpdf(
-  Y = 0.5, mu = 0.5, nuone = 0.2, sigmazero = 1.0, sigmaone = 0.8,
-  ndt = 0.2, poutlier = 0.02, dec = 0
-)
-} # }
+# \donttest{
+# Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+# which live outside CRAN - see the package website to install them.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  lpdf <- cogmod_lnr_lpdf_expose()
+  lpdf(
+    Y = 0.5, mu = 0.5, nuone = 0.2, sigmazero = 1.0, sigmaone = 0.8,
+    ndt = 0.2, poutlier = 0.02, dec = 0
+  )
+}
+# }
 ```

@@ -78,15 +78,31 @@ predictions are summarised changes.
 ## Examples
 
 ``` r
-# f <- bf(RT ~ Condition, ndt ~ 1, poutlier ~ 1, family = cogmod_lognormal())
-# m <- brms::brm(f, data = df, stanvars = cogmod_stanvars(f))
-#
-# # the decision process alone - the default, everywhere downstream
-# brms::posterior_epred(m)
-# modelbased::estimate_means(m, by = "Condition")
-# marginaleffects::avg_predictions(m, by = "Condition")
-#
-# # the fitted mixture, e.g. for a like-for-like predictive check
-# brms::pp_check(with_outliers(m))
-# without_outliers(m)  # back to the default
+# \donttest{
+# Fitting needs cmdstanr, which lives outside CRAN - see the package website.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  df <- data.frame(
+    RT = rcogmod_lognormal(200, ndt = 0.3, poutlier = 0.05),
+    Condition = rep(c("A", "B"), each = 100)
+  )
+  f <- brms::bf(RT ~ Condition, ndt ~ 1, poutlier ~ 1,
+    family = cogmod_lognormal()
+  )
+  m <- brms::brm(f,
+    data = df, stanvars = cogmod_stanvars(f),
+    prior = cogmod_priors(f, df), init = cogmod_inits(f, df),
+    backend = "cmdstanr", chains = 1, iter = 500, refresh = 0
+  )
+
+  # the decision process alone - the default, everywhere downstream
+  head(brms::posterior_epred(m)[, 1])
+
+  # the fitted mixture, e.g. for a like-for-like predictive check
+  m2 <- with_outliers(m)
+  head(brms::posterior_epred(m2)[, 1])
+
+  without_outliers(m2) # back to the default
+}
+# }
 ```

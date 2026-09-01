@@ -68,7 +68,147 @@
   [`brms::combine_models()`](https://paulbuerkner.com/brms/reference/combine_models.html),
   and amortized inference (e.g. BayesFlow) as a longer-term direction.
 
+- **[`pcogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  gains a `response` argument**, giving the *defective* CDF
+  `P(RT <= q, choice = response)` rather than only the RT distribution
+  marginally over the choice. It does not reach one - its limit is the
+  probability of that response, which `pcogmod_rdm(Inf, response = k)`
+  gives - and the two of them sum back to the marginal CDF. This is what
+  a defective-CDF or quantile-probability plot of a race model needs.
+
+  `response` goes *after* `poutlier` in the signature, unlike in
+  [`dcogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  and
+  [`pcogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md),
+  which put it before. `poutlier` is a model parameter and `response` is
+  not, so every parameter now comes first and the argument stays where a
+  positional call already expects it - only a positional `lower.tail` or
+  `log.p`, in eighth place or later, is affected.
+
+  There is no closed form for it, unlike the marginal CDF, where the
+  race survival factorises as `S0 * S1`. It is quadrature over the
+  defective density, so it is accurate to about `1e-8` rather than to
+  machine precision, and about ten times slower per element - 200 points
+  take 0.6 s against 0.07 s for the marginal. `lower.tail = FALSE`
+  integrates the upper side directly rather than subtracting, so the
+  defective survival stays accurate into the tail.
+
+- **New
+  [`qcogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)**,
+  the quantile function, inverting
+  [`pcogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  by root-finding - marginally, or per response. `scale_p = TRUE` reads
+  `p` as a fraction of the chosen response’s own probability, so
+  `p = 0.5` is that response’s median; that is the form a
+  quantile-probability plot wants.
+
+- **[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  now accepts a start-point range of exactly zero.** `bias = 0`
+  (`sigmabias` in the `brms` family) is a model, not a degenerate
+  parameter: both accumulators start at `0` on every trial and the race
+  is between two plain Walds - equation 2 of Tillman et al. (2020),
+  which is the limit the density already took.
+  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+  and
+  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+  have always allowed it and the RDM excluding it was an inconsistency.
+  Accepted in R and in Stan alike; a negative range is still rejected.
+
+  This does not make the `sigmabias` direction any better identified.
+  The `softplus` link still reaches zero only at minus infinity, so the
+  flat `sigmabias -> 0` ridge is as long as it ever was and
+  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  still fences it.
+
+### Bug fixes
+
+- **A missing, infinite or zero-length reaction time no longer aborts a
+  density.** Of the sixteen mixture families, four threw
+  `missing value where TRUE/FALSE needed` on `dcogmod_*(NA_real_)` -
+  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md),
+  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md),
+  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  and
+  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) -
+  and two threw on `Inf`:
+  [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+  and
+  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md).
+  The rest returned `0`. The split was not principled: those are the
+  densities whose cores branch on a comparison rather than being
+  arithmetic all the way down, and `any(NA)` is `NA` while `if (NA)` is
+  an error. All sixteen now return `0`, which is what the shared
+  machinery already wrote for those rows and could never reach. A
+  missing **parameter**, and a missing **response**, are handled the
+  same way and for the same reason.
+
+  This matters beyond tidiness: one bad entry used to take the whole
+  vector down with it, so a single `NA` in a column of reaction times
+  aborted the call instead of costing that row.
+
+  [`dcogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+  still returns `NA` for `NA`. It is a plain density with no outlier
+  component, so it follows
+  [`dnorm()`](https://rdrr.io/r/stats/Normal.html) rather than the
+  mixture convention.
+
+- **Zero-length input gives a zero-length answer.**
+  `dcogmod_*(numeric(0))` returned a length-1 value - or, in the same
+  four families, threw - because the shared preparation recycled the
+  empty vector up to the parameters and `rep_len(numeric(0), 1)` is
+  `NA`. It now returns `numeric(0)`, as every `d`/`p`/`q` function in
+  base R does. A zero-length *parameter* alongside a real quantile is
+  now rejected rather than silently becoming a vector of `NA`s.
+
+- **`pcogmod_ddm(q, response = k, lower.tail = FALSE)` was not a
+  survival.** It returned `1 - P(RT <= q, choice = k)`, which is
+  `P(RT > q OR choice != k)`; at `q = Inf` that gave the probability of
+  the *other* response rather than zero. It is now the defective
+  survival `P(RT > q, choice = k)`, so the two tails add to that
+  response’s own probability rather than to one. The marginal
+  (`response = NULL`) is unchanged, and so is the lower tail in both
+  forms. Same convention as
+  [`pcogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md).
+
+- `pcogmod_invgaussian(NA_real_)` threw rather than returning `NA`.
+
+- `pcogmod_rdm(q, lower.tail = TRUE)` returned `NaN` instead of `0` at
+  `q <= 0` when `poutlier > 0`. Both mixture components are exactly
+  `log(1)` there, and the mixture of them landed 2e-17 *above* zero
+  rather than on it, which `log(1 - exp(.))` cannot take. Reached in
+  practice by
+  [`qcogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
+  whose root search starts at zero.
+
+- `pcogmod_rdm(NA)` returned `1` rather than `NA`, the mixture helper
+  mapping a missing value onto a log-survival of `-Inf`.
+
+- The direct lower-tail branch of `.pwald()` had no small-`bias` case;
+  both of its branches divide by the start-point range. Unreachable
+  before, since `bias = 0` was rejected.
+
 ### Breaking changes
+
+- **The pre-rename names are gone.** `rt_lognormal()`, `lnr()`, `ddm()`,
+  `rdm()`, `choco()`, `betagate()`, `betadiscrete()`, `lba()`,
+  `rt_lba()` and every function derived from them - 140 exports in all -
+  were kept as synonyms through 0.2.1 and are removed here. Use the
+  `cogmod_*` name: `rt_lognormal()` is
+  [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+  `rrt_lognormal()` is
+  [`rcogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+  `rt_lognormal_stanvars()` is
+  [`cogmod_lognormal_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+  and likewise for the densities, the `*_lpdf_expose()` and the `brms`
+  post-processing hooks.
+
+  The synonyms existed so that a model fitted before the rename could
+  still be summarised, since `brms` looks up `log_lik_<family>()` by the
+  name stored on the fit. That window closes with the first CRAN
+  release: there is no released version to be compatible with, and a fit
+  made under an old name can be brought forward by setting
+  `fit$family$name` to the `cogmod_*` one. Refitting is the safer route,
+  as several parameterizations changed in 0.2.1 as well.
 
 - **[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)’s
   `mu` is now on an `identity` link** and is unbounded, where it was on
@@ -281,6 +421,33 @@
   [`rtdists::pdiffusion()`](https://rdrr.io/pkg/rtdists/man/Diffusion.html)
   is out by up to 5e-4. On the `vignette("decision_making")` models: DDM
   560 -\> 122 us per observation-draw, DDM-5 483 -\> 75.
+
+### Documentation
+
+- Every help page now documents what each of its functions returns,
+  rather than only the random-generation function it is named after -
+  the `brms` family object, the `stanvars`, and the shape of the
+  [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html),
+  [`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
+  and
+  [`posterior_epred()`](https://mc-stan.org/rstantools/reference/posterior_epred.html)
+  output, including the families whose
+  [`posterior_epred()`](https://mc-stan.org/rstantools/reference/posterior_epred.html)
+  errors because the decision time has no finite mean.
+
+- Examples that were commented out now run. The plots are live, the
+  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+  formulas are built, and the `*_lpdf_expose()` and model-fitting
+  snippets are in `\donttest{}` behind a check for `cmdstanr` and a
+  CmdStan installation instead of `\dontrun{}`, so they execute wherever
+  the toolchain is present.
+  [`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md),
+  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+  and
+  [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  gained real examples.
+
+- `DESCRIPTION` cites the papers behind the models.
 
 ## cogmod 0.2.1
 
@@ -885,54 +1052,36 @@
 ### Breaking changes
 
 - **Every family is renamed to a single `cogmod_*` scheme.**
-  [`rt_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md)
-  is
+  `rt_lognormal()` is
   [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
-  [`lnr()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md)
-  is
+  `lnr()` is
   [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
-  [`ddm()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md)
-  is
+  `ddm()` is
   [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md),
   and so on; the two LBAs are told apart by their accumulator count, so
-  [`rt_lba()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md)
-  (no choice) is
+  `rt_lba()` (no choice) is
   [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
-  and
-  [`lba()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md)
-  (two choices) is
+  and `lba()` (two choices) is
   [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md).
-  Every derived function follows its family:
-  [`rrt_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md)
-  is
+  Every derived function follows its family: `rrt_lognormal()` is
   [`rcogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
-  [`rlnr()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md)
-  is
+  `rlnr()` is
   [`rcogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
-  [`rt_lognormal_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md)
-  is
+  `rt_lognormal_stanvars()` is
   [`cogmod_lognormal_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
   and likewise for the densities, the `*_lpdf_expose()` and the `brms`
   post-processing hooks.
 
-  Two things were wrong with the old names.
-  [`lba()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md),
-  [`lnr()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md),
-  [`ddm()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md),
-  [`rdm()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md)
-  and
-  [`choco()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md)
-  are generic enough to collide with anything else attached, and the
-  `rt_` prefix said “reaction time” on families that are not all
-  RT-only. One prefix fixes both, and `cogmod_` tab-completes the whole
-  package.
+  Two things were wrong with the old names. `lba()`, `lnr()`, `ddm()`,
+  `rdm()` and `choco()` are generic enough to collide with anything else
+  attached, and the `rt_` prefix said “reaction time” on families that
+  are not all RT-only. One prefix fixes both, and `cogmod_`
+  tab-completes the whole package.
 
-  **The old names all still work**, as exact synonyms rather than
-  wrappers - the `brms` hooks included, so a model fitted before the
-  rename can still be summarised. They are undocumented and will be
-  removed in a future release; see
-  [`?"cogmod-deprecated"`](https://dominiquemakowski.github.io/cogmod/reference/cogmod-deprecated.md)
-  for the full table.
+  **The old names all still work** in this version, as exact synonyms
+  rather than wrappers - the `brms` hooks included, so a model fitted
+  before the rename can still be summarised. (They were removed in
+  0.3.0.)
 
 - **The `bs` dpar is renamed `boundary`** in
   [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),

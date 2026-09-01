@@ -135,7 +135,24 @@ posterior_epred_cogmod_betadiscrete(prep)
 `pcogmod_betadiscrete()` returns the cumulative probability;
 `qcogmod_betadiscrete()` returns the quantile (an integer between 0 and
 `k`); `rcogmod_betadiscrete()` returns simulated ratings. All are
-vectorized over `x`/`q`/`p`, `mu`, `phi`, `pzero` and `k`.
+numeric vectors, vectorized over `x`/`q`/`p`, `mu`, `phi`, `pzero` and
+`k`. `cogmod_betadiscrete()` returns a
+[`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_betadiscrete_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_betadiscrete_lpmf_expose()` compiles that Stan code and returns
+it as an R function, for checking the mass function outside of a model.
+The remaining functions are `brms` post-processing methods, called by
+`brms` rather than directly: `log_lik_cogmod_betadiscrete()` returns a
+numeric vector holding one log-likelihood value per posterior draw for
+observation `i`, `posterior_predict_cogmod_betadiscrete()` a draws x 1
+matrix of ratings simulated for observation `i`, and
+`posterior_epred_cogmod_betadiscrete()` a draws x observations matrix of
+expected ratings.
 
 ## Details
 
@@ -205,10 +222,12 @@ data arose:
 ``` r
 x <- 1:10
 probs <- dcogmod_betadiscrete(x, mu = 0.66, phi = 3.51, k = 10)
-# barplot(probs, names.arg = x)
+barplot(probs, names.arg = x)
+
 
 y <- rcogmod_betadiscrete(1000, mu = 0.66, phi = 3.51, k = 10)
-# hist(y, breaks = 0:10)
+hist(y, breaks = 0:10)
+
 
 # discrete Uniform special case
 dcogmod_betadiscrete(1:5, mu = 0.5, phi = 1, k = 5)
@@ -218,21 +237,55 @@ dcogmod_betadiscrete(1:5, mu = 0.5, phi = 1, k = 5)
 dcogmod_betadiscrete(0:5, mu = 0.66, phi = 3.51, k = 5, pzero = 0.2)
 #> [1] 0.200000000 0.003364066 0.058336907 0.213310091 0.343484931 0.181504005
 
-# You can expose the lpmf function as follows:
-# cogmod_betadiscrete_lpmf <- cogmod_betadiscrete_lpmf_expose()
-# cogmod_betadiscrete_lpmf(y = 7, mu = 0.66, phi = 3.51, pzero = 0, k = 10)
+# \donttest{
+# Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
+# which live outside CRAN - see the package website to install them.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  lpmf <- cogmod_betadiscrete_lpmf_expose()
+  lpmf(y = 7, mu = 0.66, phi = 3.51, pzero = 0, k = 10)
+}
+# }
 
 # Fitting with brms. Because `k` is fixed data rather than a distributional
 # parameter, it is passed through the brms::vint() addition term. Put the
 # family on the formula, and cogmod_stanvars() supplies the Stan code for it.
-# f <- brms::bf(rating | vint(k) ~ predictor, family = cogmod_betadiscrete())
-# fit <- brms::brm(f, data = data, stanvars = cogmod_stanvars(f))
+f <- brms::bf(rating | vint(k) ~ predictor, family = cogmod_betadiscrete())
+cogmod_stanvars(f)
+#> [[1]]
+#> [[1]]$name
+#> [1] ""
+#> 
+#> [[1]]$sdata
+#> NULL
+#> 
+#> [[1]]$scode
+#> [1] "\n// Log probability mass function for the (hurdle) Discrete Beta distribution\n// (Sciandra et al., 2024, Sect. 3.1)\n//   y     : observed rating, integer in {0, 1, ..., k}. y = 0 is only valid\n//           when pzero > 0 (hurdle point mass below the 1..k rating scale)\n//   mu    : mean of the underlying Beta distribution (0 < mu < 1); the\n//           'liking' indicator on the logit scale\n//   phi   : precision of the underlying Beta distribution (alpha + beta > 0);\n//           the 'agreement' indicator on the log scale\n//   pzero : probability of the hurdle point mass at 0 (0 <= pzero < 1)\n//   k     : number of rating categories (fixed, passed in as data)\nreal cogmod_betadiscrete_lpmf(int y, real mu, real phi, real pzero, int k) {\n  real alpha;\n  real beta_par;\n  real upper_lcdf;\n  real lower_lcdf;\n\n  if (y < 0 || y > k) {\n    reject(\"cogmod_betadiscrete_lpmf: y must be an integer between 0 and k; found y = \", y);\n  }\n\n  if (y == 0) {\n    return log(pzero);\n  }\n\n  alpha = mu * phi * 2;\n  beta_par = (1 - mu) * phi * 2;\n\n  // P(R = y) = F_B(y/k) - F_B((y-1)/k), computed on the log scale for\n  // numerical stability via log_diff_exp(log(upper), log(lower)).\n  upper_lcdf = (y == k) ? 0.0 : beta_lcdf(y * 1.0 / k | alpha, beta_par);\n  lower_lcdf = (y == 1) ? negative_infinity() : beta_lcdf((y - 1) * 1.0 / k | alpha, beta_par);\n\n  return log1m(pzero) + log_diff_exp(upper_lcdf, lower_lcdf);\n}\n"
+#> 
+#> [[1]]$block
+#> [1] "functions"
+#> 
+#> [[1]]$position
+#> [1] "start"
+#> 
+#> [[1]]$pll_args
+#> character(0)
+#> 
+#> 
+#> attr(,"class")
+#> [1] "stanvars"
 
 # To also model the hurdle probability (e.g., proportion of zero ratings):
-# f <- brms::bf(rating | vint(k) ~ predictor, pzero ~ predictor,
-#               family = cogmod_betadiscrete())
+brms::bf(rating | vint(k) ~ predictor, pzero ~ predictor,
+  family = cogmod_betadiscrete()
+)
+#> rating | vint(k) ~ predictor 
+#> pzero ~ predictor
 
 # To fix pzero at exactly 0, e.g. because your scale has no hurdle:
-# f <- brms::bf(rating | vint(k) ~ predictor, pzero = 0,
-#               family = cogmod_betadiscrete())
+brms::bf(rating | vint(k) ~ predictor, pzero = 0,
+  family = cogmod_betadiscrete()
+)
+#> rating | vint(k) ~ predictor 
+#> pzero = 0
 ```

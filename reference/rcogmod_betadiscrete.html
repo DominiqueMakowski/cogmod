@@ -186,11 +186,24 @@ Beta model – directly in <code><a href="https://paulbuerkner.com/brms/referenc
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p><code>dcogmod_betadiscrete()</code> returns the probability mass; <code>pcogmod_betadiscrete()</code>
-returns the cumulative probability; <code>qcogmod_betadiscrete()</code> returns the
-quantile (an integer between 0 and <code>k</code>); <code>rcogmod_betadiscrete()</code> returns
-simulated ratings. All are vectorized over <code>x</code>/<code>q</code>/<code>p</code>, <code>mu</code>, <code>phi</code>,
-<code>pzero</code> and <code>k</code>.</p>
+    <p><code>dcogmod_betadiscrete()</code> returns the probability mass;
+<code>pcogmod_betadiscrete()</code> returns the cumulative probability;
+<code>qcogmod_betadiscrete()</code> returns the quantile (an integer between 0 and
+<code>k</code>); <code>rcogmod_betadiscrete()</code> returns simulated ratings. All are numeric
+vectors, vectorized over <code>x</code>/<code>q</code>/<code>p</code>, <code>mu</code>, <code>phi</code>, <code>pzero</code> and <code>k</code>.
+<code>cogmod_betadiscrete()</code> returns a <code><a href="https://paulbuerkner.com/brms/reference/custom_family.html" class="external-link">brms::custom_family</a></code> object, to put on
+a <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">brms::bf()</a></code> formula. <code>cogmod_betadiscrete_stanvars()</code> returns a
+<code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvars</a></code> object holding the family's Stan <code>functions</code> block, to
+pass to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code>, and <code>cogmod_betadiscrete_lpmf_expose()</code> compiles
+that Stan code and returns it as an R function, for checking the mass
+function outside of a model. The remaining functions are <code>brms</code>
+post-processing methods, called by <code>brms</code> rather than directly:
+<code>log_lik_cogmod_betadiscrete()</code> returns a numeric vector holding one
+log-likelihood value per posterior draw for observation <code>i</code>,
+<code>posterior_predict_cogmod_betadiscrete()</code> a draws x 1 matrix of ratings
+simulated for observation <code>i</code>, and
+<code>posterior_epred_cogmod_betadiscrete()</code> a draws x observations matrix of
+expected ratings.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -242,10 +255,12 @@ data. Environmental and Ecological Statistics, 31, 317-338.
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fl">1</span><span class="op">:</span><span class="fl">10</span></span></span>
 <span class="r-in"><span><span class="va">probs</span> <span class="op">&lt;-</span> <span class="fu">dcogmod_betadiscrete</span><span class="op">(</span><span class="va">x</span>, mu <span class="op">=</span> <span class="fl">0.66</span>, phi <span class="op">=</span> <span class="fl">3.51</span>, k <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="co"># barplot(probs, names.arg = x)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/barplot.html" class="external-link">barplot</a></span><span class="op">(</span><span class="va">probs</span>, names.arg <span class="op">=</span> <span class="va">x</span><span class="op">)</span></span></span>
+<span class="r-plt img"><img src="rcogmod_betadiscrete-1.png" alt="" width="700" height="433"></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu">rcogmod_betadiscrete</span><span class="op">(</span><span class="fl">1000</span>, mu <span class="op">=</span> <span class="fl">0.66</span>, phi <span class="op">=</span> <span class="fl">3.51</span>, k <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="co"># hist(y, breaks = 0:10)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist</a></span><span class="op">(</span><span class="va">y</span>, breaks <span class="op">=</span> <span class="fl">0</span><span class="op">:</span><span class="fl">10</span><span class="op">)</span></span></span>
+<span class="r-plt img"><img src="rcogmod_betadiscrete-2.png" alt="" width="700" height="433"></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># discrete Uniform special case</span></span></span>
 <span class="r-in"><span><span class="fu">dcogmod_betadiscrete</span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, phi <span class="op">=</span> <span class="fl">1</span>, k <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></span>
@@ -255,23 +270,57 @@ data. Environmental and Ecological Statistics, 31, 317-338.
 <span class="r-in"><span><span class="fu">dcogmod_betadiscrete</span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">5</span>, mu <span class="op">=</span> <span class="fl">0.66</span>, phi <span class="op">=</span> <span class="fl">3.51</span>, k <span class="op">=</span> <span class="fl">5</span>, pzero <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.200000000 0.003364066 0.058336907 0.213310091 0.343484931 0.181504005</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># You can expose the lpmf function as follows:</span></span></span>
-<span class="r-in"><span><span class="co"># cogmod_betadiscrete_lpmf &lt;- cogmod_betadiscrete_lpmf_expose()</span></span></span>
-<span class="r-in"><span><span class="co"># cogmod_betadiscrete_lpmf(y = 7, mu = 0.66, phi = 3.51, pzero = 0, k = 10)</span></span></span>
+<span class="r-in"><span><span class="co"># \donttest{</span></span></span>
+<span class="r-in"><span><span class="co"># Exposing the Stan function needs cmdstanr and a CmdStan toolchain,</span></span></span>
+<span class="r-in"><span><span class="co"># which live outside CRAN - see the package website to install them.</span></span></span>
+<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"cmdstanr"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span></span></span>
+<span class="r-in"><span>    <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="fu">cmdstanr</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/cmdstanr/reference/set_cmdstan_path.html" class="external-link">cmdstan_version</a></span><span class="op">(</span>error_on_NA <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>  <span class="va">lpmf</span> <span class="op">&lt;-</span> <span class="fu">cogmod_betadiscrete_lpmf_expose</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu">lpmf</span><span class="op">(</span>y <span class="op">=</span> <span class="fl">7</span>, mu <span class="op">=</span> <span class="fl">0.66</span>, phi <span class="op">=</span> <span class="fl">3.51</span>, pzero <span class="op">=</span> <span class="fl">0</span>, k <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Fitting with brms. Because `k` is fixed data rather than a distributional</span></span></span>
 <span class="r-in"><span><span class="co"># parameter, it is passed through the brms::vint() addition term. Put the</span></span></span>
 <span class="r-in"><span><span class="co"># family on the formula, and cogmod_stanvars() supplies the Stan code for it.</span></span></span>
-<span class="r-in"><span><span class="co"># f &lt;- brms::bf(rating | vint(k) ~ predictor, family = cogmod_betadiscrete())</span></span></span>
-<span class="r-in"><span><span class="co"># fit &lt;- brms::brm(f, data = data, stanvars = cogmod_stanvars(f))</span></span></span>
+<span class="r-in"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span><span class="va">rating</span> <span class="op">|</span> <span class="fu">vint</span><span class="op">(</span><span class="va">k</span><span class="op">)</span> <span class="op">~</span> <span class="va">predictor</span>, family <span class="op">=</span> <span class="fu">cogmod_betadiscrete</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [[1]]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [[1]]$name</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] ""</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [[1]]$sdata</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [[1]]$scode</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "\n// Log probability mass function for the (hurdle) Discrete Beta distribution\n// (Sciandra et al., 2024, Sect. 3.1)\n//   y     : observed rating, integer in {0, 1, ..., k}. y = 0 is only valid\n//           when pzero &gt; 0 (hurdle point mass below the 1..k rating scale)\n//   mu    : mean of the underlying Beta distribution (0 &lt; mu &lt; 1); the\n//           'liking' indicator on the logit scale\n//   phi   : precision of the underlying Beta distribution (alpha + beta &gt; 0);\n//           the 'agreement' indicator on the log scale\n//   pzero : probability of the hurdle point mass at 0 (0 &lt;= pzero &lt; 1)\n//   k     : number of rating categories (fixed, passed in as data)\nreal cogmod_betadiscrete_lpmf(int y, real mu, real phi, real pzero, int k) {\n  real alpha;\n  real beta_par;\n  real upper_lcdf;\n  real lower_lcdf;\n\n  if (y &lt; 0 || y &gt; k) {\n    reject(\"cogmod_betadiscrete_lpmf: y must be an integer between 0 and k; found y = \", y);\n  }\n\n  if (y == 0) {\n    return log(pzero);\n  }\n\n  alpha = mu * phi * 2;\n  beta_par = (1 - mu) * phi * 2;\n\n  // P(R = y) = F_B(y/k) - F_B((y-1)/k), computed on the log scale for\n  // numerical stability via log_diff_exp(log(upper), log(lower)).\n  upper_lcdf = (y == k) ? 0.0 : beta_lcdf(y * 1.0 / k | alpha, beta_par);\n  lower_lcdf = (y == 1) ? negative_infinity() : beta_lcdf((y - 1) * 1.0 / k | alpha, beta_par);\n\n  return log1m(pzero) + log_diff_exp(upper_lcdf, lower_lcdf);\n}\n"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [[1]]$block</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "functions"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [[1]]$position</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "start"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [[1]]$pll_args</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> character(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"class")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "stanvars"</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># To also model the hurdle probability (e.g., proportion of zero ratings):</span></span></span>
-<span class="r-in"><span><span class="co"># f &lt;- brms::bf(rating | vint(k) ~ predictor, pzero ~ predictor,</span></span></span>
-<span class="r-in"><span><span class="co">#               family = cogmod_betadiscrete())</span></span></span>
+<span class="r-in"><span><span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span><span class="va">rating</span> <span class="op">|</span> <span class="fu">vint</span><span class="op">(</span><span class="va">k</span><span class="op">)</span> <span class="op">~</span> <span class="va">predictor</span>, <span class="va">pzero</span> <span class="op">~</span> <span class="va">predictor</span>,</span></span>
+<span class="r-in"><span>  family <span class="op">=</span> <span class="fu">cogmod_betadiscrete</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> rating | vint(k) ~ predictor </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> pzero ~ predictor</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># To fix pzero at exactly 0, e.g. because your scale has no hurdle:</span></span></span>
-<span class="r-in"><span><span class="co"># f &lt;- brms::bf(rating | vint(k) ~ predictor, pzero = 0,</span></span></span>
-<span class="r-in"><span><span class="co">#               family = cogmod_betadiscrete())</span></span></span>
+<span class="r-in"><span><span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span><span class="va">rating</span> <span class="op">|</span> <span class="fu">vint</span><span class="op">(</span><span class="va">k</span><span class="op">)</span> <span class="op">~</span> <span class="va">predictor</span>, pzero <span class="op">=</span> <span class="fl">0</span>,</span></span>
+<span class="r-in"><span>  family <span class="op">=</span> <span class="fu">cogmod_betadiscrete</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> rating | vint(k) ~ predictor </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> pzero = 0</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

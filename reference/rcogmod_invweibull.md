@@ -113,6 +113,30 @@ posterior_epred_cogmod_invweibull(prep, predict_outliers = NULL)
 
   Additional arguments.
 
+## Value
+
+`rcogmod_invweibull()` returns a numeric vector of `n` simulated
+reaction times, in seconds. `dcogmod_invweibull()` returns the density
+at each element of `x` - the log density if `log = TRUE` - recycled to
+the length of the longest argument. `cogmod_invweibull()` returns a
+[`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
+object, to put on a
+[`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+formula. `cogmod_invweibull_stanvars()` returns a
+[`brms::stanvars`](https://paulbuerkner.com/brms/reference/stanvar.html)
+object holding the family's Stan `functions` block, to pass to
+[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), and
+`cogmod_invweibull_lpdf_expose()` compiles that Stan code and returns it
+as an R function, for checking the density outside of a model. The
+remaining functions are `brms` post-processing methods, called by `brms`
+rather than directly: `log_lik_cogmod_invweibull()` returns a numeric
+vector holding one log-likelihood value per posterior draw for
+observation `i`, and `posterior_predict_cogmod_invweibull()` a draws x 1
+matrix of reaction times simulated for observation `i`.
+`posterior_epred_cogmod_invweibull()` returns a draws x observations
+matrix of expected reaction times, with `Inf` wherever the mean does not
+exist.
+
 ## Details
 
 `mu` is the **shape** and `sigma` the **scale** of the inverse Weibull
@@ -143,7 +167,8 @@ nests this family at `shape = -1`.
 
 ``` r
 rts <- rcogmod_invweibull(1000, mu = 3, sigma = 0.4, ndt = 0.3, poutlier = 0.02)
-# hist(rts, breaks = 100, xlab = "RT (s)")
+hist(rts, breaks = 100, xlab = "RT (s)")
+
 
 # Responses faster than ndt keep positive density, unlike the unmixed model
 dcogmod_invweibull(0.1, ndt = 0.3, poutlier = 0.02)
