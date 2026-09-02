@@ -208,6 +208,12 @@ direction that `brms` would leave improper. Seven do:
   [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)) is
   usually better than estimating them behind a prior.
 
+- [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md):
+  `sigmadrift` and `sigmandt`, for the same reasons as the DDM's, with
+  `sigmandt` taking the DDM's prior for the same quantity verbatim. Both
+  should be fixed at zero unless the design can identify them;
+  `sigmandt` in particular needs a lot of data, a strong prior, or both.
+
 - [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md):
   `nuone`, `sigmazero` and `sigmaone`. Push an accumulator's rate far
   enough down and it never finishes first, so the density depends on it
@@ -270,9 +276,9 @@ most whole RT distributions. That one is overridden rather than filled,
 the same treatment `shape` and an omitted `ndt` get above.
 
 `mu` gets `normal(0.4, 0.25)` on its own intercept - 95% of the mass
-between -0.09 and 0.89 s. It used to be left to `brms`, whose
+between -0.09 and 0.89 s. It is not left to `brms`, whose
 `student_t(3, 0, 2.5)` is a fair statement about a location on a
-`softplus` link (median 0.69 s) but not on the `identity` link `mu` now
+`softplus` link (median 0.69 s) but not on the `identity` link `mu`
 uses, where it is centred on zero seconds and puts a Gaussian centre of
 -2 s on a par with one of +2 s. The prior does **not** exclude negative
 values: `mu` is a location, and for fast heavily-tailed data the
@@ -309,7 +315,8 @@ actually lives on:
 | `sigmazero`, `sigmaone` ([`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 | `sigmadrift` ([`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)) | `normal(0, 1)` | `lognormal(-1, 0.75)` |
 | `sigmabias` ([`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)) | `normal(-2, 1)` | `beta(1, 5)` |
-| `sigmandt` ([`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)) | `normal(-3, 1)` | `lognormal(-3, 1)` |
+| `sigmandt` ([`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md), [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)) | `normal(-3, 1)` | `lognormal(-3, 1)` |
+| `sigmadrift` ([`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 | `nuone` ([`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` |
 | `sigmazero`, `sigmaone` ([`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 | `dof` ([`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)) | `normal(1.8, 0.7)` | `lognormal(1.8, 0.7)` |

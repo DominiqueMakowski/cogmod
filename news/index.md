@@ -4,6 +4,36 @@
 
 ### New features
 
+- **[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+  gains `sigmandt`**, the between-trial range of the non-decision time
+  (`st0`): each trial’s non-decision time is drawn from
+  `Uniform(ndt, ndt + sigmandt)`, so `ndt` becomes its lower bound,
+  exactly as in
+  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md).
+  Spreading the shift turns the Wald density into a difference of two
+  CDFs and the CDF into a difference of two integrated CDFs, both closed
+  form at a fixed drift, so the parameter costs a few normal CDFs per
+  observation, works with `cens()` unchanged, and rides the existing
+  drift quadrature when `sigmadrift > 0` too. It is on a `log` link with
+  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)’s
+  prior for the same quantity. **It is hard to estimate and should be
+  fixed at zero for most applications** (`sigmandt = 0` in
+  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html));
+  it shares the leading edge of the distribution with `ndt` and
+  `poutlier`, and should only be freed with a lot of data, a strong
+  prior, or both. As with `sigmadrift`, leaving it out of
+  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+  *estimates* it, so existing Wald formulas that do not mention it now
+  fit one more parameter unless they add `sigmandt = 0`, and fits made
+  before this version cannot be post-processed with it; the vignette
+  models were refit.
+  [`rcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
+  [`dcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+  and
+  [`pcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+  take `sigmandt` right after `sigmadrift`, so a `poutlier` passed by
+  position moves along one.
+
 - **Censored reaction times: `brms`’s `cens()` works on the RT-only
   families.** `bf(rt | cens(error) ~ ...)` scores an error trial as a
   *right-censored correct response*: its RT is a lower bound on when the

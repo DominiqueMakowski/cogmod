@@ -513,13 +513,14 @@ consequence of the assumed mechanism.
 The Shifted Wald model (also known as the Inverse Gaussian distribution)
 is actually equivalent to a one-response version of the Drift Diffusion
 Model (DDM) with no between-trial variability in drift rate (which is
-what `sigmadrift = 0` does), starting point, or non-decision time. This
-changes what the parameters mean. Instead of a location and a width, we
-now estimate quantities that refer to distinct components of the
-decision: `mu` is the **drift rate** (the speed at which evidence
-accumulates, often read as task difficulty or processing efficiency),
-`boundary` is the **decision threshold** (how much evidence is required
-before responding, i.e., response caution), and `ndt` is again the
+what `sigmadrift = 0` does), starting point, or non-decision time
+(`sigmandt = 0`). This changes what the parameters mean. Instead of a
+location and a width (e.g., Mean and SD of the RT distribution), we now
+estimate quantities that refer to distinct components of the decision:
+`mu` is the **drift rate** (the speed at which evidence accumulates,
+often read as task difficulty or processing efficiency), `boundary` is
+the **decision threshold** (how much evidence is required before
+responding, i.e., response caution), and `ndt` is again the
 **non-decision time** (encoding and motor execution). This is why the
 formula below regresses `Condition` on `boundary` rather than on
 `sigma`: the natural hypothesis for a speed-vs-accuracy manipulation is
@@ -533,7 +534,9 @@ the *Decision Making* vignette are for). Second, this interpretive gain
 is not free: with RT data alone, drift rate and boundary separation
 trade off against each other to a considerable degree, so their separate
 estimates should be treated with more caution than their cognitive
-labels suggest.
+labels suggest. This issue is even more critical when the additional
+variability parameters (`sigmadrift` and `sigmandt`) are estimated, but
+see below for details about that.
 
 ``` r
 
@@ -541,7 +544,8 @@ f <- bf(
   RT ~ Condition,
   boundary ~ Condition,
   ndt ~ Condition,
-  sigmadrift = 0,
+  sigmadrift = 0,  # Fixed at zero, not estimated
+  sigmandt = 0,  # Fixed at zero, not estimated
   family = cogmod_invgaussian()
 )
 
@@ -740,6 +744,15 @@ distribution as small ones, which is a ridge, and part of why
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
 puts a prior on `sigmadrift`.
 
+The family has one more variability parameter, `sigmandt`, which spreads
+the non-decision time uniformly over `[ndt, ndt + sigmandt]` - the
+single-boundary counterpart of the DDM’s `st0`. It is typically fixed at
+zero because its effect can be confounded with that of other parameters
+(the leading edge of the distibution is also affected by `ndt` and
+`poutlier`). It is hard to estimate, and should only be freed (e.g.,
+`sigmandt ~ 1`) with a lot of data and/or a strong prior (see
+[`?rcogmod_invgaussian`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)).
+
 ``` r
 
 f <- bf(
@@ -747,6 +760,7 @@ f <- bf(
   boundary ~ Condition,
   ndt ~ Condition,
   sigmadrift ~ Condition,
+  sigmandt = 0,
   family = cogmod_invgaussian()
 )
 
@@ -824,6 +838,7 @@ f <- bf(
   boundary ~ Condition,
   ndt ~ Condition,
   sigmadrift = 0,
+  sigmandt = 0,
   family = cogmod_invgaussian()
 )
 
@@ -970,10 +985,10 @@ wherever `ndt` sits close to a response, and on these data it sits at
 a millisecond or two apart.
 
 The obvious remedies do not work, and it is worth knowing why before
-reaching for them. A prior on `mu` (the shape) or `ndt` don’t help.
-Fixing `ndt` at the fastest observed response would work by removing the
-parameter, but it introduces a false rigid assumption about one fo the
-key parameters.
+reaching for them. Narrower priors on `mu` (the shape) or `ndt` don’t
+seem to help much. Fixing `ndt` at the fastest observed response would
+work by removing the parameter, but it introduces a false rigid
+assumption about one of the key parameters.
 
 The slow sampling and bad convergence is here a sign of a bad fit (as
 shown below). What the sampler is struggling with is the model
@@ -1205,7 +1220,7 @@ loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
 #> Name |   LOOIC |   ENP |    ELPD | Difference | Difference_SE |      p
 #> ----------------------------------------------------------------------
 #> 1    | -4801.1 |  7.75 | 2400.53 |       0.00 |          0.00 |       
-#> 2    | -4796.6 |  7.33 | 2398.29 |      -2.24 |          1.64 | 0.171 
+#> 2    | -4795.4 |  7.82 | 2397.70 |      -2.83 |          1.61 | 0.078 
 #> 3    | -4795.0 |  7.37 | 2397.50 |      -3.03 |          2.70 | 0.262 
 #> 4    | -4792.0 |  6.84 | 2396.01 |      -4.52 |          3.29 | 0.168 
 #> 5    | -4789.7 |  8.07 | 2394.85 |      -5.68 |          2.89 | 0.050 
@@ -1214,7 +1229,7 @@ loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
 #> 8    | -4772.5 |  5.24 | 2386.25 |     -14.28 |          6.08 | 0.019 
 #> 9    | -4763.3 |  8.42 | 2381.64 |     -18.89 |          6.71 | 0.005 
 #> 10   | -4744.8 |  9.69 | 2372.41 |     -28.12 |          8.60 | 0.001 
-#> 11   | -4723.5 |  9.35 | 2361.74 |     -38.79 |          9.97 | < .001
+#> 11   | -4723.0 |  9.64 | 2361.51 |     -39.02 |          9.99 | < .001
 #> 12   | -4703.4 | 10.22 | 2351.68 |     -48.85 |         11.31 | < .001
 #> 13   | -4607.9 | 13.45 | 2303.96 |     -96.57 |         31.58 | 0.002 
 #> 14   | -4569.6 | 11.85 | 2284.78 |    -115.75 |         18.62 | < .001

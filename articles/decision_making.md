@@ -129,8 +129,7 @@ non-decision time, hence the `sigmadrift`, `sigmabias`, and `sigmandt`
 parameters are fixed to `0`. Estimating these parameters is possible,
 but considerably more expensive and often unnecessary for many
 applications. Note that `sigmandt` is the between-trial *range* of the
-non-decision time in seconds (`st0`); it was called `sigmatau` when it
-was a fraction of a `minrt` parameter that no longer exists.
+non-decision time in seconds (`st0`), with `ndt` its lower bound.
 
 ``` r
 
@@ -214,17 +213,17 @@ distribution instead of a ballistic accumulation process. `mu`
 speeds for the “Error” and “Correct” accumulators, and
 `sigmazero`/`sigmaone` their log-space SDs.
 
-Like the RDM below, and unlike the three remaining models here, the LNR
-is fit with `ndt` and `poutlier` directly rather than `tau` and `minrt`:
-`ndt` is estimated in seconds, with no upper bound tied to the fastest
-observed response, and `poutlier` is the proportion of trials attributed
-to a contaminant guessing process (see `vignette("outliers")`).
+Like every family in this package, the LNR is fit with `ndt` and
+`poutlier`: `ndt` is estimated in seconds, with no upper bound tied to
+the fastest observed response, and `poutlier` is the proportion of
+trials attributed to a contaminant guessing process (see
+`vignette("outliers")`).
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
 and
 [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
-both read the family off `f`, so they need no `tau`-specific setup - and
-`init = 0` is actively harmful here: on the log link it starts `ndt` at
-`exp(0) = 1` second, above nearly every observed RT.
+both read the family off `f`, so they need no family-specific setup -
+and `init = 0` is actively harmful here: on the log link it starts `ndt`
+at `exp(0) = 1` second, above nearly every observed RT.
 
 ``` r
 

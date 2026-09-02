@@ -342,12 +342,11 @@ bounded by the fastest observed response, so a non-decision time that
 varies by condition or by participant can exceed the sample minimum
 wherever the data support it.
 
-This replaces the earlier `tau` / `minrt` pair, in which
-`ndt = tau * minrt` with `minrt` set to the fastest observed RT. That
-capped the non-decision time at an order statistic of the sample, so any
-condition or participant whose true `ndt` exceeded the fastest observed
-response was inexpressible, and the misfit surfaced as spurious effects
-on the race parameters.
+Tying `ndt` to the fastest observed response would cap it at an order
+statistic of the sample, so any condition or participant whose true
+`ndt` exceeded that response would be inexpressible, and the misfit
+would surface as spurious effects on the race parameters. Expressing it
+directly is what avoids that.
 
 ## The outlier component
 
@@ -386,11 +385,10 @@ for per-trial posterior probabilities.
 The outlier component's scale is a constant in seconds, and so are the
 priors
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
-supplies. There is no argument for changing the unit: the `minrt`
-argument that used to rescale the component was removed in 0.2.1.
-Millisecond data fails silently rather than loudly - the outlier
-component contributes nothing and the min-RT boundary comes back. See
-the corresponding section of
+supplies. There is no argument for changing the unit. Millisecond data
+fails silently rather than loudly - the outlier component contributes
+nothing and the min-RT boundary comes back. See the corresponding
+section of
 [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
 for the full account, which applies unchanged here.
 

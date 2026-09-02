@@ -317,15 +317,16 @@
 </section><section class="level3"><h3 id="inverse-gaussian-shifted-wald">Inverse Gaussian (Shifted Wald)<a class="anchor" aria-label="anchor" href="#inverse-gaussian-shifted-wald"></a>
 </h3>
 <p>This is where we cross an important line. The families discussed so far are popular because their <em>shape</em> resembles that of RT distributions; the Wald distribution, in contrast, is <strong>derived</strong> from a model <em>of the process</em> that (potentially) generates the data. It considers responses as the end of a noisy evidence accumulating process that accumulates over time until it reaches a decision threshold: the distribution of the times at which that threshold is first crossed <em>is</em> the Wald distribution. Its skewed shape is not a modelling choice, it is a consequence of the assumed mechanism.</p>
-<p>The Shifted Wald model (also known as the Inverse Gaussian distribution) is actually equivalent to a one-response version of the Drift Diffusion Model (DDM) with no between-trial variability in drift rate (which is what <code>sigmadrift = 0</code> does), starting point, or non-decision time. This changes what the parameters mean. Instead of a location and a width, we now estimate quantities that refer to distinct components of the decision: <code>mu</code> is the <strong>drift rate</strong> (the speed at which evidence accumulates, often read as task difficulty or processing efficiency), <code>boundary</code> is the <strong>decision threshold</strong> (how much evidence is required before responding, i.e., response caution), and <code>ndt</code> is again the <strong>non-decision time</strong> (encoding and motor execution). This is why the formula below regresses <code>Condition</code> on <code>boundary</code> rather than on <code>sigma</code>: the natural hypothesis for a speed-vs-accuracy manipulation is that instructions move the <em>threshold</em>, not the quality of the evidence.</p>
-<p>Two caveats are worth keeping in mind. First, because this version has a single boundary, it only describes the timing of <em>one</em> type of response - it knows nothing about errors, and so cannot exploit the joint distribution of choices and RTs (that is what the DDM and LBA of the <em>Decision Making</em> vignette are for). Second, this interpretive gain is not free: with RT data alone, drift rate and boundary separation trade off against each other to a considerable degree, so their separate estimates should be treated with more caution than their cognitive labels suggest.</p>
+<p>The Shifted Wald model (also known as the Inverse Gaussian distribution) is actually equivalent to a one-response version of the Drift Diffusion Model (DDM) with no between-trial variability in drift rate (which is what <code>sigmadrift = 0</code> does), starting point, or non-decision time (<code>sigmandt = 0</code>). This changes what the parameters mean. Instead of a location and a width (e.g., Mean and SD of the RT distribution), we now estimate quantities that refer to distinct components of the decision: <code>mu</code> is the <strong>drift rate</strong> (the speed at which evidence accumulates, often read as task difficulty or processing efficiency), <code>boundary</code> is the <strong>decision threshold</strong> (how much evidence is required before responding, i.e., response caution), and <code>ndt</code> is again the <strong>non-decision time</strong> (encoding and motor execution). This is why the formula below regresses <code>Condition</code> on <code>boundary</code> rather than on <code>sigma</code>: the natural hypothesis for a speed-vs-accuracy manipulation is that instructions move the <em>threshold</em>, not the quality of the evidence.</p>
+<p>Two caveats are worth keeping in mind. First, because this version has a single boundary, it only describes the timing of <em>one</em> type of response - it knows nothing about errors, and so cannot exploit the joint distribution of choices and RTs (that is what the DDM and LBA of the <em>Decision Making</em> vignette are for). Second, this interpretive gain is not free: with RT data alone, drift rate and boundary separation trade off against each other to a considerable degree, so their separate estimates should be treated with more caution than their cognitive labels suggest. This issue is even more critical when the additional variability parameters (<code>sigmadrift</code> and <code>sigmandt</code>) are estimated, but see below for details about that.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">boundary</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">ndt</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
-<span>  sigmadrift <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  sigmadrift <span class="op">=</span> <span class="fl">0</span>,  <span class="co"># Fixed at zero, not estimated</span></span>
+<span>  sigmandt <span class="op">=</span> <span class="fl">0</span>,  <span class="co"># Fixed at zero, not estimated</span></span>
 <span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rcogmod_invgaussian.html">cogmod_invgaussian</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -403,6 +404,7 @@
 </section><section class="level3"><h3 id="wald-4">Wald-4<a class="anchor" aria-label="anchor" href="#wald-4"></a>
 </h3>
 <p>This mode corresponds to the Shifted Wald model with an extra parameter corresponding to the variability of the drift rate. That extra parameter makes it a <strong>hybrid of the Wald and LATER models</strong>: it is the only one here carrying <em>both</em> sources of randomness. The Wald has moment-to-moment noise within the trial and a drift rate that is the same on every trial; LATER has no within-trial noise at all and puts all of the variability into a drift rate that is redrawn each trial; Wald-4 has both at once, and each is nested inside it. Set <code>sigmadrift = 0</code> and the across-trial variability disappears, leaving the plain Wald exactly. Push the other way - letting the accumulated evidence grow large relative to the diffusion noise, which here means scaling <code>mu</code>, <code>boundary</code> and <code>sigmadrift</code> up together - and the within-trial noise becomes negligible, leaving the recinormal of the previous section. That second limit is approached rather than reached (the relative error falls off as the square of the scaling factor), so it is not something you fix in the formula, but it is worth knowing it is there: it means that large values of all three parameters describe very nearly the same distribution as small ones, which is a ridge, and part of why <code><a href="../reference/cogmod_priors.html">cogmod_priors()</a></code> puts a prior on <code>sigmadrift</code>.</p>
+<p>The family has one more variability parameter, <code>sigmandt</code>, which spreads the non-decision time uniformly over <code>[ndt, ndt + sigmandt]</code> - the single-boundary counterpart of the DDM’s <code>st0</code>. It is typically fixed at zero because its effect can be confounded with that of other parameters (the leading edge of the distibution is also affected by <code>ndt</code> and <code>poutlier</code>). It is hard to estimate, and should only be freed (e.g., <code>sigmandt ~ 1</code>) with a lot of data and/or a strong prior (see <code><a href="../reference/rcogmod_invgaussian.html">?rcogmod_invgaussian</a></code>).</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -410,6 +412,7 @@
 <span>  <span class="va">boundary</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">ndt</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigmadrift</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
+<span>  sigmandt <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rcogmod_invgaussian.html">cogmod_invgaussian</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -470,6 +473,7 @@
 <span>  <span class="va">boundary</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">ndt</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  sigmadrift <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  sigmandt <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rcogmod_invgaussian.html">cogmod_invgaussian</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -547,7 +551,7 @@
 </section><section class="level3"><h3 id="weibull">Weibull<a class="anchor" aria-label="anchor" href="#weibull"></a>
 </h3>
 <p>This one is really slow, with bad convergence on our data, which is caused by the geometry of that model rather than an expensive density, and it applies to the Gamma too. Near the shift the Weibull density behaves like <code>(RT - ndt)^(mu - 1)</code>, where <code>mu</code> is the shape. Differentiating the outlier mixture with respect to <code>ndt</code> therefore leaves a term in <code>(RT - ndt)^(mu - 2)</code>, which is <strong>unbounded at every observation whenever mu (the shape) is below 2</strong>. The posterior is still proper - the outlier component sees to that - but the gradient spikes wherever <code>ndt</code> sits close to a response, and on these data it sits at 0.40 s, right inside the dense left edge where consecutive responses are a millisecond or two apart.</p>
-<p>The obvious remedies do not work, and it is worth knowing why before reaching for them. A prior on <code>mu</code> (the shape) or <code>ndt</code> don’t help. Fixing <code>ndt</code> at the fastest observed response would work by removing the parameter, but it introduces a false rigid assumption about one fo the key parameters.</p>
+<p>The obvious remedies do not work, and it is worth knowing why before reaching for them. Narrower priors on <code>mu</code> (the shape) or <code>ndt</code> don’t seem to help much. Fixing <code>ndt</code> at the fastest observed response would work by removing the parameter, but it introduces a false rigid assumption about one of the key parameters.</p>
 <p>The slow sampling and bad convergence is here a sign of a bad fit (as shown below). What the sampler is struggling with is the model contorting itself to represent a left edge it cannot otherwise reach. That is not a reason to write the Weibull off for reaction times in general: there can be cases where it is perfectly well behaved, just not in our data.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb20"><pre class="downlit sourceCode r">
@@ -773,7 +777,7 @@
 <span><span class="co">#&gt; Name |   LOOIC |   ENP |    ELPD | Difference | Difference_SE |      p</span></span>
 <span><span class="co">#&gt; ----------------------------------------------------------------------</span></span>
 <span><span class="co">#&gt; 1    | -4801.1 |  7.75 | 2400.53 |       0.00 |          0.00 |       </span></span>
-<span><span class="co">#&gt; 2    | -4796.6 |  7.33 | 2398.29 |      -2.24 |          1.64 | 0.171 </span></span>
+<span><span class="co">#&gt; 2    | -4795.4 |  7.82 | 2397.70 |      -2.83 |          1.61 | 0.078 </span></span>
 <span><span class="co">#&gt; 3    | -4795.0 |  7.37 | 2397.50 |      -3.03 |          2.70 | 0.262 </span></span>
 <span><span class="co">#&gt; 4    | -4792.0 |  6.84 | 2396.01 |      -4.52 |          3.29 | 0.168 </span></span>
 <span><span class="co">#&gt; 5    | -4789.7 |  8.07 | 2394.85 |      -5.68 |          2.89 | 0.050 </span></span>
@@ -782,7 +786,7 @@
 <span><span class="co">#&gt; 8    | -4772.5 |  5.24 | 2386.25 |     -14.28 |          6.08 | 0.019 </span></span>
 <span><span class="co">#&gt; 9    | -4763.3 |  8.42 | 2381.64 |     -18.89 |          6.71 | 0.005 </span></span>
 <span><span class="co">#&gt; 10   | -4744.8 |  9.69 | 2372.41 |     -28.12 |          8.60 | 0.001 </span></span>
-<span><span class="co">#&gt; 11   | -4723.5 |  9.35 | 2361.74 |     -38.79 |          9.97 | &lt; .001</span></span>
+<span><span class="co">#&gt; 11   | -4723.0 |  9.64 | 2361.51 |     -39.02 |          9.99 | &lt; .001</span></span>
 <span><span class="co">#&gt; 12   | -4703.4 | 10.22 | 2351.68 |     -48.85 |         11.31 | &lt; .001</span></span>
 <span><span class="co">#&gt; 13   | -4607.9 | 13.45 | 2303.96 |     -96.57 |         31.58 | 0.002 </span></span>
 <span><span class="co">#&gt; 14   | -4569.6 | 11.85 | 2284.78 |    -115.75 |         18.62 | &lt; .001</span></span>

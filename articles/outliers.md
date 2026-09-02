@@ -62,7 +62,7 @@ ht <- function(s, nu) function(x) 2 * dt(x / s, nu) / s
 
 candidates <- list(
   "Half-Normal(0.2)  [shipped]" = hn(0.2),
-  "Half-t(0.3, df = 3)  [<= 0.2.0]" = ht(0.3, 3),
+  "Half-t(0.3, df = 3)"            = ht(0.3, 3),
   "Half-Cauchy(0.3)"               = ht(0.3, 1),
   "LogNormal(log 0.15, 1.5)"       = function(x) dlnorm(x, log(0.15), 1.5),
   "Exponential(mean 0.15)"         = function(x) dexp(x, 1 / 0.15),
@@ -91,7 +91,7 @@ knitr::kable(props, col.names = c("g", "flatness at 0.05 / 0.15 / 0.25 s",
 | g | flatness at 0.05 / 0.15 / 0.25 s | g(3 s), relative to peak | mean |
 |:---|:---|:---|:---|
 | Half-Normal(0.2) \[shipped\] | 0.97 / 0.75 / 0.46 | 1.4e-49 | 0.160 |
-| Half-t(0.3, df = 3) \[\<= 0.2.0\] | 0.98 / 0.85 / 0.66 | 0.00085 | 0.331 |
+| Half-t(0.3, df = 3) | 0.98 / 0.85 / 0.66 | 0.00085 | 0.331 |
 | Half-Cauchy(0.3) | 0.97 / 0.80 / 0.59 | 0.0099 | divergent |
 | LogNormal(log 0.15, 1.5) | 221.92 / 96.73 / 54.77 | 0.66 | 0.462 |
 | Exponential(mean 0.15) | 0.72 / 0.37 / 0.19 | 2.1e-09 | 0.150 |
@@ -108,14 +108,14 @@ knitr::kable(props, col.names = c("g", "flatness at 0.05 / 0.15 / 0.25 s",
   than at 3 ms. The half-Normal, half-t and uniform are all genuinely
   flat.
 - **Dead by the time real decisions start.** This is the criterion the
-  half-t fails, and it is why it was replaced in 0.2.1. Its tails are
-  heavier than every decision density in the package, so far-out slow
-  responses end up better explained by `g` than by the model itself: at
-  `poutlier = 0.02`, against a shifted LogNormal, a 5 s response was
-  attributed to the outlier component with probability 0.86, and the
-  crossover sat at 3.86 s. `ndt` then gets pulled up behind it. The
-  half-Cauchy and the wide uniform fail this worse. The slow tail
-  belongs to the decision family - that is what `shape` in
+  half-t fails. Its tails are heavier than every decision density in the
+  package, so far-out slow responses end up better explained by `g` than
+  by the model itself: at `poutlier = 0.02`, against a shifted
+  LogNormal, a 5 s response is attributed to the outlier component with
+  probability 0.86, and the crossover sits at 3.86 s. `ndt` then gets
+  pulled up behind it. The half-Cauchy and the wide uniform fail this
+  worse. The slow tail belongs to the decision family - that is what
+  `shape` in
   [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
   and `sigmadrift` in
   [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
@@ -138,8 +138,7 @@ does so without a trade: because `exp(-x^2 / 2s^2)` annihilates the far
 tail at *any* scale, flatness near zero and tail weight are not bought
 against each other the way they are for a Student-t. At 0.2 s it holds
 76% of its peak density at 0.15 s and 46% at 0.25 s - against 85% and
-66% for the half-t it replaced - while being 16 orders of magnitude
-lighter at 3 s.
+66% for the half-t - while being 16 orders of magnitude lighter at 3 s.
 
 ``` r
 
@@ -161,23 +160,21 @@ Whatever value it took, the component’s job is to stay flat across the
 range `ndt` plausibly occupies - the `ndt` prior puts that at 0.20 to
 0.45 s - and then to disappear. 0.2 s does that: 68% of its mass falls
 below 0.2 s and 92% below 0.35 s, and a contaminant landing just under a
-late `ndt` of 0.42 s still has a log-density of -4.6, where the half-t
-gave -4.0. Nothing that used to be covered is starved.
+late `ndt` of 0.42 s still has a log-density of -4.6.
 
-Up to 0.2.0 the scale was a `minrt` argument in the unit of the data,
-which made the likelihood **equivariant** to that unit. That argument
-was removed in 0.2.1, because the equivariance was already fictional end
-to end:
+The scale is not an argument in the unit of the data, although one would
+make the likelihood **equivariant** to that unit, because the
+equivariance would be fictional end to end:
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
-shifted only the `ndt` prior with it, while the `sigmandt` prior of
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md),
+could shift only the `ndt` prior with it, while the `sigmandt` priors of
+[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+and
+[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
 the `sigmadrift` prior of
 [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
 and the `mu` priors are all stated in seconds outright - and
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
-is not optional. The package works in seconds; the constant now says so,
-and one argument disappears from every family, every density and every
-`stanvars()`.
+is not optional. The package works in seconds, and the constant says so.
 
 Feeding it milliseconds fails **silently**, which is worth knowing
 about. The outlier component’s log-density at `RT = 400` is about
@@ -533,11 +530,11 @@ of them into an improper posterior.
 that region sits at infinity: past about `logit(poutlier) = 40` the
 gradient with respect to `poutlier` is identically zero, so the chain
 random-walks outward forever. It has infinite volume, and against a flat
-prior infinite volume wins. Since 0.2.1 it is at least a far *worse* fit
-than it was - thousands of log-likelihood units below the sensible mode
-rather than hundreds - because a half-Normal cannot explain a slow
-response at all, so `ndt` and the decision parameters no longer drop out
-of the density completely there. The prior is still required.
+prior infinite volume wins. It is at least a far *worse* fit than the
+sensible mode - thousands of log-likelihood units below it - because a
+half-Normal cannot explain a slow response at all, so `ndt` and the
+decision parameters do not drop out of the density completely there. The
+prior is still required.
 
 `ndt` toward 0. On a log link this is the other infinity. Once `ndt` is
 negligible against the fastest response the model is just an unshifted
@@ -864,14 +861,13 @@ it is 0.98. The same trial is graded differently depending on how much
 contamination the rest of the dataset implies - which is the whole
 difference between estimating a rate and applying a cutoff.
 
-**It does not rise again in the slow tail.** Up to 0.2.0 it did, because
-the half-t had heavier tails than the LogNormal, so far-out slow
-responses were eventually better explained by the outlier component than
-by the model - and `ndt` got pulled up behind them. That was a defect,
-and replacing the component with a half-Normal is what removed it. The
-slow tail is now entirely the decision family’s business, which also
-means the model will not quietly absorb slow contaminants for you: see
-the section below.
+**It does not rise again in the slow tail.** A heavier-tailed component
+would: a half-t has heavier tails than the LogNormal, so far-out slow
+responses would eventually be better explained by the outlier component
+than by the model, and `ndt` would be pulled up behind them. The
+half-Normal’s tail is what rules that out. The slow tail is entirely the
+decision family’s business, which also means the model will not quietly
+absorb slow contaminants for you: see the section below.
 
 The grading is driven by evidence rather than a cutoff, and it agrees
 with the conditional accuracy function without having been shown any
@@ -968,9 +964,9 @@ for you.
 - `g` must be flat at the origin, must have died away before real
   decisions begin, must never be exactly zero, and must possess a finite
   mean. Half-Normal(0, 0.2 s) is the only common candidate that
-  satisfies all four; the half-t used up to 0.2.0 failed the second,
-  competing with the model for the slow tail. The scale is a constant in
-  **seconds**, so reaction times have to be supplied in seconds.
+  satisfies all four; a half-t fails the second, competing with the
+  model for the slow tail. The scale is a constant in **seconds**, so
+  reaction times have to be supplied in seconds.
 - Priors on `ndt` and `poutlier` are required, not advisory: `brms`
   leaves both flat and the likelihood has two flat directions, so the
   posterior is improper without them.
