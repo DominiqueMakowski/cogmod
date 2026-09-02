@@ -1365,17 +1365,17 @@ real cogmod_rdm_wald_lsurv(real t, real nu, real k, real A) {
 
 #' @rdname rcogmod_rdm
 #' @examples
-#' \donttest{
-#' # Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
-#' # which live outside CRAN - see the package website to install them.
-#' if (requireNamespace("cmdstanr", quietly = TRUE) &&
-#'     !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
-#'   lpdf <- cogmod_rdm_lpdf_expose()
-#'   lpdf(
-#'     Y = 0.5, mu = 2, driftone = 1.5, sigmabias = 0.2, boundary = 0.5,
-#'     ndt = 0.2, poutlier = 0.02, dec = 0
-#'   )
-#' }
+#' \dontrun{
+#' # Needs cmdstanr and a CmdStan toolchain, which live outside CRAN - see the
+#' # package website to install them. Not run under R CMD check, which executes
+#' # every example in one R session: once brms has fitted a model there (the
+#' # cogmod_inits() and p_outlier() examples do), rstan is live in the process
+#' # and loading an exposed Stan function next to it segfaults on Linux.
+#' lpdf <- cogmod_rdm_lpdf_expose()
+#' lpdf(
+#'   Y = 0.5, mu = 2, driftone = 1.5, sigmabias = 0.2, boundary = 0.5,
+#'   ndt = 0.2, poutlier = 0.02, dec = 0
+#' )
 #' }
 #'
 #' @export

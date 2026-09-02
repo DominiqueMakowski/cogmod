@@ -1069,17 +1069,17 @@ real cogmod_ddm_decision_lpdf(real t, real v, real boundary, real w,
 
 #' @rdname rcogmod_ddm
 #' @examples
-#' \donttest{
-#' # Exposing the Stan function needs cmdstanr and a CmdStan toolchain,
-#' # which live outside CRAN - see the package website to install them.
-#' if (requireNamespace("cmdstanr", quietly = TRUE) &&
-#'     !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
-#'   lpdf <- cogmod_ddm_lpdf_expose()
-#'   lpdf(
-#'     Y = 0.5, mu = 0.5, boundary = 1, bias = 0.5, sigmadrift = 0,
-#'     sigmabias = 0, sigmandt = 0, ndt = 0.2, poutlier = 0.02, dec = 1
-#'   )
-#' }
+#' \dontrun{
+#' # Needs cmdstanr and a CmdStan toolchain, which live outside CRAN - see the
+#' # package website to install them. Not run under R CMD check, which executes
+#' # every example in one R session: once brms has fitted a model there (the
+#' # cogmod_inits() and p_outlier() examples do), rstan is live in the process
+#' # and loading an exposed Stan function next to it segfaults on Linux.
+#' lpdf <- cogmod_ddm_lpdf_expose()
+#' lpdf(
+#'   Y = 0.5, mu = 0.5, boundary = 1, bias = 0.5, sigmadrift = 0,
+#'   sigmabias = 0, sigmandt = 0, ndt = 0.2, poutlier = 0.02, dec = 1
+#' )
 #' }
 #'
 #' @export
