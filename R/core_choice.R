@@ -363,9 +363,7 @@
       "   with `ndt` its lower bound."
     ),
     note = c(
-      "sigmandt is st0 itself, in seconds, not a fraction of anything. It used",
-      "to be a multiple of a `minrt` dpar that no longer exists, and naming it",
-      "after `tau` outlived that parameter too."
+      "sigmandt is st0 itself, in seconds, not a fraction of anything."
     ),
     label = "Drift Diffusion"
   )

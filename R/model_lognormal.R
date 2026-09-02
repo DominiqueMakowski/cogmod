@@ -46,12 +46,12 @@
 #' 0.25 s - while dying fast enough above that to leave the slow tail alone.
 #' Plot it with `curve(2 * dnorm(x, 0, 0.2), 0, 3)`.
 #'
-#' Up to version 0.2.0 this was a half Student-t with 3 degrees of freedom and
-#' a user-supplied scale. That tail was heavier than every decision density in
-#' the package, so far-out slow responses were eventually better explained by
-#' the outlier component than by the model: at `poutlier = 0.02` a 5 s response
-#' was attributed to it with probability 0.86, and `ndt` was pulled up behind
-#' it. The slow tail now belongs to the decision family, which is what
+#' A heavier-tailed component would not do. A half Student-t with 3 degrees of
+#' freedom, say, has a heavier tail than every decision density in the package,
+#' so far-out slow responses would eventually be better explained by the
+#' outlier component than by the model: at `poutlier = 0.02` a 5 s response
+#' would be attributed to it with probability 0.86, and `ndt` pulled up behind
+#' it. The slow tail belongs to the decision family, which is what
 #' [cogmod_loggamma()]'s `shape` and [cogmod_invgaussian()]'s `sigmadrift` are
 #' for.
 #'
@@ -70,11 +70,10 @@
 #' parameterization exists to remove. Nothing errors, and the chains still
 #' initialise, because the decision density itself stays finite.
 #'
-#' This failure was already reachable before 0.2.1 by leaving `minrt` at its
-#' default with millisecond data. Removing the argument makes it unconditional
-#' rather than optional, which is the trade: the equivariance `minrt` bought in
-#' the likelihood was already lost in the priors, and [cogmod_priors()] is not
-#' optional.
+#' A scale argument in the unit of the data would make the likelihood
+#' equivariant to that unit, and there deliberately is none: the equivariance
+#' would be lost again in the priors, which are stated in seconds throughout,
+#' and [cogmod_priors()] is not optional.
 #'
 #' Divide by 1000 before fitting, and multiply `ndt` back afterwards if you
 #' want the answer in milliseconds.

@@ -209,7 +209,7 @@ test_that("pcogmod_ddm integrates dcogmod_ddm", {
   grid <- covering_grid(
     drift = c(-3, -1, 0, 1, 3),
     boundary = c(0.6, 1.2, 2.0),
-    bias = c(0.3, 0.5, 0.7),
+    bias = c(0.05, 0.3, 0.5, 0.7, 0.95),
     q = c(0.35, 0.6, 1.2, 3),
     response = c(0L, 1L)
   )
@@ -251,6 +251,55 @@ test_that("pcogmod_ddm behaves like a CDF", {
   # The between-trial variability parameters would each need a quadrature layer,
   # so they are not arguments at all rather than being silently ignored.
   expect_error(pcogmod_ddm(1, sigmadrift = 0.5))
+})
+
+
+test_that("pcogmod_ddm stays a CDF with the start point against a boundary", {
+  # rtdists's pdiffusion() was non-monotone for a start point near either
+  # boundary until rtdists/rtdists@7dab07c: its PDE solver initialised the
+  # grid with one boundary condition and interpolated against another. This
+  # is a series, not a solver, so that mechanism is absent - but the grids
+  # above stop at bias 0.05 and 0.95, and the series' term count and time
+  # floor both depend on the start point, so the edges get asked directly.
+  q <- seq(0.2, 4, by = 0.005)
+  for (w in c(0.01, 0.02, 0.98, 0.99)) {
+    info <- sprintf("bias %.2f", w)
+    ps <- lapply(0:1, function(k) {
+      pcogmod_ddm(q, drift = 0.5, boundary = 1, bias = w, ndt = 0.2,
+                  response = k, poutlier = 0)
+    })
+    for (k in 0:1) {
+      p <- ps[[k + 1]]
+      pk <- pcogmod_ddm(Inf, drift = 0.5, boundary = 1, bias = w, ndt = 0.2,
+                        response = k, poutlier = 0)
+      expect_true(all(is.finite(p)), info = info)
+      expect_false(is.unsorted(p), info = info)
+      expect_true(all(p >= 0 & p <= pk), info = info)
+    }
+    # The two defective CDFs partition the marginal one, here as everywhere.
+    expect_equal(ps[[1]] + ps[[2]],
+                 pcogmod_ddm(q, drift = 0.5, boundary = 1, bias = w, ndt = 0.2,
+                             poutlier = 0),
+                 info = info)
+    # And each is still the integral of its density, minority response
+    # included - which is where the mass is smallest and a series is most
+    # likely to be short a term.
+    for (k in 0:1) {
+      for (qq in c(0.35, 0.8, 2)) {
+        integrated <- stats::integrate(
+          function(t) dcogmod_ddm(t, drift = 0.5, boundary = 1, bias = w,
+                                  ndt = 0.2, response = k, poutlier = 0),
+          0, qq, rel.tol = 1e-11, subdivisions = 2000
+        )$value
+        expect_equal(
+          pcogmod_ddm(qq, drift = 0.5, boundary = 1, bias = w, ndt = 0.2,
+                      response = k, poutlier = 0),
+          integrated, tolerance = 1e-8,
+          info = sprintf("%s response %d q %.2f", info, k, qq)
+        )
+      }
+    }
+  }
 })
 
 
@@ -538,7 +587,7 @@ test_that("Stan cogmod_ddm_lpdf matches dcogmod_ddm", {
     Y = c(0.02, 0.25, 0.5, 1.2, 4),
     mu = c(-1.5, 0, 0.8),
     boundary = c(0.6, 1.2, 2),
-    bias = c(0.3, 0.5, 0.7),
+    bias = c(0.05, 0.3, 0.5, 0.7, 0.95),
     sigmadrift = c(0, 0.8),
     sigmabias = c(0, 0.5),
     sigmandt = c(0, 0.08),

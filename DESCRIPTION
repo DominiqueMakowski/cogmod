@@ -55,6 +55,7 @@ Suggests:
     reformulas,
     lme4,
     RWiener,
+    statmod,
     rtdists
 Additional_repositories: https://mc-stan.org/r-packages/
 Config/Needs/website:

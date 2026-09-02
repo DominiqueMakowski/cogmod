@@ -804,3 +804,37 @@ test_that("cogmod_lba2 recovers ndt above the fastest observed response", {
   expect_true(with_outliers(fit)$family$predict_outliers)
   expect_false(without_outliers(fit)$family$predict_outliers)
 })
+
+
+test_that("a mixed vector of start-point ranges takes each branch it needs", {
+  # Same check as in test-model_lba1.R, for the same reason: the shared kernels
+  # branch on delta = A / (sigma t) element by element, and rtdists's lognormal
+  # and gamma LBAs got exactly that subsetting wrong (rtdists/rtdists#24). Here
+  # the survival of the losing accumulator branches too, and the response mixes
+  # which accumulator is which.
+  A <- c(0, 1e-9, 1e-6, 1e-5, 0.2, 0.7)
+  t <- c(0.45, 0.6, 0.9, 0.5, 0.7, 1.1)
+  ndt <- c(0.2, 0.3, 0.1, 0.25, 0.2, 0.15)
+  k <- c(0L, 1L, 0L, 1L, 1L, 0L)
+  mixed <- dcogmod_lba2(t, driftzero = 3, driftone = 2, sigmazero = 1,
+                        sigmaone = 1.2, sigmabias = A, boundary = 0.5,
+                        ndt = ndt, response = k, poutlier = 0.02)
+  each <- vapply(seq_along(A), function(i) {
+    dcogmod_lba2(t[i], driftzero = 3, driftone = 2, sigmazero = 1,
+                 sigmaone = 1.2, sigmabias = A[i], boundary = 0.5,
+                 ndt = ndt[i], response = k[i], poutlier = 0.02)
+  }, numeric(1))
+  expect_identical(mixed, each)
+  expect_true(all(is.finite(mixed) & mixed > 0))
+
+  # And the small branch shifts with ndt like every other.
+  expect_equal(
+    dcogmod_lba2(t + 0.1, driftzero = 3, driftone = 2, sigmazero = 1,
+                 sigmaone = 1.2, sigmabias = A, boundary = 0.5,
+                 ndt = ndt + 0.1, response = k, poutlier = 0),
+    dcogmod_lba2(t, driftzero = 3, driftone = 2, sigmazero = 1,
+                 sigmaone = 1.2, sigmabias = A, boundary = 0.5,
+                 ndt = ndt, response = k, poutlier = 0),
+    tolerance = 1e-12
+  )
+})

@@ -130,6 +130,11 @@
 #'   these priors are deliberately tighter than the rest. Fixing the ones a
 #'   design cannot identify (`sigmadrift = 0` in `bf()`) is usually better than
 #'   estimating them behind a prior.
+#' - [cogmod_invgaussian()]: `sigmadrift` and `sigmandt`, for the same reasons
+#'   as the DDM's, with `sigmandt` taking the DDM's prior for the same quantity
+#'   verbatim. Both should be fixed at zero unless the design can identify
+#'   them; `sigmandt` in particular needs a lot of data, a strong prior, or
+#'   both.
 #' - [cogmod_lnr()]: `nuone`, `sigmazero` and `sigmaone`. Push an accumulator's
 #'   rate far enough down and it never finishes first, so the density depends on
 #'   it only through a survival term that has already saturated at 1; past about
@@ -178,9 +183,9 @@
 #' treatment `shape` and an omitted `ndt` get above.
 #'
 #' `mu` gets `normal(0.4, 0.25)` on its own intercept - 95% of the mass between
-#' -0.09 and 0.89 s. It used to be left to `brms`, whose `student_t(3, 0, 2.5)`
+#' -0.09 and 0.89 s. It is not left to `brms`, whose `student_t(3, 0, 2.5)`
 #' is a fair statement about a location on a `softplus` link (median 0.69 s) but
-#' not on the `identity` link `mu` now uses, where it is centred on zero seconds
+#' not on the `identity` link `mu` uses, where it is centred on zero seconds
 #' and puts a Gaussian centre of -2 s on a par with one of +2 s. The prior does
 #' **not** exclude negative values: `mu` is a location, and for fast
 #' heavily-tailed data the Gaussian component genuinely belongs near or below
@@ -211,7 +216,8 @@
 #' | `sigmazero`, `sigmaone` ([cogmod_lba2()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 #' | `sigmadrift` ([cogmod_ddm()]) | `normal(0, 1)` | `lognormal(-1, 0.75)` |
 #' | `sigmabias` ([cogmod_ddm()]) | `normal(-2, 1)` | `beta(1, 5)` |
-#' | `sigmandt` ([cogmod_ddm()]) | `normal(-3, 1)` | `lognormal(-3, 1)` |
+#' | `sigmandt` ([cogmod_ddm()], [cogmod_invgaussian()]) | `normal(-3, 1)` | `lognormal(-3, 1)` |
+#' | `sigmadrift` ([cogmod_invgaussian()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 #' | `nuone` ([cogmod_lnr()]) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` |
 #' | `sigmazero`, `sigmaone` ([cogmod_lnr()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 #' | `dof` ([cogmod_logstudent()]) | `normal(1.8, 0.7)` | `lognormal(1.8, 0.7)` |
@@ -366,12 +372,12 @@ cogmod_priors <- function(formula, data, ...) {
   # - a lognormal with the same numbers lands in almost the same place:
   # lognormal(-2.3, 0.7) has median 0.100 against softplus's 0.096.
   #
-  # `mu` used to be left to brms, on the grounds that student_t(3, 0, 2.5) is a
-  # reasonable statement about a Gaussian centre on the SOFTPLUS scale, where it
-  # has a median of 0.69 s. `mu` is on an identity link now, and the same prior
-  # there is centred on zero seconds with a scale of 2.5 s - it says a Gaussian
-  # component centred at -2 s is as plausible as one at +2 s. So it needs one of
-  # its own, and gets normal(0.4, 0.25): 95% of its mass in -0.09 to 0.89 s.
+  # `mu` is not left to brms. Its student_t(3, 0, 2.5) is a reasonable statement
+  # about a Gaussian centre on the SOFTPLUS scale, where it has a median of
+  # 0.69 s, but `mu` is on an identity link, and the same prior there is centred
+  # on zero seconds with a scale of 2.5 s - it says a Gaussian component centred
+  # at -2 s is as plausible as one at +2 s. So it needs one of its own, and gets
+  # normal(0.4, 0.25): 95% of its mass in -0.09 to 0.89 s.
   #
   # Note it deliberately does NOT exclude negative values. `mu` is a location,
   # and for fast heavily-tailed data the Gaussian component genuinely belongs

@@ -746,6 +746,49 @@ test_that("a start-point range of exactly zero is the plain Wald", {
 })
 
 
+test_that("a mixed vector of ranges and drifts takes each branch it needs", {
+  # The Wald kernels branch twice, element by element: below .RDM_EPS_A the
+  # start-point range is folded into the threshold, and below .RDM_EPS_V the
+  # drift takes the driftless form. One vectorised call can therefore run
+  # three branches at once, and each branch subsets the parameters by its own
+  # mask. rtdists's lognormal and gamma LBAs had the same shape and, until
+  # rtdists/rtdists#24, indexed one branch by another's mask - right whenever
+  # a call was all one kind, wrong the moment it was mixed, and invisible to
+  # tests that swept one value at a time, which is what the tests above do.
+  A <- c(0, 1e-8, 1e-5, 0.2, 0.5, 0.3, 1e-6)
+  v0 <- c(2, 2, 0, 2, 1e-8, 3, 0)
+  v1 <- c(1, 0, 1.5, 1, 1, 1e-8, 2)
+  t <- c(0.45, 0.6, 0.9, 0.5, 0.7, 1.1, 0.8)
+  ndt <- c(0.2, 0.3, 0.1, 0.25, 0.2, 0.15, 0.3)
+  k <- c(0L, 1L, 0L, 1L, 1L, 0L, 1L)
+
+  each <- function(f) {
+    vapply(seq_along(A), function(i) {
+      f(t[i], vzero = v0[i], vone = v1[i], bias = A[i], boundary = 0.5,
+        ndt = ndt[i], response = k[i], poutlier = 0.02)
+    }, numeric(1))
+  }
+  d <- dcogmod_rdm(t, vzero = v0, vone = v1, bias = A, boundary = 0.5,
+                   ndt = ndt, response = k, poutlier = 0.02)
+  expect_identical(d, each(dcogmod_rdm))
+  expect_true(all(is.finite(d) & d > 0))
+  p <- pcogmod_rdm(t, vzero = v0, vone = v1, bias = A, boundary = 0.5,
+                   ndt = ndt, response = k, poutlier = 0.02)
+  expect_identical(p, each(pcogmod_rdm))
+  expect_true(all(is.finite(p) & p > 0 & p < 1))
+
+  # And every branch shifts with ndt: the second rtdists bug was a small
+  # branch that forgot to subtract t0.
+  expect_equal(
+    dcogmod_rdm(t + 0.1, vzero = v0, vone = v1, bias = A, boundary = 0.5,
+                ndt = ndt + 0.1, response = k, poutlier = 0),
+    dcogmod_rdm(t, vzero = v0, vone = v1, bias = A, boundary = 0.5,
+                ndt = ndt, response = k, poutlier = 0),
+    tolerance = 1e-12
+  )
+})
+
+
 test_that("the Wald density integrates to one across the parameter grid", {
   for (prm in list(c(3, 0.5, 0.2), c(1, 1, 0.5), c(0.5, 2, 0.1),
                    c(6, 0.3, 0.05), c(0, 1, 0.3))) {

@@ -195,29 +195,61 @@
     # boundary = 1, sigmadrift = 2). cogmod_ddm()'s `sigmadrift` needs no
     # truncation because a diffusion between two boundaries always absorbs at
     # one of them.
-    dpars = c("mu", "boundary", "sigmadrift"),
-    links = c("softplus", "softplus", "softplus"),
-    lb = c(0, 0, 0), ub = c(NA, NA, NA),
-    # A zero drift SD is the plain Wald, so that bound is closed - unlike the
-    # drift and the threshold, which a Wald needs strictly positive.
-    lb_open = c(TRUE, TRUE, FALSE),
-    stan_check = "mu <= 0 || boundary <= 0 || sigmadrift < 0",
-    stan_dens = "cogmod_invgaussian_decision_lpdf(t_adj | mu, boundary, sigmadrift)",
+    #
+    # `sigmandt` is the between-trial RANGE of the non-decision time, st0 in
+    # the usual notation: each trial's non-decision time is drawn from
+    # Uniform(ndt, ndt + sigmandt), so `ndt` is the lower bound, exactly as for
+    # cogmod_ddm()'s `sigmandt` and rtdists's `t0` / `st0`. Smearing the shift
+    # over an interval turns the density into a difference of two CDFs and the
+    # CDF into a difference of two integrated CDFs, and for the Wald both are
+    # closed form at a fixed drift - see .lwald_st0_fixed(). The decision
+    # component still has no mass below `ndt`, which is why the shared mixture
+    # template needs no change to carry it.
+    #
+    # It is on a `log` link where the other three are `softplus`: it is the same
+    # quantity as cogmod_ddm()'s `sigmandt`, in the same unit, and it lives at
+    # 0.01-0.2 s, where log and softplus agree to within a few percent anyway.
+    # What log buys there is a prior that means the same thing whether or not
+    # the parameter is written in bf(): a normal on the link scale IS a
+    # lognormal on the natural one, so the two rows of the prior table below
+    # describe one distribution. Softplus has no such counterpart, and its
+    # advantage - an additive rather than multiplicative scale for large values
+    # - never arises for a range of tens of milliseconds.
+    dpars = c("mu", "boundary", "sigmadrift", "sigmandt"),
+    links = c("softplus", "softplus", "softplus", "log"),
+    lb = c(0, 0, 0, 0), ub = c(NA, NA, NA, NA),
+    # A zero drift SD is the plain Wald and a zero range a fixed non-decision
+    # time, so those bounds are closed - unlike the drift and the threshold,
+    # which a Wald needs strictly positive.
+    lb_open = c(TRUE, TRUE, FALSE, FALSE),
+    stan_check = "mu <= 0 || boundary <= 0 || sigmadrift < 0 || sigmandt < 0",
+    stan_dens = "cogmod_invgaussian_decision_lpdf(t_adj | mu, boundary, sigmadrift, sigmandt)",
     prelude = ".WALD_STAN_PRELUDE",
-    ldens = function(t, p) .dwald_raw(t, p$mu, p$boundary, p$sigmadrift),
-    # Closed form at sigmadrift = 0; 64-point Gauss-Legendre over the drift
-    # above it, in Stan and in R alike, off the same nodes - see .lwald_sv().
-    stan_lcdf = "cogmod_invgaussian_decision_lcdf(t_adj | mu, boundary, sigmadrift)",
-    stan_lccdf = "cogmod_invgaussian_decision_lccdf(t_adj | mu, boundary, sigmadrift)",
-    lcdf = function(t, p) .lpwald_raw(t, p$mu, p$boundary, p$sigmadrift),
-    lccdf = function(t, p) .lswald_raw(t, p$mu, p$boundary, p$sigmadrift),
-    rng = function(n, p) .rwald_raw(n, p$mu, p$boundary, p$sigmadrift),
-    # E[T] = boundary / mu holds only while the drift is fixed. Once it varies
-    # the density decays as t^-2 - drifts arbitrarily close to zero take
-    # arbitrarily long - so the mean diverges, exactly as it does for
+    ldens = function(t, p) {
+      .dwald_raw(t, p$mu, p$boundary, p$sigmadrift, p$sigmandt)
+    },
+    # Closed form at sigmadrift = 0, with or without sigmandt; 64-point
+    # Gauss-Legendre over the drift above it, in Stan and in R alike, off the
+    # same nodes - see .lwald_sv().
+    stan_lcdf = "cogmod_invgaussian_decision_lcdf(t_adj | mu, boundary, sigmadrift, sigmandt)",
+    stan_lccdf = "cogmod_invgaussian_decision_lccdf(t_adj | mu, boundary, sigmadrift, sigmandt)",
+    lcdf = function(t, p) {
+      .lpwald_raw(t, p$mu, p$boundary, p$sigmadrift, p$sigmandt)
+    },
+    lccdf = function(t, p) {
+      .lswald_raw(t, p$mu, p$boundary, p$sigmadrift, p$sigmandt)
+    },
+    rng = function(n, p) {
+      .rwald_raw(n, p$mu, p$boundary, p$sigmadrift, p$sigmandt)
+    },
+    # E[T] = boundary / mu + sigmandt / 2 holds only while the drift is fixed.
+    # Once it varies the density decays as t^-2 - drifts arbitrarily close to
+    # zero take arbitrarily long - so the mean diverges, exactly as it does for
     # cogmod_lba1(). Inf is what posterior_epred() then returns.
-    mean = function(p) ifelse(p$sigmadrift > 0, Inf, p$boundary / p$mu),
-    init = list(mu = 3, boundary = 0.5, sigmadrift = 0.5),
+    mean = function(p) {
+      ifelse(p$sigmadrift > 0, Inf, p$boundary / p$mu + p$sigmandt / 2)
+    },
+    init = list(mu = 3, boundary = 0.5, sigmadrift = 0.5, sigmandt = 0.05),
     # Same flat direction as cogmod_lba1()'s `sigmabias` and cogmod_ddm()'s own
     # `sigmadrift`: the floor at zero is only reached by the softplus link at
     # minus infinity, and the likelihood stops changing well before then, which
@@ -226,16 +258,26 @@
     # factor sends the Wald to the reciprocal-normal (LATER) limit, so large
     # values of all three describe very nearly the same distribution. The prior
     # is what keeps the sampler out of both.
+    #
+    # sigmandt takes cogmod_ddm()'s prior for the same parameter, verbatim:
+    # the same flat direction (a log link reaches zero only at minus infinity),
+    # the same unit, and the same reputation as the variability a model is
+    # least able to recover.
     prior = list(
       sigmadrift = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
-                     slope = "normal(0, 0.5)")
+                     slope = "normal(0, 0.5)"),
+      sigmandt = c(link = "normal(-3, 1)", nat = "lognormal(-3, 1)",
+                   slope = "normal(0, 0.5)")
     ),
     dpar_doc = c(
       "mu: drift rate, the average speed of evidence accumulation (> 0).",
       "boundary: decision threshold, the evidence needed to respond (> 0).",
       paste("sigmadrift: between-trial SD of the drift rate (>= 0), which is",
             "drawn from a"),
-      "   Normal(mu, sigmadrift) truncated at zero. 0 is the plain Wald."
+      "   Normal(mu, sigmadrift) truncated at zero. 0 is the plain Wald.",
+      paste("sigmandt: between-trial range of the non-decision time (st0,",
+            ">= 0), in the same"),
+      "   unit as Y, with `ndt` its lower bound. 0 is a fixed non-decision time."
     ),
     note = c(
       paste("sigmadrift and poutlier both fatten the right tail, and they are",
@@ -244,7 +286,12 @@
             "0.5, sigmadrift ="),
       paste("0.8, estimating sigmadrift buys about 2 log-likelihood units over",
             "fixing it at"),
-      "zero. Fix it (`sigmadrift = 0` in bf()) unless the design can identify it."
+      "zero. Fix it (`sigmadrift = 0` in bf()) unless the design can identify it.",
+      paste("sigmandt is harder still: it shares the leading edge with ndt and",
+            "poutlier, and"),
+      paste("should be fixed (`sigmandt = 0` in bf()) unless there is a lot of",
+            "data, a strong"),
+      "prior, or both."
     ),
     label = "Wald (inverse Gaussian)"
   ),
@@ -670,8 +717,7 @@
   # constant for every observation on every leapfrog step. Folding that constant
   # into a literal here and keeping only the Y-dependent part measured ~1.4x
   # faster per gradient evaluation on a 4000-observation LogNormal fit, with the
-  # posterior unchanged. The same reasoning applied to the half Student-t this
-  # replaced; a half Normal simply leaves less to fold.
+  # posterior unchanged.
   lc <- log(2) - 0.5 * log(2 * pi * .POUTLIER_SCALE^2)
   lp_out <- sprintf(
     "%s - %s * square(Y)",
@@ -895,8 +941,8 @@ real %s_lccdf(%s) {
   # `.dens_mask()` substitutes a value the density will accept wherever the time
   # or a parameter is not one - non-positive, infinite or missing - and says
   # which entries those were; they are overwritten with -Inf immediately below.
-  # It replaces a bare `pmax(t, 1e-300)`, which covered the non-positive case
-  # but let NA through to a branch that cannot take it. See `.dens_mask()`.
+  # A bare `pmax(t, 1e-300)` would cover the non-positive case but let NA
+  # through to a branch that cannot take it. See `.dens_mask()`.
   msk <- .dens_mask(spec, t, p)
   ld <- spec$ldens(msk$t, msk$p)
   ld[!msk$ok] <- -Inf
@@ -1155,8 +1201,14 @@ real %s_lccdf(%s) {
 # and the prefactor to t^-2, so the density decays as t^-2 whenever sigmadrift
 # is positive, and E[T] does not exist. That is the registry's `mean` returning
 # Inf.
+#
+# `sigmandt` smears the shift over Uniform(0, sigmandt), and the density is then
+# a difference of CDFs rather than anything in this closed form - see
+# .lwald_st0_fixed(). It is routed through .lwald_raw() for exactly the elements
+# that need it, so a zero range costs nothing and returns bit for bit what it
+# did before the parameter existed.
 #' @keywords internal
-.dwald_raw <- function(t, drift, boundary, sigmadrift = 0) {
+.dwald_raw <- function(t, drift, boundary, sigmadrift = 0, sigmandt = 0) {
   s2 <- sigmadrift^2
   D <- 1 + s2 * t
   ld <- log(boundary) - 0.5 * (log(2 * pi) + 3 * log(t) + log(D)) -
@@ -1167,9 +1219,19 @@ real %s_lccdf(%s) {
   # drops it. Written this way rather than by subsetting because `t` and the
   # parameters may be draws x observations matrices, whose shape has to survive.
   s <- sigmadrift + (sigmadrift <= 0)
-  ld + (sigmadrift > 0) *
+  ld <- ld + (sigmadrift > 0) *
     (.lpnorm_upper((boundary * s2 + drift) / (s * sqrt(D))) -
       .lpnorm_upper(drift / s))
+
+  if (!any(sigmandt > 0, na.rm = TRUE)) return(ld)
+  # Logical indexing keeps whatever shape `ld` has.
+  n <- length(ld)
+  st0 <- rep_len(sigmandt, n)
+  use <- !is.na(st0) & st0 > 0
+  ld[use] <- .lwald_raw(rep_len(t, n)[use], rep_len(drift, n)[use],
+                        rep_len(boundary, n)[use], rep_len(sigmadrift, n)[use],
+                        st0[use], "dens")
+  ld
 }
 
 # log(Phi(z)), taken through the lower tail as log1p(-Phi(-z)), because Phi(z)
@@ -1183,9 +1245,12 @@ real %s_lccdf(%s) {
 # Michael-Schucany-Haas two-root method, applied to the drift the trial actually
 # got. .rnorm_truncated() returns the mean untouched when sd is 0, but the draw
 # is only taken when some trial really has a variable drift, which keeps the
-# random stream of the plain Wald exactly as it was.
+# random stream of the plain Wald exactly as it was. The same goes for the
+# non-decision offset: Uniform(0, sigmandt) is drawn only when some trial has a
+# positive range. `ndt` itself is added by .rshifted(), so what is returned is
+# the decision time plus the trial's excess over the lower bound.
 #' @keywords internal
-.rwald_raw <- function(n, drift, boundary, sigmadrift = 0) {
+.rwald_raw <- function(n, drift, boundary, sigmadrift = 0, sigmandt = 0) {
   if (any(sigmadrift > 0, na.rm = TRUE)) {
     drift <- .rnorm_truncated(n, mean = drift, sd = sigmadrift, lower = 0)
   }
@@ -1195,7 +1260,12 @@ real %s_lccdf(%s) {
   z <- y * (ig_mu / lambda)
   x1_over_mu <- 1 + z / 2 * (1 - sqrt(1 + 4 / z))
   u <- stats::runif(n)
-  ig_mu * ifelse(u < 1 / (1 + x1_over_mu), x1_over_mu, 1 / x1_over_mu)
+  out <- ig_mu * ifelse(u < 1 / (1 + x1_over_mu), x1_over_mu, 1 / x1_over_mu)
+  if (any(sigmandt > 0, na.rm = TRUE)) {
+    # runif() with max == min returns min, so a zero range adds exactly 0.
+    out <- out + stats::runif(n, 0, rep_len(sigmandt, n))
+  }
+  out
 }
 
 # CDF of the fixed-drift decision component. `exp(2 * boundary * drift) *
@@ -1286,7 +1356,10 @@ real %s_lccdf(%s) {
 # form; above it they are the fixed-drift ones marginalised over the truncated
 # normal drift by the same 64-point Gauss-Legendre rule as .lwald_sv(), with
 # the nodes and log-weights written out from .GAUSS_LEGENDRE so that R and Stan
-# integrate over literally the same points. The helpers that are not Stan
+# integrate over literally the same points. A non-decision range (sigmandt)
+# enters through cogmod_wald_st0, the counterpart of .lwald_st0_fixed(): the
+# same closed forms, the same tail choice, the same small-range switch, so the
+# two sides take identical branches. The helpers that are not Stan
 # `_lcdf`/`_lccdf` functions are named to avoid those suffixes: Stan would
 # otherwise insist on the `|` call syntax for them.
 #' @keywords internal
@@ -1294,25 +1367,15 @@ real %s_lccdf(%s) {
   num <- function(v) formatC(v, format = "g", digits = 17, width = 1)
   k <- length(.GAUSS_LEGENDRE$x)
   paste0("
-// Log density of the Wald decision time (no shift), with the drift rate drawn
-// once per trial from Normal(mu, sigmadrift) truncated at zero. sigmadrift = 0
-// is the plain Wald: an inverse Gaussian with mean boundary / mu and shape
-// boundary^2.
-real cogmod_invgaussian_decision_lpdf(real t, real mu, real boundary, real sigmadrift) {
-  real base = log(boundary) - 0.5 * (log(2 * pi()) + 3 * log(t));
-  if (sigmadrift <= 0) {
-    return base - square(boundary - mu * t) / (2 * t);
-  }
-  real s2 = square(sigmadrift);
-  real D = 1 + s2 * t;
-  return base - 0.5 * log(D) - square(boundary - mu * t) / (2 * t * D)
-    + log1m_exp(std_normal_lcdf(-(boundary * s2 + mu) / (sigmadrift * sqrt(D))))
-    - log1m_exp(std_normal_lcdf(-mu / sigmadrift));
+// Log density of the fixed-drift Wald with drift v > 0 and threshold a > 0,
+// at t > 0: an inverse Gaussian with mean a / v and shape a^2.
+real cogmod_wald_ldens(real t, real v, real a) {
+  return log(a) - 0.5 * (log(2 * pi()) + 3 * log(t)) - square(a - v * t) / (2 * t);
 }
 
-// Log CDF of the fixed-drift Wald with drift v > 0 and threshold a > 0, at
-// t > 0. The exp(2 a v) factor overflows on its own long before the product it
-// belongs to stops being representable, so it is folded into the exponent.
+// Log CDF of the same Wald. The exp(2 a v) factor overflows on its own long
+// before the product it belongs to stops being representable, so it is folded
+// into the exponent.
 real cogmod_wald_logcdf(real t, real v, real a) {
   if (t <= 0) return negative_infinity();
   real st = sqrt(t);
@@ -1334,11 +1397,89 @@ real cogmod_wald_lsurv(real t, real v, real a) {
   return m1 > m2 ? log_diff_exp(m1, m2) : negative_infinity();
 }
 
-// Either of the two above, marginalised over a drift ~ Normal(mu, sigmadrift)
+// log INT_0^t F(s) ds, the integrated CDF, at t > 0:
+//   I(t) = t F(t) - (a / v) [Phi(alpha) - exp(2 a v) Phi(beta)],
+// alpha = (v t - a) / sqrt(t), beta = -(v t + a) / sqrt(t). The bracket is
+// (v / a) E[T; T <= t] and t F(t) exceeds its multiple, so both differences
+// are taken in log space and are positive.
+real cogmod_wald_liF(real t, real v, real a) {
+  real st = sqrt(t);
+  real lPa = std_normal_lcdf((v * t - a) / st);
+  real lPb = 2 * a * v + std_normal_lcdf(-(v * t + a) / st);
+  real lF = log_sum_exp(lPa, lPb);
+  real lP = lPa > lPb ? log_diff_exp(lPa, lPb) : negative_infinity();
+  real x = log(t) + lF;
+  real y = log(a / v) + lP;
+  return x > y ? log_diff_exp(x, y) : negative_infinity();
+}
+
+// log INT_t^Inf S(s) ds, the integrated survival:
+//   R(t) = (a / v - t) Phi(-alpha) + (a / v + t) exp(2 a v) Phi(beta),
+// which is a / v - t below the shift (S = 1 there). Above the mean the first
+// coefficient is negative and R is a difference, positive because it is the
+// integral of a survival.
+real cogmod_wald_liS(real t, real v, real a) {
+  if (t <= 0) return log(a / v - t);
+  real st = sqrt(t);
+  real lQa = std_normal_lcdf(-(v * t - a) / st);
+  real lQb = 2 * a * v + std_normal_lcdf(-(v * t + a) / st);
+  real c1 = a / v - t;
+  real c2 = a / v + t;
+  if (c1 >= 0) return log_sum_exp(log(c1) + lQa, log(c2) + lQb);
+  real x = log(c2) + lQb;
+  real y = log(-c1) + lQa;
+  return x > y ? log_diff_exp(x, y) : negative_infinity();
+}
+
+// The fixed-drift Wald with its shift smeared over Uniform(0, st0): the log
+// density (what = 0), log CDF (1) or log survival (2) of the decision
+// component seen at t = Y - ndt. Each is a difference quotient of the
+// functions above,
+//   f = [F(t) - F(t - st0)] / st0 = [S(t - st0) - S(t)] / st0
+//   G = [I(t) - I(t - st0)] / st0,   1 - G = [R(t - st0) - R(t)] / st0,
+// taken between whichever pair is small - the CDFs near the shift, the
+// survivals in the tail, decided by the midpoint's CDF - and reduced to the
+// one-sided form when the interval reaches back past the shift. Below
+// st0 / t = 1e-5 the quotient has lost five digits and the midpoint value,
+// with error O(st0^2), is the better answer. Same branches, same order, as
+// .lwald_st0_fixed() in R.
+real cogmod_wald_st0(real t, real v, real a, real st0, int what) {
+  if (st0 <= 0 || st0 < 1e-5 * t) {
+    real m = st0 <= 0 ? t : t - 0.5 * st0;
+    if (what == 0) return cogmod_wald_ldens(m, v, a);
+    if (what == 1) return cogmod_wald_logcdf(m, v, a);
+    return cogmod_wald_lsurv(m, v, a);
+  }
+  real t0 = t - st0;
+  real ls = log(st0);
+  if (what == 0) {
+    if (t0 <= 0) return cogmod_wald_logcdf(t, v, a) - ls;
+    if (cogmod_wald_logcdf(t - 0.5 * st0, v, a) < -0.69314718055994529) {
+      real x = cogmod_wald_logcdf(t, v, a);
+      real y = cogmod_wald_logcdf(t0, v, a);
+      return x > y ? log_diff_exp(x, y) - ls : negative_infinity();
+    }
+    real x = cogmod_wald_lsurv(t0, v, a);
+    real y = cogmod_wald_lsurv(t, v, a);
+    return x > y ? log_diff_exp(x, y) - ls : negative_infinity();
+  }
+  if (what == 1) {
+    real x = cogmod_wald_liF(t, v, a);
+    if (t0 <= 0) return x - ls;
+    real y = cogmod_wald_liF(t0, v, a);
+    return x > y ? log_diff_exp(x, y) - ls : negative_infinity();
+  }
+  real x = cogmod_wald_liS(t0, v, a);
+  real y = cogmod_wald_liS(t, v, a);
+  return x > y ? log_diff_exp(x, y) - ls : negative_infinity();
+}
+
+// Any of the three above, marginalised over a drift ~ Normal(mu, sigmadrift)
 // truncated at zero, by ", k, "-point Gauss-Legendre quadrature on the interval
 // carrying the truncated normal's mass. Assembled with log_sum_exp so the
 // survival keeps its digits where every term is tiny.
-real cogmod_wald_sv_lquad(real t, real mu, real boundary, real sigmadrift, int surv) {
+real cogmod_wald_sv_lquad(real t, real mu, real boundary, real sigmadrift,
+                          real st0, int what) {
   vector[", k, "] gx = [", paste(num(.GAUSS_LEGENDRE$x), collapse = ", "), "]';
   vector[", k, "] lgw = [", paste(num(log(.GAUSS_LEGENDRE$w)), collapse = ", "), "]';
   real lo = fmax(mu - 10 * sigmadrift, 0);
@@ -1350,22 +1491,46 @@ real cogmod_wald_sv_lquad(real t, real mu, real boundary, real sigmadrift, int s
   for (j in 1:", k, ") {
     real v = mid + half * gx[j];
     real lw = lgw[j] + log(half) + normal_lpdf(v | mu, sigmadrift) - lnorm;
-    terms[j] = lw + (surv ? cogmod_wald_lsurv(t, v, boundary)
-                          : cogmod_wald_logcdf(t, v, boundary));
+    terms[j] = lw + cogmod_wald_st0(t, v, boundary, st0, what);
   }
   return log_sum_exp(terms);
 }
 
-// Log CDF and log survival of the Wald decision time (no shift), the
-// counterparts of cogmod_invgaussian_decision_lpdf().
-real cogmod_invgaussian_decision_lcdf(real t, real mu, real boundary, real sigmadrift) {
-  if (sigmadrift <= 0) return cogmod_wald_logcdf(t, mu, boundary);
-  return cogmod_wald_sv_lquad(t, mu, boundary, sigmadrift, 0);
+// Log density of the Wald decision time (no shift), with the drift rate drawn
+// once per trial from Normal(mu, sigmadrift) truncated at zero and the
+// non-decision time spread over a range sigmandt above ndt. sigmadrift = 0 and
+// sigmandt = 0 is the plain Wald: an inverse Gaussian with mean boundary / mu
+// and shape boundary^2. With sigmandt = 0 the drift is marginalised in closed
+// form - a Gaussian integral - which is the branch a fit usually runs in.
+real cogmod_invgaussian_decision_lpdf(real t, real mu, real boundary,
+                                      real sigmadrift, real sigmandt) {
+  if (sigmandt <= 0) {
+    real base = log(boundary) - 0.5 * (log(2 * pi()) + 3 * log(t));
+    if (sigmadrift <= 0) {
+      return base - square(boundary - mu * t) / (2 * t);
+    }
+    real s2 = square(sigmadrift);
+    real D = 1 + s2 * t;
+    return base - 0.5 * log(D) - square(boundary - mu * t) / (2 * t * D)
+      + log1m_exp(std_normal_lcdf(-(boundary * s2 + mu) / (sigmadrift * sqrt(D))))
+      - log1m_exp(std_normal_lcdf(-mu / sigmadrift));
+  }
+  if (sigmadrift <= 0) return cogmod_wald_st0(t, mu, boundary, sigmandt, 0);
+  return cogmod_wald_sv_lquad(t, mu, boundary, sigmadrift, sigmandt, 0);
 }
 
-real cogmod_invgaussian_decision_lccdf(real t, real mu, real boundary, real sigmadrift) {
-  if (sigmadrift <= 0) return cogmod_wald_lsurv(t, mu, boundary);
-  return cogmod_wald_sv_lquad(t, mu, boundary, sigmadrift, 1);
+// Log CDF and log survival of the Wald decision time (no shift), the
+// counterparts of cogmod_invgaussian_decision_lpdf().
+real cogmod_invgaussian_decision_lcdf(real t, real mu, real boundary,
+                                      real sigmadrift, real sigmandt) {
+  if (sigmadrift <= 0) return cogmod_wald_st0(t, mu, boundary, sigmandt, 1);
+  return cogmod_wald_sv_lquad(t, mu, boundary, sigmadrift, sigmandt, 1);
+}
+
+real cogmod_invgaussian_decision_lccdf(real t, real mu, real boundary,
+                                       real sigmadrift, real sigmandt) {
+  if (sigmadrift <= 0) return cogmod_wald_st0(t, mu, boundary, sigmandt, 2);
+  return cogmod_wald_sv_lquad(t, mu, boundary, sigmadrift, sigmandt, 2);
 }
 ")
 })
@@ -1487,14 +1652,169 @@ real cogmod_invgaussian_decision_lccdf(real t, real mu, real boundary, real sigm
   .log_sub_exp(l1, l2)
 }
 
-# The fixed-drift log CDF or log survival, marginalised over a drift drawn from
-# Normal(drift, sigmadrift) truncated at zero - the same 64-point Gauss-Legendre
-# rule as .pwald_sv(), on the same interval, but assembled with log_sum_exp so
-# that the survival keeps its digits in the tail. `fun` is .log_pwald_fixed or
-# .lswald_fixed. The Stan side (cogmod_invgaussian_decision_lcdf/lccdf) is
-# generated from the same node table, so the two cannot disagree.
+# Log density of the fixed-drift Wald: the sigmadrift = 0 branch of
+# .dwald_raw(), on its own so the st0 kernels below can call it at a shifted
+# time without going back through the mixture.
 #' @keywords internal
-.lwald_sv <- function(t, drift, boundary, sigmadrift, fun, nsd = 10) {
+.ldwald_fixed <- function(t, drift, boundary) {
+  log(boundary) - 0.5 * (log(2 * pi) + 3 * log(t)) -
+    (boundary - drift * t)^2 / (2 * t)
+}
+
+# The Wald with its shift smeared over Uniform(0, st0): the non-decision time
+# of a trial is ndt + U, so the decision component seen at t_adj = Y - ndt is
+# the average of the fixed-shift one over U in [0, st0]. Averaging a density
+# integrates it, averaging a CDF integrates that, and for the Wald every one of
+# those integrals is closed form (F and S are the fixed-drift CDF and survival,
+# alpha = (v t - a) / sqrt(t), beta = -(v t + a) / sqrt(t)):
+#
+#   f_st0(t) = [F(t) - F(t - st0)] / st0 = [S(t - st0) - S(t)] / st0
+#   G_st0(t) = [I(t) - I(t - st0)] / st0,
+#       I(t) = INT_0^t F = t F(t) - (a / v) [Phi(alpha) - e^{2 a v} Phi(beta)]
+#   1 - G_st0(t) = [R(t - st0) - R(t)] / st0,
+#       R(t) = INT_t^Inf S = (a / v - t) Phi(-alpha) + (a / v + t) e^{2 a v} Phi(beta)
+#
+# with F, I = 0 and S = 1, R(s) = a / v - s below the shift, which is what the
+# interval straddling it (t < st0) reduces to. Both integrals were checked
+# against adaptive integration of F and S before being written down: 4e-16
+# absolute for I, 5e-14 relative for R.
+#
+# Three numerical points, none of them new to this file:
+#
+#  * `e^{2 a v} Phi(beta)` is kept as one exponent, as in .log_pwald_fixed():
+#    the factor overflows on its own long before the product does.
+#  * A difference is taken between whichever pair is SMALL. The density is
+#    F(t) - F(t - st0) near the shift and S(t - st0) - S(t) in the tail, and
+#    the two differ only in which side has lost its digits; the midpoint's CDF
+#    decides. Same device as `dPhi` in .lba_dens_over_A(). R inherits the
+#    digit loss of .lswald_fixed() in the far tail and no more.
+#  * Below st0 / t = 1e-5 the difference quotient has lost five digits and the
+#    midpoint value f(t - st0 / 2) - error O(st0^2) - is the better answer, so
+#    the kernel switches to it there, as the RDM does below .RDM_EPS_A. The log
+#    link never reaches zero, but the sampler visits 1e-4 s routinely, and the
+#    two branches have to meet. Measured at drift 3, boundary 0.5 over t from
+#    0.21 to 6 s, the step at the switch is below 4e-9 relative, and 1e-5 is
+#    where it is smallest: at 1e-4 the midpoint's truncation error has grown
+#    to 3e-7, at 1e-6 the quotient's cancellation has.
+#
+# `what` is "dens", "cdf" or "surv", all on the log scale. Every argument is a
+# vector of the same length, and st0 may be zero for some elements: those get
+# the plain kernels, so this is the one function the drift quadrature has to
+# call. The Stan side (cogmod_wald_st0) is the same branches in the same order.
+#' @keywords internal
+.lwald_st0_fixed <- function(t, v, a, st0, what) {
+  plain <- switch(what, dens = .ldwald_fixed, cdf = .log_pwald_fixed,
+                  surv = .lswald_fixed)
+  n <- length(t)
+  out <- numeric(n)
+
+  # No range, or a range too small to difference across: the point value, at
+  # the midpoint of the interval where there is one.
+  point <- st0 <= 0 | st0 < 1e-5 * t
+  if (any(point)) {
+    m <- t[point] - pmax(st0[point], 0) / 2
+    out[point] <- plain(m, v[point], a[point])
+  }
+
+  g <- !point
+  if (!any(g)) return(out)
+  t1 <- t[g]
+  st <- st0[g]
+  t0 <- t1 - st
+  vv <- v[g]
+  aa <- a[g]
+  ls <- log(st)
+  left <- t0 <= 0 # the interval reaches back past the shift
+  res <- numeric(length(t1))
+
+  if (what == "dens") {
+    lF1 <- .log_pwald_fixed(t1, vv, aa)
+    res[left] <- lF1[left] - ls[left]
+    if (any(!left)) {
+      i <- !left
+      lower <- .log_pwald_fixed(t1[i] - st[i] / 2, vv[i], aa[i]) < log(0.5)
+      d <- numeric(sum(i))
+      if (any(lower)) {
+        j <- which(i)[lower]
+        d[lower] <- .log_sub_exp(lF1[j], .log_pwald_fixed(t0[j], vv[j], aa[j]))
+      }
+      if (any(!lower)) {
+        j <- which(i)[!lower]
+        d[!lower] <- .log_sub_exp(.lswald_fixed(t0[j], vv[j], aa[j]),
+                                  .lswald_fixed(t1[j], vv[j], aa[j]))
+      }
+      res[i] <- d - ls[i]
+    }
+  } else if (what == "cdf") {
+    lI1 <- .lwald_liF_fixed(t1, vv, aa)
+    res[left] <- lI1[left] - ls[left]
+    if (any(!left)) {
+      i <- !left
+      res[i] <- .log_sub_exp(lI1[i], .lwald_liF_fixed(t0[i], vv[i], aa[i])) -
+        ls[i]
+    }
+  } else {
+    lR1 <- .lwald_liS_fixed(t1, vv, aa)
+    lR0 <- numeric(length(t1))
+    lR0[left] <- log(aa[left] / vv[left] - t0[left])
+    if (any(!left)) {
+      lR0[!left] <- .lwald_liS_fixed(t0[!left], vv[!left], aa[!left])
+    }
+    res <- .log_sub_exp(lR0, lR1) - ls
+  }
+  out[g] <- res
+  out
+}
+
+# log I(t) = log INT_0^t F(s) ds for the fixed-drift Wald, t > 0. The bracket
+# Phi(alpha) - e^{2 a v} Phi(beta) is (v / a) E[T; T <= t], positive for every
+# t, and t F(t) exceeds (a / v) times it because F is increasing; both
+# differences are taken in log space. Near the shift I is about 2 t / a^2 of
+# t F(t), so a digit or two goes there; nothing is lost where anything is
+# observable.
+#' @keywords internal
+.lwald_liF_fixed <- function(t, v, a) {
+  st <- sqrt(t)
+  lPa <- stats::pnorm((v * t - a) / st, log.p = TRUE)
+  lPb <- 2 * a * v + stats::pnorm(-(v * t + a) / st, log.p = TRUE)
+  lF <- .log_add_exp(lPa, lPb)
+  lP <- .log_sub_exp(lPa, lPb)
+  .log_sub_exp(log(t) + lF, log(a / v) + lP)
+}
+
+# log R(t) = log INT_t^Inf S(s) ds for the fixed-drift Wald, t > 0. Below the
+# mean a / v both coefficients are positive and the terms add; above it the
+# first is negative and R is the difference, positive because it is the
+# integral of a survival, and losing digits in the far tail at the rate S
+# itself does. R(0) is the mean.
+#' @keywords internal
+.lwald_liS_fixed <- function(t, v, a) {
+  st <- sqrt(t)
+  lQa <- stats::pnorm(-(v * t - a) / st, log.p = TRUE)
+  lQb <- 2 * a * v + stats::pnorm(-(v * t + a) / st, log.p = TRUE)
+  c1 <- a / v - t
+  c2 <- a / v + t
+  out <- numeric(length(t))
+  pos <- c1 >= 0
+  if (any(pos)) {
+    out[pos] <- .log_add_exp(log(c1[pos]) + lQa[pos], log(c2[pos]) + lQb[pos])
+  }
+  if (any(!pos)) {
+    i <- !pos
+    out[i] <- .log_sub_exp(log(c2[i]) + lQb[i], log(-c1[i]) + lQa[i])
+  }
+  out
+}
+
+# The fixed-drift log density, log CDF or log survival, marginalised over a
+# drift drawn from Normal(drift, sigmadrift) truncated at zero - the same
+# 64-point Gauss-Legendre rule as .pwald_sv(), on the same interval, but
+# assembled with log_sum_exp so that the survival keeps its digits in the tail.
+# The kernel at each node is .lwald_st0_fixed(), so a non-decision range rides
+# along for free. The Stan side (cogmod_wald_sv_lquad) is generated from the
+# same node table, so the two cannot disagree.
+#' @keywords internal
+.lwald_sv <- function(t, drift, boundary, sigmadrift, st0, what, nsd = 10) {
   lo <- pmax(drift - nsd * sigmadrift, 0)
   hi <- drift + nsd * sigmadrift
   half <- (hi - lo) / 2
@@ -1507,7 +1827,7 @@ real cogmod_invgaussian_decision_lccdf(real t, real mu, real boundary, real sigm
     v <- mid + half * .GAUSS_LEGENDRE$x[j]
     lw <- log(.GAUSS_LEGENDRE$w[j]) + log(half) +
       stats::dnorm(v, drift, sigmadrift, log = TRUE) - lnorm
-    terms[, j] <- lw + fun(t, v, boundary)
+    terms[, j] <- lw + .lwald_st0_fixed(t, v, boundary, st0, what)
   }
   m <- apply(terms, 1, max)
   out <- m + log(rowSums(exp(terms - m)))
@@ -1515,32 +1835,49 @@ real cogmod_invgaussian_decision_lccdf(real t, real mu, real boundary, real sigm
   out
 }
 
-# Log CDF and log survival of the decision component of cogmod_invgaussian(),
-# dispatching on whether the drift varies. `t` finite and strictly positive;
-# the parameters are recycled against it.
+# Log density, log CDF and log survival of the decision component of
+# cogmod_invgaussian(), dispatching on whether the drift varies. `t` finite and
+# strictly positive; the parameters are recycled against it. A fixed drift goes
+# straight to the closed forms; a variable one to the quadrature - except the
+# density at a zero range, which .dwald_raw() has in closed form for a variable
+# drift too, and which is the common case.
 #' @keywords internal
-.lpwald_raw <- function(t, drift, boundary, sigmadrift = 0) {
-  .lwald_dispatch(t, drift, boundary, sigmadrift, .log_pwald_fixed)
-}
-
-#' @keywords internal
-.lswald_raw <- function(t, drift, boundary, sigmadrift = 0) {
-  .lwald_dispatch(t, drift, boundary, sigmadrift, .lswald_fixed)
-}
-
-#' @keywords internal
-.lwald_dispatch <- function(t, drift, boundary, sigmadrift, fun) {
+.lwald_raw <- function(t, drift, boundary, sigmadrift, sigmandt, what) {
   n <- length(t)
   drift <- rep_len(drift, n)
   boundary <- rep_len(boundary, n)
   sigmadrift <- rep_len(sigmadrift, n)
+  sigmandt <- rep_len(sigmandt, n)
   sv <- sigmadrift > 0
   out <- numeric(n)
-  if (any(!sv)) out[!sv] <- fun(t[!sv], drift[!sv], boundary[!sv])
-  if (any(sv)) {
-    out[sv] <- .lwald_sv(t[sv], drift[sv], boundary[sv], sigmadrift[sv], fun)
+  if (any(!sv)) {
+    out[!sv] <- .lwald_st0_fixed(t[!sv], drift[!sv], boundary[!sv],
+                                 sigmandt[!sv], what)
   }
-  pmin(out, 0)
+  if (any(sv)) {
+    q <- sv
+    if (what == "dens") {
+      z <- sv & sigmandt <= 0
+      if (any(z)) out[z] <- .dwald_raw(t[z], drift[z], boundary[z], sigmadrift[z])
+      q <- sv & sigmandt > 0
+    }
+    if (any(q)) {
+      out[q] <- .lwald_sv(t[q], drift[q], boundary[q], sigmadrift[q],
+                          sigmandt[q], what)
+    }
+  }
+  if (what != "dens") out <- pmin(out, 0)
+  out
+}
+
+#' @keywords internal
+.lpwald_raw <- function(t, drift, boundary, sigmadrift = 0, sigmandt = 0) {
+  .lwald_raw(t, drift, boundary, sigmadrift, sigmandt, "cdf")
+}
+
+#' @keywords internal
+.lswald_raw <- function(t, drift, boundary, sigmadrift = 0, sigmandt = 0) {
+  .lwald_raw(t, drift, boundary, sigmadrift, sigmandt, "surv")
 }
 
 # Coefficients of Weideman's (1994) rational approximation to the Faddeeva
@@ -2010,37 +2347,36 @@ real cogmod_loggamma_lkernel(real shape, real w) {
 # Exponential peaks there with maximal slope; all three encode a claim nobody
 # would defend, that anticipations are far likelier at 150 ms than at 3 ms.
 #
-# Two things about it were different before 0.2.1, and both changed for the
-# same reason.
+# Two choices about it, made for the same reason.
 #
-# It was a half Student-t with 3 degrees of freedom. That tail is heavier than
-# every decision density in the package bar the drift-variability Wald, so
-# far-out slow responses ended up better explained by the outlier component
-# than by the model: against a shifted LogNormal at poutlier = 2%, a 5 s
-# response was attributed to the outlier component with probability 0.86, the
-# crossover sat at 3.86 s, and `ndt` was pulled up behind it. A Gaussian never
-# gets there - the same responsibility is 0.000 out to 30 s - and it costs
-# nothing in the region the component actually exists for, because
-# exp(-x^2 / 2s^2) kills the far tail at *any* scale, so flatness near zero and
-# tail weight are no longer traded against each other. The slow tail is now the
-# decision family's own business, which is what `shape` in cogmod_loggamma()
-# and `sigmadrift` in cogmod_invgaussian() are for.
+# It is a half Normal and not a half Student-t with 3 degrees of freedom. That
+# tail is heavier than every decision density in the package bar the
+# drift-variability Wald, so far-out slow responses end up better explained by
+# the outlier component than by the model: against a shifted LogNormal at
+# poutlier = 2%, a 5 s response is attributed to a half-t outlier component
+# with probability 0.86, the crossover sits at 3.86 s, and `ndt` is pulled up
+# behind it. A Gaussian never gets there - the same responsibility is 0.000 out
+# to 30 s - and it costs nothing in the region the component actually exists
+# for, because exp(-x^2 / 2s^2) kills the far tail at *any* scale, so flatness
+# near zero and tail weight are not traded against each other. The slow tail
+# is the decision family's own business, which is what `shape` in
+# cogmod_loggamma() and `sigmadrift` in cogmod_invgaussian() are for.
 #
-# Its scale was `minrt`, a user-supplied constant in the unit of the data,
-# which made the likelihood equivariant to that unit. That equivariance was
-# already fictional end to end: cogmod_priors() shifted only the `ndt` prior
-# with it, while cogmod_ddm()'s `sigmandt` prior, cogmod_invgaussian()'s
+# The scale is a constant rather than a user-supplied one in the unit of the
+# data. Such an argument would make the likelihood equivariant to that unit,
+# but the equivariance would be fictional end to end: cogmod_priors() could
+# shift only the `ndt` prior with it, while the `sigmandt` priors, the
 # `sigmadrift` prior and the `mu` priors are all in seconds outright - and
-# cogmod_priors() is not optional. The package works in seconds; the scale is
-# now a constant that says so, and `minrt` is gone from every signature.
+# cogmod_priors() is not optional. The package works in seconds; the constant
+# says so.
 #
 # 0.2 s is where it sits because the component has to stay flat across the
 # whole range `ndt` plausibly occupies, which the `ndt` prior puts at 0.20-0.45
 # s. It holds 76% of its peak density at 0.15 s and 46% at 0.25 s, against 85%
-# and 66% for the half-t it replaces; 68% of its mass falls below 0.2 s and 92%
+# and 66% for a half-t of scale 0.3; 68% of its mass falls below 0.2 s and 92%
 # below 0.35 s. A contaminant landing just under a late `ndt` of 0.42 s still
-# has a log-density of -4.6 where the half-t gave -4.0, so nothing that used to
-# be covered is starved now.
+# has a log-density of -4.6 where that half-t gives -4.0, so nothing a heavier
+# tail would cover is starved.
 .POUTLIER_SCALE <- 0.2
 
 # Density of the half-Normal component. Shape is preserved, so this works on

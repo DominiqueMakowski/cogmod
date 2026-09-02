@@ -210,11 +210,43 @@ test_that("Stan and R take the drift-variability Wald CDF over the same nodes", 
   for (r in seq_len(nrow(grid))) {
     y <- grid$y[r]; sv <- grid$sv[r]; pout <- grid$pout[r]
     info <- sprintf("Y=%.2f sigmadrift=%.2f poutlier=%.2f", y, sv, pout)
-    rF <- pcogmod_invgaussian(y, 3, 0.5, 0.2, sv, pout, log.p = TRUE)
-    rS <- pcogmod_invgaussian(y, 3, 0.5, 0.2, sv, pout, lower.tail = FALSE,
-                              log.p = TRUE)
-    expect_close(lcdf(y, 3, 0.5, sv, 0.2, pout), rF, info = paste(info, "lcdf"))
-    expect_close(lccdf(y, 3, 0.5, sv, 0.2, pout), rS, info = paste(info, "lccdf"))
+    rF <- pcogmod_invgaussian(y, 3, 0.5, 0.2, sv, poutlier = pout, log.p = TRUE)
+    rS <- pcogmod_invgaussian(y, 3, 0.5, 0.2, sv, poutlier = pout,
+                              lower.tail = FALSE, log.p = TRUE)
+    expect_close(lcdf(y, 3, 0.5, sv, 0, 0.2, pout), rF, info = paste(info, "lcdf"))
+    expect_close(lccdf(y, 3, 0.5, sv, 0, 0.2, pout), rS, info = paste(info, "lccdf"))
+  }
+})
+
+
+test_that("Stan and R agree on the Wald CDF and survival with a non-decision range", {
+  skip_if_not_installed("cmdstanr")
+  # sigmandt spreads the shift over [ndt, ndt + sigmandt]. The closed forms
+  # (cogmod_wald_st0 and .lwald_st0_fixed()) branch three ways - interval
+  # reaching back past the shift, CDF-side difference, survival-side
+  # difference - and the smallest range below sits on the midpoint branch. Each
+  # is visited, with and without the drift quadrature around it.
+  lpdf <- stan_fun("cogmod_invgaussian")
+  lcdf <- stan_fun("cogmod_invgaussian", "_lcdf")
+  lccdf <- stan_fun("cogmod_invgaussian", "_lccdf")
+  grid <- covering_grid(
+    y = c(0.2, 0.205, 0.23, 0.3, 0.5, 1, 3),
+    sv = c(0, 0.5),
+    st0 = c(1e-7, 0.02, 0.15),
+    pout = c(0, 0.05),
+    always = function(g) g$y %in% c(0.2, 0.205, 3)
+  )
+  for (r in seq_len(nrow(grid))) {
+    y <- grid$y[r]; sv <- grid$sv[r]; st0 <- grid$st0[r]; pout <- grid$pout[r]
+    info <- sprintf("Y=%.3f sigmadrift=%.2f sigmandt=%g poutlier=%.2f",
+                    y, sv, st0, pout)
+    rD <- dcogmod_invgaussian(y, 3, 0.5, 0.2, sv, st0, pout, log = TRUE)
+    rF <- pcogmod_invgaussian(y, 3, 0.5, 0.2, sv, st0, pout, log.p = TRUE)
+    rS <- pcogmod_invgaussian(y, 3, 0.5, 0.2, sv, st0, pout,
+                              lower.tail = FALSE, log.p = TRUE)
+    expect_close(lpdf(y, 3, 0.5, sv, st0, 0.2, pout), rD, info = paste(info, "lpdf"))
+    expect_close(lcdf(y, 3, 0.5, sv, st0, 0.2, pout), rF, info = paste(info, "lcdf"))
+    expect_close(lccdf(y, 3, 0.5, sv, st0, 0.2, pout), rS, info = paste(info, "lccdf"))
   }
 })
 

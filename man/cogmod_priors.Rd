@@ -146,6 +146,11 @@ before then. They are also the parameters a DDM is least able to recover, so
 these priors are deliberately tighter than the rest. Fixing the ones a
 design cannot identify (\code{sigmadrift = 0} in \code{bf()}) is usually better than
 estimating them behind a prior.
+\item \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}: \code{sigmadrift} and \code{sigmandt}, for the same reasons
+as the DDM's, with \code{sigmandt} taking the DDM's prior for the same quantity
+verbatim. Both should be fixed at zero unless the design can identify
+them; \code{sigmandt} in particular needs a lot of data, a strong prior, or
+both.
 \item \code{\link[=cogmod_lnr]{cogmod_lnr()}}: \code{nuone}, \code{sigmazero} and \code{sigmaone}. Push an accumulator's
 rate far enough down and it never finishes first, so the density depends on
 it only through a survival term that has already saturated at 1; past about
@@ -195,9 +200,9 @@ whole RT distributions. That one is overridden rather than filled, the same
 treatment \code{shape} and an omitted \code{ndt} get above.
 
 \code{mu} gets \code{normal(0.4, 0.25)} on its own intercept - 95\% of the mass between
--0.09 and 0.89 s. It used to be left to \code{brms}, whose \code{student_t(3, 0, 2.5)}
+-0.09 and 0.89 s. It is not left to \code{brms}, whose \code{student_t(3, 0, 2.5)}
 is a fair statement about a location on a \code{softplus} link (median 0.69 s) but
-not on the \code{identity} link \code{mu} now uses, where it is centred on zero seconds
+not on the \code{identity} link \code{mu} uses, where it is centred on zero seconds
 and puts a Gaussian centre of -2 s on a par with one of +2 s. The prior does
 \strong{not} exclude negative values: \code{mu} is a location, and for fast
 heavily-tailed data the Gaussian component genuinely belongs near or below
@@ -226,7 +231,8 @@ lives on:\tabular{lll}{
    \code{sigmazero}, \code{sigmaone} (\code{\link[=cogmod_lba2]{cogmod_lba2()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
    \code{sigmadrift} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-1, 0.75)} \cr
    \code{sigmabias} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}) \tab \code{normal(-2, 1)} \tab \code{beta(1, 5)} \cr
-   \code{sigmandt} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}) \tab \code{normal(-3, 1)} \tab \code{lognormal(-3, 1)} \cr
+   \code{sigmandt} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}, \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}) \tab \code{normal(-3, 1)} \tab \code{lognormal(-3, 1)} \cr
+   \code{sigmadrift} (\code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
    \code{nuone} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}) \tab \code{normal(0.7, 1.5)} \tab \code{normal(0.7, 1.5)} \cr
    \code{sigmazero}, \code{sigmaone} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
    \code{dof} (\code{\link[=cogmod_logstudent]{cogmod_logstudent()}}) \tab \code{normal(1.8, 0.7)} \tab \code{lognormal(1.8, 0.7)} \cr

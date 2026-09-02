@@ -482,7 +482,9 @@ decision threshold: the distribution of the times at which that threshold is
 first crossed *is* the Wald distribution. Its skewed shape is not a modelling
 choice, it is a consequence of the assumed mechanism.
 
-The Shifted Wald model (also known as the Inverse Gaussian distribution) is actually equivalent to a one-response version of the Drift Diffusion Model (DDM) with no between-trial variability in drift rate (which is what `sigmadrift = 0` does), starting point, or non-decision time. This changes what the parameters mean. Instead of a location and a width, we
+The Shifted Wald model (also known as the Inverse Gaussian distribution) is actually equivalent to a one-response version of the Drift Diffusion Model (DDM) 
+with no between-trial variability in drift rate (which is what `sigmadrift = 0` does), starting point, or non-decision time (`sigmandt = 0`). 
+This changes what the parameters mean. Instead of a location and a width (e.g., Mean and SD of the RT distribution), we
 now estimate quantities that refer to distinct components of the decision: `mu`
 is the **drift rate** (the speed at which evidence accumulates, often read as
 task difficulty or processing efficiency), `boundary` is the **decision threshold**
@@ -500,7 +502,9 @@ vignette are for).
 Second, this interpretive gain is not free: with RT data alone, drift rate and
 boundary separation trade off against each other to a considerable degree, so
 their separate estimates should be treated with more caution than their
-cognitive labels suggest.
+cognitive labels suggest. This issue is even more critical when the 
+additional variability parameters (`sigmadrift` and `sigmandt`) are estimated, 
+but see below for details about that.
 
 ```{r}
 #| eval: false
@@ -510,7 +514,8 @@ f <- bf(
   RT ~ Condition,
   boundary ~ Condition,
   ndt ~ Condition,
-  sigmadrift = 0,
+  sigmadrift = 0,  # Fixed at zero, not estimated
+  sigmandt = 0,  # Fixed at zero, not estimated
   family = cogmod_invgaussian()
 )
 
@@ -722,6 +727,13 @@ the formula, but it is worth knowing it is there: it means that large values of
 all three parameters describe very nearly the same distribution as small ones,
 which is a ridge, and part of why `cogmod_priors()` puts a prior on `sigmadrift`.
 
+The family has one more variability parameter, `sigmandt`, which spreads the
+non-decision time uniformly over `[ndt, ndt + sigmandt]` - the single-boundary
+counterpart of the DDM's `st0`. It is typically fixed at zero because its effect 
+can be confounded with that of other parameters (the leading edge of the distibution 
+is also affected by `ndt` and `poutlier`). It is hard to estimate, and should only 
+be freed (e.g., `sigmandt ~ 1`) with a lot of data and/or a strong prior (see `?rcogmod_invgaussian`).
+
 ```{r}
 #| eval: false
 #| code-fold: false
@@ -731,6 +743,7 @@ f <- bf(
   boundary ~ Condition,
   ndt ~ Condition,
   sigmadrift ~ Condition,
+  sigmandt = 0,
   family = cogmod_invgaussian()
 )
 
@@ -826,6 +839,7 @@ f <- bf(
   boundary ~ Condition,
   ndt ~ Condition,
   sigmadrift = 0,
+  sigmandt = 0,
   family = cogmod_invgaussian()
 )
 
@@ -977,9 +991,9 @@ close to a response, and on these data it sits at 0.40 s, right inside the dense
 left edge where consecutive responses are a millisecond or two apart. 
 
 The obvious remedies do not work, and it is worth knowing why before reaching
-for them. A prior on `mu` (the shape) or `ndt` don't help. Fixing `ndt` at the
+for them. Narrower priors on `mu` (the shape) or `ndt` don't seem to help much. Fixing `ndt` at the
 fastest observed response would work by removing the parameter, but it introduces
-a false rigid assumption about one fo the key parameters.
+a false rigid assumption about one of the key parameters.
 
 The slow sampling and bad convergence is here a sign of a bad fit (as shown below). 
 What the sampler is struggling with is the model contorting itself to represent a left edge it cannot

@@ -114,8 +114,7 @@ puts the start point closer to the error boundary, making errors *faster*
 than correct responses (`bias < 0.5` makes them slower; at exactly `0.5`
 the two conditional RT distributions are identical).
 
-Note that we use the "simple" 4-parameter DDM here, which does not include between-trial variability in drift rate, starting point, or non-decision time, hence the `sigmadrift`, `sigmabias`, and `sigmandt` parameters are fixed to `0`. Estimating these parameters is possible, but considerably more expensive and often unnecessary for many applications. Note that `sigmandt` is the between-trial *range* of the non-decision time in seconds (`st0`); it was called `sigmatau` when it was a fraction of a `minrt` parameter that
-no longer exists.
+Note that we use the "simple" 4-parameter DDM here, which does not include between-trial variability in drift rate, starting point, or non-decision time, hence the `sigmadrift`, `sigmabias`, and `sigmandt` parameters are fixed to `0`. Estimating these parameters is possible, but considerably more expensive and often unnecessary for many applications. Note that `sigmandt` is the between-trial *range* of the non-decision time in seconds (`st0`), with `ndt` its lower bound.
 
 ```{r}
 #| eval: false
@@ -213,15 +212,13 @@ accumulation process. `mu` (`nuzero`) and `nuone` are the (inverse
 log-space mean) processing speeds for the "Error" and "Correct"
 accumulators, and `sigmazero`/`sigmaone` their log-space SDs.
 
-Like the RDM below, and unlike the three remaining models here, the LNR is fit
-with `ndt` and `poutlier`
-directly rather than `tau` and `minrt`: `ndt` is estimated in seconds, with no
-upper bound tied to the fastest observed response, and `poutlier` is the
-proportion of trials attributed to a contaminant guessing process (see
-`vignette("outliers")`). `cogmod_priors()` and `cogmod_inits()` both read the
-family off `f`, so they need no `tau`-specific setup - and `init = 0` is
-actively harmful here: on the log link it starts `ndt` at `exp(0) = 1` second,
-above nearly every observed RT.
+Like every family in this package, the LNR is fit with `ndt` and `poutlier`:
+`ndt` is estimated in seconds, with no upper bound tied to the fastest observed
+response, and `poutlier` is the proportion of trials attributed to a
+contaminant guessing process (see `vignette("outliers")`). `cogmod_priors()`
+and `cogmod_inits()` both read the family off `f`, so they need no
+family-specific setup - and `init = 0` is actively harmful here: on the log
+link it starts `ndt` at `exp(0) = 1` second, above nearly every observed RT.
 
 ```{r}
 #| eval: false

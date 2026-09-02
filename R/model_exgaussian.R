@@ -199,9 +199,9 @@ pcogmod_exgaussian <- function(q, mu = 0.5, sigma = 0.1, tau = 0.2,
 .prepare_exgaussian <- function(x = NULL, n = NULL, mu, sigma, tau) {
     # Validate parameters once. `mu` is deliberately NOT checked: it is the
     # location of the Gaussian component, the convolution is defined for any
-    # real value, and the Stan lpdf has only ever rejected the two scales. The
-    # R side used to reject `mu <= 0`, which meant it refused inputs the sampler
-    # was perfectly happy to fit. See ?rcogmod_exgaussian.
+    # real value, and the Stan lpdf rejects only the two scales. Rejecting
+    # `mu <= 0` here would refuse inputs the sampler is perfectly happy to fit.
+    # See ?rcogmod_exgaussian.
     if (any(sigma <= 0)) {
         stop("`sigma` must be positive.")
     }
