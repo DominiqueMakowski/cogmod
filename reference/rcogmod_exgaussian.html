@@ -9,6 +9,7 @@ family, in which mu indexes the mean of the entire distribution
 Functions:
 rcogmod_exgaussian(): Simulates random draws from the Ex-Gaussian distribution.
 dcogmod_exgaussian(): Computes the density (likelihood) of the Ex-Gaussian distribution.
+pcogmod_exgaussian(): Computes the cumulative distribution function (CDF) or survival.
 cogmod_exgaussian(): Creates a brms::custom_family() for use in brms models.
 
 "><meta property="og:description" content="Density, random generation, and brms custom family for the Ex-Gaussian
@@ -21,6 +22,7 @@ family, in which mu indexes the mean of the entire distribution
 Functions:
 rcogmod_exgaussian(): Simulates random draws from the Ex-Gaussian distribution.
 dcogmod_exgaussian(): Computes the density (likelihood) of the Ex-Gaussian distribution.
+pcogmod_exgaussian(): Computes the cumulative distribution function (CDF) or survival.
 cogmod_exgaussian(): Creates a brms::custom_family() for use in brms models.
 
 "><meta property="og:image" content="https://dominiquemakowski.github.io/cogmod/logo.svg"></head><body>
@@ -31,7 +33,7 @@ cogmod_exgaussian(): Creates a brms::custom_family() for use in brms models.
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -45,9 +47,9 @@ cogmod_exgaussian(): Creates a brms::custom_family() for use in brms models.
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/overview.html">Overview</a></li>
     <li><a class="dropdown-item" href="../articles/subjective_ratings.html">Subjective Ratings</a></li>
     <li><a class="dropdown-item" href="../articles/rt_models.html">RT-only Models</a></li>
-    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/decision_making.html">Decision Making Models</a></li>
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
+    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -76,6 +78,7 @@ family, in which <code>mu</code> indexes the mean of the <em>entire</em> distrib
 (Gaussian + exponential components combined).</p>
 <p>Functions:</p><ul><li><p><code>rcogmod_exgaussian()</code>: Simulates random draws from the Ex-Gaussian distribution.</p></li>
 <li><p><code>dcogmod_exgaussian()</code>: Computes the density (likelihood) of the Ex-Gaussian distribution.</p></li>
+<li><p><code>pcogmod_exgaussian()</code>: Computes the cumulative distribution function (CDF) or survival.</p></li>
 <li><p><code>cogmod_exgaussian()</code>: Creates a <code><a href="https://paulbuerkner.com/brms/reference/custom_family.html" class="external-link">brms::custom_family()</a></code> for use in <code>brms</code> models.</p></li>
 </ul></div>
 
@@ -84,6 +87,15 @@ family, in which <code>mu</code> indexes the mean of the <em>entire</em> distrib
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">rcogmod_exgaussian</span><span class="op">(</span><span class="va">n</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, sigma <span class="op">=</span> <span class="fl">0.1</span>, tau <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">dcogmod_exgaussian</span><span class="op">(</span><span class="va">x</span>, mu <span class="op">=</span> <span class="fl">0.5</span>, sigma <span class="op">=</span> <span class="fl">0.1</span>, tau <span class="op">=</span> <span class="fl">0.2</span>, log <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">pcogmod_exgaussian</span><span class="op">(</span></span>
+<span>  <span class="va">q</span>,</span>
+<span>  mu <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>  sigma <span class="op">=</span> <span class="fl">0.1</span>,</span>
+<span>  tau <span class="op">=</span> <span class="fl">0.2</span>,</span>
+<span>  lower.tail <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  log.p <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">cogmod_exgaussian</span><span class="op">(</span></span>
 <span>  link_mu <span class="op">=</span> <span class="st">"identity"</span>,</span>
@@ -131,6 +143,21 @@ scale - though for RT data it is normally positive. Range: (-Inf, Inf).</p></dd>
 <dd><p>Logical; if TRUE, probabilities p are given as log(p).</p></dd>
 
 
+<dt id="arg-q">q<a class="anchor" aria-label="anchor" href="#arg-q"></a></dt>
+<dd><p>Vector of quantiles (reaction times, in seconds).</p></dd>
+
+
+<dt id="arg-lower-tail">lower.tail<a class="anchor" aria-label="anchor" href="#arg-lower-tail"></a></dt>
+<dd><p>Logical; if TRUE (default), probabilities are <code>P[X &lt;= q]</code>,
+otherwise <code>P[X &gt; q]</code> - the survival, which is what a right-censored
+response contributes to the likelihood under <code>brms::bf(rt | cens(x) ~ ...)</code>.
+See the <em>Censoring</em> section of <code><a href="rcogmod_invgaussian.html">rcogmod_invgaussian()</a></code>.</p></dd>
+
+
+<dt id="arg-log-p">log.p<a class="anchor" aria-label="anchor" href="#arg-log-p"></a></dt>
+<dd><p>Logical; if TRUE, probabilities p are given as log(p).</p></dd>
+
+
 <dt id="arg-link-mu-link-sigma-link-tau">link_mu, link_sigma, link_tau<a class="anchor" aria-label="anchor" href="#arg-link-mu-link-sigma-link-tau"></a></dt>
 <dd><p>Character of the type of link used to
 model the ex-Gaussian parameters. Defaults to <code>"identity"</code> for <code>mu</code> and
@@ -150,7 +177,9 @@ model the ex-Gaussian parameters. Defaults to <code>"identity"</code> for <code>
     <p><code>rcogmod_exgaussian()</code> returns a numeric vector of <code>n</code> simulated
 reaction times, in seconds. <code>dcogmod_exgaussian()</code> returns the density at
 each element of <code>x</code> - the log density if <code>log = TRUE</code> - recycled to the
-length of the longest argument. <code>cogmod_exgaussian()</code> returns a
+length of the longest argument. <code>pcogmod_exgaussian()</code> returns the
+cumulative probability at each element of <code>q</code>, honouring <code>lower.tail</code> and
+<code>log.p</code>. <code>cogmod_exgaussian()</code> returns a
 <code><a href="https://paulbuerkner.com/brms/reference/custom_family.html" class="external-link">brms::custom_family</a></code> object, to put on a <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">brms::bf()</a></code> formula.
 <code>cogmod_exgaussian_stanvars()</code> returns a <code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvars</a></code> object holding
 the family's Stan <code>functions</code> block, to pass to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code>, and

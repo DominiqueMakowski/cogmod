@@ -1,5 +1,117 @@
 # Changelog
 
+## cogmod 0.3.1
+
+### New features
+
+- **Censored reaction times: `brms`’s `cens()` works on the RT-only
+  families.** `bf(rt | cens(error) ~ ...)` scores an error trial as a
+  *right-censored correct response*: its RT is a lower bound on when the
+  correct process would have finished, so it contributes that process’s
+  survival rather than its density. On
+  [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+  this is the censored shifted Wald of [Miller et
+  al. (2018)](https://doi.org/10.1177/0146621617710465), the `cswald`
+  model of [`bmm`](https://github.com/popov-lab/bmm). Here it is not a
+  family but a construction, so the same formula works on every RT-only
+  family with a closed-form CDF:
+  [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+  [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md),
+  [`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md),
+  [`cogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md),
+  [`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md),
+  [`cogmod_invweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md),
+  [`cogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md),
+  [`cogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md),
+  [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+  and
+  [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md).
+  Left- and interval-censoring come with it, and
+  [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html) -
+  hence [`loo()`](https://mc-stan.org/loo/reference/loo.html) - honours
+  all three, which `brms` leaves to a custom family’s own method.
+  [`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
+  predicts the latent, uncensored RT, as `brms` does for its own
+  families.
+  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  and
+  [`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md)
+  refuse `cens()` on the families that cannot take it, and
+  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  warns above 20% censored trials. What the model is for, what it
+  assumes and the one check to run before using it are in
+  [`?rcogmod_invgaussian`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+  and the *Censored Shifted Wald* section of `vignette("rt_models")`.
+
+  Under the hood every censorable family gets a `<family>_lcdf` and a
+  `<family>_lccdf` beside its `_lpdf`, generated from two new registry
+  slots so a family cannot drift out of step with itself. The survivals
+  are written as survivals - never as `log(1 - exp(lcdf))` - and the
+  half Normal outlier’s through `std_normal_lcdf(-z)` rather than
+  `std_normal_lccdf(z)`, which is `-inf` from 1.66 s on: the two places
+  `bmm`’s implementation broke. With `sigmadrift > 0` the Wald CDF has
+  no closed form and is taken by 64-point Gauss-Legendre quadrature over
+  the drift, in R and Stan alike off one node table.
+
+- **`pcogmod_*()` for every censorable family.**
+  [`pcogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+  [`pcogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md),
+  [`pcogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md),
+  [`pcogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md),
+  [`pcogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md),
+  [`pcogmod_invweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md),
+  [`pcogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md),
+  [`pcogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md)
+  and
+  [`pcogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+  join
+  [`pcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
+  with `lower.tail` and `log.p`. The upper tail is computed *as* the
+  upper tail rather than as `1 - CDF`; these are the R side of the Stan
+  `_lcdf`/`_lccdf` pair, and the tests hold the two to each other.
+
+- **[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  now checks the response before returning.** Everything in this package
+  is stated in seconds and none of it is unit-equivariant - the `ndt`
+  prior means 170-300 ms, `.POUTLIER_SCALE` is 0.2 s - but `brms` fills
+  its own defaults from the data, so a column of milliseconds produces a
+  model whose two halves silently describe different quantities. It
+  compiles, it samples, it converges, and the estimates are meaningless.
+  The check catches that and the handful of other mistakes with the same
+  character.
+
+  It **stops** where the offending rows would make the fit impossible or
+  wrong in a way `Stan` cannot report: a non-positive reaction time
+  under a family that places no density below `ndt`; a response outside
+  `[0, 1]` for
+  [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)
+  or
+  [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md);
+  a non-integer rating for
+  [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md);
+  a non-numeric response; and a third level in `dec()`, which the choice
+  families would otherwise fold silently into option 1, since their Stan
+  code tests `dec == 0` and takes the else branch for everything else.
+
+  It **warns** about the rest: a median implying milliseconds, `NA`s,
+  and either tail running past what `poutlier` can absorb. The tails are
+  judged as proportions rather than counts, because the outlier
+  component is *supposed* to produce the occasional fast response -
+  `rcogmod_lognormal(200, ndt = 0.2, poutlier = 0.02)` puts one at 81
+  ms - and a count-based test fires on the package’s own generator. Over
+  20000 draws the component sends 0.8% of responses below 0.1 s at
+  `poutlier = 0.02` and 1.9% at 0.05, the top of the default prior, so
+  the warning sits at 5%.
+
+  Families with neither `ndt` nor `poutlier` -
+  [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+  and
+  [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md) -
+  are exempted from the tail checks, and a non-positive response is a
+  warning rather than an error there, their support being the whole real
+  line. A formula or family the check cannot read is passed through
+  untouched, so `brms`’s own error is what the user sees.
+
 ## cogmod 0.3.0
 
 ### New features

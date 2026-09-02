@@ -368,11 +368,12 @@ seconds.
 \$\$f(t, k) = p \frac{1}{K} g(t) + (1 - p) f_k(t - ndt)\$\$
 
 The `1 / K` is what keeps the total summing to one over the response
-options; without it it would come to `1 + poutlier`. The half-t is used
-for the timing because it is **flat at the origin** (zero derivative),
-so the very fastest responses - the ones least plausibly decisions - are
-not starved of density, and because its tails are heavy enough to cover
-the whole plausible RT range.
+options; without it it would come to `1 + poutlier`. The half Normal is
+used for the timing because it is **flat at the origin** (zero
+derivative), so the very fastest responses - the ones least plausibly
+decisions - are not starved of density, and because it dies fast enough
+above that range to leave the slow tail to the race itself rather than
+claiming it.
 
 `poutlier` is a *rate*, not a classification: the model never labels
 individual trials, it estimates what share of them came from elsewhere.

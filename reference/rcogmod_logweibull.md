@@ -12,6 +12,9 @@ Functions:
 
 - `dcogmod_logweibull()`: Computes the density (likelihood).
 
+- `pcogmod_logweibull()`: Computes the cumulative distribution function
+  (CDF) or survival.
+
 - `cogmod_logweibull()`: Creates a
   [`brms::custom_family()`](https://paulbuerkner.com/brms/reference/custom_family.html).
 
@@ -30,6 +33,16 @@ dcogmod_logweibull(
   ndt = 0.2,
   poutlier = 0,
   log = FALSE
+)
+
+pcogmod_logweibull(
+  q,
+  mu = -0.8,
+  sigma = 0.3,
+  ndt = 0.2,
+  poutlier = 0,
+  lower.tail = TRUE,
+  log.p = FALSE
 )
 
 cogmod_logweibull(
@@ -83,6 +96,20 @@ posterior_epred_cogmod_logweibull(prep, predict_outliers = NULL)
   Vector of quantiles (observed reaction times).
 
 - log:
+
+  Logical; if TRUE, probabilities p are given as log(p).
+
+- q:
+
+  Vector of quantiles (reaction times, in seconds).
+
+- lower.tail:
+
+  Logical; if TRUE (default), probabilities are `P[X <= q]`, otherwise
+  `P[X > q]` - the survival, which is what a right-censored response
+  contributes to the likelihood (see the *Censoring* section).
+
+- log.p:
 
   Logical; if TRUE, probabilities p are given as log(p).
 
@@ -152,9 +179,9 @@ and
 all work here too. See
 [`?rcogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
 for why `ndt` is expressed directly in seconds rather than as a fraction
-of the fastest observed response, what the half Student-t outlier
-component is for, and why the outlier component's scale is a constant
-rather than a `dpar`, and why reaction times have to be in seconds.
+of the fastest observed response, what the half Normal outlier component
+is for, and why the outlier component's scale is a constant rather than
+a `dpar`, and why reaction times have to be in seconds.
 
 [`posterior_epred()`](https://mc-stan.org/rstantools/reference/posterior_epred.html)
 returns `Inf` where `sigma >= 1`, because the mean does not exist there.

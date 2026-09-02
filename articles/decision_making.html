@@ -28,7 +28,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -44,9 +44,9 @@
 <li><a class="dropdown-item" href="../articles/overview.html">Overview</a></li>
     <li><a class="dropdown-item" href="../articles/subjective_ratings.html">Subjective Ratings</a></li>
     <li><a class="dropdown-item" href="../articles/rt_models.html">RT-only Models</a></li>
-    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/decision_making.html">Decision Making Models</a></li>
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
+    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
   </ul>
 </li>
@@ -288,6 +288,7 @@
 <p><strong>Identifiability of <code>sigmabias</code> and <code>boundary</code></strong>: This concerns the LBA as much as the RDM, since both are parameterized the same way. The two parameters enter the model only through the threshold <code>b = boundary + sigmabias</code>, so they trade off almost freely, potentially ruining model convergence.</p>
 <p>This is a different identifiability problem from the model’s overall <em>scale</em> invariance - multiplying every drift, its SD, the start-point range and the threshold by a constant leaves every finishing time unchanged - which the LBA literature resolves by fixing one drift-rate SD to <code>1</code> (Brown &amp; Heathcote, <a href="https://doi.org/10.1016/j.cogpsych.2007.12.002" class="external-link">2008</a>), the convention already used for <code>sigmazero</code> above. There is no equivalent standard fix for the <code>boundary</code>/<code>sigmabias</code> split itself. Toolboxes that estimate by maximum likelihood (e.g. <code>rtdists</code>) just let both float freely and accept the estimation noise that comes with it; Bayesian hierarchical packages built around this model class (e.g. <code>EMC2</code>, the successor to <code>DMC</code>) do not fix either parameter outright either - they regularize the ridge with weakly-informative priors and partial pooling across participants and conditions rather than pin the split down directly. <code>cogmod</code> takes the same route at the level of a single fit: a prior on <code>sigmabias</code> might help, and for the RDM <code><a href="../reference/cogmod_priors.html">cogmod_priors()</a></code> supplies a weakly informative one (<code>normal(0, 1)</code>) on the softplus scale.</p>
 <p>A prior of that shape does not make <code>sigmabias</code> itself trustworthy, though, so prefer <code>boundary + sigmabias</code> whenever you interpret a threshold or compare one across conditions, and treat the split between the two as weakly-determined.</p>
+<p><strong>When errors are too few to identify the second accumulator</strong>: every race above has to estimate an error process, and when errors are scarce that process is informed by almost nothing. On the Accuracy condition of these data, which carries about 75 errors, an RDM left to itself runs <code>driftone</code> down to the floor of its link (a drift of 0.0001) with half of the transitions divergent; <code><a href="../reference/cogmod_priors.html">cogmod_priors()</a></code> fences that with a prior on the error drift (see <code><a href="../reference/rcogmod_rdm.html">?rcogmod_rdm</a></code>). The structural alternative is to stop modelling the error process altogether and fit the RT-only family with the errors as <strong>right-censored</strong> correct responses, <code>bf(RT | cens(Error) ~ ...)</code>: an error then says only that the correct process had not finished yet, so there is no error accumulator to run away. On <code><a href="../reference/rcogmod_invgaussian.html">cogmod_invgaussian()</a></code> this is the censored shifted Wald of Miller et al. (<a href="https://doi.org/10.1177/0146621617710465" class="external-link">2018</a>). It is described in the <em>Censored Shifted Wald</em> section of the <a href="rt_models.html">RT-only Models</a> vignette, together with the one check to run first: censoring can only produce errors <em>slower</em> than correct responses, so where errors are faster - a low boundary, a biased start point - stay with the race.</p>
 </section></section><section class="level2"><h2 id="model-comparison">Model Comparison<a class="anchor" aria-label="anchor" href="#model-comparison"></a>
 </h2>
 <blockquote>

@@ -28,7 +28,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -44,9 +44,9 @@
 <li><a class="dropdown-item" href="../articles/overview.html">Overview</a></li>
     <li><a class="dropdown-item" href="../articles/subjective_ratings.html">Subjective Ratings</a></li>
     <li><a class="dropdown-item" href="../articles/rt_models.html">RT-only Models</a></li>
-    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/decision_making.html">Decision Making Models</a></li>
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
+    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
   </ul>
 </li>
@@ -212,7 +212,7 @@
 </div>
 </div>
 </div>
-</section><section class="level2"><h2 id="models">Models<a class="anchor" aria-label="anchor" href="#models"></a>
+</section><section class="level2"><h2 id="main-models">Main Models<a class="anchor" aria-label="anchor" href="#main-models"></a>
 </h2>
 <section class="level3"><h3 id="normal-gaussian">Normal (Gaussian)<a class="anchor" aria-label="anchor" href="#normal-gaussian"></a>
 </h3>
@@ -368,11 +368,11 @@
 <span></span>
 <span><span class="va">m_lba</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lba</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level3"><h3 id="other-models">Other Models<a class="anchor" aria-label="anchor" href="#other-models"></a>
-</h3>
+</section></section><section class="level2"><h2 id="other-models">Other Models<a class="anchor" aria-label="anchor" href="#other-models"></a>
+</h2>
 <p>Note that the families presented below have not been used nearly as often in the RT literature as the ones above, and their properties in this context are correspondingly less well documented. They are nonetheless capable of generating close fits to RT data, and more research is needed to establish whether they offer any real advantage - in terms of fit, of interpretability, or of computational behaviour - over the more established options.</p>
-<section class="level4"><h4 id="recinormal-later">Recinormal (LATER)<a class="anchor" aria-label="anchor" href="#recinormal-later"></a>
-</h4>
+<section class="level3"><h3 id="recinormal-later">Recinormal (LATER)<a class="anchor" aria-label="anchor" href="#recinormal-later"></a>
+</h3>
 <p>The <strong>recinormal</strong> (reciprocal-of-normal) distribution is at the basis of the <strong>LATER</strong> model - Linear Approach To Threshold with Ergodic Rate: if the rate of linear accumulation varies normally from trial to trial, then <code>1 / RT</code> is normally distributed, so RT itself is recinormal. This idea is in fact <em>older</em> than most sequential-sampling models. Carpenter proposed it in 1981, then formalized it with Williams in <a href="https://doi.org/10.1038/377059a0" class="external-link">1995</a>, after noticing that the usual skewed RT histogram never matched any standard statistical distribution, and reasoning that since RT is the outcome of a <em>rate</em> process - a signal rising to threshold, like a reaction reaching completion - it made more sense to model the variability in that underlying rate than to keep fitting shapes to its result. Switching the analysis from RT to <code>1 / RT</code> and finding a clean Gaussian was the payoff of that reframing.</p>
 <p>In the terms of the previous section, this is exactly where the LBA was heading: set the start-point range <code>sigmabias</code> to zero and the accumulator starts from the same place on <em>every</em> trial, so the only thing left varying is the rate of rise. The decision time is then simply <code>b / rate</code>, and a normally distributed rate makes <code>1 / (RT - ndt)</code> normally distributed in turn. (The <code>- ndt</code> is the one refinement on the classical statement above: any time spent on encoding and motor execution is not part of the rate process, so it has to come off before the reciprocal is taken.)</p>
 <p>What makes LATER attractive is that its two parameters are directly interpretable, and interpretable as something you can <em>see</em>, often called <strong>promptness</strong> - how quickly the response comes, rather than how long it takes - and <code>mu</code> and <code>sigma</code> are simply its mean and standard deviation. This is what a <em>reciprobit</em> plot displays: promptness on a probit axis, on which a LATER model is a straight line, <code>mu</code> sets its position and <code>sigma</code> its slope. Carpenter’s central claim is read off exactly that plot - manipulating the prior probability of a stimulus shifts the line sideways (a change in <code>mu</code>, the rate of rise), while manipulating urgency swivels it about its intercept (a change in the threshold).</p>
@@ -400,8 +400,8 @@
 <span></span>
 <span><span class="va">m_recinormal</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_recinormal</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level4"><h4 id="wald-4">Wald-4<a class="anchor" aria-label="anchor" href="#wald-4"></a>
-</h4>
+</section><section class="level3"><h3 id="wald-4">Wald-4<a class="anchor" aria-label="anchor" href="#wald-4"></a>
+</h3>
 <p>This mode corresponds to the Shifted Wald model with an extra parameter corresponding to the variability of the drift rate. That extra parameter makes it a <strong>hybrid of the Wald and LATER models</strong>: it is the only one here carrying <em>both</em> sources of randomness. The Wald has moment-to-moment noise within the trial and a drift rate that is the same on every trial; LATER has no within-trial noise at all and puts all of the variability into a drift rate that is redrawn each trial; Wald-4 has both at once, and each is nested inside it. Set <code>sigmadrift = 0</code> and the across-trial variability disappears, leaving the plain Wald exactly. Push the other way - letting the accumulated evidence grow large relative to the diffusion noise, which here means scaling <code>mu</code>, <code>boundary</code> and <code>sigmadrift</code> up together - and the within-trial noise becomes negligible, leaving the recinormal of the previous section. That second limit is approached rather than reached (the relative error falls off as the square of the scaling factor), so it is not something you fix in the formula, but it is worth knowing it is there: it means that large values of all three parameters describe very nearly the same distribution as small ones, which is a ridge, and part of why <code><a href="../reference/cogmod_priors.html">cogmod_priors()</a></code> puts a prior on <code>sigmadrift</code>.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb13"><pre class="downlit sourceCode r">
@@ -424,8 +424,8 @@
 <span></span>
 <span><span class="va">m_wald4</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_wald4</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level4"><h4 id="exwald">ExWald<a class="anchor" aria-label="anchor" href="#exwald"></a>
-</h4>
+</section><section class="level3"><h3 id="exwald">ExWald<a class="anchor" aria-label="anchor" href="#exwald"></a>
+</h3>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -447,12 +447,61 @@
 <span></span>
 <span><span class="va">m_exwald</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_exwald</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level4"><h4 id="birnbaum-saunders-bisa">Birnbaum-Saunders (BiSa)<a class="anchor" aria-label="anchor" href="#birnbaum-saunders-bisa"></a>
-</h4>
+</section><section class="level3"><h3 id="censored-shifted-wald">Censored Shifted Wald<a class="anchor" aria-label="anchor" href="#censored-shifted-wald"></a>
+</h3>
+<p>Every model so far was fitted to the correct responses alone, on the argument that errors come from a different generative process. Dropping them is not free, though: it conditions on the correct process having <em>won</em>, which truncates its slow tail - the trials on which a slow correct response was coming are exactly the trials on which an error got in first. The <strong>censored shifted Wald</strong> (Miller et al., <a href="https://doi.org/10.1177/0146621617710465" class="external-link">2018</a>) keeps those trials without modelling the error process at all. An error at time <code>t</code> is taken to say one thing about the correct accumulator: it had not finished by <code>t</code>. It therefore enters the likelihood as a <strong>right-censored</strong> observation, contributing the Wald’s survival <code>P(T &gt; t)</code> where a correct response contributes its density. This is the standard survival-analysis treatment of a competing event, and <code>brms</code> already has the syntax for it, <code>cens()</code>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># The same data, this time keeping the errors. `Error` becomes the censoring</span></span>
+<span><span class="co"># indicator: Error == 1 says the RT is a lower bound on the correct process's time.</span></span>
+<span><span class="va">df_cens</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  Participant <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">speed_acc</span><span class="op">$</span><span class="va">id</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  Condition <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unname.html" class="external-link">unname</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>accuracy <span class="op">=</span> <span class="st">"Accuracy"</span>, speed <span class="op">=</span> <span class="st">"Speed"</span><span class="op">)</span><span class="op">[</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">speed_acc</span><span class="op">$</span><span class="va">condition</span><span class="op">)</span><span class="op">]</span><span class="op">)</span>,</span>
+<span>  RT <span class="op">=</span> <span class="va">speed_acc</span><span class="op">$</span><span class="va">rt</span>,</span>
+<span>  Error <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">speed_acc</span><span class="op">$</span><span class="va">response</span><span class="op">)</span> <span class="op">!=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">speed_acc</span><span class="op">$</span><span class="va">stim_cat</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">df_cens</span> <span class="op">&lt;-</span> <span class="va">df_cens</span><span class="op">[</span><span class="va">df_cens</span><span class="op">$</span><span class="va">Participant</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">3</span><span class="op">)</span> <span class="op">&amp;</span> <span class="va">df_cens</span><span class="op">$</span><span class="va">RT</span> <span class="op">&lt;=</span> <span class="fl">2</span>, <span class="op">]</span></span></code></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
+<span>  <span class="va">RT</span> <span class="op">|</span> <span class="fu">cens</span><span class="op">(</span><span class="va">Error</span><span class="op">)</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
+<span>  <span class="va">boundary</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
+<span>  <span class="va">ndt</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
+<span>  sigmadrift <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rcogmod_invgaussian.html">cogmod_invgaussian</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">m_cswald</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span></span>
+<span>  <span class="va">f</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df_cens</span>,</span>
+<span>  prior <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df_cens</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df_cens</span><span class="op">)</span>,</span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<p>The same <code>cens()</code> works on every family of this vignette that has a closed-form CDF - the LogNormal, the ex-Gaussian, the Gamma and Weibull variants - so each has a censored version one addition term away, and <code><a href="https://mc-stan.org/rstantools/reference/log_lik.html" class="external-link">log_lik()</a></code> (hence <code><a href="https://mc-stan.org/loo/reference/loo.html" class="external-link">loo()</a></code>) scores the censored trials the same way the sampler did. Two things are worth knowing before reaching for it.</p>
+<p><strong>What it assumes.</strong> Censoring says the error tells you <em>nothing</em> about the correct process beyond “not yet”. That is what buys the model its stability when errors are few - there is no error accumulator to estimate, which is exactly the parameter that runs away in a race fitted to a high-accuracy condition (see the <em>Decision Making</em> vignette) - and it is what stops being credible when errors are many, because at that point they are a process of their own. <code><a href="../reference/cogmod_priors.html">cogmod_priors()</a></code> warns above 20% censored trials.</p>
+<p><strong>The check to run first.</strong> Censoring draws the errors from the surviving tail, so it can only ever predict them <em>slower</em> than correct responses. Fast errors - the signature of a low boundary or a biased start point - cannot be produced by construction. So compare the two before fitting:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/stats/aggregate.html" class="external-link">aggregate</a></span><span class="op">(</span><span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span> <span class="op">+</span> <span class="va">Error</span>, data <span class="op">=</span> <span class="va">df_cens</span>, FUN <span class="op">=</span> <span class="va">median</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   Condition Error    RT</span></span>
+<span><span class="co">#&gt; 1  Accuracy     0 0.635</span></span>
+<span><span class="co">#&gt; 2     Speed     0 0.518</span></span>
+<span><span class="co">#&gt; 3  Accuracy     1 0.629</span></span>
+<span><span class="co">#&gt; 4     Speed     1 0.503</span></span></code></pre></div>
+</div>
+<p>On these data the errors are, if anything, a shade <em>faster</em> than the correct responses in both conditions, so the assumption is borderline here at best, which suggests this model is not appropriate for this data set. Where errors are faster, use a race that models the error accumulator - the RDM or the LBA of the <a href="https://dominiquemakowski.github.io/cogmod/articles/decision_making.html"><em>Decision Making</em></a> vignette. Where they are slower, or where there is no error response at all - go/no-go, deadlines, omissions - a non-response genuinely is a right-censored draw from one accumulator, and censoring is the exact model rather than an approximation.</p>
+<p>One more consequence: <code><a href="https://mc-stan.org/rstantools/reference/posterior_predict.html" class="external-link">posterior_predict()</a></code> predicts the latent, uncensored reaction time, as <code>brms</code> does for its own families, so <code><a href="https://mc-stan.org/bayesplot/reference/pp_check.html" class="external-link">pp_check()</a></code> on a censored fit compares uncensored replicates against a data column whose error rows hold <em>censoring</em> times.</p>
+</section><section class="level3"><h3 id="birnbaum-saunders-bisa">Birnbaum-Saunders (BiSa)<a class="anchor" aria-label="anchor" href="#birnbaum-saunders-bisa"></a>
+</h3>
 <p>The Birnbaum-Saunders (or <em>fatigue life</em>) model is the Wald’s near neighbour, and it is stated in the same parameters - <code>mu</code> is a drift rate and <code>boundary</code> a threshold in both - so the only thing that differs between them is <em>how</em> the evidence arrives. Where the Wald accumulates by diffusion, and evidence can move either way at any instant, here it arrives in discrete cycles that only ever push towards the boundary: what is random is the <strong>size</strong> of each increment, never its sign.</p>
 <p>The result is an equal mixture of a Wald and that Wald’s length-biased version, which makes it slower and more dispersed than the Wald at the same parameters while keeping the same exponential-order right tail. It has no extra parameter to pay for that, and the density is closed form throughout.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">boundary</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -471,11 +520,11 @@
 <span></span>
 <span><span class="va">m_bisa</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_bisa</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level4"><h4 id="logstudent">LogStudent<a class="anchor" aria-label="anchor" href="#logstudent"></a>
-</h4>
+</section><section class="level3"><h3 id="logstudent">LogStudent<a class="anchor" aria-label="anchor" href="#logstudent"></a>
+</h3>
 <p>The LogStudent-<em>t</em> model varies kurtosis where LogGamma varies skew (see below). As dof grows the Student-<em>t</em> becomes the Normal, with lighter tails.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -495,13 +544,13 @@
 <span></span>
 <span><span class="va">m_logstudent</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_logstudent</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level4"><h4 id="weibull">Weibull<a class="anchor" aria-label="anchor" href="#weibull"></a>
-</h4>
+</section><section class="level3"><h3 id="weibull">Weibull<a class="anchor" aria-label="anchor" href="#weibull"></a>
+</h3>
 <p>This one is really slow, with bad convergence on our data, which is caused by the geometry of that model rather than an expensive density, and it applies to the Gamma too. Near the shift the Weibull density behaves like <code>(RT - ndt)^(mu - 1)</code>, where <code>mu</code> is the shape. Differentiating the outlier mixture with respect to <code>ndt</code> therefore leaves a term in <code>(RT - ndt)^(mu - 2)</code>, which is <strong>unbounded at every observation whenever mu (the shape) is below 2</strong>. The posterior is still proper - the outlier component sees to that - but the gradient spikes wherever <code>ndt</code> sits close to a response, and on these data it sits at 0.40 s, right inside the dense left edge where consecutive responses are a millisecond or two apart.</p>
 <p>The obvious remedies do not work, and it is worth knowing why before reaching for them. A prior on <code>mu</code> (the shape) or <code>ndt</code> don’t help. Fixing <code>ndt</code> at the fastest observed response would work by removing the parameter, but it introduces a false rigid assumption about one fo the key parameters.</p>
 <p>The slow sampling and bad convergence is here a sign of a bad fit (as shown below). What the sampler is struggling with is the model contorting itself to represent a left edge it cannot otherwise reach. That is not a reason to write the Weibull off for reaction times in general: there can be cases where it is perfectly well behaved, just not in our data.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -520,10 +569,10 @@
 <span></span>
 <span><span class="va">m_weibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_weibull</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level4"><h4 id="logweibull-shifted-gumbel">LogWeibull (Shifted Gumbel)<a class="anchor" aria-label="anchor" href="#logweibull-shifted-gumbel"></a>
-</h4>
+</section><section class="level3"><h3 id="logweibull-shifted-gumbel">LogWeibull (Shifted Gumbel)<a class="anchor" aria-label="anchor" href="#logweibull-shifted-gumbel"></a>
+</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -542,10 +591,10 @@
 <span></span>
 <span><span class="va">m_logweibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_logweibull</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level4"><h4 id="inverse-weibull-shifted-fréchet">Inverse Weibull (Shifted Fréchet)<a class="anchor" aria-label="anchor" href="#inverse-weibull-shifted-fr%C3%A9chet"></a>
-</h4>
+</section><section class="level3"><h3 id="inverse-weibull-shifted-fréchet">Inverse Weibull (Shifted Fréchet)<a class="anchor" aria-label="anchor" href="#inverse-weibull-shifted-fr%C3%A9chet"></a>
+</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -564,11 +613,11 @@
 <span></span>
 <span><span class="va">m_invweibull</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_invweibull</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level4"><h4 id="gamma">Gamma<a class="anchor" aria-label="anchor" href="#gamma"></a>
-</h4>
+</section><section class="level3"><h3 id="gamma">Gamma<a class="anchor" aria-label="anchor" href="#gamma"></a>
+</h3>
 <p><code>mu</code> is the shape and <code>sigma</code> the scale of the Gamma decision time. Beyond being a convenient skewed shape, the Gamma also has a first-passage-time reading, as the hitting time of an accumulator whose starting point varies across trials - see <a href="https://doi.org/10.1007/s11571-019-09532-1" class="external-link">Tejo et al. (2019)</a> for a discussion.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -587,10 +636,10 @@
 <span></span>
 <span><span class="va">m_gamma</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_gamma</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level4"><h4 id="inverse-gamma">Inverse Gamma<a class="anchor" aria-label="anchor" href="#inverse-gamma"></a>
-</h4>
+</section><section class="level3"><h3 id="inverse-gamma">Inverse Gamma<a class="anchor" aria-label="anchor" href="#inverse-gamma"></a>
+</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -609,13 +658,13 @@
 <span></span>
 <span><span class="va">m_invgamma</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_invgamma</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
-</section></section><section class="level3"><h3 id="loggamma">LogGamma<a class="anchor" aria-label="anchor" href="#loggamma"></a>
+</section><section class="level3"><h3 id="loggamma">LogGamma<a class="anchor" aria-label="anchor" href="#loggamma"></a>
 </h3>
 <p>Every model above commits to a distributional shape in advance: fitting a Weibull asserts a Weibull, and the only way to ask whether that was the right choice is to fit the alternatives separately and rank them. The LogGamma is different in kind, because it carries a free <code>shape</code> parameter that indexes a <em>continuum</em> running through those families rather than picking one of them. At <code>shape = 0</code> it is exactly the shifted LogNormal; at <code>shape = 1</code> the Weibull; at <code>shape = sigma</code> the Gamma; at <code>shape = -1</code> the inverse Weibull. Values in between interpolate smoothly, with the right tail thinning monotonically as <code>shape</code> increases - power-law for negative values, lognormal at zero, and progressively lighter than the Weibull above one. It is the shifted LogNormal with the shape assumption relaxed rather than assumed.</p>
 <p>This makes it useful as an exploratory step even when it is not the model you intend to report. Rather than fitting five families and comparing them with <code>loo</code> - a non-nested comparison that returns a ranking but no interpretable quantity - you can fit this one and read the posterior of <code>shape</code> directly. An interval comfortably covering 0 is evidence that the LogNormal is adequate and the simpler model can be preferred; an interval around 1 points to the Weibull instead; mass well below 0 says the right tail is heavier than any of them. Because <code>shape</code> accepts predictors like any other distributional parameter, you can also ask whether the <em>shape</em> of the RT distribution itself shifts between conditions, and not merely its location and scale.</p>
 <p>The flexibility is not free. <code>shape</code> is only weakly identified without a decent number of trials per cell, it trades off against <code>sigma</code> and <code>ndt</code>, and the region <code>sigma * shape &gt;= 1</code> is degenerate (the density becomes unbounded at <code>ndt</code>), so starting values matter here. See <code><a href="../reference/rcogmod_loggamma.html">?rcogmod_loggamma</a></code> for the details.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
@@ -636,7 +685,7 @@
 <span><span class="va">m_loggamma</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_loggamma</span>, <span class="st">"loo"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb26"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">parameters</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/parameters/reference/model_parameters.html" class="external-link">parameters</a></span><span class="op">(</span><span class="va">m_loggamma</span>, test <span class="op">=</span> <span class="cn">NULL</span>, diagnostic <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu">insight</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/insight/reference/format_table.html" class="external-link">format_table</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">insight</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/insight/reference/display.html" class="external-link">display</a></span><span class="op">(</span><span class="op">)</span></span>
@@ -709,7 +758,7 @@
 </h3>
 <p>We can compare these models together using the <code>loo</code> package, which shows how bad the linear model performs compared to the other models.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb24"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb27"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">loo</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare</a></span><span class="op">(</span><span class="va">m_normal</span>, <span class="va">m_exgauss</span>, <span class="va">m_lognormal</span>, <span class="va">m_wald</span>, </span>
 <span>                 <span class="va">m_lba</span>, <span class="va">m_recinormal</span>, <span class="va">m_wald4</span>, <span class="va">m_exwald</span>, </span>
 <span>                 <span class="va">m_bisa</span>, <span class="va">m_logstudent</span>,</span>
@@ -746,7 +795,7 @@
 <p>Because each model was fit with only 4 chains, a boxplot of the per-chain sampling times is not very informative on its own, and looking at duration in isolation misses the point: a model that samples faster is not very useful if it fits worse. So the figure below puts both on the same plot - fit duration on the x-axis (the <em>median</em> time per chain, with a horizontal range spanning the fastest to the slowest of the 4 chains) against fit quality on the y-axis (<code>elpd_loo</code>, with a vertical range of <code>± 1 SE</code> as an index of how precisely that estimate is known).</p>
 <p>As expected, the <strong>Gaussian</strong> model is by far the fastest to sample, since it relies on <code>brms</code>’s built-in (and heavily optimized) Normal likelihood with no custom Stan code or non-decision time shift involved - but it also has by far the worst fit. At the other end, the <strong>LBA</strong> is by far the slowest, reflecting the added cost of its multi-accumulator likelihood. The remaining RT-only models (ExGaussian, LogNormal, Wald, Weibull, LogWeibull, InvWeibull, Gamma, and InvGamma) are all relatively comparable to one another in duration, as they share a similar structure (a simple closed-form density combined with a non-decision time shift), so the figure mostly separates them along the fit-quality axis instead.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb25"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb28"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">models</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  Normal <span class="op">=</span> <span class="va">m_normal</span>, ExGaussian <span class="op">=</span> <span class="va">m_exgauss</span>, LogNormal <span class="op">=</span> <span class="va">m_lognormal</span>,</span>
 <span>  InvGaussian <span class="op">=</span> <span class="va">m_wald</span>, LBA <span class="op">=</span> <span class="va">m_lba</span>, Recinormal <span class="op">=</span> <span class="va">m_recinormal</span>, </span>
@@ -794,7 +843,7 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <div class="cell-output-display">
 <div>
-<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-42-1.png" width="672"></p>
+<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-46-1.png" width="672"></p>
 </figure>
 </div>
 </div>
@@ -803,7 +852,7 @@
 </h3>
 <p><code>iterations</code> controls the actual number of iterations used (e.g., for the point-estimate) and <code>keep_iterations</code> the number included.</p>
 <div class="cell">
-<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb26"><pre class="downlit sourceCode r">
+<details class="code-fold"><summary>Code</summary><div class="sourceCode cell-code" id="cb29"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="fu">estimate_prediction</span><span class="op">(</span><span class="va">m_normal</span>, keep_iterations <span class="op">=</span> <span class="fl">50</span>, iterations <span class="op">=</span> <span class="fl">50</span><span class="op">)</span> <span class="op">|&gt;</span></span>
@@ -877,7 +926,7 @@
 <span><span class="va">p</span></span></code></pre></div>
 </details><div class="cell-output-display">
 <div>
-<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-43-1.png" width="672"></p>
+<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-47-1.png" width="672"></p>
 </figure>
 </div>
 </div>
@@ -885,7 +934,7 @@
 </section><section class="level3"><h3 id="conclusions">Conclusions<a class="anchor" aria-label="anchor" href="#conclusions"></a>
 </h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb27"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb30"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">rez</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="fu">parameters</span><span class="fu">::</span><span class="fu"><a href="https://easystats.github.io/parameters/reference/model_parameters.html" class="external-link">parameters</a></span><span class="op">(</span><span class="va">m_normal</span>, test <span class="op">=</span> <span class="cn">NULL</span>, diagnostic <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span>  <span class="op">|&gt;</span> </span>
 <span>    <span class="fu">data_modify</span><span class="op">(</span>Model <span class="op">=</span> <span class="st">"Normal"</span><span class="op">)</span>,</span>
@@ -942,7 +991,7 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <div class="cell-output-display">
 <div>
-<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-45-1.png" width="672"></p>
+<figure><p><img src="rt_models_files/figure-html/unnamed-chunk-49-1.png" width="672"></p>
 </figure>
 </div>
 </div>
@@ -950,7 +999,7 @@
 </section></section><section class="level2"><h2 id="real-data">Real Data<a class="anchor" aria-label="anchor" href="#real-data"></a>
 </h2>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb28"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb31"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">df_srt</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv</a></span><span class="op">(</span><span class="st">"https://raw.githubusercontent.com/RealityBending/DoggoNogoValidation/refs/heads/main/data/data_simpleRT.csv"</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/stats/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">RT</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span></span>
 <span></span>
@@ -966,7 +1015,7 @@
 <section class="level4"><h4 id="normal">Normal<a class="anchor" aria-label="anchor" href="#normal"></a>
 </h4>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb29"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb32"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span><span class="va">RT</span> <span class="op">~</span> <span class="fl">1</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span><span class="op">|</span><span class="va">Participant</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">m_normal</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
@@ -979,7 +1028,7 @@
 </section><section class="level4"><h4 id="exgaussian-1">ExGaussian<a class="anchor" aria-label="anchor" href="#exgaussian-1"></a>
 </h4>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb30"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb33"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="fl">1</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span><span class="op">|</span><span class="va">Participant</span><span class="op">)</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="fl">1</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span><span class="op">|</span><span class="va">Participant</span><span class="op">)</span>,</span>

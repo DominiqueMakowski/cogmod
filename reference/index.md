@@ -83,6 +83,7 @@
 
 - [`rcogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
   [`dcogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+  [`pcogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
   [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
   [`cogmod_lognormal_lpdf_expose()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
   [`cogmod_lognormal_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
@@ -92,6 +93,7 @@
   : Shifted LogNormal Model
 - [`rcogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)
   [`dcogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)
+  [`pcogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)
   [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)
   [`cogmod_logstudent_lpdf_expose()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)
   [`cogmod_logstudent_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)
@@ -129,6 +131,7 @@
   : Shifted Ex-Wald Model
 - [`rcogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md)
   [`dcogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md)
+  [`pcogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md)
   [`cogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md)
   [`cogmod_bisa_lpdf_expose()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md)
   [`cogmod_bisa_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md)
@@ -138,6 +141,7 @@
   : Shifted Birnbaum-Saunders (Fatigue Life) Model
 - [`rcogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
   [`dcogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
+  [`pcogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
   [`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
   [`cogmod_gamma_lpdf_expose()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
   [`cogmod_gamma_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
@@ -147,6 +151,7 @@
   : Shifted Gamma Model
 - [`rcogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md)
   [`dcogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md)
+  [`pcogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md)
   [`cogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md)
   [`cogmod_invgamma_lpdf_expose()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md)
   [`cogmod_invgamma_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md)
@@ -156,6 +161,7 @@
   : Shifted Inverse Gamma Model
 - [`rcogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
   [`dcogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
+  [`pcogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
   [`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
   [`cogmod_weibull_lpdf_expose()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
   [`cogmod_weibull_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
@@ -165,6 +171,7 @@
   : Shifted Weibull Model
 - [`rcogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md)
   [`dcogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md)
+  [`pcogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md)
   [`cogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md)
   [`cogmod_logweibull_lpdf_expose()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md)
   [`cogmod_logweibull_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md)
@@ -174,6 +181,7 @@
   : Shifted Log-Weibull Model
 - [`rcogmod_invweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md)
   [`dcogmod_invweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md)
+  [`pcogmod_invweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md)
   [`cogmod_invweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md)
   [`cogmod_invweibull_lpdf_expose()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md)
   [`cogmod_invweibull_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md)
@@ -183,6 +191,7 @@
   : Shifted Inverse Weibull Model
 - [`rcogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
   [`dcogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+  [`pcogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
   [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
   [`cogmod_exgaussian_lpdf_expose()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
   [`cogmod_exgaussian_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)

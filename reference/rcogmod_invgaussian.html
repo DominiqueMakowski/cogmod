@@ -33,7 +33,7 @@ cogmod_invgaussian_stanvars(): Generates the stanvars to pass to brm().
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -47,9 +47,9 @@ cogmod_invgaussian_stanvars(): Generates the stanvars to pass to brm().
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/overview.html">Overview</a></li>
     <li><a class="dropdown-item" href="../articles/subjective_ratings.html">Subjective Ratings</a></li>
     <li><a class="dropdown-item" href="../articles/rt_models.html">RT-only Models</a></li>
-    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/decision_making.html">Decision Making Models</a></li>
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
+    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -251,7 +251,7 @@ is named <code>mu</code>, since <code>brms</code> requires a parameter of that n
 and <code><a href="with_outliers.html">with_outliers()</a></code>, <code><a href="with_outliers.html">without_outliers()</a></code>, <code><a href="p_outlier.html">p_outlier()</a></code> and
 <code><a href="cogmod_priors.html">cogmod_priors()</a></code> all work here too. See <code><a href="rcogmod_lognormal.html">?rcogmod_lognormal</a></code> for why <code>ndt</code> is
 expressed directly in seconds rather than as a fraction of the fastest
-observed response, what the half Student-t outlier component is for, and why
+observed response, what the half Normal outlier component is for, and why
 the outlier component's scale is a constant rather than a <code>dpar</code>, and why
 reaction times have to be in seconds.</p>
 <p>The Wald density vanishes at the shift with all derivatives, like the
@@ -304,6 +304,48 @@ returns <code>Inf</code>, as it does for <code><a href="rcogmod_invgamma.html">c
 median or a quantile instead.</p>
     </div>
     <div class="section level2">
+    <h2 id="censoring-errors-timeouts-and-omissions">Censoring: errors, timeouts and omissions<a class="anchor" aria-label="anchor" href="#censoring-errors-timeouts-and-omissions"></a></h2>
+    <p><code>brms</code>'s <code>cens()</code> addition term works on this family:</p>
+<p></p><div class="sourceCode r"><pre><code><span><span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span><span class="va">rt</span> <span class="op">|</span> <span class="fu">cens</span><span class="op">(</span><span class="va">error</span><span class="op">)</span> <span class="op">~</span> <span class="va">condition</span>, <span class="va">boundary</span> <span class="op">~</span> <span class="va">condition</span>, <span class="va">ndt</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>         sigmadrift <span class="op">=</span> <span class="fl">0</span>, family <span class="op">=</span> <span class="fu"><a href="../reference/rcogmod_invgaussian.html">cogmod_invgaussian</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre><p></p></div>
+<p>A trial with <code>error = 1</code> (or <code>TRUE</code>, or <code>"right"</code>) is then a
+<strong>right-censored</strong> correct response: its RT is read as a lower bound on when
+the correct process would have finished, and it contributes the survival
+<code>P(T &gt; rt)</code> to the likelihood where an observed response contributes the
+density. With <code>sigmadrift = 0</code> this is the <em>censored shifted Wald</em> of Miller
+et al. (2018), the <code>cswald</code> model of the <code>bmm</code> package. Here it is not a
+separate family but a construction: no new parameter, no new syntax, and the
+same <code>cens()</code> works on every RT-only family with a closed-form CDF (see
+<code><a href="rcogmod_lognormal.html">?rcogmod_lognormal</a></code>). Left-censoring (<code>error = -1</code> or <code>"left"</code>) and
+interval-censoring (<code>cens(x, y2)</code>) work the same way, and <code><a href="https://mc-stan.org/rstantools/reference/log_lik.html" class="external-link">log_lik()</a></code> -
+hence <code><a href="https://mc-stan.org/loo/reference/loo.html" class="external-link">loo()</a></code> - honours all three.</p>
+<p>Three things follow from the construction:</p><ul><li><p><strong>What it is for.</strong> A two-accumulator race has to estimate an error
+process, and when errors are few that process is identified by nothing;
+see the <code>driftone</code> discussion in <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>. Censoring has no error
+accumulator to run away, uses the errors' timing instead of discarding
+the trials, and is exactly right - not an approximation - for go/no-go,
+deadline and omission designs, where a non-response genuinely is a
+censored draw from one accumulator.</p></li>
+<li><p><strong>What it assumes.</strong> That an error says nothing about the correct process
+beyond "not finished yet": non-informative censoring. That is false
+wherever errors and correct responses come from one evidence path, which
+is the DDM's picture, and <code><a href="cogmod_priors.html">cogmod_priors()</a></code> warns past 20% censored
+trials, well beyond the high-accuracy regime the model is argued for.</p></li>
+<li><p><strong>The check to run first.</strong> Censoring draws errors from the surviving
+tail, so it can only ever predict them <em>slower</em> than correct responses.
+Fast errors - a low boundary, a biased start point - are unproducible by
+construction. Compare the two RT distributions before fitting; if errors
+are faster, use a race (<code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>, <code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>, <code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>).</p></li>
+</ul><p><code><a href="https://mc-stan.org/rstantools/reference/posterior_predict.html" class="external-link">posterior_predict()</a></code> predicts the latent, uncensored reaction time, as
+<code>brms</code> does for its own families, so <code><a href="https://mc-stan.org/bayesplot/reference/pp_check.html" class="external-link">pp_check()</a></code> on a censored fit compares
+uncensored replicates against data whose censored rows hold <em>censoring</em>
+times. <code>pcogmod_invgaussian(lower.tail = FALSE)</code> is the survival a censored
+trial contributes, and the Stan <code>cogmod_invgaussian_lccdf()</code> in
+<code>cogmod_invgaussian_stanvars()</code> is its counterpart; with <code>sigmadrift &gt; 0</code>
+both take the CDF by quadrature over the drift, the marginal having no
+closed form.</p>
+    </div>
+    <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
 
 <ul><li><p>Michael, J. R., Schucany, W. R., &amp; Haas, R. W. (1976). Generating Random Variates Using
@@ -319,6 +361,10 @@ Statistical Methodology</em>, <em>40</em>(3), 263-275.</p></li>
 <li><p>Tillman, G., Van Zandt, T., &amp; Logan, G. D. (2020). Sequential sampling models without
 random between-trial variability: The racing diffusion model of speeded decision making.
 <em>Psychonomic Bulletin &amp; Review</em>, <em>27</em>(5), 911-936. <a href="https://doi.org/10.3758/s13423-020-01719-6" class="external-link">doi:10.3758/s13423-020-01719-6</a></p></li>
+<li><p>Miller, R., Scherbaum, S., Heck, D. W., Goschke, T., &amp; Enge, S. (2018). On the relation
+between the (censored) shifted Wald and the Wiener distribution as measurement models
+for choice response times. <em>Applied Psychological Measurement</em>, <em>42</em>(2), 116-135.
+<a href="https://doi.org/10.1177/0146621617710465" class="external-link">doi:10.1177/0146621617710465</a></p></li>
 </ul></div>
 
     <div class="section level2">

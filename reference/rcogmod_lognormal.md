@@ -13,6 +13,9 @@ Functions:
 
 - `dcogmod_lognormal()`: Computes the density (likelihood).
 
+- `pcogmod_lognormal()`: Computes the cumulative distribution function
+  (CDF) or survival.
+
 - `cogmod_lognormal()`: Creates a
   [`brms::custom_family()`](https://paulbuerkner.com/brms/reference/custom_family.html)
   for use in `brms` models.
@@ -35,6 +38,16 @@ dcogmod_lognormal(
   ndt = 0.2,
   poutlier = 0,
   log = FALSE
+)
+
+pcogmod_lognormal(
+  q,
+  mu = -0.7,
+  sigma = 0.5,
+  ndt = 0.2,
+  poutlier = 0,
+  lower.tail = TRUE,
+  log.p = FALSE
 )
 
 cogmod_lognormal(
@@ -93,6 +106,20 @@ posterior_epred_cogmod_lognormal(prep, predict_outliers = NULL)
 
   Logical; if TRUE, probabilities p are given as log(p).
 
+- q:
+
+  Vector of quantiles (reaction times, in seconds).
+
+- lower.tail:
+
+  Logical; if TRUE (default), probabilities are `P[X <= q]`, otherwise
+  `P[X > q]` - the survival, which is what a right-censored response
+  contributes to the likelihood (see the *Censoring* section).
+
+- log.p:
+
+  Logical; if TRUE, probabilities p are given as log(p).
+
 - link_mu, link_sigma, link_ndt, link_poutlier:
 
   Link functions for the parameters.
@@ -126,7 +153,9 @@ posterior_epred_cogmod_lognormal(prep, predict_outliers = NULL)
 `rcogmod_lognormal()` returns a numeric vector of `n` simulated reaction
 times, in seconds. `dcogmod_lognormal()` returns the density at each
 element of `x` - the log density if `log = TRUE` - recycled to the
-length of the longest argument. `cogmod_lognormal()` returns a
+length of the longest argument. `pcogmod_lognormal()` returns the
+cumulative probability at each element of `q`, honouring `lower.tail`
+and `log.p`. `cogmod_lognormal()` returns a
 [`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
 object, to put on a
 [`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
@@ -332,6 +361,20 @@ from [`loo()`](https://mc-stan.org/loo/reference/loo.html), not just
 hand-rolled checks - anything that compares a simulated replicate
 against the likelihood should be run on
 [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md).
+
+## Censoring
+
+`brms`'s `cens()` addition term works on this family, and on every other
+RT-only family with a closed-form CDF: `bf(rt | cens(error) ~ ...)`
+scores a censored trial with the mixture's survival -
+`pcogmod_lognormal(lower.tail = FALSE)` - instead of its density, so an
+error trial can be kept as a lower bound on the correct response's time
+rather than dropped. The full account - what it is for, what it assumes,
+and the one check to run before using it - is in the *Censoring* section
+of
+[`rcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
+where the construction is the censored shifted Wald of Miller et al.
+(2018).
 
 ## Examples
 

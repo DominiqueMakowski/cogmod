@@ -14,6 +14,9 @@ Functions:
 
 - `dcogmod_bisa()`: Computes the density (likelihood).
 
+- `pcogmod_bisa()`: Computes the cumulative distribution function (CDF)
+  or survival.
+
 - `cogmod_bisa()`: Creates a
   [`brms::custom_family()`](https://paulbuerkner.com/brms/reference/custom_family.html).
 
@@ -26,6 +29,16 @@ Functions:
 rcogmod_bisa(n, mu = 3, boundary = 0.5, ndt = 0.2, poutlier = 0)
 
 dcogmod_bisa(x, mu = 3, boundary = 0.5, ndt = 0.2, poutlier = 0, log = FALSE)
+
+pcogmod_bisa(
+  q,
+  mu = 3,
+  boundary = 0.5,
+  ndt = 0.2,
+  poutlier = 0,
+  lower.tail = TRUE,
+  log.p = FALSE
+)
 
 cogmod_bisa(
   link_mu = "softplus",
@@ -79,6 +92,20 @@ posterior_epred_cogmod_bisa(prep, predict_outliers = NULL)
   Vector of quantiles (observed reaction times).
 
 - log:
+
+  Logical; if TRUE, probabilities p are given as log(p).
+
+- q:
+
+  Vector of quantiles (reaction times, in seconds).
+
+- lower.tail:
+
+  Logical; if TRUE (default), probabilities are `P[X <= q]`, otherwise
+  `P[X > q]` - the survival, which is what a right-censored response
+  contributes to the likelihood (see the *Censoring* section).
+
+- log.p:
 
   Logical; if TRUE, probabilities p are given as log(p).
 

@@ -6,6 +6,7 @@ outlier process instead of by the decision process.
 Functions:
 rcogmod_gamma(): Simulates random draws.
 dcogmod_gamma(): Computes the density (likelihood).
+pcogmod_gamma(): Computes the cumulative distribution function (CDF) or survival.
 cogmod_gamma(): Creates a brms::custom_family().
 cogmod_gamma_stanvars(): Generates the stanvars to pass to brm().
 
@@ -16,6 +17,7 @@ outlier process instead of by the decision process.
 Functions:
 rcogmod_gamma(): Simulates random draws.
 dcogmod_gamma(): Computes the density (likelihood).
+pcogmod_gamma(): Computes the cumulative distribution function (CDF) or survival.
 cogmod_gamma(): Creates a brms::custom_family().
 cogmod_gamma_stanvars(): Generates the stanvars to pass to brm().
 
@@ -27,7 +29,7 @@ cogmod_gamma_stanvars(): Generates the stanvars to pass to brm().
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -41,9 +43,9 @@ cogmod_gamma_stanvars(): Generates the stanvars to pass to brm().
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/overview.html">Overview</a></li>
     <li><a class="dropdown-item" href="../articles/subjective_ratings.html">Subjective Ratings</a></li>
     <li><a class="dropdown-item" href="../articles/rt_models.html">RT-only Models</a></li>
-    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/decision_making.html">Decision Making Models</a></li>
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
+    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -69,6 +71,7 @@ time <code>ndt</code>, and a fixed proportion <code>poutlier</code> of responses
 outlier process instead of by the decision process.</p>
 <p>Functions:</p><ul><li><p><code>rcogmod_gamma()</code>: Simulates random draws.</p></li>
 <li><p><code>dcogmod_gamma()</code>: Computes the density (likelihood).</p></li>
+<li><p><code>pcogmod_gamma()</code>: Computes the cumulative distribution function (CDF) or survival.</p></li>
 <li><p><code>cogmod_gamma()</code>: Creates a <code><a href="https://paulbuerkner.com/brms/reference/custom_family.html" class="external-link">brms::custom_family()</a></code>.</p></li>
 <li><p><code>cogmod_gamma_stanvars()</code>: Generates the <code>stanvars</code> to pass to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code>.</p></li>
 </ul></div>
@@ -78,6 +81,16 @@ outlier process instead of by the decision process.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">rcogmod_gamma</span><span class="op">(</span><span class="va">n</span>, mu <span class="op">=</span> <span class="fl">3</span>, sigma <span class="op">=</span> <span class="fl">0.15</span>, ndt <span class="op">=</span> <span class="fl">0.2</span>, poutlier <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">dcogmod_gamma</span><span class="op">(</span><span class="va">x</span>, mu <span class="op">=</span> <span class="fl">3</span>, sigma <span class="op">=</span> <span class="fl">0.15</span>, ndt <span class="op">=</span> <span class="fl">0.2</span>, poutlier <span class="op">=</span> <span class="fl">0</span>, log <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">pcogmod_gamma</span><span class="op">(</span></span>
+<span>  <span class="va">q</span>,</span>
+<span>  mu <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  sigma <span class="op">=</span> <span class="fl">0.15</span>,</span>
+<span>  ndt <span class="op">=</span> <span class="fl">0.2</span>,</span>
+<span>  poutlier <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  lower.tail <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  log.p <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">cogmod_gamma</span><span class="op">(</span></span>
 <span>  link_mu <span class="op">=</span> <span class="st">"softplus"</span>,</span>
@@ -132,6 +145,20 @@ distribution reduces to the plain shifted LogNormal.</p></dd>
 
 
 <dt id="arg-log">log<a class="anchor" aria-label="anchor" href="#arg-log"></a></dt>
+<dd><p>Logical; if TRUE, probabilities p are given as log(p).</p></dd>
+
+
+<dt id="arg-q">q<a class="anchor" aria-label="anchor" href="#arg-q"></a></dt>
+<dd><p>Vector of quantiles (reaction times, in seconds).</p></dd>
+
+
+<dt id="arg-lower-tail">lower.tail<a class="anchor" aria-label="anchor" href="#arg-lower-tail"></a></dt>
+<dd><p>Logical; if TRUE (default), probabilities are <code>P[X &lt;= q]</code>,
+otherwise <code>P[X &gt; q]</code> - the survival, which is what a right-censored
+response contributes to the likelihood (see the <em>Censoring</em> section).</p></dd>
+
+
+<dt id="arg-log-p">log.p<a class="anchor" aria-label="anchor" href="#arg-log-p"></a></dt>
 <dd><p>Logical; if TRUE, probabilities p are given as log(p).</p></dd>
 
 
@@ -191,7 +218,7 @@ boundary.</p>
 and <code><a href="with_outliers.html">with_outliers()</a></code>, <code><a href="with_outliers.html">without_outliers()</a></code>, <code><a href="p_outlier.html">p_outlier()</a></code> and
 <code><a href="cogmod_priors.html">cogmod_priors()</a></code> all work here too. See <code><a href="rcogmod_lognormal.html">?rcogmod_lognormal</a></code> for why <code>ndt</code> is
 expressed directly in seconds rather than as a fraction of the fastest
-observed response, what the half Student-t outlier component is for, and why
+observed response, what the half Normal outlier component is for, and why
 the outlier component's scale is a constant rather than a <code>dpar</code>, and why
 reaction times have to be in seconds.</p>
 <p>Note that the Gamma density is <strong>unbounded at <code>ndt</code></strong> whenever the shape

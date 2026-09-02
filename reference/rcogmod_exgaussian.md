@@ -17,6 +17,9 @@ Functions:
 - `dcogmod_exgaussian()`: Computes the density (likelihood) of the
   Ex-Gaussian distribution.
 
+- `pcogmod_exgaussian()`: Computes the cumulative distribution function
+  (CDF) or survival.
+
 - `cogmod_exgaussian()`: Creates a
   [`brms::custom_family()`](https://paulbuerkner.com/brms/reference/custom_family.html)
   for use in `brms` models.
@@ -27,6 +30,15 @@ Functions:
 rcogmod_exgaussian(n, mu = 0.5, sigma = 0.1, tau = 0.2)
 
 dcogmod_exgaussian(x, mu = 0.5, sigma = 0.1, tau = 0.2, log = FALSE)
+
+pcogmod_exgaussian(
+  q,
+  mu = 0.5,
+  sigma = 0.1,
+  tau = 0.2,
+  lower.tail = TRUE,
+  log.p = FALSE
+)
 
 cogmod_exgaussian(
   link_mu = "identity",
@@ -75,6 +87,22 @@ posterior_epred_cogmod_exgaussian(prep)
 
   Logical; if TRUE, probabilities p are given as log(p).
 
+- q:
+
+  Vector of quantiles (reaction times, in seconds).
+
+- lower.tail:
+
+  Logical; if TRUE (default), probabilities are `P[X <= q]`, otherwise
+  `P[X > q]` - the survival, which is what a right-censored response
+  contributes to the likelihood under `brms::bf(rt | cens(x) ~ ...)`.
+  See the *Censoring* section of
+  [`rcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md).
+
+- log.p:
+
+  Logical; if TRUE, probabilities p are given as log(p).
+
 - link_mu, link_sigma, link_tau:
 
   Character of the type of link used to model the ex-Gaussian
@@ -95,7 +123,9 @@ posterior_epred_cogmod_exgaussian(prep)
 `rcogmod_exgaussian()` returns a numeric vector of `n` simulated
 reaction times, in seconds. `dcogmod_exgaussian()` returns the density
 at each element of `x` - the log density if `log = TRUE` - recycled to
-the length of the longest argument. `cogmod_exgaussian()` returns a
+the length of the longest argument. `pcogmod_exgaussian()` returns the
+cumulative probability at each element of `q`, honouring `lower.tail`
+and `log.p`. `cogmod_exgaussian()` returns a
 [`brms::custom_family`](https://paulbuerkner.com/brms/reference/custom_family.html)
 object, to put on a
 [`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)

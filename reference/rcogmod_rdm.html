@@ -39,7 +39,7 @@ p_outlier(): Per-trial posterior probability of being an outlier.
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -53,9 +53,9 @@ p_outlier(): Per-trial posterior probability of being an outlier.
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/overview.html">Overview</a></li>
     <li><a class="dropdown-item" href="../articles/subjective_ratings.html">Subjective Ratings</a></li>
     <li><a class="dropdown-item" href="../articles/rt_models.html">RT-only Models</a></li>
-    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/decision_making.html">Decision Making Models</a></li>
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
+    <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -394,10 +394,11 @@ has to produce both. It is a guess: the choice is uniform over the two
 options, and the RT is a <strong>half Normal</strong> with scale <code>0.2</code> seconds.</p>
 <p>$$f(t, k) = p \frac{1}{K} g(t) + (1 - p) f_k(t - ndt)$$</p>
 <p>The <code>1 / K</code> is what keeps the total summing to one over the response options;
-without it it would come to <code>1 + poutlier</code>. The half-t is used for the timing
-because it is <strong>flat at the origin</strong> (zero derivative), so the very fastest
-responses - the ones least plausibly decisions - are not starved of density,
-and because its tails are heavy enough to cover the whole plausible RT range.</p>
+without it it would come to <code>1 + poutlier</code>. The half Normal is used for the
+timing because it is <strong>flat at the origin</strong> (zero derivative), so the very
+fastest responses - the ones least plausibly decisions - are not starved of
+density, and because it dies fast enough above that range to leave the slow
+tail to the race itself rather than claiming it.</p>
 <p><code>poutlier</code> is a <em>rate</em>, not a classification: the model never labels
 individual trials, it estimates what share of them came from elsewhere. Use
 <code><a href="p_outlier.html">p_outlier()</a></code> for per-trial posterior probabilities.</p>
