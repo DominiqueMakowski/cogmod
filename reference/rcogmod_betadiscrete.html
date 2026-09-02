@@ -270,15 +270,15 @@ data. Environmental and Ecological Statistics, 31, 317-338.
 <span class="r-in"><span><span class="fu">dcogmod_betadiscrete</span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">5</span>, mu <span class="op">=</span> <span class="fl">0.66</span>, phi <span class="op">=</span> <span class="fl">3.51</span>, k <span class="op">=</span> <span class="fl">5</span>, pzero <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.200000000 0.003364066 0.058336907 0.213310091 0.343484931 0.181504005</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># \donttest{</span></span></span>
-<span class="r-in"><span><span class="co"># Exposing the Stan function needs cmdstanr and a CmdStan toolchain,</span></span></span>
-<span class="r-in"><span><span class="co"># which live outside CRAN - see the package website to install them.</span></span></span>
-<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"cmdstanr"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span></span></span>
-<span class="r-in"><span>    <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="fu">cmdstanr</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/cmdstanr/reference/set_cmdstan_path.html" class="external-link">cmdstan_version</a></span><span class="op">(</span>error_on_NA <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span></span>
-<span class="r-in"><span>  <span class="va">lpmf</span> <span class="op">&lt;-</span> <span class="fu">cogmod_betadiscrete_lpmf_expose</span><span class="op">(</span><span class="op">)</span></span></span>
-<span class="r-in"><span>  <span class="fu">lpmf</span><span class="op">(</span>y <span class="op">=</span> <span class="fl">7</span>, mu <span class="op">=</span> <span class="fl">0.66</span>, phi <span class="op">=</span> <span class="fl">3.51</span>, pzero <span class="op">=</span> <span class="fl">0</span>, k <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">}</span></span></span>
-<span class="r-in"><span><span class="co"># }</span></span></span>
+<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
+<span class="r-in"><span><span class="co"># Needs cmdstanr and a CmdStan toolchain, which live outside CRAN - see the</span></span></span>
+<span class="r-in"><span><span class="co"># package website to install them. Not run under R CMD check, which executes</span></span></span>
+<span class="r-in"><span><span class="co"># every example in one R session: once brms has fitted a model there (the</span></span></span>
+<span class="r-in"><span><span class="co"># cogmod_inits() and p_outlier() examples do), rstan is live in the process</span></span></span>
+<span class="r-in"><span><span class="co"># and loading an exposed Stan function next to it segfaults on Linux.</span></span></span>
+<span class="r-in"><span><span class="va">lpmf</span> <span class="op">&lt;-</span> <span class="fu">cogmod_betadiscrete_lpmf_expose</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">lpmf</span><span class="op">(</span>y <span class="op">=</span> <span class="fl">7</span>, mu <span class="op">=</span> <span class="fl">0.66</span>, phi <span class="op">=</span> <span class="fl">3.51</span>, pzero <span class="op">=</span> <span class="fl">0</span>, k <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Fitting with brms. Because `k` is fixed data rather than a distributional</span></span></span>
 <span class="r-in"><span><span class="co"># parameter, it is passed through the brms::vint() addition term. Put the</span></span></span>
