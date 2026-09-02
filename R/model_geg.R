@@ -363,6 +363,21 @@ real cogmod_geg_lpdf(real Y, real mu, real sigma, real tau, real shape) {
          + (shape - 1) * exp_mod_normal_lcdf(Y | mu, sigma, lambda)
          + exp_mod_normal_lpdf(Y | mu, sigma, lambda);
 }
+
+// CDF and survival, for brms's cens() addition term (see ?rcogmod_invgaussian
+// for what censoring a reaction time means). log F_GEG = shape * log F_EG is
+// the construction itself; the survival has no positive-terms form of its own,
+// so it is the log1m_exp of that.
+real cogmod_geg_lcdf(real Y, real mu, real sigma, real tau, real shape) {
+    if (sigma <= 0 || tau <= 0 || shape <= 0) return negative_infinity();
+    return shape * exp_mod_normal_lcdf(Y | mu, sigma, inv(tau));
+}
+
+real cogmod_geg_lccdf(real Y, real mu, real sigma, real tau, real shape) {
+    if (sigma <= 0 || tau <= 0 || shape <= 0) return negative_infinity();
+    real lF = shape * exp_mod_normal_lcdf(Y | mu, sigma, inv(tau));
+    return lF < 0 ? log1m_exp(lF) : negative_infinity();
+}
 "
 }
 
@@ -426,10 +441,23 @@ log_lik_cogmod_geg <- function(i, prep) {
     ll <- rep(-Inf, n_draws)
     if (!all(bad)) {
         k <- !bad
-        ll[k] <- base::log(shape[k]) +
-            (shape[k] - 1) *
-                .lcdf_exgaussian(y_vec[k], mu[k], sigma[k], tau[k]) +
-            dcogmod_exgaussian(y_vec[k], mu[k], sigma[k], tau[k], log = TRUE)
+        # .censor_ll() honours a `cens()` term on the formula, which brms
+        # leaves to a custom family's own log_lik method.
+        ll[k] <- .censor_ll(
+            prep, i, y,
+            ldens = function(y) {
+                yv <- rep(y, length.out = sum(k))
+                base::log(shape[k]) +
+                    (shape[k] - 1) *
+                        .lcdf_exgaussian(yv, mu[k], sigma[k], tau[k]) +
+                    dcogmod_exgaussian(yv, mu[k], sigma[k], tau[k], log = TRUE)
+            },
+            lcdf = function(y, lower.tail) {
+                yv <- rep(y, length.out = sum(k))
+                lp <- shape[k] * .lcdf_exgaussian(yv, mu[k], sigma[k], tau[k])
+                if (lower.tail) lp else .log1mexp(lp)
+            }
+        )
     }
 
     ll[is.nan(ll) | is.na(ll)] <- -Inf

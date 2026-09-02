@@ -162,7 +162,7 @@ is named \code{mu}, since \code{brms} requires a parameter of that name.
 and \code{\link[=with_outliers]{with_outliers()}}, \code{\link[=without_outliers]{without_outliers()}}, \code{\link[=p_outlier]{p_outlier()}} and
 \code{\link[=cogmod_priors]{cogmod_priors()}} all work here too. See \code{?rcogmod_lognormal} for why \code{ndt} is
 expressed directly in seconds rather than as a fraction of the fastest
-observed response, what the half Student-t outlier component is for, and why
+observed response, what the half Normal outlier component is for, and why
 the outlier component's scale is a constant rather than a \code{dpar}, and why
 reaction times have to be in seconds.
 
@@ -222,6 +222,56 @@ returns \code{Inf}, as it does for \code{\link[=cogmod_invgamma]{cogmod_invgamma
 median or a quantile instead.
 }
 
+\section{Censoring: errors, timeouts and omissions}{
+\code{brms}'s \code{cens()} addition term works on this family:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{brms::bf(rt | cens(error) ~ condition, boundary ~ condition, ndt ~ 1,
+         sigmadrift = 0, family = cogmod_invgaussian())
+}\if{html}{\out{</div>}}
+
+A trial with \code{error = 1} (or \code{TRUE}, or \code{"right"}) is then a
+\strong{right-censored} correct response: its RT is read as a lower bound on when
+the correct process would have finished, and it contributes the survival
+\code{P(T > rt)} to the likelihood where an observed response contributes the
+density. With \code{sigmadrift = 0} this is the \emph{censored shifted Wald} of Miller
+et al. (2018), the \code{cswald} model of the \code{bmm} package. Here it is not a
+separate family but a construction: no new parameter, no new syntax, and the
+same \code{cens()} works on every RT-only family with a closed-form CDF (see
+\code{?rcogmod_lognormal}). Left-censoring (\code{error = -1} or \code{"left"}) and
+interval-censoring (\code{cens(x, y2)}) work the same way, and \code{log_lik()} -
+hence \code{loo()} - honours all three.
+
+Three things follow from the construction:
+\itemize{
+\item \strong{What it is for.} A two-accumulator race has to estimate an error
+process, and when errors are few that process is identified by nothing;
+see the \code{driftone} discussion in \code{\link[=cogmod_rdm]{cogmod_rdm()}}. Censoring has no error
+accumulator to run away, uses the errors' timing instead of discarding
+the trials, and is exactly right - not an approximation - for go/no-go,
+deadline and omission designs, where a non-response genuinely is a
+censored draw from one accumulator.
+\item \strong{What it assumes.} That an error says nothing about the correct process
+beyond "not finished yet": non-informative censoring. That is false
+wherever errors and correct responses come from one evidence path, which
+is the DDM's picture, and \code{\link[=cogmod_priors]{cogmod_priors()}} warns past 20\% censored
+trials, well beyond the high-accuracy regime the model is argued for.
+\item \strong{The check to run first.} Censoring draws errors from the surviving
+tail, so it can only ever predict them \emph{slower} than correct responses.
+Fast errors - a low boundary, a biased start point - are unproducible by
+construction. Compare the two RT distributions before fitting; if errors
+are faster, use a race (\code{\link[=cogmod_rdm]{cogmod_rdm()}}, \code{\link[=cogmod_lba2]{cogmod_lba2()}}, \code{\link[=cogmod_ddm]{cogmod_ddm()}}).
+}
+
+\code{posterior_predict()} predicts the latent, uncensored reaction time, as
+\code{brms} does for its own families, so \code{pp_check()} on a censored fit compares
+uncensored replicates against data whose censored rows hold \emph{censoring}
+times. \code{pcogmod_invgaussian(lower.tail = FALSE)} is the survival a censored
+trial contributes, and the Stan \code{cogmod_invgaussian_lccdf()} in
+\code{\link[=cogmod_invgaussian_stanvars]{cogmod_invgaussian_stanvars()}} is its counterpart; with \code{sigmadrift > 0}
+both take the CDF by quadrature over the drift, the marginal having no
+closed form.
+}
+
 \examples{
 # Simulate 1000 RTs with 2\% outliers
 rts <- rcogmod_invgaussian(1000, drift = 3, boundary = 0.5, ndt = 0.2, poutlier = 0.02)
@@ -253,5 +303,9 @@ Statistical Methodology}, \emph{40}(3), 263-275.
 \item Tillman, G., Van Zandt, T., & Logan, G. D. (2020). Sequential sampling models without
 random between-trial variability: The racing diffusion model of speeded decision making.
 \emph{Psychonomic Bulletin & Review}, \emph{27}(5), 911-936. \doi{10.3758/s13423-020-01719-6}
+\item Miller, R., Scherbaum, S., Heck, D. W., Goschke, T., & Enge, S. (2018). On the relation
+between the (censored) shifted Wald and the Wiener distribution as measurement models
+for choice response times. \emph{Applied Psychological Measurement}, \emph{42}(2), 116-135.
+\doi{10.1177/0146621617710465}
 }
 }

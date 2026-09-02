@@ -294,6 +294,12 @@ cogmod_priors <- function(formula, data, ...) {
   family <- .cogmod_family(formula)
   fam <- .family_name(family)
 
+  # Before anything else: is the response the kind of thing this family can be
+  # given at all? Milliseconds are the common case and they are silent - see the
+  # header of cogmod_checkdata.R for why this runs here rather than in one of
+  # the other two generics.
+  .cogmod_checkdata(formula, data, family)
+
   if (isTRUE(fam %in% .OUTLIER_FAMILIES)) {
     out <- .priors_shifted(formula, data, family, ...)
   } else if (isTRUE(fam %in% names(.PRIORS_PLAIN))) {

@@ -3,6 +3,7 @@
 \name{rcogmod_lognormal}
 \alias{rcogmod_lognormal}
 \alias{dcogmod_lognormal}
+\alias{pcogmod_lognormal}
 \alias{cogmod_lognormal}
 \alias{cogmod_lognormal_lpdf_expose}
 \alias{cogmod_lognormal_stanvars}
@@ -20,6 +21,16 @@ dcogmod_lognormal(
   ndt = 0.2,
   poutlier = 0,
   log = FALSE
+)
+
+pcogmod_lognormal(
+  q,
+  mu = -0.7,
+  sigma = 0.5,
+  ndt = 0.2,
+  poutlier = 0,
+  lower.tail = TRUE,
+  log.p = FALSE
 )
 
 cogmod_lognormal(
@@ -62,6 +73,14 @@ distribution reduces to the plain shifted LogNormal.}
 
 \item{log}{Logical; if TRUE, probabilities p are given as log(p).}
 
+\item{q}{Vector of quantiles (reaction times, in seconds).}
+
+\item{lower.tail}{Logical; if TRUE (default), probabilities are \code{P[X <= q]},
+otherwise \code{P[X > q]} - the survival, which is what a right-censored
+response contributes to the likelihood (see the \emph{Censoring} section).}
+
+\item{log.p}{Logical; if TRUE, probabilities p are given as log(p).}
+
 \item{link_mu, link_sigma, link_ndt, link_poutlier}{Link functions for the
 parameters.}
 
@@ -81,7 +100,9 @@ default is \code{NULL}, which defers to the flag carried on the model - see
 \code{rcogmod_lognormal()} returns a numeric vector of \code{n} simulated
 reaction times, in seconds. \code{dcogmod_lognormal()} returns the density at
 each element of \code{x} - the log density if \code{log = TRUE} - recycled to the
-length of the longest argument. \code{cogmod_lognormal()} returns a
+length of the longest argument. \code{pcogmod_lognormal()} returns the
+cumulative probability at each element of \code{q}, honouring \code{lower.tail} and
+\code{log.p}. \code{cogmod_lognormal()} returns a
 \code{brms::custom_family} object, to put on a \code{brms::bf()} formula.
 \code{cogmod_lognormal_stanvars()} returns a \code{brms::stanvars} object holding
 the family's Stan \code{functions} block, to pass to \code{brms::brm()}, and
@@ -105,6 +126,7 @@ Functions:
 \itemize{
 \item \code{rcogmod_lognormal()}: Simulates random draws from the shifted LogNormal model.
 \item \code{dcogmod_lognormal()}: Computes the density (likelihood).
+\item \code{pcogmod_lognormal()}: Computes the cumulative distribution function (CDF) or survival.
 \item \code{cogmod_lognormal()}: Creates a \code{brms::custom_family()} for use in \code{brms} models.
 \item \code{cogmod_lognormal_stanvars()}: Generates the \code{stanvars} to pass to \code{brm()}.
 \item \code{p_outlier()}: Per-trial posterior probability of being an outlier.
@@ -263,6 +285,16 @@ do not describe the same distribution by default. This also desyncs
 \code{loo_pit()}, \code{loo_predict()} and \code{bayes_R2()} from \code{loo()}, not just
 hand-rolled checks - anything that compares a simulated replicate against the
 likelihood should be run on \code{\link[=with_outliers]{with_outliers()}}.
+}
+
+\section{Censoring}{
+\code{brms}'s \code{cens()} addition term works on this family, and on every other
+RT-only family with a closed-form CDF: \code{bf(rt | cens(error) ~ ...)} scores a
+censored trial with the mixture's survival - \code{pcogmod_lognormal(lower.tail = FALSE)} - instead of its density, so an error trial can be kept as a lower
+bound on the correct response's time rather than dropped. The full account -
+what it is for, what it assumes, and the one check to run before using it -
+is in the \emph{Censoring} section of \code{\link[=rcogmod_invgaussian]{rcogmod_invgaussian()}}, where the
+construction is the censored shifted Wald of Miller et al. (2018).
 }
 
 \examples{

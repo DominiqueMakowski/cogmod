@@ -9,6 +9,7 @@
 #' Functions:
 #' - `rcogmod_lognormal()`: Simulates random draws from the shifted LogNormal model.
 #' - `dcogmod_lognormal()`: Computes the density (likelihood).
+#' - `pcogmod_lognormal()`: Computes the cumulative distribution function (CDF) or survival.
 #' - `cogmod_lognormal()`: Creates a `brms::custom_family()` for use in `brms` models.
 #' - `cogmod_lognormal_stanvars()`: Generates the `stanvars` to pass to `brm()`.
 #' - `p_outlier()`: Per-trial posterior probability of being an outlier.
@@ -173,6 +174,17 @@
 #' hand-rolled checks - anything that compares a simulated replicate against the
 #' likelihood should be run on [with_outliers()].
 #'
+#' # Censoring
+#'
+#' `brms`'s `cens()` addition term works on this family, and on every other
+#' RT-only family with a closed-form CDF: `bf(rt | cens(error) ~ ...)` scores a
+#' censored trial with the mixture's survival - `pcogmod_lognormal(lower.tail =
+#' FALSE)` - instead of its density, so an error trial can be kept as a lower
+#' bound on the correct response's time rather than dropped. The full account -
+#' what it is for, what it assumes, and the one check to run before using it -
+#' is in the *Censoring* section of [rcogmod_invgaussian()], where the
+#' construction is the censored shifted Wald of Miller et al. (2018).
+#'
 #' @param n Number of observations. If `length(n) > 1`, the length is taken to be
 #'   the number required.
 #' @param mu Mean of the decision time on the log scale (`meanlog`). Can take any
@@ -188,7 +200,9 @@
 #' @return `rcogmod_lognormal()` returns a numeric vector of `n` simulated
 #'   reaction times, in seconds. `dcogmod_lognormal()` returns the density at
 #'   each element of `x` - the log density if `log = TRUE` - recycled to the
-#'   length of the longest argument. `cogmod_lognormal()` returns a
+#'   length of the longest argument. `pcogmod_lognormal()` returns the
+#'   cumulative probability at each element of `q`, honouring `lower.tail` and
+#'   `log.p`. `cogmod_lognormal()` returns a
 #'   `brms::custom_family` object, to put on a `brms::bf()` formula.
 #'   `cogmod_lognormal_stanvars()` returns a `brms::stanvars` object holding
 #'   the family's Stan `functions` block, to pass to `brms::brm()`, and
@@ -230,6 +244,20 @@ dcogmod_lognormal <- function(x, mu = -0.7, sigma = 0.5, ndt = 0.2,
                               poutlier = 0, log = FALSE) {
   .dshifted("cogmod_lognormal", x = x, ndt = ndt, poutlier = poutlier,
             log = log, mu = mu, sigma = sigma)
+}
+
+
+#' @rdname rcogmod_lognormal
+#' @param q Vector of quantiles (reaction times, in seconds).
+#' @param lower.tail Logical; if TRUE (default), probabilities are `P[X <= q]`,
+#'   otherwise `P[X > q]` - the survival, which is what a right-censored
+#'   response contributes to the likelihood (see the *Censoring* section).
+#' @param log.p Logical; if TRUE, probabilities p are given as log(p).
+#' @export
+pcogmod_lognormal <- function(q, mu = -0.7, sigma = 0.5, ndt = 0.2,
+                              poutlier = 0, lower.tail = TRUE, log.p = FALSE) {
+  .pshifted("cogmod_lognormal", q = q, ndt = ndt, poutlier = poutlier,
+            lower.tail = lower.tail, log.p = log.p, mu = mu, sigma = sigma)
 }
 
 

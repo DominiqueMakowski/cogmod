@@ -12,6 +12,7 @@
 #' Functions:
 #' - `rcogmod_exgaussian()`: Simulates random draws from the Ex-Gaussian distribution.
 #' - `dcogmod_exgaussian()`: Computes the density (likelihood) of the Ex-Gaussian distribution.
+#' - `pcogmod_exgaussian()`: Computes the cumulative distribution function (CDF) or survival.
 #' - `cogmod_exgaussian()`: Creates a `brms::custom_family()` for use in `brms` models.
 #'
 #' @details
@@ -75,7 +76,9 @@
 #' @return `rcogmod_exgaussian()` returns a numeric vector of `n` simulated
 #'   reaction times, in seconds. `dcogmod_exgaussian()` returns the density at
 #'   each element of `x` - the log density if `log = TRUE` - recycled to the
-#'   length of the longest argument. `cogmod_exgaussian()` returns a
+#'   length of the longest argument. `pcogmod_exgaussian()` returns the
+#'   cumulative probability at each element of `q`, honouring `lower.tail` and
+#'   `log.p`. `cogmod_exgaussian()` returns a
 #'   `brms::custom_family` object, to put on a `brms::bf()` formula.
 #'   `cogmod_exgaussian_stanvars()` returns a `brms::stanvars` object holding
 #'   the family's Stan `functions` block, to pass to `brms::brm()`, and
@@ -149,7 +152,48 @@ dcogmod_exgaussian <- function(x, mu = 0.5, sigma = 0.1, tau = 0.2, log = FALSE)
 }
 
 
+#' @rdname rcogmod_exgaussian
+#' @param q Vector of quantiles (reaction times, in seconds).
+#' @param lower.tail Logical; if TRUE (default), probabilities are `P[X <= q]`,
+#'   otherwise `P[X > q]` - the survival, which is what a right-censored
+#'   response contributes to the likelihood under `brms::bf(rt | cens(x) ~ ...)`.
+#'   See the *Censoring* section of [rcogmod_invgaussian()].
+#' @param log.p Logical; if TRUE, probabilities p are given as log(p).
+#' @export
+pcogmod_exgaussian <- function(q, mu = 0.5, sigma = 0.1, tau = 0.2,
+                               lower.tail = TRUE, log.p = FALSE) {
+    params <- .prepare_exgaussian(x = q, n = NULL, mu = mu, sigma = sigma,
+                                  tau = tau)
+    lp <- if (lower.tail) {
+        .lcdf_exgaussian(params$x, params$mu, params$sigma, params$tau)
+    } else {
+        .lsurv_exgaussian(params$x, params$mu, params$sigma, params$tau)
+    }
+    if (log.p) lp else exp(lp)
+}
+
+
 # Internals ---------------------------------------------------------------
+
+# log survival of the ex-Gaussian, as the sum of its two positive terms
+#
+#   S(x) = Phi(-z) + exp(sigma^2 / (2 tau^2) - (x - mu) / tau) * Phi(z - sigma / tau)
+#
+# rather than log(1 - F). The counterpart of .lcdf_exgaussian() (model_geg.R),
+# which takes the left tail through the same two terms subtracted; each one is
+# written in the tail where its terms do not cancel. Mirrors the Stan
+# cogmod_exgaussian_lccdf().
+#' @keywords internal
+.lsurv_exgaussian <- function(x, mu, sigma, tau) {
+    z <- (x - mu) / sigma
+    la <- stats::pnorm(-z, log.p = TRUE)
+    lb <- sigma^2 / (2 * tau^2) - (x - mu) / tau +
+        stats::pnorm(z - sigma / tau, log.p = TRUE)
+    m <- pmax(la, lb)
+    out <- m + log(exp(la - m) + exp(lb - m))
+    out[!is.finite(m)] <- -Inf
+    pmin(out, 0)
+}
 
 #' @keywords internal
 .prepare_exgaussian <- function(x = NULL, n = NULL, mu, sigma, tau) {
@@ -236,6 +280,27 @@ real cogmod_exgaussian_lpdf(real Y, real mu, real sigma, real tau) {
     // exponential component (beta = 1 / tau)
     return exp_mod_normal_lpdf(Y | mu, sigma, inv(tau));
 }
+
+// CDF and survival of the same distribution, for brms's cens() addition term
+// (see ?rcogmod_invgaussian for what censoring a reaction time means). The
+// survival is written as the sum of its two POSITIVE terms,
+//   S(x) = Phi(-z) + exp(sigma^2 / (2 tau^2) - (x - mu) / tau) Phi(z - sigma / tau),
+// rather than as log1m_exp(lcdf): a right-censored slow response sits exactly
+// where 1 - F has no digits left.
+real cogmod_exgaussian_lcdf(real Y, real mu, real sigma, real tau) {
+    if (sigma <= 0 || tau <= 0) return negative_infinity();
+    return exp_mod_normal_lcdf(Y | mu, sigma, inv(tau));
+}
+
+real cogmod_exgaussian_lccdf(real Y, real mu, real sigma, real tau) {
+    if (sigma <= 0 || tau <= 0) return negative_infinity();
+    real z = (Y - mu) / sigma;
+    return log_sum_exp(
+      std_normal_lcdf(-z),
+      square(sigma) / (2 * square(tau)) - (Y - mu) / tau
+        + std_normal_lcdf(z - sigma / tau)
+    );
+}
 "
 }
 
@@ -296,17 +361,32 @@ log_lik_cogmod_exgaussian <- function(i, prep) {
 
     # Log-density of the classical Ex-Gaussian (Gaussian convolved with exponential),
     # computed on the log scale for numerical stability. Equivalent to Stan's
-    # exp_mod_normal_lpdf(y | mu, sigma, 1 / tau).
-    ll <- -log(tau) +
-        (mu / tau) +
-        (sigma^2) / (2 * tau^2) -
-        (y_vec / tau) +
-        stats::pnorm(
-            y_vec,
-            mean = mu + (sigma^2) / tau,
-            sd = sigma,
-            log.p = TRUE
-        )
+    # exp_mod_normal_lpdf(y | mu, sigma, 1 / tau). Wrapped in .censor_ll() so
+    # that a `cens()` term on the formula is honoured here the way it is in the
+    # Stan program - brms leaves that to the custom family's own method.
+    ll <- .censor_ll(
+        prep, i, y,
+        ldens = function(y) {
+            -log(tau) +
+                (mu / tau) +
+                (sigma^2) / (2 * tau^2) -
+                (y_vec / tau) +
+                stats::pnorm(
+                    y_vec,
+                    mean = mu + (sigma^2) / tau,
+                    sd = sigma,
+                    log.p = TRUE
+                )
+        },
+        lcdf = function(y, lower.tail) {
+            yv <- rep(y, length.out = n_draws)
+            if (lower.tail) {
+                .lcdf_exgaussian(yv, mu, sigma, tau)
+            } else {
+                .lsurv_exgaussian(yv, mu, sigma, tau)
+            }
+        }
+    )
 
     # Ensure correct handling for invalid parameters
     ll[sigma <= 0 | tau <= 0] <- -Inf

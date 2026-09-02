@@ -3,14 +3,14 @@
 #
 # The counterpart of core_shifted.R for the models that produce a *choice* as
 # well as a reaction time. The structure is the same - a decision-time
-# distribution shifted by `ndt`, mixed with a half Student-t outlier component
+# distribution shifted by `ndt`, mixed with a half Normal outlier component
 # of weight `poutlier` and a fixed scale - with one genuine difference, which is
 # why these cannot simply be added to `.SHIFTED`.
 #
 # A choice model has a *defective* density per response option `k`, with
 # `sum_k integral f_k(t) dt = 1`. A contaminant process therefore has to produce
 # a choice as well as an RT. The construction used here is a guess: the choice
-# is uniform over the `K` options and the RT comes from the same half Student-t
+# is uniform over the `K` options and the RT comes from the same half Normal
 # as in the RT-only families.
 #
 #   f(t, k) = poutlier * (1 / K) * g(t) + (1 - poutlier) * f_k(t - ndt)
@@ -497,7 +497,7 @@
 //
 // The 1 / %s is what keeps the total density summing to one over the response
 // options; without it it comes to 1 + poutlier. The leading constant below
-// carries it, along with the normalising constant of the Student-t and the
+// carries it, along with the normalising constant of the Normal and the
 // log(2) that folds it onto [0, Inf) - all of them constant, so writing them
 // out saves Stan recomputing them for every observation on every leapfrog step.
 %sreal %s_lpdf(%s) {
@@ -662,7 +662,7 @@
 }
 
 
-# Log-density of the outlier component: the half-t, thinned by the K options the
+# Log-density of the outlier component: the half Normal, thinned by the K options
 # guess is spread over.
 #' @keywords internal
 .lout_choice <- function(x, K) {

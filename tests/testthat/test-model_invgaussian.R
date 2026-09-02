@@ -138,9 +138,13 @@ test_that("pcogmod_invgaussian matches rcogmod_invgaussian and has correct prope
         valid_idx <- p_values > 0
         expect_equal(p_log[valid_idx], log(p_values[valid_idx]), tolerance = 1e-7,
                      label = paste(label, "- CDF log.p=TRUE"))
-        # Check that where p_values is 0, log.p is -Inf
-        expect_true(all(p_log[!valid_idx] == -Inf),
-                    label = paste(label, "- CDF log.p=TRUE gives -Inf for p=0"))
+        # Where the probability underflows to 0, the log-scale answer is not
+        # -Inf but the actual log-probability: just above the shift the Wald CDF
+        # is of order exp(-boundary^2 / (2 t)), and log.p = TRUE exists precisely
+        # so that a number like -500 survives. Below the log of the smallest
+        # double is the only thing to require of it.
+        expect_true(all(p_log[!valid_idx] < log(.Machine$double.xmin)),
+                    label = paste(label, "- CDF log.p=TRUE stays on the log scale for p=0"))
 
       }
     }

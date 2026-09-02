@@ -3,6 +3,7 @@
 \name{rcogmod_logstudent}
 \alias{rcogmod_logstudent}
 \alias{dcogmod_logstudent}
+\alias{pcogmod_logstudent}
 \alias{cogmod_logstudent}
 \alias{cogmod_logstudent_lpdf_expose}
 \alias{cogmod_logstudent_stanvars}
@@ -21,6 +22,17 @@ dcogmod_logstudent(
   ndt = 0.2,
   poutlier = 0,
   log = FALSE
+)
+
+pcogmod_logstudent(
+  q,
+  mu = -0.7,
+  sigma = 0.4,
+  dof = 5,
+  ndt = 0.2,
+  poutlier = 0,
+  lower.tail = TRUE,
+  log.p = FALSE
 )
 
 cogmod_logstudent(
@@ -65,6 +77,14 @@ distribution reduces to the plain shifted LogNormal.}
 
 \item{log}{Logical; if TRUE, probabilities p are given as log(p).}
 
+\item{q}{Vector of quantiles (reaction times, in seconds).}
+
+\item{lower.tail}{Logical; if TRUE (default), probabilities are \code{P[X <= q]},
+otherwise \code{P[X > q]} - the survival, which is what a right-censored
+response contributes to the likelihood (see the \emph{Censoring} section).}
+
+\item{log.p}{Logical; if TRUE, probabilities p are given as log(p).}
+
 \item{link_mu, link_sigma, link_dof, link_ndt, link_poutlier}{Link functions for
 the parameters.}
 
@@ -108,6 +128,7 @@ Functions:
 \itemize{
 \item \code{rcogmod_logstudent()}: Simulates random draws.
 \item \code{dcogmod_logstudent()}: Computes the density (likelihood).
+\item \code{pcogmod_logstudent()}: Computes the cumulative distribution function (CDF) or survival.
 \item \code{cogmod_logstudent()}: Creates a \code{brms::custom_family()}.
 \item \code{cogmod_logstudent_stanvars()}: Generates the \code{stanvars} to pass to \code{brm()}.
 }

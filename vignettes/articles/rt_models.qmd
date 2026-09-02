@@ -7,7 +7,6 @@ knitr:
 format:
   html:
     toc: true
-    depth: 4
 editor_options:
   chunk_output_type: console
 ---
@@ -174,7 +173,7 @@ ggplot(df, aes(x = RT, fill = Condition)) +
   theme_minimal()
 ```
 
-## Models
+## Main Models
 
 ### Normal (Gaussian)
 
@@ -539,6 +538,7 @@ saveRDS(m_wald, file = "../models/m_wald.rds")
 
 
 
+
 ### Linear Ballistic Accumulator
 
 The LBA is normally a *race*: one accumulator per response option, each rising
@@ -616,7 +616,7 @@ saveRDS(m_lba, file = "../models/m_lba1.rds")
 
 
 
-### Other Models
+## Other Models
 
 Note that the families presented below have not been used nearly as
 often in the RT literature as the ones above, and their properties in this
@@ -625,7 +625,7 @@ of generating close fits to RT data, and more research is needed to establish
 whether they offer any real advantage - in terms of fit, of interpretability,
 or of computational behaviour - over the more established options.
 
-#### Recinormal (LATER)
+### Recinormal (LATER)
 
 The **recinormal** (reciprocal-of-normal) distribution is at the basis of the
 **LATER** model - Linear Approach To Threshold with Ergodic Rate: if the rate of
@@ -705,7 +705,7 @@ saveRDS(m_recinormal, file = "../models/m_recinormal.rds")
 ```
 
 
-#### Wald-4
+### Wald-4
 
 This mode corresponds to the Shifted Wald model with an extra parameter corresponding to the variability of the drift rate. That extra parameter makes it a **hybrid of the Wald and LATER models**: it is the only one here carrying *both* sources of randomness.
 The Wald has moment-to-moment noise within the trial and a drift rate that is
@@ -753,7 +753,7 @@ saveRDS(m_wald4, file = "../models/m_wald4.rds")
 ```
 
 
-#### ExWald
+### ExWald
 
 
 ```{r}
@@ -787,7 +787,103 @@ saveRDS(m_exwald, file = "../models/m_exwald.rds")
 ```
 
 
-#### Birnbaum-Saunders (BiSa)
+### Censored Shifted Wald
+
+Every model so far was fitted to the correct responses alone, on the argument
+that errors come from a different generative process. Dropping them is not
+free, though: it conditions on the correct process having *won*, which
+truncates its slow tail - the trials on which a slow correct response was
+coming are exactly the trials on which an error got in first. The **censored shifted Wald** (Miller et al., [2018](https://doi.org/10.1177/0146621617710465))
+keeps those trials without modelling the error process at all. An error at
+time `t` is taken to say one thing about the correct accumulator: it had not
+finished by `t`. It therefore enters the likelihood as a **right-censored**
+observation, contributing the Wald's survival `P(T > t)` where a correct
+response contributes its density. This is the standard survival-analysis
+treatment of a competing event, and `brms` already has the syntax for it,
+`cens()`.
+
+```{r}
+#| code-fold: false
+
+# The same data, this time keeping the errors. `Error` becomes the censoring
+# indicator: Error == 1 says the RT is a lower bound on the correct process's time.
+df_cens <- data.frame(
+  Participant = as.integer(as.character(speed_acc$id)),
+  Condition = unname(c(accuracy = "Accuracy", speed = "Speed")[
+    as.character(speed_acc$condition)]),
+  RT = speed_acc$rt,
+  Error = as.integer(as.character(speed_acc$response) != as.character(speed_acc$stim_cat))
+)
+df_cens <- df_cens[df_cens$Participant %in% c(1, 2, 3) & df_cens$RT <= 2, ]
+```
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+f <- bf(
+  RT | cens(Error) ~ Condition,
+  boundary ~ Condition,
+  ndt ~ Condition,
+  sigmadrift = 0,
+  family = cogmod_invgaussian()
+)
+
+m_cswald <- brm(
+  f,
+  data = df_cens,
+  prior = cogmod_priors(f, df_cens),
+  init = cogmod_inits(f, df_cens),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+```
+```{r}
+#| eval: false
+#| echo: false
+
+saveRDS(m_cswald, file = "../models/m_cswald.rds")
+```
+
+The same `cens()` works on every family of this vignette that has a
+closed-form CDF - the LogNormal, the ex-Gaussian, the Gamma and Weibull
+variants - so each has a censored version one addition term away, and
+`log_lik()` (hence `loo()`) scores the censored trials the same way the
+sampler did. Two things are worth knowing before reaching for it.
+
+**What it assumes.** Censoring says the error tells you *nothing* about the
+correct process beyond "not yet". That is what buys the model its stability
+when errors are few - there is no error accumulator to estimate, which is
+exactly the parameter that runs away in a race fitted to a high-accuracy
+condition (see the *Decision Making* vignette) - and it is what stops being
+credible when errors are many, because at that point they are a process of
+their own. `cogmod_priors()` warns above 20% censored trials.
+
+**The check to run first.** Censoring draws the errors from the surviving
+tail, so it can only ever predict them *slower* than correct responses. Fast
+errors - the signature of a low boundary or a biased start point - cannot be
+produced by construction. So compare the two before fitting:
+
+```{r}
+aggregate(RT ~ Condition + Error, data = df_cens, FUN = median)
+```
+
+On these data the errors are, if anything, a shade *faster* than the correct
+responses in both conditions, so the assumption is borderline here at best, which 
+suggests this model is not appropriate for this
+data set. Where errors are faster, use a race that models the error
+accumulator - the RDM or the LBA of the [*Decision Making*](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html) vignette. Where they
+are slower, or where there is no error response at all - go/no-go, deadlines,
+omissions - a non-response genuinely is a right-censored draw from one
+accumulator, and censoring is the exact model rather than an approximation.
+
+One more consequence: `posterior_predict()` predicts the latent, uncensored
+reaction time, as `brms` does for its own families, so `pp_check()` on a
+censored fit compares uncensored replicates against a data column whose
+error rows hold *censoring* times.
+
+
+### Birnbaum-Saunders (BiSa)
 
 The Birnbaum-Saunders (or *fatigue life*) model is the Wald's near neighbour,
 and it is stated in the same parameters - `mu` is a drift rate and `boundary` a
@@ -832,7 +928,7 @@ saveRDS(m_bisa, file = "../models/m_bisa.rds")
 ```
 
 
-#### LogStudent
+### LogStudent
 
 The LogStudent-*t* model varies kurtosis where LogGamma varies skew (see below).
 As dof grows the Student-*t* becomes the Normal, with lighter tails.
@@ -868,7 +964,7 @@ saveRDS(m_logstudent, file = "../models/m_logstudent.rds")
 ```
 
 
-#### Weibull
+### Weibull
 
 This one is really slow, with bad convergence on our data, which is caused by the
 geometry of that model rather than an expensive density, and it applies to the Gamma too.
@@ -921,7 +1017,7 @@ saveRDS(m_weibull, file = "../models/m_weibull.rds")
 ```
 
 
-#### LogWeibull (Shifted Gumbel)
+### LogWeibull (Shifted Gumbel)
 
 ```{r}
 #| eval: false
@@ -953,7 +1049,7 @@ saveRDS(m_logweibull, file = "../models/m_logweibull.rds")
 ```
 
 
-#### Inverse Weibull (Shifted Fréchet)
+### Inverse Weibull (Shifted Fréchet)
 
 ```{r}
 #| eval: false
@@ -987,7 +1083,7 @@ saveRDS(m_invweibull, file = "../models/m_invweibull.rds")
 
 
 
-#### Gamma
+### Gamma
 
 `mu` is the shape and `sigma` the scale of the Gamma decision time. Beyond being
 a convenient skewed shape, the Gamma also has a first-passage-time reading, as
@@ -1027,7 +1123,7 @@ saveRDS(m_gamma, file = "../models/m_gamma.rds")
 
 
 
-#### Inverse Gamma
+### Inverse Gamma
 
 ```{r}
 #| eval: false

@@ -81,10 +81,11 @@
 #' \deqn{f(t, k) = p \frac{1}{K} g(t) + (1 - p) f_k(t - ndt)}
 #'
 #' The `1 / K` is what keeps the total summing to one over the response options;
-#' without it it would come to `1 + poutlier`. The half-t is used for the timing
-#' because it is **flat at the origin** (zero derivative), so the very fastest
-#' responses - the ones least plausibly decisions - are not starved of density,
-#' and because its tails are heavy enough to cover the whole plausible RT range.
+#' without it it would come to `1 + poutlier`. The half Normal is used for the
+#' timing because it is **flat at the origin** (zero derivative), so the very
+#' fastest responses - the ones least plausibly decisions - are not starved of
+#' density, and because it dies fast enough above that range to leave the slow
+#' tail to the race itself rather than claiming it.
 #'
 #' `poutlier` is a *rate*, not a classification: the model never labels
 #' individual trials, it estimates what share of them came from elsewhere. Use
@@ -257,7 +258,7 @@ dcogmod_rdm <- function(x, vzero = 3, vone = 2, boundary = 0.5, bias = 0.2,
   if (is.null(response)) {
     # The marginal is the sum of the two defective densities. The outlier
     # component's 1 / K sums back to 1 over the options, so what comes out is
-    # the plain mixture of the half-t with the marginal race density.
+    # the plain mixture of the half Normal with the marginal race density.
     per_k <- lapply(c(0, 1), function(k) {
       dcogmod_rdm(x, vzero = vzero, vone = vone, boundary = boundary,
                   bias = bias, ndt = ndt, response = k, poutlier = poutlier,

@@ -3,6 +3,11 @@ on:
     branches: [main, master]
   pull_request:
   workflow_dispatch:
+    inputs:
+      slow_tests:
+        description: 'Also run the nine model-fitting tests (CmdStan job only; adds ~30 min)'
+        type: boolean
+        default: false
 
 name: R-CMD-check
 
@@ -12,7 +17,7 @@ jobs:
   R-CMD-check:
     runs-on: ${{ matrix.config.os }}
 
-    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
+    name: ${{ matrix.config.os }} (${{ matrix.config.r }})${{ matrix.config.stan && ' + CmdStan' || '' }}
 
     strategy:
       fail-fast: false
@@ -21,7 +26,15 @@ jobs:
           - {os: macos-latest,   r: 'release'}
           - {os: windows-latest, r: 'release'}
           - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release'}
-          - {os: ubuntu-latest,  r: 'release'}
+          # Exactly one job carries CmdStan. The Stan-touching tests all route
+          # through `stan_fun()` (helper-stan.R), which compiles ONE model
+          # holding every family's functions block and shares it for the rest of
+          # the session - so a single job buys the R-versus-Stan comparison for
+          # all 21 families at the cost of one compilation. Putting it on the
+          # other four would multiply that by four and, at 1-2 GB of cache per
+          # runner OS, crowd the repository's 10 GB cache allowance for nothing:
+          # the generated Stan does not vary by platform.
+          - {os: ubuntu-latest,  r: 'release', stan: true}
           - {os: ubuntu-latest,  r: 'oldrel-1'}
 
     env:
@@ -29,13 +42,16 @@ jobs:
       R_KEEP_PKG_SOURCE: yes
       # Run the full test suite here, including the parts skipped on CRAN.
       NOT_CRAN: true
-      # ...and the model-fitting tests, which are opt-in because each compiles
-      # its own Stan program. They still need cmdstanr, which the step below
-      # removes, so on this workflow they skip either way; the variable is set
-      # so that a job which does provide CmdStan runs them unchanged.
-      COGMOD_TEST_SLOW: true
-      # cmdstanr is deliberately absent (see below), and R CMD check otherwise
-      # errors out on a suggested package it cannot find.
+      # The nine model-fitting tests stay OFF by default even on the CmdStan
+      # job. `stan_fun()` amortises one compilation across the whole suite;
+      # these do not - each `brm()` call compiles its own program, which is the
+      # difference between a few minutes and the better part of an hour. Run
+      # them deliberately from the Actions tab (workflow_dispatch -> tick
+      # "slow_tests"), which lands on the CmdStan job; on the other four they
+      # skip for want of cmdstanr whatever this says.
+      COGMOD_TEST_SLOW: ${{ inputs.slow_tests || false }}
+      # The four jobs below drop cmdstanr, and R CMD check otherwise errors out
+      # on a suggested package it cannot find. Harmless on the job that keeps it.
       _R_CHECK_FORCE_SUGGESTS_: false
 
     steps:
@@ -58,16 +74,67 @@ jobs:
           extra-packages: any::rcmdcheck
           needs: check
 
-      # Model fitting needs a CmdStan installation, which is far too slow to
-      # build here, so those tests are local-only. They guard on
-      # skip_if_not_installed("cmdstanr"), which checks for the R package alone:
-      # leaving it installed without CmdStan behind it would make them fail
-      # rather than skip. Dropping it here is what makes them skip.
-      - name: Remove cmdstanr (Stan tests are local-only)
+      # Everywhere except the CmdStan job, the Stan tests have to skip rather
+      # than fail. They guard on skip_if_not_installed("cmdstanr"), which checks
+      # for the R package alone: leaving it installed with no CmdStan behind it
+      # would make them error instead. Dropping it is what makes them skip.
+      - name: Remove cmdstanr (no CmdStan on this job)
+        if: ${{ !matrix.config.stan }}
         run: |
           if ("cmdstanr" %in% rownames(installed.packages())) {
             remove.packages("cmdstanr")
           }
+        shell: Rscript {0}
+
+      # The CmdStan build is cached rather than repeated: it costs a couple of
+      # minutes here and changes only when Stan cuts a release, so the release
+      # tag is the cache key. Fork pull requests cannot read this repository's
+      # cache and will always build from source.
+      - name: Latest CmdStan release
+        if: ${{ matrix.config.stan }}
+        id: cmdstan-version
+        shell: bash
+        run: |
+          tag=$(curl -sSL --retry 3 \
+            -H "Authorization: Bearer ${GITHUB_PAT}" \
+            https://api.github.com/repos/stan-dev/cmdstan/releases/latest \
+            | jq -r '.tag_name // empty')
+          if [ -z "$tag" ]; then
+            echo "Could not determine the latest CmdStan release" >&2
+            exit 1
+          fi
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: CmdStan install path
+        if: ${{ matrix.config.stan }}
+        id: cmdstan-path
+        run: |
+          cat(sprintf("path=%s\n", cmdstanr::cmdstan_default_install_path()),
+              file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE)
+        shell: Rscript {0}
+
+      - name: Cache CmdStan
+        if: ${{ matrix.config.stan }}
+        id: cmdstan-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.cmdstan-path.outputs.path }}
+          key: cmdstan-${{ runner.os }}-${{ steps.cmdstan-version.outputs.version }}
+
+      # Runs on a cache hit too: restoring the build does not supply the C++
+      # toolchain that compiling a model during the check still needs.
+      - name: CmdStan toolchain
+        if: ${{ matrix.config.stan }}
+        run: cmdstanr::check_cmdstan_toolchain(fix = TRUE)
+        shell: Rscript {0}
+
+      - name: Build CmdStan
+        if: ${{ matrix.config.stan && steps.cmdstan-cache.outputs.cache-hit != 'true' }}
+        run: |
+          cmdstanr::install_cmdstan(
+            cores = parallel::detectCores(),
+            version = "${{ steps.cmdstan-version.outputs.version }}"
+          )
         shell: Rscript {0}
 
       - uses: r-lib/actions/check-r-package@v2

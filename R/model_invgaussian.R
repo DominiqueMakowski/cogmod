@@ -28,7 +28,7 @@
 #' and [with_outliers()], [without_outliers()], [p_outlier()] and
 #' [cogmod_priors()] all work here too. See `?rcogmod_lognormal` for why `ndt` is
 #' expressed directly in seconds rather than as a fraction of the fastest
-#' observed response, what the half Student-t outlier component is for, and why
+#' observed response, what the half Normal outlier component is for, and why
 #' the outlier component's scale is a constant rather than a `dpar`, and why
 #' reaction times have to be in seconds.
 #'
@@ -89,6 +89,56 @@
 #' [posterior_predict()][brms::posterior_predict] and summarise the draws with a
 #' median or a quantile instead.
 #'
+#' # Censoring: errors, timeouts and omissions
+#'
+#' `brms`'s `cens()` addition term works on this family:
+#'
+#' ```r
+#' brms::bf(rt | cens(error) ~ condition, boundary ~ condition, ndt ~ 1,
+#'          sigmadrift = 0, family = cogmod_invgaussian())
+#' ```
+#'
+#' A trial with `error = 1` (or `TRUE`, or `"right"`) is then a
+#' **right-censored** correct response: its RT is read as a lower bound on when
+#' the correct process would have finished, and it contributes the survival
+#' `P(T > rt)` to the likelihood where an observed response contributes the
+#' density. With `sigmadrift = 0` this is the *censored shifted Wald* of Miller
+#' et al. (2018), the `cswald` model of the `bmm` package. Here it is not a
+#' separate family but a construction: no new parameter, no new syntax, and the
+#' same `cens()` works on every RT-only family with a closed-form CDF (see
+#' `?rcogmod_lognormal`). Left-censoring (`error = -1` or `"left"`) and
+#' interval-censoring (`cens(x, y2)`) work the same way, and `log_lik()` -
+#' hence `loo()` - honours all three.
+#'
+#' Three things follow from the construction:
+#'
+#' - **What it is for.** A two-accumulator race has to estimate an error
+#'   process, and when errors are few that process is identified by nothing;
+#'   see the `driftone` discussion in [cogmod_rdm()]. Censoring has no error
+#'   accumulator to run away, uses the errors' timing instead of discarding
+#'   the trials, and is exactly right - not an approximation - for go/no-go,
+#'   deadline and omission designs, where a non-response genuinely is a
+#'   censored draw from one accumulator.
+#' - **What it assumes.** That an error says nothing about the correct process
+#'   beyond "not finished yet": non-informative censoring. That is false
+#'   wherever errors and correct responses come from one evidence path, which
+#'   is the DDM's picture, and [cogmod_priors()] warns past 20% censored
+#'   trials, well beyond the high-accuracy regime the model is argued for.
+#' - **The check to run first.** Censoring draws errors from the surviving
+#'   tail, so it can only ever predict them *slower* than correct responses.
+#'   Fast errors - a low boundary, a biased start point - are unproducible by
+#'   construction. Compare the two RT distributions before fitting; if errors
+#'   are faster, use a race ([cogmod_rdm()], [cogmod_lba2()], [cogmod_ddm()]).
+#'
+#' `posterior_predict()` predicts the latent, uncensored reaction time, as
+#' `brms` does for its own families, so `pp_check()` on a censored fit compares
+#' uncensored replicates against data whose censored rows hold *censoring*
+#' times. `pcogmod_invgaussian(lower.tail = FALSE)` is the survival a censored
+#' trial contributes, and the Stan `cogmod_invgaussian_lccdf()` in
+#' [cogmod_invgaussian_stanvars()] is its counterpart; with `sigmadrift > 0`
+#' both take the CDF by quadrature over the drift, the marginal having no
+#' closed form.
+#'
 #' @inheritParams rcogmod_lognormal
 #' @inheritParams cogmod_lnr
 #' @param drift Drift rate. Must be positive. Represents the average speed of
@@ -115,6 +165,10 @@
 #' - Tillman, G., Van Zandt, T., & Logan, G. D. (2020). Sequential sampling models without
 #'     random between-trial variability: The racing diffusion model of speeded decision making.
 #'     *Psychonomic Bulletin & Review*, *27*(5), 911-936. \doi{10.3758/s13423-020-01719-6}
+#' - Miller, R., Scherbaum, S., Heck, D. W., Goschke, T., & Enge, S. (2018). On the relation
+#'     between the (censored) shifted Wald and the Wiener distribution as measurement models
+#'     for choice response times. *Applied Psychological Measurement*, *42*(2), 116-135.
+#'     \doi{10.1177/0146621617710465}
 #'
 #' @return `rcogmod_invgaussian()` returns a numeric vector of `n` simulated
 #'   reaction times, in seconds. `dcogmod_invgaussian()` returns the density
@@ -180,35 +234,14 @@ dcogmod_invgaussian <- function(x, drift = 3, boundary = 0.5, ndt = 0.2,
 #' @export
 pcogmod_invgaussian <- function(q, drift = 3, boundary = 0.5, ndt = 0.2,
                             sigmadrift = 0, poutlier = 0, lower.tail = TRUE, log.p = FALSE) {
-  params <- .prepare_shifted("cogmod_invgaussian", x = q, ndt = ndt,
-                                poutlier = poutlier, mu = drift,
-                                boundary = boundary, sigmadrift = sigmadrift)
-
-  t <- params$x - params$ndt
-  cdf_dec <- rep(NA_real_, params$ndraws)
-  # `t <= 0` is NA for a missing quantile, which makes `any(calc)` below NA and
-  # the `if()` on it throw - the same failure `.dens_mask()` fixes on the
-  # density side. Missing entries are excluded from all three masks here and
-  # left at the NA they came in as.
-  cdf_dec[!is.na(t) & t <= 0] <- 0
-  inf_idx <- !is.na(t) & is.infinite(t) & t > 0
-  cdf_dec[inf_idx] <- 1
-
-  calc <- !is.na(t) & t > 0 & !inf_idx
-  if (any(calc)) {
-    # Closed form at sigmadrift = 0, quadrature over the drift above it - see
-    # .pwald_raw(), which is where the reason for the difference is written down.
-    cdf_dec[calc] <- .pwald_raw(t[calc], params$mu[calc],
-                                params$boundary[calc], params$sigmadrift[calc])
-  }
-
-  # Mixture CDF: the outlier component has support over the whole positive line
-  cdf <- params$poutlier * .pcontam(params$x) +
-    (1 - params$poutlier) * cdf_dec
-
-  if (!lower.tail) cdf <- 1 - cdf
-  if (log.p) cdf <- log(cdf)
-  cdf
+  # The mixture CDF is shared with every other shifted family (.pshifted()), and
+  # the upper tail is computed AS the upper tail rather than as 1 - CDF: that is
+  # the quantity a right-censored response contributes, and it lives exactly
+  # where the subtraction has nothing left. Closed form at sigmadrift = 0,
+  # quadrature over the drift above it - see .lwald_sv().
+  .pshifted("cogmod_invgaussian", q = q, ndt = ndt, poutlier = poutlier,
+            lower.tail = lower.tail, log.p = log.p, mu = drift,
+            boundary = boundary, sigmadrift = sigmadrift)
 }
 
 

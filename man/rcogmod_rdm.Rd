@@ -291,10 +291,11 @@ options, and the RT is a \strong{half Normal} with scale \code{0.2} seconds.
 \deqn{f(t, k) = p \frac{1}{K} g(t) + (1 - p) f_k(t - ndt)}
 
 The \code{1 / K} is what keeps the total summing to one over the response options;
-without it it would come to \code{1 + poutlier}. The half-t is used for the timing
-because it is \strong{flat at the origin} (zero derivative), so the very fastest
-responses - the ones least plausibly decisions - are not starved of density,
-and because its tails are heavy enough to cover the whole plausible RT range.
+without it it would come to \code{1 + poutlier}. The half Normal is used for the
+timing because it is \strong{flat at the origin} (zero derivative), so the very
+fastest responses - the ones least plausibly decisions - are not starved of
+density, and because it dies fast enough above that range to leave the slow
+tail to the race itself rather than claiming it.
 
 \code{poutlier} is a \emph{rate}, not a classification: the model never labels
 individual trials, it estimates what share of them came from elsewhere. Use

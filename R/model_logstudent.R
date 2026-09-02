@@ -10,6 +10,7 @@
 #' Functions:
 #' - `rcogmod_logstudent()`: Simulates random draws.
 #' - `dcogmod_logstudent()`: Computes the density (likelihood).
+#' - `pcogmod_logstudent()`: Computes the cumulative distribution function (CDF) or survival.
 #' - `cogmod_logstudent()`: Creates a `brms::custom_family()`.
 #' - `cogmod_logstudent_stanvars()`: Generates the `stanvars` to pass to `brm()`.
 #'
@@ -127,6 +128,16 @@ dcogmod_logstudent <- function(x, mu = -0.7, sigma = 0.4, dof = 5, ndt = 0.2,
                                poutlier = 0, log = FALSE) {
   .dshifted("cogmod_logstudent", x = x, ndt = ndt, poutlier = poutlier,
             log = log, mu = mu, sigma = sigma, dof = dof)
+}
+
+
+#' @rdname rcogmod_logstudent
+#' @export
+pcogmod_logstudent <- function(q, mu = -0.7, sigma = 0.4, dof = 5, ndt = 0.2,
+                               poutlier = 0, lower.tail = TRUE, log.p = FALSE) {
+  .pshifted("cogmod_logstudent", q = q, ndt = ndt, poutlier = poutlier,
+            lower.tail = lower.tail, log.p = log.p, mu = mu, sigma = sigma,
+            dof = dof)
 }
 
 

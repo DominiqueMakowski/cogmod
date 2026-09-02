@@ -381,6 +381,24 @@ A prior of that shape does not make `sigmabias` itself trustworthy, though, so p
 `boundary + sigmabias` whenever you interpret a threshold or compare one
 across conditions, and treat the split between the two as weakly-determined.
 
+**When errors are too few to identify the second accumulator**: every race
+above has to estimate an error process, and when errors are scarce that
+process is informed by almost nothing. On the Accuracy condition of these
+data, which carries about 75 errors, an RDM left to itself runs `driftone`
+down to the floor of its link (a drift of 0.0001) with half of the transitions
+divergent; `cogmod_priors()` fences that with a prior on the error drift (see
+`?rcogmod_rdm`). The structural alternative is to stop modelling the error
+process altogether and fit the RT-only family with the errors as
+**right-censored** correct responses, `bf(RT | cens(Error) ~ ...)`: an error
+then says only that the correct process had not finished yet, so there is no
+error accumulator to run away. On `cogmod_invgaussian()` this is the censored
+shifted Wald of Miller et al. ([2018](https://doi.org/10.1177/0146621617710465)).
+It is described in the *Censored Shifted Wald* section of the
+[RT-only Models](rt_models.html) vignette, together with the one check to run
+first: censoring can only produce errors *slower* than correct responses, so
+where errors are faster - a low boundary, a biased start point - stay with the
+race.
+
 
 ## Model Comparison
 

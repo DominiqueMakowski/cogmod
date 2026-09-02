@@ -632,3 +632,205 @@ test_that("a zero-length parameter alongside a real quantile is rejected", {
   # refused.
   expect_silent(expect_equal(dcogmod_lognormal(numeric(0)), numeric(0)))
 })
+
+
+# Data checks -------------------------------------------------------------
+
+# .cogmod_checkdata() runs from cogmod_priors(), before anything is compiled.
+# Its whole reason to exist is that the mistakes it looks for are SILENT: a
+# column of milliseconds fits, a third level in dec() is folded into option 1,
+# and both produce a converged model and meaningless estimates.
+
+d_chk <- data.frame(
+  RT = rcogmod_lognormal(200, ndt = 0.2, poutlier = 0.02),
+  resp = rep(0:1, 100),
+  Condition = factor(rep(c("a", "b"), length.out = 200))
+)
+f_chk <- brms::bf(RT ~ Condition, ndt ~ 1, family = cogmod_lognormal())
+f_chk_choice <- brms::bf(RT | dec(resp) ~ Condition, ndt ~ 1,
+                         family = cogmod_lnr())
+
+
+test_that("a clean data frame passes every family in silence", {
+  # The families are swept rather than sampled because the check dispatches on
+  # which registry the family is in, and a new entry should be covered by the
+  # derivation rather than by a list someone remembered to update.
+  for (nm in cogmod:::.OUTLIER_FAMILIES) {
+    fam <- get(nm)()
+    f <- if (nm %in% cogmod:::.CHOICE_FAMILIES) {
+      brms::bf(RT | dec(resp) ~ 1, family = fam)
+    } else {
+      brms::bf(RT ~ 1, family = fam)
+    }
+    expect_silent(cogmod:::.cogmod_checkdata(f, d_chk))
+  }
+})
+
+
+test_that("milliseconds are caught from the median, not from one slow trial", {
+  # `any(rt > 10)` is the obvious test and the wrong one: a single slow trial is
+  # ordinary, and warning about it would train people to ignore the warning that
+  # matters. The whole column moving by three orders of magnitude is the signal.
+  expect_warning(
+    cogmod:::.cogmod_checkdata(f_chk, transform(d_chk, RT = RT * 1000)),
+    "SECONDS"
+  )
+  expect_silent(
+    cogmod:::.cogmod_checkdata(f_chk, transform(d_chk, RT = replace(RT, 1, 42)))
+  )
+})
+
+
+test_that("the tails are judged against what poutlier can absorb", {
+  # rcogmod_lognormal(200, ndt = 0.2, poutlier = 0.02) puts a response at 81 ms
+  # all by itself, so a count-based test fires on the package's own generator.
+  # The outlier component reaches about 2% below 0.1 s at the top of its default
+  # prior, so a handful passes and a fifth of the data does not.
+  few <- transform(d_chk, RT = replace(RT, 1:6, 0.05))   # 3%
+  many <- transform(d_chk, RT = replace(RT, 1:40, 0.05)) # 20%
+  expect_silent(cogmod:::.cogmod_checkdata(f_chk, few))
+  expect_warning(cogmod:::.cogmod_checkdata(f_chk, many), "under 0.1 s")
+
+  expect_silent(
+    cogmod:::.cogmod_checkdata(f_chk, transform(d_chk, RT = replace(RT, 1:6, 30)))
+  )
+  expect_warning(
+    cogmod:::.cogmod_checkdata(f_chk, transform(d_chk, RT = replace(RT, 1:40, 30))),
+    "exceeds 10 s"
+  )
+
+  # cogmod_exgaussian() has neither ndt nor poutlier, so neither message would
+  # be true of it and neither is emitted.
+  f_ex <- brms::bf(RT ~ 1, family = cogmod_exgaussian())
+  expect_silent(cogmod:::.cogmod_checkdata(f_ex, many))
+})
+
+
+test_that("a response the likelihood cannot take is an error, not a warning", {
+  # These are the rows that send the total log-likelihood to -Inf: no chain can
+  # initialise, so failing here saves the compile rather than costing one.
+  expect_error(
+    cogmod:::.cogmod_checkdata(f_chk, transform(d_chk, RT = replace(RT, 1, -1))),
+    "no density below `ndt`"
+  )
+  expect_error(
+    cogmod:::.cogmod_checkdata(f_chk, transform(d_chk, RT = as.character(RT))),
+    "needs a numeric one"
+  )
+  # The ex-Gaussian has support on the whole line, so the same row is
+  # implausible there rather than impossible.
+  expect_warning(
+    cogmod:::.cogmod_checkdata(
+      brms::bf(RT ~ 1, family = cogmod_exgaussian()),
+      transform(d_chk, RT = replace(RT, 1, -1))
+    ),
+    "coding or a merge error"
+  )
+})
+
+
+test_that("a third level in dec() is refused rather than absorbed", {
+  # This is the one that has to be an error. The Stan code tests `dec == 0` and
+  # takes the else branch for everything else, so a third level is silently
+  # folded into option 1 - a fit, and a wrong one.
+  expect_error(
+    cogmod:::.cogmod_checkdata(
+      f_chk_choice, transform(d_chk, resp = replace(resp, 1:2, 2))
+    ),
+    "two-option"
+  )
+  expect_error(
+    cogmod:::.cogmod_checkdata(
+      f_chk_choice,
+      transform(d_chk, resp = factor(rep(c("a", "b", "c"), length.out = 200)))
+    ),
+    "two-option choice"
+  )
+  # What brms itself accepts for dec() passes: 0/1, a logical, two levels.
+  expect_silent(
+    cogmod:::.cogmod_checkdata(f_chk_choice, transform(d_chk, resp = resp == 1))
+  )
+  expect_silent(
+    cogmod:::.cogmod_checkdata(
+      f_chk_choice,
+      transform(d_chk, resp = factor(ifelse(resp == 1, "upper", "lower")))
+    )
+  )
+  # A choice family with no dec() at all reaches Stan as a one-boundary model.
+  expect_error(
+    cogmod:::.cogmod_checkdata(brms::bf(RT ~ 1, family = cogmod_lnr()), d_chk),
+    "dec\\(response\\)"
+  )
+})
+
+
+test_that("the bounded families reject a response off their support", {
+  d_unit <- data.frame(y = c(stats::runif(50), 0, 1))
+  expect_silent(
+    cogmod:::.cogmod_checkdata(
+      brms::bf(y ~ 1, family = cogmod_betagate()), d_unit
+    )
+  )
+  expect_error(
+    cogmod:::.cogmod_checkdata(
+      brms::bf(y ~ 1, family = cogmod_betagate()),
+      transform(d_unit, y = y * 7 - 1)
+    ),
+    "outside \\[0, 1\\]"
+  )
+  d_rate <- data.frame(y = sample(0:5, 60, TRUE))
+  expect_silent(
+    cogmod:::.cogmod_checkdata(
+      brms::bf(y | vint(5) ~ 1, family = cogmod_betadiscrete()), d_rate
+    )
+  )
+  expect_error(
+    cogmod:::.cogmod_checkdata(
+      brms::bf(y | vint(5) ~ 1, family = cogmod_betadiscrete()),
+      transform(d_rate, y = y + 0.5)
+    ),
+    "non-integer"
+  )
+})
+
+
+test_that("anything it cannot read is left for brms to complain about", {
+  # A check that guesses is worse than no check: brms has the better message for
+  # every one of these, and reaching it requires getting out of the way.
+  expect_silent(
+    cogmod:::.cogmod_checkdata(
+      brms::bf(RT ~ Condition, family = stats::gaussian()), d_chk
+    )
+  )
+  expect_silent(cogmod:::.cogmod_checkdata(RT ~ Condition, d_chk))
+  expect_silent(cogmod:::.cogmod_checkdata(f_chk, data.frame(zzz = 1:3)))
+  expect_silent(cogmod:::.cogmod_checkdata(f_chk, d_chk[0, ]))
+})
+
+
+test_that("cogmod_priors warns without disturbing the table it returns", {
+  # The check is a side effect on the way past: warning about the data must not
+  # change what comes back, and an unreadable response has to stop the call
+  # rather than reach brm().
+  p_clean <- expect_silent(cogmod_priors(f_chk, d_chk))
+  ms <- transform(d_chk, RT = RT * 1000)
+  expect_warning(p_ms <- cogmod_priors(f_chk, ms), "SECONDS")
+  expect_equal(nrow(p_ms), nrow(p_clean))
+
+  # And this is the failure the warning exists for, made concrete. The rows
+  # cogmod sets are fixed statements in seconds, so they do not move when the
+  # data changes units - `ndt` stays at normal(-1.2, 0.2), meaning 170-300 ms,
+  # against responses now averaging 700. The rows brms fills in DO follow the
+  # data, rescaling to student_t(3, 678, 215). Nothing errors, the two halves of
+  # the prior simply stop describing the same quantity, and the fit that follows
+  # is converged and meaningless.
+  ours <- function(p) p$prior[p$dpar == "ndt" | p$class == "poutlier"]
+  expect_equal(ours(p_ms), ours(p_clean))
+  brms_own <- function(p) p$prior[p$class == "Intercept" & p$dpar == ""]
+  expect_false(identical(brms_own(p_ms), brms_own(p_clean)))
+
+  expect_error(
+    cogmod_priors(f_chk, transform(d_chk, RT = replace(RT, 1, -1))),
+    "no density below `ndt`"
+  )
+})
