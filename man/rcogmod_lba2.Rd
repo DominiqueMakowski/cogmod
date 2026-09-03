@@ -190,19 +190,55 @@ avoids that.
 }
 
 \section{Negative drift rates}{
-A normal drift rate can come out negative, and such an accumulator rises
-away from the threshold and never responds. A trial on which \emph{both} drifts
-are negative produces no response at all, so it is not a trial: the process
-is conditioned on at least one of the two being positive, and
-\code{rcogmod_lba2()} draws from exactly that conditional distribution.
+A Normal drift rate can come out negative, and such an accumulator rises
+away from the threshold and never responds. Brown and Heathcote (2008) noted
+the problem and left it; every implementation since has had to decide what
+to do about it, and this one follows the convention of \code{rtdists}
+(\code{posdrift = TRUE}, its default), \code{DMC}, \code{EMC2} and \code{ggdmc}: \strong{each drift
+rate is a Normal truncated at zero}. Every accumulator is then guaranteed a
+positive rate on every trial, every trial produces a response, and the
+losing accumulator's survival is that of a truncated Normal.
+\code{rcogmod_lba2()} draws each drift from exactly that truncated distribution.
 
-The density is conditioned to match, dividing by
-\code{1 - pnorm(-driftzero / sigmazero) * pnorm(-driftone / sigmaone)}. Without
-that factor the density integrates to the probability of the event rather
-than to one, which at low drift rates is a long way short - \code{0.83} at drifts
-of \code{0.5} and \code{0.2} with SDs of \code{1.5}, so the likelihood is wrong by 17\% and
-wrong by \emph{different} amounts at different parameter values, which is what
-makes it bias estimates rather than merely offset them.
+The density is normalised to match: the winner's defective density is
+divided by its own \code{pnorm(drift / sigma)}, and the loser's survival is taken
+conditional on its own drift being positive. Without the truncation the
+density integrates to the probability that at least one accumulator finishes
+rather than to one, which at low drift rates is a long way short - \code{0.83}
+at drifts of \code{0.5} and \code{0.2} with SDs of \code{1.5}, so the likelihood would be
+wrong by 17\% and wrong by \emph{different} amounts at different parameter values,
+which is what biases estimates rather than merely offsetting them.
+
+Two consequences are worth knowing. First, because the convention is the
+field's, parameter estimates are \strong{directly comparable} with those packages'
+and with the published LBA literature built on them, and \code{\link[=dcogmod_lba2]{dcogmod_lba2()}}
+reproduces \code{rtdists::dLBA()} at the same parameter values. Second, \code{drift}
+and \code{sigma} are the location and scale of the \emph{untruncated} Normal, not the
+mean and SD of the drifts actually realised: where a drift is small relative
+to its SD, the realised mean is higher and the realised SD lower than the
+parameters say. That is the price every implementation pays for a race that
+always finishes; with both drifts large relative to their SDs it is
+negligible.
+
+The truncation also creates a flat direction. A Normal truncated at zero
+whose location runs off to minus infinity while its scale grows, with
+\verb{|drift| / sigma^2} held fixed, converges to an Exponential, so once an
+accumulator rarely wins its \code{drift} and \code{sigma} are identified only through
+that ratio, and the likelihood is nearly flat along the ray. The error
+accumulator in a task with a 5\% error rate is exactly such a case: left
+flat, its drift wandered to \code{-12} with an interval of \code{-23} to \code{-6.5}, on an
+evidence scale where the correct accumulator's drift is \code{3}.
+\code{\link[=cogmod_priors]{cogmod_priors()}} therefore puts \code{normal(1, 2)} on \code{driftone} and
+\code{normal(0, 1.5)} on its slopes, as it does for \code{\link[=cogmod_lnr]{cogmod_lnr()}}'s \code{nuone}. If
+the \emph{rarely} chosen option is the one on \code{mu}, mirror that prior onto \code{mu}
+by hand. Fixing both SDs (\verb{sigmazero = 1, sigmaone = 1}, a single \code{sv})
+removes the ray altogether and is common practice in the LBA literature.
+
+Versions before 0.3.1 used a different convention - the pair of drifts was
+conditioned on at least one being positive, with a negative loser allowed to
+run away - so LBA estimates from those versions are not comparable with
+these where a drift is small relative to its SD, and fits made with them
+cannot be post-processed with this version.
 }
 
 \section{The evidence scale is arbitrary}{

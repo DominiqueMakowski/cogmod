@@ -276,19 +276,23 @@ applies unchanged here.
 }
 
 \section{Implementation}{
-The 4-parameter density is \code{\link[brms:Wiener]{brms::dwiener()}} (which requires the \code{RWiener}
-package). Draws are taken by inverting the first-passage CDF, which - unlike
-\code{\link[brms:Wiener]{brms::rwiener()}}, and unlike \code{rtdists} - vectorises over parameter sets, so
-the per-call setup is paid once rather than once per posterior draw. That
-matters for \code{\link[rstantools:posterior_predict]{rstantools::posterior_predict()}}, where every draw carries its own
-parameters; it is several times faster there and agrees with both packages'
-samplers to within sampling error.
+The 4-parameter density is the Navarro and Fuss (2009) series, evaluated in
+log space and vectorised over parameter sets, so a response in the far tail
+has a finite log-density rather than \code{log(0)}. It agrees with
+\code{\link[brms:Wiener]{brms::dwiener()}} and with \code{rtdists} to about \code{1e-10} wherever those return a
+number, and is about eight times cheaper per element than the former. Draws are
+taken by inverting the first-passage CDF, which - unlike \code{\link[brms:Wiener]{brms::rwiener()}},
+and unlike \code{rtdists} - vectorises over parameter sets, so the per-call setup
+is paid once rather than once per posterior draw. That matters for
+\code{\link[rstantools:posterior_predict]{rstantools::posterior_predict()}}, where every draw carries its own parameters; it is
+several times faster there and agrees with both packages' samplers to within
+sampling error.
 
 The full 7-parameter model is built on top of these rather than delegated to
 another package: between-trial variability is simulated by drawing the
 per-trial parameters, and evaluated by combining a closed-form drift
 correction with Gauss-Legendre quadrature over the starting point and
-non-decision time.
+non-decision time, also in log space.
 
 In Stan the decision component is \code{wiener_lpdf()}, called with its own
 non-decision time set to zero because the shift is applied by the mixture
@@ -392,6 +396,9 @@ lpdf(
 \item Ratcliff, R., & McKoon, G. (2008). The diffusion decision model: Theory and
 data for two-choice decision tasks. \emph{Neural Computation}, \emph{20}(4),
 873-922. \doi{10.1162/neco.2008.12-06-420}
+\item Navarro, D. J., & Fuss, I. G. (2009). Fast and accurate calculations for
+first-passage times in Wiener diffusion models. \emph{Journal of Mathematical
+Psychology}, \emph{53}(4), 222-230. \doi{10.1016/j.jmp.2009.02.003}
 }
 }
 \seealso{

@@ -254,7 +254,7 @@
                   "boundary"),
     init = list(mu = 3, driftone = 3, sigmazero = 1, sigmaone = 1,
                 sigmabias = 0.5, boundary = 0.5),
-    # Two flat directions here, not one.
+    # Three flat directions here, not one.
     #
     # `sigmabias` and `boundary` share the ridge cogmod_lba1() and cogmod_rdm()
     # have: they enter only through the sum b = boundary + sigmabias.
@@ -267,7 +267,23 @@
     # identify the scale. Fix one SD in the formula (`sigmazero = 1` in bf(),
     # the usual convention) if the individual parameters are to be interpreted
     # rather than the RT distribution they generate. See ?rcogmod_lba2.
+    #
+    # `driftone` has the plateau the truncation creates. A Normal truncated at
+    # zero whose location runs off to -Inf while its scale grows, with the ratio
+    # |location| / scale^2 held fixed, converges to an Exponential - so once an
+    # accumulator rarely wins, its `drift` and `sigma` are identified only
+    # through that ratio and the likelihood is asymptotically flat along the
+    # ray. Left flat, the vignette's error accumulator sat at a drift of -12
+    # with an interval of -23 to -6.5, on an evidence scale where the correct
+    # accumulator's drift is 3. The prior is centred where LBA drifts on the
+    # `sigmazero = 1` scale usually are and fences the ray; `mu` - driftzero -
+    # has the same plateau, but it is the response's own intercept, so brms
+    # already gives it a proper student_t default and it is left alone, exactly
+    # as for cogmod_lnr()'s `nuone`. Model a rarely-chosen option on
+    # `mu` and it is worth mirroring this prior onto it by hand.
     prior = list(
+      driftone = c(link = "normal(1, 2)", nat = "normal(1, 2)",
+                   slope = "normal(0, 1.5)"),
       sigmazero = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
                     slope = "normal(0, 0.5)"),
       sigmaone = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
@@ -286,13 +302,15 @@
       "boundary: threshold offset, so the threshold is b = boundary + sigmabias."
     ),
     note = c(
-      "A normal drift can come out negative, and such an accumulator never",
-      "reaches the threshold. The decision density is therefore conditioned on",
-      "at least one of the two drifts being positive - the event the process",
-      "itself is conditioned on, since a trial with neither is not a trial.",
-      "Without that normalisation the density integrates to the probability of",
-      "the event rather than to one, which at low drift rates is a long way",
-      "short: 0.83 at drifts of 0.5 and 0.2 with SDs of 1.5."
+      "Each drift rate is a Normal truncated at zero - the convention of",
+      "rtdists (posdrift = TRUE), DMC, EMC2 and ggdmc, so estimates are",
+      "comparable with theirs. A negative drift would never reach the",
+      "threshold; without the truncation the density integrates to the",
+      "probability that at least one accumulator finishes rather than to one,",
+      "which at low drift rates is a long way short: 0.83 at drifts of 0.5 and",
+      "0.2 with SDs of 1.5. `mu`, `driftone`, `sigmazero` and `sigmaone` are",
+      "the location and scale of the UNtruncated Normal, not the mean and SD of",
+      "the drifts actually realised."
     ),
     label = "two-accumulator LBA"
   ),

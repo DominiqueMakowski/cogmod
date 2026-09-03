@@ -132,13 +132,18 @@ of log units, and the \code{softplus} link reaches zero only at minus infinity.
 The drift rates are left alone: a zero-drift accumulator still finishes,
 and still wins sometimes, so there is no plateau at the bottom of that
 direction the way there is for \code{\link[=cogmod_lnr]{cogmod_lnr()}}'s \code{nuone}.
-\item \code{\link[=cogmod_lba2]{cogmod_lba2()}}: \code{sigmazero}, \code{sigmaone}, \code{sigmabias} and \code{boundary}. The
-last two share the threshold ridge above; the two drift SDs are worse. The
-evidence scale of an LBA is arbitrary - multiply the drifts, their SDs, the
-start-point range and the threshold by any \code{c > 0} and every finishing time
-is unchanged - so the likelihood is \emph{exactly} constant along that ray. These
-priors make the posterior proper; only fixing one SD in the formula
-(\code{sigmazero = 1}) identifies the scale. See \code{\link[=cogmod_lba2]{cogmod_lba2()}}.
+\item \code{\link[=cogmod_lba2]{cogmod_lba2()}}: \code{driftone}, \code{sigmazero}, \code{sigmaone}, \code{sigmabias} and
+\code{boundary}. The last two share the threshold ridge above; the two drift SDs
+are worse. The evidence scale of an LBA is arbitrary - multiply the drifts,
+their SDs, the start-point range and the threshold by any \code{c > 0} and every
+finishing time is unchanged - so the likelihood is \emph{exactly} constant along
+that ray. These priors make the posterior proper; only fixing one SD in the
+formula (\code{sigmazero = 1}) identifies the scale. \code{driftone} has the plateau
+\code{\link[=cogmod_lnr]{cogmod_lnr()}}'s \code{nuone} has, created here by the truncation of each drift
+at zero: once an accumulator rarely wins, its drift and SD are identified
+only through \verb{|drift| / sigma^2}, and a flat prior lets the drift run off
+to \code{-12} and beyond. \code{normal(1, 2)} is centred where LBA drifts sit on the
+\code{sigmazero = 1} scale. See \code{\link[=cogmod_lba2]{cogmod_lba2()}}.
 \item \code{\link[=cogmod_ddm]{cogmod_ddm()}}: \code{sigmadrift}, \code{sigmabias} and \code{sigmandt}, the three
 between-trial variability parameters. Each has a floor at zero that its link
 reaches only at minus infinity, and the likelihood stops changing well
@@ -229,6 +234,7 @@ lives on:\tabular{lll}{
    \code{shape} \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \cr
    \code{sigmabias}, \code{boundary} (\code{\link[=cogmod_lba1]{cogmod_lba1()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}}, \code{\link[=cogmod_lba2]{cogmod_lba2()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
    \code{sigmazero}, \code{sigmaone} (\code{\link[=cogmod_lba2]{cogmod_lba2()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
+   \code{driftone} (\code{\link[=cogmod_lba2]{cogmod_lba2()}}) \tab \code{normal(1, 2)} \tab \code{normal(1, 2)} \cr
    \code{sigmadrift} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-1, 0.75)} \cr
    \code{sigmabias} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}) \tab \code{normal(-2, 1)} \tab \code{beta(1, 5)} \cr
    \code{sigmandt} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}, \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}) \tab \code{normal(-3, 1)} \tab \code{lognormal(-3, 1)} \cr

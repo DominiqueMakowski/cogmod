@@ -541,9 +541,9 @@
     # is then 0, which takes the Taylor branch of .lba_dens_over_A(), and there
     # the series is phi(z1) * (drift + sigma * z1) / st with drift + sigma * z1
     # = b / t identically - that is phi(z1) * b / (sigma * t^2), the recinormal
-    # density itself rather than an approximation to it. .lba_surv_raw()
-    # likewise collapses to Phi(z1), the survival of a deterministic start
-    # point, which is what cogmod_lba2() needs.
+    # density itself rather than an approximation to it. .lba_lsurv_trunc()
+    # likewise collapses to the survival of a deterministic start point, which
+    # is what cogmod_lba2() needs.
     lb_open = c(TRUE, TRUE, FALSE, TRUE),
     stan_check = "sigma <= 0 || sigmabias < 0 || boundary <= 0",
     stan_dens = "cogmod_lba1_decision_lpdf(t_adj | mu, sigma, sigmabias, boundary)",
@@ -2178,44 +2178,86 @@ real cogmod_bisa_decision_lpdf(real t, real mu, real boundary) {
 }
 
 
-# Survival of one accumulator at `t`: the probability it has NOT yet reached the
-# threshold. Only cogmod_lba2() needs it - a race scores the winner's density
-# against the loser's survival - but it is the same integral over the same
-# start-point range, so it belongs beside the density.
+# Log-survival of one accumulator at `t` - the probability it has NOT yet
+# reached the threshold - given that its drift is positive. Only cogmod_lba2()
+# needs it: a race scores the winner's density against the loser's survival.
+# It is the same integral over the same start-point range as the density, so it
+# belongs beside it.
 #
-# Writing b - A - v t = z1 * st and b - v t = z2 * st turns the textbook CDF
+# The drift is a Normal truncated at zero (see ?rcogmod_lba2), so the survival
+# wanted is P(v > 0, unfinished at t) / P(v > 0). Writing b - A - v t = z1 * st
+# and b - v t = z2 * st, the UNtruncated textbook CDF
 #
 #   F(t) = 1 + ((b - A - vt)/A) Phi(z1) - ((b - vt)/A) Phi(z2)
 #            + (t s / A) (phi(z1) - phi(z2))
 #
-# into `1 - (g(z2) - g(z1)) / delta` with `g(z) = z Phi(z) + phi(z)`, so the
-# survival is that quotient directly rather than `1 - F`, which cancels to
-# nothing whenever the accumulator is unlikely to have finished. The quotient
-# cancels in its own right as delta -> 0, hence the same Taylor branch as the
-# density, the derivatives being Phi, phi and -z phi.
+# becomes `(h(z2) - h(z1)) / delta` with `h(z) = z Phibar(z) - phi(z)`, and the
+# untruncated survival `S = 1 - F` becomes `(g(z2) - g(z1)) / delta` with
+# `g(z) = z Phi(z) + phi(z)`. A finished accumulator always had a positive
+# drift, so P(v > 0, unfinished) = S - q = (1 - q) - F, with q = Phi(-drift /
+# sigma) the probability of a negative one. Which form to take is decided by
+# the sign of the drift, because that is what decides which quantities are
+# small: with a positive drift q is at most a half and S - q cancels only in
+# the far tail, where the answer decays like 1 / t and there is nothing to
+# lose; with a negative drift both 1 - q and F are tiny, and taking them from
+# the upper tail - Phibar rather than 1 - Phi, h rather than g - keeps every
+# digit. Both quotients cancel in their own right as delta -> 0, hence the same
+# Taylor branch as the density: g has derivatives Phi, phi, -z phi and h has
+# Phibar, -phi, z phi.
+#
+# Returned on the log scale, as log(S - q) - log(1 - q), so that a loser that
+# has almost surely finished contributes a large negative number rather than
+# log(0).
 #' @keywords internal
-.lba_surv_raw <- function(drift, sigma, st, z1, delta) {
-  n <- max(length(drift), length(sigma), length(st), length(z1), length(delta))
+.lba_lsurv_trunc <- function(drift, sigma, z1, delta) {
+  n <- max(length(drift), length(sigma), length(z1), length(delta))
+  drift <- rep_len(drift, n)
+  sigma <- rep_len(sigma, n)
   z1 <- rep_len(z1, n)
   delta <- rep_len(delta, n)
 
   phi1 <- stats::dnorm(z1)
-  out <- numeric(n)
-
+  ratio <- drift / sigma
   small <- delta < 1e-4
-  if (any(small)) {
-    d <- delta[small]
-    z <- z1[small]
-    out[small] <- stats::pnorm(z) + (d / 2) * phi1[small] -
-      (d^2 / 6) * z * phi1[small]
+  neg <- drift < 0
+  num <- numeric(n)
+
+  # positive drift: S - q, with S the untruncated survival
+  i <- !neg & small
+  if (any(i)) {
+    d <- delta[i]
+    z <- z1[i]
+    s <- stats::pnorm(z) + (d / 2) * phi1[i] - (d^2 / 6) * z * phi1[i]
+    num[i] <- s - stats::pnorm(-ratio[i])
   }
-  if (any(!small)) {
-    i <- !small
+  i <- !neg & !small
+  if (any(i)) {
     z2 <- z1[i] + delta[i]
     g <- function(z) z * stats::pnorm(z) + stats::dnorm(z)
-    out[i] <- (g(z2) - g(z1[i])) / delta[i]
+    num[i] <- (g(z2) - g(z1[i])) / delta[i] - stats::pnorm(-ratio[i])
   }
-  pmin(pmax(out, 0), 1)
+  # negative drift: (1 - q) - F, with F the untruncated CDF, all upper tail
+  i <- neg & small
+  if (any(i)) {
+    d <- delta[i]
+    z <- z1[i]
+    f <- stats::pnorm(z, lower.tail = FALSE) - (d / 2) * phi1[i] +
+      (d^2 / 6) * z * phi1[i]
+    num[i] <- stats::pnorm(ratio[i]) - f
+  }
+  i <- neg & !small
+  if (any(i)) {
+    z2 <- z1[i] + delta[i]
+    h <- function(z) z * stats::pnorm(z, lower.tail = FALSE) - stats::dnorm(z)
+    num[i] <- stats::pnorm(ratio[i]) - (h(z2) - h(z1[i])) / delta[i]
+  }
+
+  out <- rep(-Inf, n)
+  ok <- is.finite(num) & num > 0
+  if (any(ok)) {
+    out[ok] <- pmin(log(num[ok]) - stats::pnorm(ratio[ok], log.p = TRUE), 0)
+  }
+  out
 }
 
 
@@ -2237,8 +2279,8 @@ real cogmod_bisa_decision_lpdf(real t, real mu, real boundary) {
   (sigmabias + boundary - sp) / v
 }
 
-# Stan counterpart of .lba_dens_over_A(), .lba_surv_raw() and .dlba1_raw(). Same
-# branches, and the same reason for them: both differences cancel as the
+# Stan counterpart of .lba_dens_over_A(), .lba_lsurv_trunc() and .dlba1_raw().
+# Same branches, and the same reason for them: both differences cancel as the
 # start-point range goes to zero, and the result is then divided by that range.
 #
 # cogmod_lba2() appends its own decision lpdf to this (see .LBA2_STAN_PRELUDE in
@@ -2268,22 +2310,41 @@ real cogmod_lba_dens_over_A(real drift, real sigma, real st, real z1, real delta
   return (drift * dPhi + sigma * dphi) / (delta * st);
 }
 
-// Probability that an accumulator has NOT finished by t, as
-// (g(z2) - g(z1)) / delta with g(z) = z Phi(z) + phi(z). Taken directly rather
-// than as 1 - CDF, which cancels to nothing whenever the accumulator is
-// unlikely to have finished; the Taylor branch is for the other cancellation,
-// the one in the quotient as delta -> 0.
-real cogmod_lba_surv(real z1, real delta) {
+// Log probability that an accumulator has NOT finished by t, given that its
+// drift is positive: log(S - q) - log(1 - q), with S the untruncated survival
+// (g(z2) - g(z1)) / delta, g(z) = z Phi(z) + phi(z), and q = Phi(-drift /
+// sigma) the probability of a negative drift. With a negative drift both
+// 1 - q and the untruncated CDF F are tiny, so the same number is taken as
+// (1 - q) - F from the upper tail, F = (h(z2) - h(z1)) / delta with
+// h(z) = z Phibar(z) - phi(z). The Taylor branches are for the cancellation in
+// the quotients as delta -> 0; see .lba_lsurv_trunc() for the derivation.
+real cogmod_lba_lsurv_trunc(real drift, real sigma, real z1, real delta) {
   real phi1 = exp(-0.5 * square(z1)) * 0.3989422804014327;
-  real out;
-  if (delta < 1e-4) {
-    out = Phi(z1) + (delta / 2) * phi1 - (square(delta) / 6) * z1 * phi1;
+  real ratio = drift / sigma;
+  real num;
+  if (drift >= 0) {
+    real s;
+    if (delta < 1e-4) {
+      s = Phi(z1) + (delta / 2) * phi1 - (square(delta) / 6) * z1 * phi1;
+    } else {
+      real z2 = z1 + delta;
+      real phi2 = exp(-0.5 * square(z2)) * 0.3989422804014327;
+      s = ((z2 * Phi(z2) + phi2) - (z1 * Phi(z1) + phi1)) / delta;
+    }
+    num = s - Phi(-ratio);
   } else {
-    real z2 = z1 + delta;
-    real phi2 = exp(-0.5 * square(z2)) * 0.3989422804014327;
-    out = ((z2 * Phi(z2) + phi2) - (z1 * Phi(z1) + phi1)) / delta;
+    real f;
+    if (delta < 1e-4) {
+      f = Phi(-z1) - (delta / 2) * phi1 + (square(delta) / 6) * z1 * phi1;
+    } else {
+      real z2 = z1 + delta;
+      real phi2 = exp(-0.5 * square(z2)) * 0.3989422804014327;
+      f = ((z2 * Phi(-z2) - phi2) - (z1 * Phi(-z1) - phi1)) / delta;
+    }
+    num = Phi(ratio) - f;
   }
-  return fmin(fmax(out, 0), 1);
+  if (num <= 0) return negative_infinity();
+  return fmin(log(num) - std_normal_lcdf(ratio), 0);
 }
 
 // Log density of the single-accumulator LBA decision time (no shift).

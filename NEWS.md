@@ -91,6 +91,54 @@
   whole real line. A formula or family the check cannot read is passed through
   untouched, so `brms`'s own error is what the user sees.
 
+## Performance
+
+* **The R-side DDM density no longer goes through `brms::dwiener()`.**
+  `dcogmod_ddm()`, and with it `log_lik()`, `loo()`, `p_outlier()` and every
+  other post-processing method that evaluates the likelihood in R, now use a
+  vectorised Navarro and Fuss (2009) series written in log space. The
+  4-parameter density is about eight times cheaper per element and agrees with
+  `brms::dwiener()` to `1e-12` on the log scale. The 7-parameter density, which
+  evaluates that series 625 times per observation under Gauss-Legendre
+  quadrature, goes from about 5 ms to about 0.6 ms per draw-observation - a
+  LOO over 4000 draws of 500 trials drops from close to three hours to about
+  twenty minutes. Both
+  now return a finite log-density in the far tails where `dwiener()` returns
+  `log(0)`. The Stan likelihood is unchanged. `RWiener` is still needed by the
+  test suite, which uses `dwiener()` as the reference.
+
+## Breaking changes
+
+* **`cogmod_lba2()` now truncates each drift rate at zero**, the convention of
+  `rtdists` (`posdrift = TRUE`), `DMC`, `EMC2` and `ggdmc`. Previously the pair
+  of drifts was conditioned on at least one being positive and a losing
+  accumulator was allowed a negative rate, which it kept forever. The two are
+  different models of the same race wherever a drift is small relative to its
+  SD: densities up to about 40-50% apart in the tails, choice probabilities a
+  few percentage points apart. The change makes `cogmod` LBA estimates directly
+  comparable with those packages and with the literature built on them, and
+  `dcogmod_lba2()` now reproduces `rtdists::dLBA()` at the same parameter
+  values. It also simplifies the sampler, which draws each drift from its
+  truncated Normal rather than splitting the conditional law into cases.
+  **Fits made with earlier versions cannot be post-processed with this one**,
+  and their estimates are not comparable with new ones at low drift rates;
+  the vignette model was refit. The loser's survival is computed as
+  `P(v > 0, unfinished) / P(v > 0)` from whichever tail keeps its digits, so
+  the density stays accurate for a loser with a strongly negative drift, where
+  both quantities are tiny, and in the far tail, where `1 - CDF` would cancel.
+  `cogmod_lba1()` is unaffected: with one accumulator the two conventions
+  coincide.
+
+  The truncation has one cost, and `cogmod_priors()` now covers it: once an
+  accumulator rarely wins, its `drift` and `sigma` are identified only through
+  `|drift| / sigma^2` (the truncated Normal converges to an Exponential along
+  that ray), so a flat prior lets the drift run off - the vignette's error
+  accumulator sat at `-12` with an interval of `-23` to `-6.5`. `cogmod_priors()`
+  therefore puts `normal(1, 2)` on `driftone` and `normal(0, 1.5)` on its
+  slopes, the treatment `cogmod_lnr()`'s `nuone` already had. Existing formulas
+  that left `driftone` to `brms` get this prior on their next
+  `cogmod_priors()` call.
+
 # cogmod 0.3.0
 
 ## New features

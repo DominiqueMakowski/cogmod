@@ -116,13 +116,18 @@
 #'   The drift rates are left alone: a zero-drift accumulator still finishes,
 #'   and still wins sometimes, so there is no plateau at the bottom of that
 #'   direction the way there is for [cogmod_lnr()]'s `nuone`.
-#' - [cogmod_lba2()]: `sigmazero`, `sigmaone`, `sigmabias` and `boundary`. The
-#'   last two share the threshold ridge above; the two drift SDs are worse. The
-#'   evidence scale of an LBA is arbitrary - multiply the drifts, their SDs, the
-#'   start-point range and the threshold by any `c > 0` and every finishing time
-#'   is unchanged - so the likelihood is *exactly* constant along that ray. These
-#'   priors make the posterior proper; only fixing one SD in the formula
-#'   (`sigmazero = 1`) identifies the scale. See [cogmod_lba2()].
+#' - [cogmod_lba2()]: `driftone`, `sigmazero`, `sigmaone`, `sigmabias` and
+#'   `boundary`. The last two share the threshold ridge above; the two drift SDs
+#'   are worse. The evidence scale of an LBA is arbitrary - multiply the drifts,
+#'   their SDs, the start-point range and the threshold by any `c > 0` and every
+#'   finishing time is unchanged - so the likelihood is *exactly* constant along
+#'   that ray. These priors make the posterior proper; only fixing one SD in the
+#'   formula (`sigmazero = 1`) identifies the scale. `driftone` has the plateau
+#'   [cogmod_lnr()]'s `nuone` has, created here by the truncation of each drift
+#'   at zero: once an accumulator rarely wins, its drift and SD are identified
+#'   only through `|drift| / sigma^2`, and a flat prior lets the drift run off
+#'   to `-12` and beyond. `normal(1, 2)` is centred where LBA drifts sit on the
+#'   `sigmazero = 1` scale. See [cogmod_lba2()].
 #' - [cogmod_ddm()]: `sigmadrift`, `sigmabias` and `sigmandt`, the three
 #'   between-trial variability parameters. Each has a floor at zero that its link
 #'   reaches only at minus infinity, and the likelihood stops changing well
@@ -214,6 +219,7 @@
 #' | `shape` | `normal(0, 0.5)` | `normal(0, 0.5)` |
 #' | `sigmabias`, `boundary` ([cogmod_lba1()], [cogmod_rdm()], [cogmod_lba2()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 #' | `sigmazero`, `sigmaone` ([cogmod_lba2()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
+#' | `driftone` ([cogmod_lba2()]) | `normal(1, 2)` | `normal(1, 2)` |
 #' | `sigmadrift` ([cogmod_ddm()]) | `normal(0, 1)` | `lognormal(-1, 0.75)` |
 #' | `sigmabias` ([cogmod_ddm()]) | `normal(-2, 1)` | `beta(1, 5)` |
 #' | `sigmandt` ([cogmod_ddm()], [cogmod_invgaussian()]) | `normal(-3, 1)` | `lognormal(-3, 1)` |

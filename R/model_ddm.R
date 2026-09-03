@@ -104,19 +104,23 @@
 #'
 #' # Implementation
 #'
-#' The 4-parameter density is [brms::dwiener()] (which requires the `RWiener`
-#' package). Draws are taken by inverting the first-passage CDF, which - unlike
-#' [brms::rwiener()], and unlike `rtdists` - vectorises over parameter sets, so
-#' the per-call setup is paid once rather than once per posterior draw. That
-#' matters for [posterior_predict()], where every draw carries its own
-#' parameters; it is several times faster there and agrees with both packages'
-#' samplers to within sampling error.
+#' The 4-parameter density is the Navarro and Fuss (2009) series, evaluated in
+#' log space and vectorised over parameter sets, so a response in the far tail
+#' has a finite log-density rather than `log(0)`. It agrees with
+#' [brms::dwiener()] and with `rtdists` to about `1e-10` wherever those return a
+#' number, and is about eight times cheaper per element than the former. Draws are
+#' taken by inverting the first-passage CDF, which - unlike [brms::rwiener()],
+#' and unlike `rtdists` - vectorises over parameter sets, so the per-call setup
+#' is paid once rather than once per posterior draw. That matters for
+#' [posterior_predict()], where every draw carries its own parameters; it is
+#' several times faster there and agrees with both packages' samplers to within
+#' sampling error.
 #'
 #' The full 7-parameter model is built on top of these rather than delegated to
 #' another package: between-trial variability is simulated by drawing the
 #' per-trial parameters, and evaluated by combining a closed-form drift
 #' correction with Gauss-Legendre quadrature over the starting point and
-#' non-decision time.
+#' non-decision time, also in log space.
 #'
 #' In Stan the decision component is `wiener_lpdf()`, called with its own
 #' non-decision time set to zero because the shift is applied by the mixture
@@ -203,6 +207,9 @@
 #' - Ratcliff, R., & McKoon, G. (2008). The diffusion decision model: Theory and
 #'     data for two-choice decision tasks. *Neural Computation*, *20*(4),
 #'     873-922. \doi{10.1162/neco.2008.12-06-420}
+#' - Navarro, D. J., & Fuss, I. G. (2009). Fast and accurate calculations for
+#'     first-passage times in Wiener diffusion models. *Journal of Mathematical
+#'     Psychology*, *53*(4), 222-230. \doi{10.1016/j.jmp.2009.02.003}
 #'
 #' @seealso [rcogmod_rdm()], [rcogmod_lba2()], [rcogmod_lnr()]
 #'
@@ -446,73 +453,179 @@ cogmod_ddm <- function(
 }
 
 
-#' DDM density with between-trial variability in drift rate
-#'
-#' Integrating the 4-parameter Wiener density over a Normal drift has a closed
-#' form: the density with zero drift, times a correction factor. No numerical
-#' integration is required, so this costs one [brms::dwiener()] call.
-#'
+# The first-passage density -----------------------------------------------
+#
+# Navarro & Fuss (2009), written out here rather than delegated to
+# `brms::dwiener()`. That call was 6 us per element, and it was the whole cost
+# of `log_lik()` and hence of `loo()` - tolerable for the 4-parameter model,
+# where it is paid once per draw-observation, and not for the 7-parameter one,
+# where the quadrature below paid it 625 times per draw-observation: 5 ms each,
+# or hours for a LOO over a few thousand draws of a few hundred trials. The
+# series here is about 1 us per element vectorised - the remaining cost is R
+# overhead, not arithmetic, so the next step would be C - and it works in log space
+# throughout, so a response in the far tail comes back as a large negative
+# number rather than as `log(0)`, which matters to `p_outlier()` and to LOO on
+# exactly the trials they are most interested in. The Stan side is untouched:
+# it calls Stan's own `wiener_lpdf()` (see .DDM_STAN_PRELUDE), and the two are
+# checked against each other in test-model_ddm.R.
+
+# Absolute accuracy demanded of the rescaled density f0 below. The series
+# lengths grow only as sqrt(log(1 / eps)), so asking for a lot is cheap: at
+# 1e-12 the longer of the two series is under ten terms everywhere the two
+# meet, and the tails need fewer still.
+.DDM_FPT_EPS <- 1e-12
+# Terms per series, each way from the centre for the small-time one. Only an
+# extreme rescaled time could reach it, and there the answer is `-Inf` anyway.
+.DDM_FPT_CAP <- 200L
+
+# Log first-passage density at the LOWER boundary of the driftless, unit-
+# boundary diffusion started at `w`, at rescaled time `u = t / boundary^2`.
+#
+# Navarro & Fuss give two series that are each exact and each converge only in
+# their own regime - the small-time one in powers of exp(-1/u), the large-time
+# one in powers of exp(-u) - and a rule (their eqs 10-13) for how many terms
+# each needs for a given absolute error, so the cheaper one is taken for every
+# element. Each series is then summed with its leading term factored out: for
+# the small-time series that is the k = 0 term's exponent, `-w^2 / 2u`, and for
+# the large-time series the k = 1 term's, `-pi^2 u / 2`. That is what makes the
+# result accurate in the tails, where the density itself is far below `eps`:
+# the leading term carries the magnitude exactly and the sum inside the log is
+# an O(1) correction to it. Without the factoring, every term would underflow
+# to zero together and the log would be `-Inf` at densities a long way above
+# the smallest representable number.
+#
+# Elements are grouped by series and each group is evaluated as one terms x
+# elements matrix, sized by the element in the group that needs the most terms.
+# The extra terms the others get are exact zeros to double precision, so the
+# grouping costs time and never accuracy.
 #' @keywords internal
-#' @noRd
-.cogmod_ddm_density_sv <- function(x, drift, boundary, bias, ndt, response, sigmadrift, ...) {
-  dt <- x - ndt
-  out <- rep(0, length(dt))
-  ok <- !is.na(dt) & dt > 0
-  if (!any(ok)) {
-    return(out)
+.ddm_lfpt0 <- function(u, w) {
+  n <- max(length(u), length(w))
+  u <- rep_len(u, n)
+  w <- rep_len(w, n)
+  out <- rep(-Inf, n)
+  ok <- is.finite(u) & u > 0 & is.finite(w) & w > 0 & w < 1
+  if (!any(ok)) return(out)
+  u <- u[ok]
+  w <- w[ok]
+  eps <- .DDM_FPT_EPS
+
+  # Terms the large-time series needs (eq. 12-13) and the small-time one (eq.
+  # 10-11), the latter counted across both sides of k = 0.
+  kl <- pmax(1 / (pi * sqrt(u)),
+             ifelse(pi * u * eps < 1,
+                    sqrt(pmax(-2 * log(pi * u * eps), 0) / (pi^2 * u)), 0))
+  ks <- pmax(sqrt(u) + 1,
+             ifelse(2 * sqrt(2 * pi * u) * eps < 1,
+                    2 + sqrt(pmax(-2 * u * log(2 * sqrt(2 * pi * u) * eps), 0)),
+                    2))
+  small <- ks < kl
+  res <- rep(-Inf, length(u))
+
+  if (any(small)) {
+    us <- u[small]
+    ws <- w[small]
+    m <- min(.DDM_FPT_CAP, max(2L, as.integer(ceiling(max(ks[small]) / 2))))
+    kk <- seq.int(-m, m)
+    K <- length(kk)
+    ne <- length(us)
+    W <- matrix(ws, K, ne, byrow = TRUE) + 2 * kk
+    U <- matrix(us, K, ne, byrow = TRUE)
+    W0 <- matrix(ws, K, ne, byrow = TRUE)
+    s <- .colSums(W * exp(-(W^2 - W0^2) / (2 * U)), K, ne)
+    res[small] <- ifelse(s > 0,
+                         log(s) - ws^2 / (2 * us) - 0.5 * log(2 * pi * us^3),
+                         -Inf)
   }
-
-  # Density of the driftless process; the drift enters through the correction.
-  out[ok] <- brms::dwiener(
-    x = x[ok],
-    alpha = boundary[ok],
-    beta = bias[ok],
-    delta = 0,
-    resp = response[ok],
-    tau = ndt[ok],
-    ...
-  )
-
-  # The upper boundary is the lower one with the drift and start point flipped.
-  v <- ifelse(response[ok] == 1, -drift[ok], drift[ok])
-  w <- ifelse(response[ok] == 1, 1 - bias[ok], bias[ok])
-  sv2 <- sigmadrift[ok]^2
-  num <- -v^2 * dt[ok] - 2 * v * boundary[ok] * w + sv2 * boundary[ok]^2 * w^2
-
-  out[ok] <- out[ok] * exp(num / (2 * (1 + sv2 * dt[ok]))) / sqrt(1 + sv2 * dt[ok])
+  if (any(!small)) {
+    ul <- u[!small]
+    wl <- w[!small]
+    K <- min(.DDM_FPT_CAP, max(2L, as.integer(ceiling(max(kl[!small])))))
+    ne <- length(ul)
+    Kk <- matrix(seq_len(K), K, ne)
+    U <- matrix(ul, K, ne, byrow = TRUE)
+    Wl <- matrix(wl, K, ne, byrow = TRUE)
+    s <- .colSums(Kk * exp(-(Kk^2 - 1) * pi^2 * U / 2) * sin(Kk * pi * Wl),
+                  K, ne)
+    res[!small] <- ifelse(s > 0, log(pi) + log(s) - pi^2 * ul / 2, -Inf)
+  }
+  out[ok] <- res
   out
 }
 
 
-#' Full (7-parameter) DDM density
-#'
-#' Drift variability is handled analytically by `.cogmod_ddm_density_sv()`; the
-#' starting point and non-decision time are integrated out by Gauss-Legendre
-#' quadrature over their Uniform distributions. The non-decision time is
-#' integrated only up to `x`, since later start times contribute nothing -
-#' this keeps the integrand smooth and the quadrature accurate.
-#'
-#' Validated against the Stan likelihood in [cogmod_ddm_stanvars()]: the maximum
-#' relative error is at machine precision when only drift and starting-point
-#' variability are present, and below 1e-5 with all three.
-#'
-#' @param nodes Number of quadrature nodes per integrated dimension.
+# Log first-passage density at the LOWER boundary, with drift `v`, boundary
+# separation `a`, relative start point `w` and - optionally - a Normal
+# between-trial spread `sv` on the drift.
+#
+# The drift enters the density only through a factor, and integrating that
+# factor against a Normal drift is closed form, so `sv` costs nothing: at
+# `sv = 0` the exponent below is the familiar `-v a w - v^2 t / 2` and the
+# `sqrt(1 + sv^2 t)` is one.
 #' @keywords internal
-#' @noRd
-.cogmod_ddm_density_var <- function(params, nodes = 25, ...) {
-  n <- length(params$x)
-  rec <- function(v) rep_len(v, n)
+.ddm_lfpt <- function(t, v, a, w, sv = 0) {
+  n <- max(length(t), length(v), length(a), length(w), length(sv))
+  t <- rep_len(t, n)
+  v <- rep_len(v, n)
+  a <- rep_len(a, n)
+  w <- rep_len(w, n)
+  sv <- rep_len(sv, n)
+  s2t <- 1 + sv^2 * t
+  num <- -v^2 * t - 2 * v * a * w + sv^2 * a^2 * w^2
+  .ddm_lfpt0(t / a^2, w) - 2 * log(a) + num / (2 * s2t) - 0.5 * log(s2t)
+}
 
-  x <- rec(params$x)
-  drift <- rec(params$drift)
-  boundary <- rec(params$boundary)
-  bias <- rec(params$bias)
-  ndt <- rec(params$ndt)
-  response <- rec(params$response)
-  sigmadrift <- rec(params$sigmadrift)
 
-  sw <- rec(params$sigmabias) * pmin(2 * bias, 2 * (1 - bias))
-  st0 <- rec(params$sigmandt)
+# The same for the boundary named by `k`: 1 is upper, 0 lower. The upper
+# boundary is the lower boundary of the reflected process, so one routine
+# serves both with the drift and the start point flipped.
+#' @keywords internal
+.ddm_lfpt_resp <- function(t, v, a, w, k, sv = 0) {
+  up <- k == 1
+  .ddm_lfpt(t, ifelse(up, -v, v), a, ifelse(up, 1 - w, w), sv)
+}
+
+
+# Full (7-parameter) log-density at decision time `t`.
+#
+# Drift variability is closed form (see `.ddm_lfpt()`); the starting point and
+# the non-decision time are integrated out by Gauss-Legendre quadrature over
+# their Uniform distributions, on the log scale. The non-decision time is
+# integrated only up to `t` - a later start leaves no time to decide in and
+# contributes nothing - which is what keeps the integrand smooth and the
+# fixed-node rule accurate.
+#
+# The st0 nodes are evaluated in one call per start-point node, as a nodes x
+# observations block, and combined with a log-sum-exp down the columns. The
+# density's cost is R overhead rather than arithmetic, so 25 calls on long
+# vectors are several times cheaper than 625 calls on short ones - and the
+# block is only 25 x draws, so memory is not a concern.
+#
+# `sw` is the start-point range as a fraction of `[0, 1]` and `st0` the
+# non-decision-time range in seconds, both as `.cogmod_ddm_draw_trialwise()`
+# and the Stan code define them, with `ndt` the LOWER end of the st0 range: so
+# the per-trial decision time runs from `t - st0` up to `t`.
+#
+# Validated against the Stan likelihood in [cogmod_ddm_stanvars()]: the maximum
+# relative error is at machine precision when only drift and starting-point
+# variability are present, and below 1e-5 with all three.
+#
+# `nodes` is the number of quadrature nodes per integrated dimension.
+#' @keywords internal
+.ddm_ldens_var <- function(pars, nodes = 25) {
+  t <- pars$t
+  n <- length(t)
+  # The upper boundary is the lower one of the reflected process. The reflection
+  # is applied here, once, rather than at every node: `sw` is symmetric in the
+  # start point, and the nodes are symmetric about it, so the quadrature over
+  # the reflected start point is the same sum.
+  up <- pars$response == 1
+  v <- ifelse(up, -pars$drift, pars$drift)
+  w <- ifelse(up, 1 - pars$bias, pars$bias)
+  a <- pars$boundary
+  sv <- pars$sigmadrift
+  sw <- pars$sigmabias * pmin(2 * w, 2 * (1 - w))
+  st0 <- pars$sigmandt
 
   # A degenerate "node" of weight 2 reproduces the point value once the 1/2
   # factor of the uniform average is applied.
@@ -520,20 +633,39 @@ cogmod_ddm <- function(
   quad <- .gauss_legendre(nodes)
   w_quad <- if (any(sw > 0)) quad else degenerate
   t_quad <- if (any(st0 > 0)) quad else degenerate
+  nb <- length(t_quad$nodes)
 
-  span <- pmax(pmin(ndt + st0, x) - ndt, 0)
-  scale <- ifelse(st0 > 0, span / (2 * st0), 1 / 2)
+  # The st0 range that leaves a positive decision time, and the Jacobian of
+  # mapping the nodes onto it - `1 / 2` where st0 is zero, so the two weights
+  # of the degenerate rule average back to the point value.
+  span <- pmax(pmin(st0, t), 0)
+  lscale <- ifelse(st0 > 0, log(span) - log(2 * st0), -log(2))
 
-  out <- numeric(n)
-  for (a in seq_along(w_quad$nodes)) {
-    bias_a <- bias + (sw / 2) * w_quad$nodes[a]
-    inner <- numeric(n)
-    for (b in seq_along(t_quad$nodes)) {
-      ndt_b <- ndt + (span / 2) * (t_quad$nodes[b] + 1)
-      inner <- inner + t_quad$weights[b] *
-        .cogmod_ddm_density_sv(x, drift, boundary, bias_a, ndt_b, response, sigmadrift, ...)
+  # Everything the st0 dimension needs, laid out node-fastest: element
+  # (b, i) of the block sits at position (i - 1) * nb + b, so a vector
+  # repeated `each = nb` pairs with the node vector recycled `n` times.
+  each <- function(x) rep(x, each = nb)
+  t_b <- each(t) - each(span) / 2 * (t_quad$nodes + 1)
+  base <- each(lscale) + log(t_quad$weights)
+  v_b <- each(v)
+  a_b <- each(a)
+  sv_b <- each(sv)
+
+  out <- rep(-Inf, n)
+  for (ia in seq_along(w_quad$nodes)) {
+    w_a <- w + (sw / 2) * w_quad$nodes[ia]
+    lt <- matrix(base + .ddm_lfpt(t_b, v_b, a_b, each(w_a), sv_b), nb, n)
+    # log-sum-exp down the columns; a column of -Inf stays -Inf rather than NaN
+    mx <- lt[1, ]
+    for (b in seq_len(nb)[-1]) mx <- pmax(mx, lt[b, ])
+    fin <- is.finite(mx)
+    inner <- rep(-Inf, n)
+    if (any(fin)) {
+      inner[fin] <- mx[fin] +
+        log(.colSums(exp(lt[, fin, drop = FALSE] - rep(mx[fin], each = nb)),
+                     nb, sum(fin)))
     }
-    out <- out + (w_quad$weights[a] / 2) * inner * scale
+    out <- .log_add_exp(out, log(w_quad$weights[ia] / 2) + inner)
   }
   out
 }
@@ -622,12 +754,14 @@ cogmod_ddm <- function(
 
 # The decision component, as the registry wants it ------------------------
 
-# `brms::dwiener()` insists on a strictly positive non-decision time, but the
-# density depends on `q` and `tau` only through `q - tau`, so evaluating it at
-# `q = t + .DDM_TAU0`, `tau = .DDM_TAU0` gives the decision density at `t`
-# exactly. The value is far below any RT resolution and cancels to the last bit
-# at every magnitude the density is ever asked about, so it is a workaround for
-# an argument check rather than an approximation.
+# Stan's `wiener_lpdf()` insists on a strictly positive non-decision time, but
+# the density depends on the time and the non-decision time only through their
+# difference, so the Stan code evaluates it at `(t + tau0, tau0)` and gets the
+# decision density at `t` exactly. The value is far below any RT resolution and
+# cancels to the last bit at every magnitude the density is ever asked about,
+# so it is a workaround for an argument check rather than an approximation. It
+# is written into the generated Stan code from here (see .DDM_STAN_PRELUDE);
+# the R density has no such check to appease and does not use it.
 #' @keywords internal
 .DDM_TAU0 <- 1e-10
 
@@ -636,37 +770,20 @@ cogmod_ddm <- function(
 # the non-decision time) at the boundary named by `k`: 1 is upper, 0 lower.
 #
 # `.ldec_choice()` masks out `t <= 0` and restores the shape afterwards, so this
-# only has to work elementwise.
-#
-# This still goes through `brms::dwiener()`, unlike the sampler above, and that
-# is deliberate rather than unfinished. `dwiener()` is slow - 6 us per element
-# vectorised, and 1210 us when `resp` varies - so the question is what it costs
-# in practice, and the answer is: only `log_lik()`, and once. Fitting is Stan,
-# not this; `posterior_predict()` reaches the RNG and never the density; and
-# `posterior_epred()` uses a closed form. That leaves `log_lik()`, hence
-# `loo()`, at 67 us per draw-observation against 18 for the LNR and 25 for the
-# LBA - a factor of three or four, not the order of magnitude the sampler was
-# out by, and paid once per model rather than on every prediction.
-#
-# Rewriting it would mean a hand-rolled Navarro-Fuss density plus the
-# between-trial variability machinery on top, and it would put LOO and every
-# model comparison downstream of new numerics. That is a bad trade for a couple
-# of minutes of one-off work, so it stays.
+# only has to work elementwise. Everything is flattened first because
+# `p_outlier()` passes draws x observations matrices.
 #' @keywords internal
 .ddm_ldens <- function(t, k, p) {
   tv <- as.vector(t)
   n <- length(tv)
-  # `brms::dwiener()` returns `list()` rather than `numeric(0)` on empty input,
-  # and that list then reaches the arithmetic in `.log_mix()`.
   if (n == 0) return(numeric(0))
   rec <- function(v) rep_len(as.vector(v), n)
 
   pars <- list(
-    x = tv + .DDM_TAU0,
+    t = tv,
     drift = rec(p$mu),
     boundary = rec(p$boundary),
     bias = rec(p$bias),
-    ndt = rep(.DDM_TAU0, n),
     response = rec(k),
     sigmadrift = rec(p$sigmadrift),
     sigmabias = rec(p$sigmabias),
@@ -674,12 +791,9 @@ cogmod_ddm <- function(
   )
 
   if (.cogmod_ddm_has_variability(pars)) {
-    return(log(.cogmod_ddm_density_var(pars)))
+    return(.ddm_ldens_var(pars))
   }
-  brms::dwiener(
-    x = pars$x, alpha = pars$boundary, beta = pars$bias, delta = pars$drift,
-    resp = pars$response, tau = pars$ndt, log = TRUE
-  )
+  .ddm_lfpt_resp(pars$t, pars$drift, pars$boundary, pars$bias, pars$response)
 }
 
 

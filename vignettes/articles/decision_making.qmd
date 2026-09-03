@@ -266,6 +266,24 @@ threshold by any constant and every finishing time is unchanged - so the six
 parameters are identified only up to a common factor. Priors make the posterior
 proper; only fixing one of them identifies the scale.
 
+Two more things are worth knowing before reading the estimates. First, each
+drift rate is a Normal **truncated at zero** (the convention of `rtdists`,
+`DMC` and `EMC2`; see `?rcogmod_lba2`), and for an accumulator that rarely wins
+- the error accumulator here, with a 5% error rate - the truncated Normal's
+location and scale are identified only through their ratio. `driftone` will
+therefore come out well below zero with a wide `sigmaone`, and the pair should
+be read together, as the shape of a distribution of small positive rates,
+rather than `driftone` alone as a mean drift. Fixing `sigmaone = 1` as well
+is sometimes worth doing.
+
+Second, in our case, the `boundary` and `ndt` parameter are strongly correlated, 
+which makes sampling difficult and slow. In these cases, setting `metric = "dense_e"`
+can help (x2 speed-ups in our case). This setting is worth trying in other models 
+as well. While it might pay off for low-dimensional posteriors with strong correlations, 
+for a hierarchy with hundreds of participant-level parameters the
+dense matrix has more entries to estimate than warmup can pin down, and the
+default might be the safer choice.
+
 ```{r}
 #| eval: false
 #| code-fold: false
@@ -286,7 +304,8 @@ m_lba <- brm(f,
   prior = cogmod_priors(f, df),
   init = cogmod_inits(f, df),
   stanvars = cogmod_stanvars(f),
-  chains = 4, iter = 500, backend = "cmdstanr"
+  chains = 4, iter = 500, backend = "cmdstanr",
+  metric = "dense_e"  # see above
 )
 
 m_lba <- brms::add_criterion(m_lba, "loo")  # Add model performance criterion
