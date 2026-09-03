@@ -237,6 +237,8 @@
 </h3>
 <p>The LBA assumes two independent accumulators (one per choice) that race towards a common threshold <code>b</code> (<code>sigmabias</code> = start-point range <code>A</code>, <code>boundary</code> = extra distance so that <code>b = A + boundary</code>). <code>mu</code> and <code>driftone</code> are the mean drift rates for the “Correct” and “Error” accumulators, and <code>sigmazero</code>/ <code>sigmaone</code> their between-trial drift variability.</p>
 <p>Note that <code>sigmazero</code> is <strong>fixed to 1</strong> below. The evidence scale of an LBA is arbitrary - multiply the drifts, their SDs, the start-point range and the threshold by any constant and every finishing time is unchanged - so the six parameters are identified only up to a common factor. Priors make the posterior proper; only fixing one of them identifies the scale.</p>
+<p>Two more things are worth knowing before reading the estimates. First, each drift rate is a Normal <strong>truncated at zero</strong> (the convention of <code>rtdists</code>, <code>DMC</code> and <code>EMC2</code>; see <code><a href="../reference/rcogmod_lba2.html">?rcogmod_lba2</a></code>), and for an accumulator that rarely wins - the error accumulator here, with a 5% error rate - the truncated Normal’s location and scale are identified only through their ratio. <code>driftone</code> will therefore come out well below zero with a wide <code>sigmaone</code>, and the pair should be read together, as the shape of a distribution of small positive rates, rather than <code>driftone</code> alone as a mean drift. Fixing <code>sigmaone = 1</code> as well is sometimes worth doing.</p>
+<p>Second, in our case, the <code>boundary</code> and <code>ndt</code> parameter are strongly correlated, which makes sampling difficult and slow. In these cases, setting <code>metric = "dense_e"</code> can help (x2 speed-ups in our case). This setting is worth trying in other models as well. While it might pay off for low-dimensional posteriors with strong correlations, for a hierarchy with hundreds of participant-level parameters the dense matrix has more entries to estimate than warmup can pin down, and the default might be the safer choice.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
@@ -255,7 +257,8 @@
 <span>  prior <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
 <span>  init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">500</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span>,</span>
+<span>  metric <span class="op">=</span> <span class="st">"dense_e"</span>  <span class="co"># see above</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">m_lba</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/add_criterion.html" class="external-link">add_criterion</a></span><span class="op">(</span><span class="va">m_lba</span>, <span class="st">"loo"</span><span class="op">)</span>  <span class="co"># Add model performance criterion</span></span></code></pre></div>
@@ -302,13 +305,13 @@
 <span>  <span class="fu">parameters</span><span class="op">(</span>include_ENP <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; # Fixed Effects</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Name |   LOOIC |   ENP |    ELPD | Difference | Difference_SE |      p</span></span>
-<span><span class="co">#&gt; ----------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; 1    | -2657.7 |  8.42 | 1328.86 |       0.00 |          0.00 |       </span></span>
-<span><span class="co">#&gt; 2    | -2633.0 |  9.86 | 1316.52 |     -12.34 |         10.12 | 0.223 </span></span>
-<span><span class="co">#&gt; 3    | -2507.3 | 10.74 | 1253.66 |     -75.20 |         17.27 | &lt; .001</span></span>
-<span><span class="co">#&gt; 4    | -2436.3 | 10.70 | 1218.16 |    -110.70 |         19.13 | &lt; .001</span></span>
-<span><span class="co">#&gt; 5    | -2419.4 |  6.96 | 1209.69 |    -119.17 |         18.13 | &lt; .001</span></span></code></pre></div>
+<span><span class="co">#&gt; Name   |   LOOIC |   ENP |    ELPD | Difference | Difference_SE |      p</span></span>
+<span><span class="co">#&gt; ------------------------------------------------------------------------</span></span>
+<span><span class="co">#&gt; m_lba  | -2653.1 |  7.49 | 1326.56 |       0.00 |          0.00 |       </span></span>
+<span><span class="co">#&gt; m_lnr  | -2633.0 |  9.86 | 1316.52 |     -10.04 |         11.08 | 0.365 </span></span>
+<span><span class="co">#&gt; m_ddm5 | -2507.3 | 10.74 | 1253.66 |     -72.90 |         18.91 | &lt; .001</span></span>
+<span><span class="co">#&gt; m_ddm  | -2436.3 | 10.70 | 1218.16 |    -108.40 |         21.54 | &lt; .001</span></span>
+<span><span class="co">#&gt; m_rdm  | -2419.4 |  6.96 | 1209.69 |    -116.87 |         18.15 | &lt; .001</span></span></code></pre></div>
 </div>
 </section><section class="level3"><h3 id="sampling-duration">Sampling Duration<a class="anchor" aria-label="anchor" href="#sampling-duration"></a>
 </h3>

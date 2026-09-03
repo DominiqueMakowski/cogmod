@@ -287,18 +287,51 @@ avoids that.</p>
     </div>
     <div class="section level2">
     <h2 id="negative-drift-rates">Negative drift rates<a class="anchor" aria-label="anchor" href="#negative-drift-rates"></a></h2>
-    <p>A normal drift rate can come out negative, and such an accumulator rises
-away from the threshold and never responds. A trial on which <em>both</em> drifts
-are negative produces no response at all, so it is not a trial: the process
-is conditioned on at least one of the two being positive, and
-<code>rcogmod_lba2()</code> draws from exactly that conditional distribution.</p>
-<p>The density is conditioned to match, dividing by
-<code>1 - pnorm(-driftzero / sigmazero) * pnorm(-driftone / sigmaone)</code>. Without
-that factor the density integrates to the probability of the event rather
-than to one, which at low drift rates is a long way short - <code>0.83</code> at drifts
-of <code>0.5</code> and <code>0.2</code> with SDs of <code>1.5</code>, so the likelihood is wrong by 17% and
-wrong by <em>different</em> amounts at different parameter values, which is what
-makes it bias estimates rather than merely offset them.</p>
+    <p>A Normal drift rate can come out negative, and such an accumulator rises
+away from the threshold and never responds. Brown and Heathcote (2008) noted
+the problem and left it; every implementation since has had to decide what
+to do about it, and this one follows the convention of <code>rtdists</code>
+(<code>posdrift = TRUE</code>, its default), <code>DMC</code>, <code>EMC2</code> and <code>ggdmc</code>: <strong>each drift
+rate is a Normal truncated at zero</strong>. Every accumulator is then guaranteed a
+positive rate on every trial, every trial produces a response, and the
+losing accumulator's survival is that of a truncated Normal.
+<code>rcogmod_lba2()</code> draws each drift from exactly that truncated distribution.</p>
+<p>The density is normalised to match: the winner's defective density is
+divided by its own <code>pnorm(drift / sigma)</code>, and the loser's survival is taken
+conditional on its own drift being positive. Without the truncation the
+density integrates to the probability that at least one accumulator finishes
+rather than to one, which at low drift rates is a long way short - <code>0.83</code>
+at drifts of <code>0.5</code> and <code>0.2</code> with SDs of <code>1.5</code>, so the likelihood would be
+wrong by 17% and wrong by <em>different</em> amounts at different parameter values,
+which is what biases estimates rather than merely offsetting them.</p>
+<p>Two consequences are worth knowing. First, because the convention is the
+field's, parameter estimates are <strong>directly comparable</strong> with those packages'
+and with the published LBA literature built on them, and <code>dcogmod_lba2()</code>
+reproduces <code><a href="https://rdrr.io/pkg/rtdists/man/LBA.html" class="external-link">rtdists::dLBA()</a></code> at the same parameter values. Second, <code>drift</code>
+and <code>sigma</code> are the location and scale of the <em>untruncated</em> Normal, not the
+mean and SD of the drifts actually realised: where a drift is small relative
+to its SD, the realised mean is higher and the realised SD lower than the
+parameters say. That is the price every implementation pays for a race that
+always finishes; with both drifts large relative to their SDs it is
+negligible.</p>
+<p>The truncation also creates a flat direction. A Normal truncated at zero
+whose location runs off to minus infinity while its scale grows, with
+<code>|drift| / sigma^2</code> held fixed, converges to an Exponential, so once an
+accumulator rarely wins its <code>drift</code> and <code>sigma</code> are identified only through
+that ratio, and the likelihood is nearly flat along the ray. The error
+accumulator in a task with a 5% error rate is exactly such a case: left
+flat, its drift wandered to <code>-12</code> with an interval of <code>-23</code> to <code>-6.5</code>, on an
+evidence scale where the correct accumulator's drift is <code>3</code>.
+<code><a href="cogmod_priors.html">cogmod_priors()</a></code> therefore puts <code>normal(1, 2)</code> on <code>driftone</code> and
+<code>normal(0, 1.5)</code> on its slopes, as it does for <code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>'s <code>nuone</code>. If
+the <em>rarely</em> chosen option is the one on <code>mu</code>, mirror that prior onto <code>mu</code>
+by hand. Fixing both SDs (<code>sigmazero = 1, sigmaone = 1</code>, a single <code>sv</code>)
+removes the ray altogether and is common practice in the LBA literature.</p>
+<p>Versions before 0.3.1 used a different convention - the pair of drifts was
+conditioned on at least one being positive, with a negative loser allowed to
+run away - so LBA estimates from those versions are not comparable with
+these where a drift is small relative to its SD, and fits made with them
+cannot be post-processed with this version.</p>
     </div>
     <div class="section level2">
     <h2 id="the-evidence-scale-is-arbitrary">The evidence scale is arbitrary<a class="anchor" aria-label="anchor" href="#the-evidence-scale-is-arbitrary"></a></h2>
@@ -396,12 +429,12 @@ Linear ballistic accumulation. <em>Cognitive Psychology</em>, <em>57</em>(3), 15
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">data</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>          rt response</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 0.3923066        0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 0.4116434        0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 0.3422438        1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 0.4051855        1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5 0.4023837        1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6 0.4347949        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 0.4344558        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 0.6071895        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 0.4257365        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 0.6650784        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5 0.3747992        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6 0.4242575        0</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Responses faster than ndt keep positive density, unlike the unmixed model</span></span></span>
 <span class="r-in"><span><span class="fu">dcogmod_lba2</span><span class="op">(</span><span class="fl">0.1</span>, ndt <span class="op">=</span> <span class="fl">0.2</span>, response <span class="op">=</span> <span class="fl">0</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span><span class="op">)</span></span></span>

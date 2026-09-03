@@ -380,18 +380,22 @@ applies unchanged here.</p>
     </div>
     <div class="section level2">
     <h2 id="implementation">Implementation<a class="anchor" aria-label="anchor" href="#implementation"></a></h2>
-    <p>The 4-parameter density is <code><a href="https://paulbuerkner.com/brms/reference/Wiener.html" class="external-link">brms::dwiener()</a></code> (which requires the <code>RWiener</code>
-package). Draws are taken by inverting the first-passage CDF, which - unlike
-<code><a href="https://paulbuerkner.com/brms/reference/Wiener.html" class="external-link">brms::rwiener()</a></code>, and unlike <code>rtdists</code> - vectorises over parameter sets, so
-the per-call setup is paid once rather than once per posterior draw. That
-matters for <code><a href="https://mc-stan.org/rstantools/reference/posterior_predict.html" class="external-link">rstantools::posterior_predict()</a></code>, where every draw carries its own
-parameters; it is several times faster there and agrees with both packages'
-samplers to within sampling error.</p>
+    <p>The 4-parameter density is the Navarro and Fuss (2009) series, evaluated in
+log space and vectorised over parameter sets, so a response in the far tail
+has a finite log-density rather than <code>log(0)</code>. It agrees with
+<code><a href="https://paulbuerkner.com/brms/reference/Wiener.html" class="external-link">brms::dwiener()</a></code> and with <code>rtdists</code> to about <code>1e-10</code> wherever those return a
+number, and is about eight times cheaper per element than the former. Draws are
+taken by inverting the first-passage CDF, which - unlike <code><a href="https://paulbuerkner.com/brms/reference/Wiener.html" class="external-link">brms::rwiener()</a></code>,
+and unlike <code>rtdists</code> - vectorises over parameter sets, so the per-call setup
+is paid once rather than once per posterior draw. That matters for
+<code><a href="https://mc-stan.org/rstantools/reference/posterior_predict.html" class="external-link">rstantools::posterior_predict()</a></code>, where every draw carries its own parameters; it is
+several times faster there and agrees with both packages' samplers to within
+sampling error.</p>
 <p>The full 7-parameter model is built on top of these rather than delegated to
 another package: between-trial variability is simulated by drawing the
 per-trial parameters, and evaluated by combining a closed-form drift
 correction with Gauss-Legendre quadrature over the starting point and
-non-decision time.</p>
+non-decision time, also in log space.</p>
 <p>In Stan the decision component is <code>wiener_lpdf()</code>, called with its own
 non-decision time set to zero because the shift is applied by the mixture
 around it, and short-circuited to the cheaper 4- and 5-parameter forms
@@ -457,6 +461,9 @@ one as usual. <code><a href="rcogmod_rdm.html">pcogmod_rdm()</a></code> follows 
 <ul><li><p>Ratcliff, R., &amp; McKoon, G. (2008). The diffusion decision model: Theory and
 data for two-choice decision tasks. <em>Neural Computation</em>, <em>20</em>(4),
 873-922. <a href="https://doi.org/10.1162/neco.2008.12-06-420" class="external-link">doi:10.1162/neco.2008.12-06-420</a></p></li>
+<li><p>Navarro, D. J., &amp; Fuss, I. G. (2009). Fast and accurate calculations for
+first-passage times in Wiener diffusion models. <em>Journal of Mathematical
+Psychology</em>, <em>53</em>(4), 222-230. <a href="https://doi.org/10.1016/j.jmp.2009.02.003" class="external-link">doi:10.1016/j.jmp.2009.02.003</a></p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

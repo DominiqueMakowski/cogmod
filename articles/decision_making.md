@@ -263,6 +263,27 @@ unchanged - so the six parameters are identified only up to a common
 factor. Priors make the posterior proper; only fixing one of them
 identifies the scale.
 
+Two more things are worth knowing before reading the estimates. First,
+each drift rate is a Normal **truncated at zero** (the convention of
+`rtdists`, `DMC` and `EMC2`; see
+[`?rcogmod_lba2`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)),
+and for an accumulator that rarely wins - the error accumulator here,
+with a 5% error rate - the truncated Normal’s location and scale are
+identified only through their ratio. `driftone` will therefore come out
+well below zero with a wide `sigmaone`, and the pair should be read
+together, as the shape of a distribution of small positive rates, rather
+than `driftone` alone as a mean drift. Fixing `sigmaone = 1` as well is
+sometimes worth doing.
+
+Second, in our case, the `boundary` and `ndt` parameter are strongly
+correlated, which makes sampling difficult and slow. In these cases,
+setting `metric = "dense_e"` can help (x2 speed-ups in our case). This
+setting is worth trying in other models as well. While it might pay off
+for low-dimensional posteriors with strong correlations, for a hierarchy
+with hundreds of participant-level parameters the dense matrix has more
+entries to estimate than warmup can pin down, and the default might be
+the safer choice.
+
 ``` r
 
 f <- bf(
@@ -281,7 +302,8 @@ m_lba <- brm(f,
   prior = cogmod_priors(f, df),
   init = cogmod_inits(f, df),
   stanvars = cogmod_stanvars(f),
-  chains = 4, iter = 500, backend = "cmdstanr"
+  chains = 4, iter = 500, backend = "cmdstanr",
+  metric = "dense_e"  # see above
 )
 
 m_lba <- brms::add_criterion(m_lba, "loo")  # Add model performance criterion
@@ -401,13 +423,13 @@ loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
   parameters(include_ENP = TRUE)
 #> # Fixed Effects
 #> 
-#> Name |   LOOIC |   ENP |    ELPD | Difference | Difference_SE |      p
-#> ----------------------------------------------------------------------
-#> 1    | -2657.7 |  8.42 | 1328.86 |       0.00 |          0.00 |       
-#> 2    | -2633.0 |  9.86 | 1316.52 |     -12.34 |         10.12 | 0.223 
-#> 3    | -2507.3 | 10.74 | 1253.66 |     -75.20 |         17.27 | < .001
-#> 4    | -2436.3 | 10.70 | 1218.16 |    -110.70 |         19.13 | < .001
-#> 5    | -2419.4 |  6.96 | 1209.69 |    -119.17 |         18.13 | < .001
+#> Name   |   LOOIC |   ENP |    ELPD | Difference | Difference_SE |      p
+#> ------------------------------------------------------------------------
+#> m_lba  | -2653.1 |  7.49 | 1326.56 |       0.00 |          0.00 |       
+#> m_lnr  | -2633.0 |  9.86 | 1316.52 |     -10.04 |         11.08 | 0.365 
+#> m_ddm5 | -2507.3 | 10.74 | 1253.66 |     -72.90 |         18.91 | < .001
+#> m_ddm  | -2436.3 | 10.70 | 1218.16 |    -108.40 |         21.54 | < .001
+#> m_rdm  | -2419.4 |  6.96 | 1209.69 |    -116.87 |         18.15 | < .001
 ```
 
 ### Sampling Duration

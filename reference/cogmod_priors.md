@@ -189,13 +189,20 @@ direction that `brms` would leave improper. Seven do:
   `nuone`.
 
 - [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md):
-  `sigmazero`, `sigmaone`, `sigmabias` and `boundary`. The last two
-  share the threshold ridge above; the two drift SDs are worse. The
-  evidence scale of an LBA is arbitrary - multiply the drifts, their
+  `driftone`, `sigmazero`, `sigmaone`, `sigmabias` and `boundary`. The
+  last two share the threshold ridge above; the two drift SDs are worse.
+  The evidence scale of an LBA is arbitrary - multiply the drifts, their
   SDs, the start-point range and the threshold by any `c > 0` and every
   finishing time is unchanged - so the likelihood is *exactly* constant
   along that ray. These priors make the posterior proper; only fixing
-  one SD in the formula (`sigmazero = 1`) identifies the scale. See
+  one SD in the formula (`sigmazero = 1`) identifies the scale.
+  `driftone` has the plateau
+  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)'s
+  `nuone` has, created here by the truncation of each drift at zero:
+  once an accumulator rarely wins, its drift and SD are identified only
+  through `|drift| / sigma^2`, and a flat prior lets the drift run off
+  to `-12` and beyond. `normal(1, 2)` is centred where LBA drifts sit on
+  the `sigmazero = 1` scale. See
   [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md).
 
 - [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md):
@@ -313,6 +320,7 @@ actually lives on:
 | `shape` | `normal(0, 0.5)` | `normal(0, 0.5)` |
 | `sigmabias`, `boundary` ([`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md), [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md), [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 | `sigmazero`, `sigmaone` ([`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
+| `driftone` ([`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)) | `normal(1, 2)` | `normal(1, 2)` |
 | `sigmadrift` ([`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)) | `normal(0, 1)` | `lognormal(-1, 0.75)` |
 | `sigmabias` ([`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)) | `normal(-2, 1)` | `beta(1, 5)` |
 | `sigmandt` ([`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md), [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)) | `normal(-3, 1)` | `lognormal(-3, 1)` |
