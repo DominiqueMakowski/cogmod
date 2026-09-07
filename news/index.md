@@ -40,9 +40,16 @@
   correct process would have finished, so it contributes that process’s
   survival rather than its density. On
   [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
-  this is the censored shifted Wald of [Miller et
-  al. (2018)](https://doi.org/10.1177/0146621617710465), the `cswald`
-  model of [`bmm`](https://github.com/popov-lab/bmm). Here it is not a
+  this is the *simple* censored shifted Wald of [Miller et
+  al. (2018)](https://doi.org/10.1177/0146621617710465), their Eq. 4,
+  the `version = "simple"` of the `cswald` model in
+  [`bmm`](https://github.com/popov-lab/bmm). It is not their
+  competing-risks variant (Eq. 5, a race of two Wald accumulators with
+  drifts `v` and `-v`, as implemented in `rtdists` and `bmm`’s
+  `version = "crisk"`), which is a choice model rather than a censoring
+  construction;
+  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  with `bias` fixed at 0.5 covers that ground. Here censoring is not a
   family but a construction, so the same formula works on every RT-only
   family with a closed-form CDF:
   [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
@@ -68,8 +75,12 @@
   [`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md)
   refuse `cens()` on the families that cannot take it, and
   [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
-  warns above 20% censored trials. What the model is for, what it
-  assumes and the one check to run before using it are in
+  warns above 20% censored trials - a threshold that is exact for
+  timeouts and omissions at any rate but lenient for commission errors,
+  where the construction is biased well before it (see
+  [`?rcogmod_invgaussian`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)).
+  What the model is for, what it assumes and the one check to run before
+  using it are in
   [`?rcogmod_invgaussian`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
   and the *Censored Shifted Wald* section of `vignette("rt_models")`.
 
@@ -142,6 +153,35 @@
   line. A formula or family the check cannot read is passed through
   untouched, so `brms`’s own error is what the user sees.
 
+### Bug fixes
+
+- **[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  no longer produces divergent transitions by the hundred on healthy
+  posteriors.** The Stan log-survival of the losing accumulator formed
+  its reflection term as `log_diff_exp(log R(b), log R(k))`, and for a
+  response less than about half a millisecond above the non-decision
+  time both normal CDFs in `R` round to exactly 1, so it evaluated
+  `log_diff_exp(0, 0)`. The *value* is fine (`-Inf` for a term that
+  really is negligible there, which is why the R-versus-Stan density
+  tests never caught it), but its reverse-mode adjoint is `0 / 0`, and
+  that `NaN` propagated into the gradient of every parameter. Stan
+  reports a `NaN` gradient as a divergent transition, and because `ndt`
+  is estimated a few milliseconds below the fastest responses, most
+  trajectories crossed one of those windows: on the lexical decision
+  data of the decision-making article, 900 trials from 6 participants,
+  between a third and two thirds of the transitions were divergent -
+  with population-level effects only or with participant intercepts,
+  under `diag_e` or `dense_e` - while `Rhat` and the effective sample
+  sizes said the posterior was fine, because it was. The difference is
+  now assembled from three pieces that each stay away from the saturated
+  end of the normal CDF, at the cost of two extra normal CDFs on early
+  responses only. Values are unchanged to `1e-12` on the log scale; the
+  same fits now run without a divergence (population-level) or with the
+  handful the other families also show under `dense_e` with random
+  effects. The other race families are unaffected. A gradient regression
+  test guards it, gated behind `COGMOD_TEST_SLOW` like the other tests
+  that compile a model of their own.
+
 ### Performance
 
 - **The R-side DDM density no longer goes through
@@ -167,6 +207,29 @@
   needed by the test suite, which uses
   [`dwiener()`](https://paulbuerkner.com/brms/reference/Wiener.html) as
   the reference.
+
+### Documentation
+
+- The performance article is reorganised from the suggestions with no
+  downside to the ones that need judgement, and gains four sections.
+  **Compiler optimizations**: stanc’s `O1` and CmdStan’s
+  `STAN_CPP_OPTIMS` and `STAN_NO_RANGE_CHECKS`, passed through
+  `stan_model_args`, and what each one does. **Mass matrix adaptation**
+  (`metric = "dense_e"`): why the boundary/ndt and drift/boundary
+  trade-offs of evidence accumulation models make the default diagonal
+  metric a poor fit, what the dense metric costs as the number of
+  parameters grows, and how to pass it through either backend. **Warm
+  starts**: reusing the adapted metric and step size that `brms` keeps
+  in a fit’s metadata to shorten the warmup of a refit, and a
+  `cmdstanr`-level pipeline that initializes MCMC from Pathfinder draws
+  and their unconstrained covariance, then wraps the result back into a
+  `brmsfit`, with the reasons never to fix the metric to a variational
+  approximation. The approximation section now also covers the **Laplace
+  approximation** (`algorithm = "laplace"`) and how it compares with
+  Pathfinder. Each section reports what the option bought on the DDM,
+  LBA, LNR and RDM in a local benchmark; the scripts behind those
+  numbers live in `benchmarks/` (not part of the installed package) and
+  can be rerun on any model.
 
 ### Breaking changes
 

@@ -501,12 +501,12 @@ data <- rcogmod_rdm(1000,
 )
 head(data)
 #>          rt response
-#> 1 0.3342623        0
-#> 2 0.3085687        0
-#> 3 0.2719745        0
-#> 4 0.4592891        0
-#> 5 0.5737855        0
-#> 6 0.3282243        1
+#> 1 0.3338995        1
+#> 2 0.2802465        0
+#> 3 0.3409711        0
+#> 4 0.5289401        0
+#> 5 0.2500469        0
+#> 6 0.2877378        0
 
 # Responses faster than ndt keep positive density, unlike the unmixed model
 dcogmod_rdm(0.1, ndt = 0.2, response = 0, poutlier = 0.02)

@@ -356,30 +356,51 @@ of <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" clas
 <strong>right-censored</strong> correct response: its RT is read as a lower bound on when
 the correct process would have finished, and it contributes the survival
 <code>P(T &gt; rt)</code> to the likelihood where an observed response contributes the
-density. With <code>sigmadrift = 0</code> this is the <em>censored shifted Wald</em> of Miller
-et al. (2018), the <code>cswald</code> model of the <code>bmm</code> package. Here it is not a
+density. With <code>sigmadrift = 0</code> this is the <em>simple</em> censored shifted Wald of
+Miller et al. (2018, their Eq. 4), the <code>version = "simple"</code> of the <code>cswald</code>
+model in the <code>bmm</code> package. Miller et al. also give a <em>competing-risks</em>
+variant (their Eq. 5): a race between two Wald accumulators with drifts <code>v</code>
+and <code>-v</code>, each response scored with its own defective density. That is the
+model implemented in <code>rtdists</code> and in <code>bmm</code>'s <code>version = "crisk"</code>, and it is
+a choice model of the same kind as <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>, not a censoring
+construction - <code>cens()</code> does not fit it. Where it is wanted, <code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>
+with <code>bias</code> fixed at 0.5 covers the same ground. Here censoring is not a
 separate family but a construction: no new parameter, no new syntax, and the
 same <code>cens()</code> works on every RT-only family with a closed-form CDF (see
 <code><a href="rcogmod_lognormal.html">?rcogmod_lognormal</a></code>). Left-censoring (<code>error = -1</code> or <code>"left"</code>) and
 interval-censoring (<code>cens(x, y2)</code>) work the same way, and <code><a href="https://mc-stan.org/rstantools/reference/log_lik.html" class="external-link">log_lik()</a></code> -
 hence <code><a href="https://mc-stan.org/loo/reference/loo.html" class="external-link">loo()</a></code> - honours all three.</p>
-<p>Three things follow from the construction:</p><ul><li><p><strong>What it is for.</strong> A two-accumulator race has to estimate an error
-process, and when errors are few that process is identified by nothing;
-see the <code>driftone</code> discussion in <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>. Censoring has no error
-accumulator to run away, uses the errors' timing instead of discarding
-the trials, and is exactly right - not an approximation - for go/no-go,
-deadline and omission designs, where a non-response genuinely is a
-censored draw from one accumulator.</p></li>
-<li><p><strong>What it assumes.</strong> That an error says nothing about the correct process
-beyond "not finished yet": non-informative censoring. That is false
-wherever errors and correct responses come from one evidence path, which
-is the DDM's picture, and <code><a href="cogmod_priors.html">cogmod_priors()</a></code> warns past 20% censored
-trials, well beyond the high-accuracy regime the model is argued for.</p></li>
+<p>Three things follow from the construction:</p><ul><li><p><strong>What it is for.</strong> Timeouts, deadlines, omissions and go/no-go designs,
+where a non-response genuinely is a censored draw from one accumulator and
+the censoring time says nothing about the process beyond "not finished
+yet". There the construction is exact - not an approximation - and it uses
+the censored trials instead of discarding them; the example below shows
+what discarding them costs. A two-accumulator race, by contrast, has to
+estimate an error process, and when errors are few that process is
+identified by nothing (see the <code>driftone</code> discussion in <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>);
+censoring has no error accumulator to run away.</p></li>
+<li><p><strong>What it assumes.</strong> Non-informative censoring: that an error says nothing
+about the correct process beyond "not finished yet". That holds when the
+error comes from a process independent of the correct one - a second
+accumulator, a lapse, a deadline - and fails when both responses come from
+one evidence path, which is the DDM's picture. Under an unbiased DDM the
+error RTs have the <em>same</em> distribution as the correct ones, so an error
+censors a trial that was as likely fast as slow, and the survival scores
+it wrong. The bias is not small: in simulation, fitting this construction
+to DDM-generated data with 5% errors overestimates the drift by about 15%
+and the boundary by about 10%, and with 10% errors by about 30% and 15%,
+which is why Miller et al. argue for the simple censored Wald only above
+roughly 95% accuracy. <code><a href="cogmod_priors.html">cogmod_priors()</a></code> warns past 20% censored trials,
+the threshold <code>bmm</code> uses, but for commission errors the model is on firm
+ground only well below that.</p></li>
 <li><p><strong>The check to run first.</strong> Censoring draws errors from the surviving
 tail, so it can only ever predict them <em>slower</em> than correct responses.
-Fast errors - a low boundary, a biased start point - are unproducible by
-construction. Compare the two RT distributions before fitting; if errors
-are faster, use a race (<code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>, <code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>, <code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>).</p></li>
+Compare the two RT distributions before fitting. Errors clearly slower
+than correct responses are consistent with the construction; errors as
+fast as correct responses are the signature of a single diffusion process,
+and faster errors that of a low boundary or a biased start point. In both
+of the latter cases use a race that models the error response:
+<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>, <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code> or <code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>.</p></li>
 </ul><p><code><a href="https://mc-stan.org/rstantools/reference/posterior_predict.html" class="external-link">posterior_predict()</a></code> predicts the latent, uncensored reaction time, as
 <code>brms</code> does for its own families, so <code><a href="https://mc-stan.org/bayesplot/reference/pp_check.html" class="external-link">pp_check()</a></code> on a censored fit compares
 uncensored replicates against data whose censored rows hold <em>censoring</em>
@@ -443,6 +464,41 @@ for choice response times. <em>Applied Psychological Measurement</em>, <em>42</e
 <span class="r-out co"><span class="r-pr">#&gt;</span>        [,1]     [,2]     [,3]     [,4]     [,5]     [,6]      [,7]</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> fixed     0 5.241002 5.164415 3.405054 2.175092 1.408261 0.9297931</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> spread    0 0.954229 3.781531 4.955366 3.499730 2.252275 1.4559368</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Censoring, Miller et al.'s (2018) demonstration in miniature. A deadline</span></span></span>
+<span class="r-in"><span><span class="co"># at 1.2 s turns the slowest responses into omissions. Fitted by maximum</span></span></span>
+<span class="r-in"><span><span class="co"># likelihood three ways: dropping those trials, keeping the deadline as if</span></span></span>
+<span class="r-in"><span><span class="co"># it were the RT, and right-censoring them at the deadline - which is what</span></span></span>
+<span class="r-in"><span><span class="co"># `cens()` does in brms. Only the last recovers the generating parameters.</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">rt</span> <span class="op">&lt;-</span> <span class="fu">rcogmod_invgaussian</span><span class="op">(</span><span class="fl">2000</span>, drift <span class="op">=</span> <span class="fl">2</span>, boundary <span class="op">=</span> <span class="fl">1</span>, ndt <span class="op">=</span> <span class="fl">0.3</span>, poutlier <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">deadline</span> <span class="op">&lt;-</span> <span class="fl">1.2</span></span></span>
+<span class="r-in"><span><span class="va">censored</span> <span class="op">&lt;-</span> <span class="va">rt</span> <span class="op">&gt;</span> <span class="va">deadline</span></span></span>
+<span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">pmin</a></span><span class="op">(</span><span class="va">rt</span>, <span class="va">deadline</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">censored</span><span class="op">)</span>  <span class="co"># about 12% of the trials</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.1215</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">nll</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">par</span>, <span class="va">how</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>  <span class="va">drift</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">par</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">)</span>; <span class="va">boundary</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">par</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span>; <span class="va">ndt</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/stats/Logistic.html" class="external-link">plogis</a></span><span class="op">(</span><span class="va">par</span><span class="op">[</span><span class="fl">3</span><span class="op">]</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="va">ld</span> <span class="op">&lt;-</span> <span class="fu">dcogmod_invgaussian</span><span class="op">(</span><span class="va">y</span>, <span class="va">drift</span>, <span class="va">boundary</span>, <span class="va">ndt</span>, poutlier <span class="op">=</span> <span class="fl">0</span>, log <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="va">ls</span> <span class="op">&lt;-</span> <span class="fu">pcogmod_invgaussian</span><span class="op">(</span><span class="va">y</span>, <span class="va">drift</span>, <span class="va">boundary</span>, <span class="va">ndt</span>, poutlier <span class="op">=</span> <span class="fl">0</span>,</span></span>
+<span class="r-in"><span>                            lower.tail <span class="op">=</span> <span class="cn">FALSE</span>, log.p <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="op">-</span><span class="kw"><a href="https://rdrr.io/r/base/switch.html" class="external-link">switch</a></span><span class="op">(</span><span class="va">how</span>,</span></span>
+<span class="r-in"><span>    drop   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">ld</span><span class="op">[</span><span class="op">!</span><span class="va">censored</span><span class="op">]</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>    keep   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">ld</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>    censor <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">ld</span><span class="op">[</span><span class="op">!</span><span class="va">censored</span><span class="op">]</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">ls</span><span class="op">[</span><span class="va">censored</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">how</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>  <span class="va">o</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/optim.html" class="external-link">optim</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span>, <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span><span class="op">)</span>, <span class="va">nll</span>, how <span class="op">=</span> <span class="va">how</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>drift <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">o</span><span class="op">$</span><span class="va">par</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">)</span>, boundary <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">o</span><span class="op">$</span><span class="va">par</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span>, ndt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/stats/Logistic.html" class="external-link">plogis</a></span><span class="op">(</span><span class="va">o</span><span class="op">$</span><span class="va">par</span><span class="op">[</span><span class="fl">3</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span>truth <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">1</span>, <span class="fl">0.3</span><span class="op">)</span>, drop <span class="op">=</span> <span class="fu">fit</span><span class="op">(</span><span class="st">"drop"</span><span class="op">)</span>, keep <span class="op">=</span> <span class="fu">fit</span><span class="op">(</span><span class="st">"keep"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>            censor <span class="op">=</span> <span class="fu">fit</span><span class="op">(</span><span class="st">"censor"</span><span class="op">)</span><span class="op">)</span>, <span class="fl">2</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        drift boundary  ndt</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> truth   2.00     1.00 0.30</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> drop    3.33     1.61 0.21</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> keep    2.68     1.41 0.23</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> censor  1.88     0.94 0.31</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

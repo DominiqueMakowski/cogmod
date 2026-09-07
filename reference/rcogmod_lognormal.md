@@ -373,8 +373,8 @@ rather than dropped. The full account - what it is for, what it assumes,
 and the one check to run before using it - is in the *Censoring* section
 of
 [`rcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
-where the construction is the censored shifted Wald of Miller et al.
-(2018).
+where the construction is the simple censored shifted Wald of Miller et
+al. (2018).
 
 ## Examples
 

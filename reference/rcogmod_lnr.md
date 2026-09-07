@@ -330,12 +330,12 @@ data <- rcogmod_lnr(1000,
 )
 head(data)
 #>          rt response
-#> 1 0.5930482        0
-#> 2 0.2978002        0
-#> 3 0.4627420        0
-#> 4 0.2675939        0
-#> 5 0.3660357        1
-#> 6 0.7338803        1
+#> 1 0.2355070        0
+#> 2 0.6391447        0
+#> 3 0.2489952        0
+#> 4 0.3399997        1
+#> 5 1.6009425        1
+#> 6 0.3465318        0
 
 # Responses faster than ndt keep positive density, unlike the unmixed model
 dcogmod_lnr(0.1, ndt = 0.2, response = 0, poutlier = 0.02)

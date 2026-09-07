@@ -85,7 +85,7 @@
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://mc-stan.org/cmdstanr/" class="external-link">cmdstanr</a></span><span class="op">)</span></span></code></pre></div>
 </div>
-<p>Evidence accumulation models are slow and expensive to sample, and a fully mixed model with a comprehensive random effects structure can easily take hours or days (or weeks) for real-life datasets. Below are some suggestions to help.</p>
+<p>Evidence accumulation models are slow and expensive to sample, and a fully mixed model with a comprehensive random effects structure can easily take hours, days, or weeks for real-life datasets. Below are some suggestions to help.</p>
 <section class="level2"><h2 id="the-model">The Model<a class="anchor" aria-label="anchor" href="#the-model"></a>
 </h2>
 <p>Below is an example of a mixed DDM, with random intercepts and slopes on most distributional parameter of interest. We also added a random intercept to <code>poutlier</code>, with the assumption that the proportion of very fast trials (anticipatory / inhibition failure responses vary across participants).</p>
@@ -111,28 +111,9 @@
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, iter <span class="op">=</span> <span class="fl">2000</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
-</section><section class="level2"><h2 id="approximating-with-faster-algorithms">Approximating with Faster Algorithms<a class="anchor" aria-label="anchor" href="#approximating-with-faster-algorithms"></a>
+</section><section class="level2"><h2 id="parallelization">Parallelization<a class="anchor" aria-label="anchor" href="#parallelization"></a>
 </h2>
-<p>Before committing to a long MCMC run, it is often worth getting a quick, approximate answer first. <a href="https://mc-stan.org/docs/reference-manual/pathfinder.html" class="external-link">Pathfinder</a> (Zhang et al., <a href="https://arxiv.org/abs/2108.03782" class="external-link">2022</a>) is a good first choice and significant improvements over other Variational Inference (VI) algorithms like <em>meanfield ADVI</em> or <em>full-rank ADVI</em>. It is implemented in <code>cmdstanr</code> and can be used in <code>brms</code> with the <code>algorithm = "pathfinder"</code> argument.</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">m_pathfinder</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
-<span>  prior <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
-<span>  init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
-<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span>
-<span>  backend <span class="op">=</span> <span class="st">"cmdstanr"</span>,</span>
-<span>  algorithm <span class="op">=</span> <span class="st">"pathfinder"</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">16</span>,</span>
-<span>  single_path_draws <span class="op">=</span> <span class="fl">4000</span>,</span>
-<span>  max_lbfgs_iters <span class="op">=</span> <span class="fl">8000</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-</div>
-<p>Note that <code>chains</code> does not mean MCMC chains here, but controls the number of Pathfinder <strong>paths</strong>, and more paths give the importance resampling step more diverse material to draw from. Increasing <code>single_path_draws</code> and <code>max_lbfgs_iters</code> similarly buys a better approximation at very little extra cost. Also, consider using the <code>threads</code> argument to parallelize the pathfinder draws across multiple cores.</p>
-<p>Pathfinder draws are not a substitute for MCMC posteriors, they approximate the posterior and are not guaranteed to be well calibrated, especially for variance components and correlations. However, its results can potentially be used to <strong>tighten the priors</strong>, which in turn might help with MCMC convergence and sampling efficiency.</p>
-</section><section class="level2"><h2 id="mcmc-performance">MCMC Performance<a class="anchor" aria-label="anchor" href="#mcmc-performance"></a>
-</h2>
-<p>The next step is to leverage the compounding benefits of two kinds of parallelization:</p>
+<p>The first step is to leverage the compounding benefits of two kinds of parallelization:</p>
 <ul>
 <li>
 <strong>Chain parallelization.</strong> Run each of the <code>chains</code> on its own core via <code>backend = "cmdstanr"</code> and <code>options(mc.cores = parallel::detectCores())</code> (or the <code>cores</code> argument to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code>). This is essentially free and should always be on.</li>
@@ -140,7 +121,7 @@
 <strong>Within-chain parallelization (multithreading).</strong> <code>cmdstanr</code> can split a single chain’s likelihood evaluation across multiple threads with <code>threads = threading(n)</code>, passed to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code> alongside <code>backend = "cmdstanr"</code>. This has real overhead: Stan has to partition the data and reduce the per-thread results back together, so it only pays off once the per-observation likelihood is expensive enough and/or the dataset is large enough that the reduction overhead is small relative to the work being split.</li>
 </ul>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">df</span>,</span>
 <span>  prior <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
@@ -153,12 +134,211 @@
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <p>Combining the two means a machine with, say, 16 cores can run 4 chains with 4 threads each, or fewer chains with more threads each if warmup is the bottleneck rather than the number of independent chains needed for convergence diagnostics.</p>
-</section><section class="level2"><h2 id="high-performance-clusters-hpcs">High-Performance Clusters (HPCs)<a class="anchor" aria-label="anchor" href="#high-performance-clusters-hpcs"></a>
+</section><section class="level2"><h2 id="compiler-optimizations">Compiler Optimizations<a class="anchor" aria-label="anchor" href="#compiler-optimizations"></a>
+</h2>
+<p>Stan has optimizations that are off by default because they lengthen compilation and, in one case, remove a safety net. None of them touches the sampler or the posterior; they only make each gradient evaluation cheaper. They are passed to <code><a href="https://mc-stan.org/cmdstanr/reference/cmdstan_model.html" class="external-link">cmdstanr::cmdstan_model()</a></code> through <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code>’s <code>stan_model_args</code>:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
+<span>  prior <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span>
+<span>  backend <span class="op">=</span> <span class="st">"cmdstanr"</span>,</span>
+<span>  stan_model_args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    stanc_options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"O1"</span><span class="op">)</span>,</span>
+<span>    cpp_options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>STAN_CPP_OPTIMS <span class="op">=</span> <span class="cn">TRUE</span>, STAN_NO_RANGE_CHECKS <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<ul>
+<li>
+<code>O1</code> is a flag of the Stan compiler (<code>stanc</code>). It rewrites the program so that vectors and matrices of parameters are stored as one block of values and one block of gradients instead of one pair per element, which is much friendlier to the automatic differentiation that dominates a Stan run. It is well tested, but it is the one option that changes the generated C++ nontrivially, which is why Stan has not yet made it the default.</li>
+<li>
+<code>STAN_CPP_OPTIMS</code> turns on extra C++ compiler optimizations when the program is built. It also rebuilds CmdStan’s own object files under those flags the first time it is used, so expect that first compilation to take several minutes longer than usual.</li>
+<li>
+<code>STAN_NO_RANGE_CHECKS</code> removes the bounds checks on every vector and array access. It is safe once a program is known to run without indexing errors, which the <code>cogmod</code> families are, and saves a little on every observation.</li>
+</ul>
+<p>In our local benchmarking demo (<a href="https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/metric_dense_e.R" class="external-link">script</a>), which fits the DDM, LBA, LNR and RDM to 900 lexical decision trials from 6 participants, with and without participant random intercepts, we found that these flags bought nothing on our machine (Windows, the RTools <code>gcc</code>). Gradient evaluations per second ranged from 20% below to 10% above the default build across the 16 models, more often below it than above, and compilation took up to 25 s longer. The flags act on the compiled code only, so this should transfer across models but not necessarily across compilers: they may still be worth a try on Linux or macOS.</p>
+</section><section class="level2"><h2 id="mass-matrix-adaptation-metric-dense_e">Mass Matrix Adaptation (<code>metric = "dense_e"</code>)<a class="anchor" aria-label="anchor" href="#mass-matrix-adaptation-metric-dense_e"></a>
+</h2>
+<p>The sampler’s <strong>metric</strong> (its mass matrix) is the next lever, and it too leaves the posterior untouched: NUTS is exact under any metric, so the only thing at stake is speed. During warmup, Stan estimates the posterior’s scale so that its trajectories can take steps of the right size in every direction. By default (<code>diag_e</code>) it learns <strong>one variance per parameter</strong> and nothing about how parameters covary. That is the wrong shape for these models: <code>boundary</code> and <code>ndt</code> often trade off against each other (a later start with a lower threshold produces nearly the same RTs as an earlier start with a higher one), as do drift and boundary, and the two scale parameters of a race. The posterior is a thin diagonal ridge, and a sampler that only knows the axis-aligned widths has to creep along it with many small leapfrog steps per iteration. <code>dense_e</code> estimates the <strong>full covariance</strong> instead, which rotates and rescales that ridge into something close to a sphere, so each iteration needs far fewer gradient evaluations and the draws are less autocorrelated.</p>
+<p>The argument goes straight through <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code> to <code>cmdstanr</code> (with the <code>rstan</code> backend it is <code>control = list(metric = "dense_e")</code>):</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
+<span>  prior <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span>
+<span>  backend <span class="op">=</span> <span class="st">"cmdstanr"</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, cores <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  metric <span class="op">=</span> <span class="st">"dense_e"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<p>It is not free, and it does not always win. Two costs scale with the number of parameters <code>d</code> that Stan samples. Each leapfrog step now multiplies by a <code>d x d</code> matrix rather than a vector, and warmup has to pin down <code>d(d+1)/2</code> covariances rather than <code>d</code> variances from the same number of warmup iterations. For a handful of population-level parameters, as in the <a href="decision_making.html">decision making models</a>, both costs are negligible and the LBA there samples about twice as fast. For a hierarchy with hundreds of participant-level parameters, the covariance estimate gets noisy, the per-step cost is felt, and the default is often the safer choice.</p>
+<p>In our local benchmarking demo (<a href="https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/metric_dense_e.R" class="external-link">script</a>), we found that this is exactly the case. Each model was sampled under both metrics with the same data, priors, initial values, seed and 500 warmup iterations; the table gives the effective draws per second of <code>dense_e</code> relative to the default, using the smallest bulk ESS across all parameters:</p>
+<table class="table caption-top">
+<colgroup>
+<col style="width: 27%">
+<col style="width: 36%">
+<col style="width: 36%">
+</colgroup>
+<thead><tr class="header">
+<th style="text-align: left;">Family</th>
+<th style="text-align: center;">Population-level only (8 to 11 parameters)</th>
+<th style="text-align: center;">With participant random intercepts (22 to 32 parameters)</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">DDM</td>
+<td style="text-align: center;">2.5</td>
+<td style="text-align: center;">0.4</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">LBA</td>
+<td style="text-align: center;">2.7</td>
+<td style="text-align: center;">0.1</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">LNR</td>
+<td style="text-align: center;">3.3</td>
+<td style="text-align: center;">0.6</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">RDM</td>
+<td style="text-align: center;">0.7</td>
+<td style="text-align: center;">0.1</td>
+</tr>
+</tbody>
+</table>
+<p>With population-level parameters only, <code>dense_e</code> cut the trajectories to between a quarter (LBA, whose strongest posterior correlation was 0.91, and RDM) and two thirds of their default length. For the DDM, LBA and LNR that delivered two and a half to three times the effective draws per second; for the RDM the shorter trajectories mixed less well per draw and it came out slightly behind, on a single seed. With random intercepts for 6 participants on two or three parameters, it lost in every family and produced more divergences, even though the posterior correlations were just as strong. What decided the outcome was the number of parameters, not the strength of the correlations. So the rule of thumb is: <code>dense_e</code> for population-level fits, the default as soon as random effects enter, even a modest number of them.</p>
+</section><section class="level2"><h2 id="approximating-with-faster-algorithms">Approximating with Faster Algorithms<a class="anchor" aria-label="anchor" href="#approximating-with-faster-algorithms"></a>
+</h2>
+<p>Everything so far produces the same posterior faster. The next two sections trade something for speed. Before committing to a long MCMC run, it is often worth getting a quick, approximate answer first. <a href="https://mc-stan.org/docs/reference-manual/pathfinder.html" class="external-link">Pathfinder</a> (Zhang et al., <a href="https://arxiv.org/abs/2108.03782" class="external-link">2022</a>) is a good first choice and a significant improvement over other Variational Inference (VI) algorithms like <em>meanfield ADVI</em> or <em>full-rank ADVI</em>. It is implemented in <code>cmdstanr</code> and can be used in <code>brms</code> with the <code>algorithm = "pathfinder"</code> argument.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">m_pathfinder</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
+<span>  prior <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span>
+<span>  backend <span class="op">=</span> <span class="st">"cmdstanr"</span>,</span>
+<span>  algorithm <span class="op">=</span> <span class="st">"pathfinder"</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">16</span>,</span>
+<span>  single_path_draws <span class="op">=</span> <span class="fl">4000</span>,</span>
+<span>  max_lbfgs_iters <span class="op">=</span> <span class="fl">8000</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<p>Note that <code>chains</code> does not mean MCMC chains here, but controls the number of Pathfinder <strong>paths</strong>, and more paths give the importance resampling step more diverse material to draw from. Increasing <code>single_path_draws</code> and <code>max_lbfgs_iters</code> similarly buys a better approximation at very little extra cost. Also, consider using the <code>threads</code> argument to parallelize the Pathfinder draws across multiple cores.</p>
+<p>Pathfinder draws are not a substitute for MCMC posteriors, they approximate the posterior and are not guaranteed to be well calibrated, especially for variance components and correlations. However, its results can potentially be used to <strong>tighten the priors</strong>, which in turn might help with MCMC convergence and sampling efficiency.</p>
+<p>The other cheap approximation <code>brms</code> offers through <code>cmdstanr</code> is the <strong>Laplace approximation</strong> (<code>algorithm = "laplace"</code>). It is the classical recipe: find the posterior mode by optimization, take the curvature (the Hessian) there, and treat the posterior as the multivariate Normal with that mean and covariance. Everything happens on Stan’s unconstrained scale, so a parameter on a log link comes out log-Normal rather than Normal, which is usually the right shape. Pathfinder runs the same kind of optimizer but does not wait for it to converge: along the optimization path it builds a low-rank Normal approximation at every iterate, keeps the one with the best evidence lower bound, and, with several paths started from different points, pools their draws with Pareto-smoothed importance resampling.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">m_laplace</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">df</span>,</span>
+<span>  prior <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
+<span>  stanvars <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span>
+<span>  backend <span class="op">=</span> <span class="st">"cmdstanr"</span>,</span>
+<span>  algorithm <span class="op">=</span> <span class="st">"laplace"</span>,</span>
+<span>  draws <span class="op">=</span> <span class="fl">4000</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<p>Neither is uniformly better. Laplace uses the full Hessian, so for a handful of parameters whose posterior is close to Normal on the unconstrained scale (a non-hierarchical model with a few hundred trials) it is typically the more accurate of the two, and it is the faster one. It has three failure modes: the mode is not unique, the Hessian is not positive definite (a flat or ridge-shaped direction, which the LBA’s scale indeterminacy produces when nothing is fixed), or the posterior is far from Normal, as variance components with few groups are. Pathfinder’s covariance is a low-rank estimate and can be cruder for small problems, but its multiple paths and importance resampling make it more robust to these failures, and it reports a Pareto <code>k</code> diagnostic that says when the approximation should not be trusted. It is also what Stan recommends as a source of MCMC initial values. Both are cheap next to MCMC (seconds for Laplace, a minute or so for Pathfinder on a mixed model), so the practical answer is to run both: where they agree with each other, they are probably both right, and where they disagree, MCMC is the arbiter.</p>
+<p>In our local benchmarking demo (<a href="https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start.R" class="external-link">script</a>), on a DDM with participant random intercepts (6 participants, 900 trials), we found that Laplace took 3 s and Pathfinder 77 s against 4.5 min for MCMC, and that both got the population-level means about right while neither could be trusted on spread. Pathfinder’s posterior SDs were two to four times too small for the drift, boundary and <code>ndt</code> intercepts and its smallest random-effect SD five times too large, and its Pareto <code>k</code> of 1.5 said as much. Laplace was worse in the other direction: the SDs of those same three intercepts were four to thirteen times too large, and the three participant-level SDs, which MCMC put at 0.6, 0.16 and 0.05, came out at 4, 3.4 and 1.8 with uncertainties as large as the estimates. The curvature of a hierarchical posterior at its mode says little about its spread. For the condition effects, the quantities one usually cares about, both approximations matched MCMC to within a few hundredths.</p>
+</section><section class="level2"><h2 id="warm-starts-reusing-initial-values-and-metrics">Warm Starts: Reusing Initial Values and Metrics<a class="anchor" aria-label="anchor" href="#warm-starts-reusing-initial-values-and-metrics"></a>
+</h2>
+<p>Warmup produces two things: a position inside the bulk of the posterior, and an adapted metric and step size. Both are thrown away when the run ends, and both can be supplied to the next run instead of being learned again. Stan exposes them as the <code>init</code>, <code>inv_metric</code> and <code>step_size</code> arguments of the sampler, and <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code> forwards any argument it does not recognize to <code>cmdstanr</code>, so no custom Stan is involved. The sampler keeps adapting from the supplied values during whatever warmup remains, so the result is a head start rather than a fixed setting, and nothing about it changes the posterior being sampled: a poor warm start costs speed, not correctness. The usual checks (<code>Rhat</code>, divergences, effective sample size) remain the judge of the run.</p>
+<section class="level3"><h3 id="from-a-previous-fit-of-the-same-model">From a previous fit of the same model<a class="anchor" aria-label="anchor" href="#from-a-previous-fit-of-the-same-model"></a>
+</h3>
+<p>The simplest source is a previous fit of the same model: a pilot run, a fit that needs more draws, or the same model under a slightly different prior or seed. <code>brms</code> keeps the adapted quantities of each chain in the fit’s metadata, and passing them to a new run lets its warmup shrink to what the step size needs:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">md</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">m</span><span class="op">$</span><span class="va">fit</span>, <span class="st">"metadata"</span><span class="op">)</span>   <span class="co"># inv_metric and step_size, one entry per chain</span></span>
+<span></span>
+<span><span class="va">m_more</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span>fit <span class="op">=</span> <span class="va">m</span>,          <span class="co"># reuse the compiled model</span></span>
+<span>  init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, cores <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  iter <span class="op">=</span> <span class="fl">2100</span>, warmup <span class="op">=</span> <span class="fl">100</span>,</span>
+<span>  inv_metric <span class="op">=</span> <span class="va">md</span><span class="op">$</span><span class="va">inv_metric</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>,</span>
+<span>  step_size <span class="op">=</span> <span class="va">md</span><span class="op">$</span><span class="va">step_size</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<p>The metric must match the previous run’s shape: a <code>diag_e</code> fit stores a vector of variances, a <code>dense_e</code> fit a full matrix, and the new run must ask for the same <code>metric</code>.</p>
+<p>In our local benchmarking demo (<a href="https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start.R" class="external-link">script</a>), on a population-level LNR, we found that this halves the cost of a refit:</p>
+<table class="table caption-top">
+<thead><tr class="header">
+<th style="text-align: left;">Run</th>
+<th style="text-align: center;">Warmup</th>
+<th style="text-align: center;">Wall time</th>
+<th style="text-align: center;">Min. bulk ESS</th>
+<th style="text-align: center;">ESS per second</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Reference</td>
+<td style="text-align: center;">500</td>
+<td style="text-align: center;">17 s</td>
+<td style="text-align: center;">857</td>
+<td style="text-align: center;">49</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Warm restart, stored metric and step size</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">8 s</td>
+<td style="text-align: center;">788</td>
+<td style="text-align: center;">102</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Cold start, same short warmup</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">32 s</td>
+<td style="text-align: center;">391</td>
+<td style="text-align: center;">12</td>
+</tr>
+</tbody>
+</table></section><section class="level3"><h3 id="from-a-pathfinder-approximation">From a Pathfinder approximation<a class="anchor" aria-label="anchor" href="#from-a-pathfinder-approximation"></a>
+</h3>
+<p>The second source is an approximation from the previous section. Pathfinder draws sit inside the bulk of the posterior, which makes them good initial values, and their covariance is a first estimate of the metric. Getting the covariance right requires the draws on Stan’s <strong>unconstrained</strong> scale, which <code>cmdstanr</code> can do when the model is compiled with its model methods, so this pipeline runs at the <code>cmdstanr</code> level. <code>brms</code> still writes the program and the data, and the result is wrapped back into a <code>brmsfit</code> at the end, so every post-processing method works as usual.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://mc-stan.org/cmdstanr/" class="external-link">cmdstanr</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">prior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span></span>
+<span><span class="va">stanvars</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 1. brms writes the Stan program and the data; cmdstanr compiles it</span></span>
+<span><span class="va">scode</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/stancode.html" class="external-link">stancode</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span>, prior <span class="op">=</span> <span class="va">prior</span>, stanvars <span class="op">=</span> <span class="va">stanvars</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span><span class="op">)</span></span>
+<span><span class="va">sdata</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/standata.html" class="external-link">standata</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span>, prior <span class="op">=</span> <span class="va">prior</span>, stanvars <span class="op">=</span> <span class="va">stanvars</span><span class="op">)</span></span>
+<span><span class="va">mod</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://mc-stan.org/cmdstanr/reference/cmdstan_model.html" class="external-link">cmdstan_model</a></span><span class="op">(</span><span class="fu"><a href="https://mc-stan.org/cmdstanr/reference/write_stan_file.html" class="external-link">write_stan_file</a></span><span class="op">(</span><span class="va">scode</span><span class="op">)</span>, compile_model_methods <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2. Pathfinder</span></span>
+<span><span class="va">pf</span> <span class="op">&lt;-</span> <span class="va">mod</span><span class="op">$</span><span class="fu">pathfinder</span><span class="op">(</span>data <span class="op">=</span> <span class="va">sdata</span>, init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>, num_paths <span class="op">=</span> <span class="fl">8</span>, draws <span class="op">=</span> <span class="fl">1000</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 3. Its covariance on the unconstrained scale is the starting metric</span></span>
+<span><span class="va">inv_metric</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cov</a></span><span class="op">(</span><span class="va">pf</span><span class="op">$</span><span class="fu">unconstrain_draws</span><span class="op">(</span>format <span class="op">=</span> <span class="st">"draws_matrix"</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 4. MCMC starting from Pathfinder draws, with that metric, and a shorter warmup</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="va">mod</span><span class="op">$</span><span class="fu">sample</span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">sdata</span>, init <span class="op">=</span> <span class="va">pf</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">4</span>, parallel_chains <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  iter_warmup <span class="op">=</span> <span class="fl">300</span>, iter_sampling <span class="op">=</span> <span class="fl">500</span>,</span>
+<span>  metric <span class="op">=</span> <span class="st">"dense_e"</span>, inv_metric <span class="op">=</span> <span class="va">inv_metric</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 5. Back into brms</span></span>
+<span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span>, prior <span class="op">=</span> <span class="va">prior</span>, stanvars <span class="op">=</span> <span class="va">stanvars</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span>, empty <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="va">m</span><span class="op">$</span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/read_csv_as_stanfit.html" class="external-link">read_csv_as_stanfit</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="fu">output_files</span><span class="op">(</span><span class="op">)</span>, variables <span class="op">=</span> <span class="va">fit</span><span class="op">$</span><span class="fu">metadata</span><span class="op">(</span><span class="op">)</span><span class="op">$</span><span class="va">stan_variables</span>, model <span class="op">=</span> <span class="va">mod</span><span class="op">)</span></span>
+<span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/rename_pars.html" class="external-link">rename_pars</a></span><span class="op">(</span><span class="va">m</span><span class="op">)</span></span></code></pre></div>
+</div>
+<p>In our local benchmarking demo (<a href="https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start.R" class="external-link">script</a>), on the same mixed DDM as above, we found that the pipeline works but did not pay for itself at this size. Started from Pathfinder draws and covariance and left to adapt for 300 iterations, the sampler finished its own work in 3.7 min instead of the cold start’s 4.4 min with the same effective sample size, but Pathfinder’s 77 s ate the difference, for a net loss of about 10%. The arithmetic favours the warm start as models grow, since Pathfinder scales gently with the number of parameters while warmup for a poorly conditioned posterior does not, and since a bad random initialization on a large model can waste far more than the approximation costs. What one must <strong>not</strong> do is fix the metric to the approximation (Stan allows it, by setting <code>init_buffer</code> to the whole warmup so that no adaptation window runs). Pathfinder’s covariance was, as the previous section showed, several times too small on most parameters, and a sampler that believes it takes tiny steps and hits the maximum treedepth: that run took 15 min, diverged on a third of its transitions, and returned an effective sample size of 10.</p>
+</section></section><section class="level2"><h2 id="high-performance-clusters-hpcs">High-Performance Clusters (HPCs)<a class="anchor" aria-label="anchor" href="#high-performance-clusters-hpcs"></a>
 </h2>
 <p>Chain and thread parallelization is limited by the cores on one machine. The next step is to spread chains across many machines - typically many short jobs on an HPC scheduler rather than one long job. Because warmup dominates total sampling time for these models, recruiting many nodes for a <strong>short</strong> run (fewer post-warmup iterations each) is usually more efficient than recruiting a few nodes for a long one: each job pays the fixed compilation and warmup cost once, but the post-warmup work is what actually needs to scale with the number of draws you want.</p>
 <p>A typical job array (SLURM shown here) runs one or two chains per node, threading each chain across the cores left over after dividing them among the node’s chains:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">task_id</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"SLURM_ARRAY_TASK_ID"</span>, unset <span class="op">=</span> <span class="st">"1"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">total_cores</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"SLURM_CPUS_PER_TASK"</span>, unset <span class="op">=</span> <span class="st">"2"</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
@@ -185,7 +365,7 @@
 </div>
 <p>Each array task produces its own <code>brmsfit</code> with a handful of chains. Once all tasks have finished, combine them into a single fit with <code><a href="https://paulbuerkner.com/brms/reference/combine_models.html" class="external-link">brms::combine_models()</a></code>, which concatenates the post-warmup draws across fits (they must share the same model structure and data):</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fits</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.files.html" class="external-link">list.files</a></span><span class="op">(</span>pattern <span class="op">=</span> <span class="st">"^m_node_.*\\.rds$"</span><span class="op">)</span>, <span class="va">readRDS</span><span class="op">)</span></span>
 <span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="fu">brms</span><span class="fu">::</span><span class="va"><a href="https://paulbuerkner.com/brms/reference/combine_models.html" class="external-link">combine_models</a></span>, <span class="va">fits</span><span class="op">)</span></span></code></pre></div>
 </div>

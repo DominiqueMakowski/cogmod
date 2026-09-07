@@ -429,12 +429,12 @@ data <- rcogmod_lba2(1000,
 )
 head(data)
 #>          rt response
-#> 1 0.4344558        0
-#> 2 0.6071895        1
-#> 3 0.4257365        1
-#> 4 0.6650784        0
-#> 5 0.3747992        1
-#> 6 0.4242575        0
+#> 1 0.4040687        0
+#> 2 0.4013068        0
+#> 3 0.4890575        0
+#> 4 0.4722003        0
+#> 5 0.4149561        0
+#> 6 0.3715981        0
 
 # Responses faster than ndt keep positive density, unlike the unmixed model
 dcogmod_lba2(0.1, ndt = 0.2, response = 0, poutlier = 0.02)

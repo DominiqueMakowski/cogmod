@@ -282,7 +282,10 @@ setting is worth trying in other models as well. While it might pay off
 for low-dimensional posteriors with strong correlations, for a hierarchy
 with hundreds of participant-level parameters the dense matrix has more
 entries to estimate than warmup can pin down, and the default might be
-the safer choice.
+the safer choice. The
+[performance](https://dominiquemakowski.github.io/cogmod/articles/performance.md)
+article explains the trade-off and reports what it bought across the
+families in a local benchmark.
 
 ``` r
 
