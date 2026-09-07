@@ -129,8 +129,15 @@
 #' **right-censored** correct response: its RT is read as a lower bound on when
 #' the correct process would have finished, and it contributes the survival
 #' `P(T > rt)` to the likelihood where an observed response contributes the
-#' density. With `sigmadrift = 0` this is the *censored shifted Wald* of Miller
-#' et al. (2018), the `cswald` model of the `bmm` package. Here it is not a
+#' density. With `sigmadrift = 0` this is the *simple* censored shifted Wald of
+#' Miller et al. (2018, their Eq. 4), the `version = "simple"` of the `cswald`
+#' model in the `bmm` package. Miller et al. also give a *competing-risks*
+#' variant (their Eq. 5): a race between two Wald accumulators with drifts `v`
+#' and `-v`, each response scored with its own defective density. That is the
+#' model implemented in `rtdists` and in `bmm`'s `version = "crisk"`, and it is
+#' a choice model of the same kind as [cogmod_rdm()], not a censoring
+#' construction - `cens()` does not fit it. Where it is wanted, [cogmod_ddm()]
+#' with `bias` fixed at 0.5 covers the same ground. Here censoring is not a
 #' separate family but a construction: no new parameter, no new syntax, and the
 #' same `cens()` works on every RT-only family with a closed-form CDF (see
 #' `?rcogmod_lognormal`). Left-censoring (`error = -1` or `"left"`) and
@@ -139,23 +146,37 @@
 #'
 #' Three things follow from the construction:
 #'
-#' - **What it is for.** A two-accumulator race has to estimate an error
-#'   process, and when errors are few that process is identified by nothing;
-#'   see the `driftone` discussion in [cogmod_rdm()]. Censoring has no error
-#'   accumulator to run away, uses the errors' timing instead of discarding
-#'   the trials, and is exactly right - not an approximation - for go/no-go,
-#'   deadline and omission designs, where a non-response genuinely is a
-#'   censored draw from one accumulator.
-#' - **What it assumes.** That an error says nothing about the correct process
-#'   beyond "not finished yet": non-informative censoring. That is false
-#'   wherever errors and correct responses come from one evidence path, which
-#'   is the DDM's picture, and [cogmod_priors()] warns past 20% censored
-#'   trials, well beyond the high-accuracy regime the model is argued for.
+#' - **What it is for.** Timeouts, deadlines, omissions and go/no-go designs,
+#'   where a non-response genuinely is a censored draw from one accumulator and
+#'   the censoring time says nothing about the process beyond "not finished
+#'   yet". There the construction is exact - not an approximation - and it uses
+#'   the censored trials instead of discarding them; the example below shows
+#'   what discarding them costs. A two-accumulator race, by contrast, has to
+#'   estimate an error process, and when errors are few that process is
+#'   identified by nothing (see the `driftone` discussion in [cogmod_rdm()]);
+#'   censoring has no error accumulator to run away.
+#' - **What it assumes.** Non-informative censoring: that an error says nothing
+#'   about the correct process beyond "not finished yet". That holds when the
+#'   error comes from a process independent of the correct one - a second
+#'   accumulator, a lapse, a deadline - and fails when both responses come from
+#'   one evidence path, which is the DDM's picture. Under an unbiased DDM the
+#'   error RTs have the *same* distribution as the correct ones, so an error
+#'   censors a trial that was as likely fast as slow, and the survival scores
+#'   it wrong. The bias is not small: in simulation, fitting this construction
+#'   to DDM-generated data with 5% errors overestimates the drift by about 15%
+#'   and the boundary by about 10%, and with 10% errors by about 30% and 15%,
+#'   which is why Miller et al. argue for the simple censored Wald only above
+#'   roughly 95% accuracy. [cogmod_priors()] warns past 20% censored trials,
+#'   the threshold `bmm` uses, but for commission errors the model is on firm
+#'   ground only well below that.
 #' - **The check to run first.** Censoring draws errors from the surviving
 #'   tail, so it can only ever predict them *slower* than correct responses.
-#'   Fast errors - a low boundary, a biased start point - are unproducible by
-#'   construction. Compare the two RT distributions before fitting; if errors
-#'   are faster, use a race ([cogmod_rdm()], [cogmod_lba2()], [cogmod_ddm()]).
+#'   Compare the two RT distributions before fitting. Errors clearly slower
+#'   than correct responses are consistent with the construction; errors as
+#'   fast as correct responses are the signature of a single diffusion process,
+#'   and faster errors that of a low boundary or a biased start point. In both
+#'   of the latter cases use a race that models the error response:
+#'   [cogmod_ddm()], [cogmod_rdm()] or [cogmod_lba2()].
 #'
 #' `posterior_predict()` predicts the latent, uncensored reaction time, as
 #' `brms` does for its own families, so `pp_check()` on a censored fit compares
@@ -242,6 +263,35 @@
 #' x <- seq(0.2, 0.5, by = 0.05)
 #' rbind(fixed = dcogmod_invgaussian(x, ndt = 0.2),
 #'       spread = dcogmod_invgaussian(x, ndt = 0.2, sigmandt = 0.1))
+#'
+#' # Censoring, Miller et al.'s (2018) demonstration in miniature. A deadline
+#' # at 1.2 s turns the slowest responses into omissions. Fitted by maximum
+#' # likelihood three ways: dropping those trials, keeping the deadline as if
+#' # it were the RT, and right-censoring them at the deadline - which is what
+#' # `cens()` does in brms. Only the last recovers the generating parameters.
+#' set.seed(1)
+#' rt <- rcogmod_invgaussian(2000, drift = 2, boundary = 1, ndt = 0.3, poutlier = 0)
+#' deadline <- 1.2
+#' censored <- rt > deadline
+#' y <- pmin(rt, deadline)
+#' mean(censored)  # about 12% of the trials
+#'
+#' nll <- function(par, how) {
+#'   drift <- exp(par[1]); boundary <- exp(par[2]); ndt <- min(y) * plogis(par[3])
+#'   ld <- dcogmod_invgaussian(y, drift, boundary, ndt, poutlier = 0, log = TRUE)
+#'   ls <- pcogmod_invgaussian(y, drift, boundary, ndt, poutlier = 0,
+#'                             lower.tail = FALSE, log.p = TRUE)
+#'   -switch(how,
+#'     drop   = sum(ld[!censored]),
+#'     keep   = sum(ld),
+#'     censor = sum(ld[!censored]) + sum(ls[censored]))
+#' }
+#' fit <- function(how) {
+#'   o <- optim(c(0, 0, log(4)), nll, how = how)
+#'   c(drift = exp(o$par[1]), boundary = exp(o$par[2]), ndt = min(y) * plogis(o$par[3]))
+#' }
+#' round(rbind(truth = c(2, 1, 0.3), drop = fit("drop"), keep = fit("keep"),
+#'             censor = fit("censor")), 2)
 #'
 #' @export
 rcogmod_invgaussian <- function(n, drift = 3, boundary = 0.5, ndt = 0.2,

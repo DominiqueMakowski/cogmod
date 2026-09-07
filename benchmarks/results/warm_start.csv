@@ -1,0 +1,7 @@
+"part","run","warmup","approx_s","wall_s","ess_bulk_min","ess_per_s","divergent","rhat_max"
+"A","reference",500,0,17.4,857,49.16,0,1.007
+"A","warm restart",100,0,7.8,788,101.6,0,1.009
+"A","cold, short warmup",100,0,31.9,391,12.24,0,1.011
+"B","reference",500,0,264.1,219,0.83,0,1.019
+"B","warm, metric adapted",300,77.2,300.5,220,0.73,0,1.023
+"B","warm, metric fixed",100,77.2,924,10,0.01,689,1.589

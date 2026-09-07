@@ -278,11 +278,13 @@ is sometimes worth doing.
 
 Second, in our case, the `boundary` and `ndt` parameter are strongly correlated, 
 which makes sampling difficult and slow. In these cases, setting `metric = "dense_e"`
-can help (x2 speed-ups in our case). This setting is worth trying in other models 
-as well. While it might pay off for low-dimensional posteriors with strong correlations, 
+can help (x2 speed-ups in our case). This setting is worth trying in other models
+as well. While it might pay off for low-dimensional posteriors with strong correlations,
 for a hierarchy with hundreds of participant-level parameters the
 dense matrix has more entries to estimate than warmup can pin down, and the
-default might be the safer choice.
+default might be the safer choice. The [performance](performance.html) article
+explains the trade-off and reports what it bought across the families in a
+local benchmark.
 
 ```{r}
 #| eval: false

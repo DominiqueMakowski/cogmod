@@ -1214,3 +1214,64 @@ test_that("cogmod_rdm recovers ndt above the fastest observed response", {
   expect_true(with_outliers(fit)$family$predict_outliers)
   expect_false(without_outliers(fit)$family$predict_outliers)
 })
+
+
+test_that("the Stan gradient stays finite for responses a hair above ndt", {
+  # Regression test. The value of cogmod_rdm_lpdf was always finite here (the
+  # test above checks that), but its gradient was not: within about half a
+  # millisecond above the non-decision time both normal CDFs in the survival's
+  # reflection term round to exactly 1, and their difference was formed as
+  # log_diff_exp(0, 0), whose reverse-mode adjoint is 0 / 0. Every parameter's
+  # gradient came out NaN, Stan flagged the transition as divergent, and with
+  # `ndt` a few milliseconds below the fastest responses that happened on most
+  # trajectories: 60% divergent transitions on a posterior that was otherwise
+  # healthy. Only the gradient sees it, so only a compiled model with model
+  # methods can test it - hence the slow gate; `stan_fun()` exposes values only.
+  skip_if_not_slow()
+  skip_on_cran()
+  skip_if_not_installed("cmdstanr")
+
+  code <- paste0(
+    "functions {\n", .cogmod_rdm_lpdf(), "}\n",
+    "data { int N; vector[N] Y; array[N] int dec; }\n",
+    "parameters {\n",
+    "  real<lower=0> mu; real<lower=0> driftone; real<lower=0> sigmabias;\n",
+    "  real<lower=0> boundary; real<lower=0> ndt; real<lower=0, upper=1> poutlier;\n",
+    "}\n",
+    "model {\n",
+    "  for (n in 1:N) {\n",
+    "    target += cogmod_rdm_lpdf(Y[n] | mu, driftone, sigmabias, boundary,\n",
+    "                              ndt, poutlier, dec[n]);\n",
+    "  }\n",
+    "}\n"
+  )
+  pars <- list(mu = 3, driftone = 0.08, sigmabias = 0.27, boundary = 0.93,
+               ndt = 0.3, poutlier = 0.01)
+  # Both responses, so each accumulator takes its turn as the loser, from a
+  # comfortable decision time down to a nanosecond above the non-decision time.
+  # The failure was at anything below about 5e-4.
+  dt <- c(1e-2, 1e-3, 3e-4, 1e-4, 1e-6, 1e-9)
+  d <- list(N = 2L * length(dt), Y = pars$ndt + rep(dt, 2),
+            dec = rep(0:1, each = length(dt)))
+
+  mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(code),
+                                 compile_model_methods = TRUE)
+  fit <- mod$sample(data = d, init = list(pars), chains = 1, iter_warmup = 1,
+                    iter_sampling = 1, fixed_param = TRUE, refresh = 0,
+                    show_messages = FALSE)
+  fit$init_model_methods(verbose = FALSE)
+  up <- fit$unconstrain_variables(pars)
+
+  expect_true(is.finite(fit$log_prob(up)))
+  g <- fit$grad_log_prob(up)
+  expect_true(all(is.finite(g)))
+
+  # And it is the right gradient, not merely a finite one: central differences
+  # on the unconstrained scale, checked against every coordinate.
+  h <- 1e-6
+  fd <- vapply(seq_along(up), function(j) {
+    e <- replace(numeric(length(up)), j, h)
+    (fit$log_prob(up + e) - fit$log_prob(up - e)) / (2 * h)
+  }, numeric(1))
+  expect_equal(as.numeric(g), fd, tolerance = 1e-4)
+})

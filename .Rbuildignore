@@ -24,3 +24,4 @@ README.qmd
 ^data-raw$
 ^AGENTS\.md$
 ^CLAUDE\.md$
+^benchmarks$

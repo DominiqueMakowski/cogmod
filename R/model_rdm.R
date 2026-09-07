@@ -1297,10 +1297,12 @@ real cogmod_rdm_wald_ldens(real t, real nu, real k, real A) {
 // Writing G for that antiderivative, S * A = G(k + A) - G(k), and G splits into
 // two pieces that are each monotone in the threshold. Grouping the six terms
 // into those two differences - rather than accumulating them one at a time with
-// signs - makes each group's sign known in advance and its magnitude a single
-// log_diff_exp, which removes every signed accumulator from the hot path and,
-// as a side effect, cancels less: measured against the R implementation the
-// grouped form is accurate to 6e-11 where the term-by-term one reached 5e-9.
+// signs - makes each group's sign known in advance, which removes every signed
+// accumulator from the hot path and, as a side effect, cancels less: measured
+// against the R implementation the grouped form is accurate to 6e-11 where the
+// term-by-term one reached 5e-9. (The second group is itself assembled from
+// three signed pieces, for the reason given at D2 below, but with its sign
+// still known in advance.)
 real cogmod_rdm_wald_lsurv(real t, real nu, real k, real A) {
   if (t <= 0) return 0;             // log(1): nothing finishes before the ndt
   real st = sqrt(t);
@@ -1336,20 +1338,57 @@ real cogmod_rdm_wald_lsurv(real t, real nu, real k, real A) {
   real lD1 = 0.5 * log(t) + log_diff_exp(cogmod_rdm_log_g_lphi(beta, lPb),
                                          cogmod_rdm_log_g_lphi(alpha, lPa));
   // D2 = |R(k + A) - R(k)| / (2 |nu|), for
-  //     R(x) = exp(2 nu x) Phi(-(x + nu t) / st) + Phi((x - nu t) / st).
-  // R has to be kept whole: its first piece alone is NOT monotone in the
-  // threshold, only the sum is, because dR/dx = 2 nu exp(2 nu x) Phi(-(x + nu t)
-  // / st) - the other two derivative terms cancel by the Wald reflection
-  // identity exp(2 nu x) phi((x + nu t) / st) = phi((x - nu t) / st). Split them
-  // and log_diff_exp gets a negative argument. R increases with the threshold
-  // when nu > 0 and decreases when nu < 0, and dividing by 2 nu flips the second
-  // case back, so D2 is positive either way.
+  //     R(x) = exp(2 nu x) Phi(-(x + nu t) / st) + Phi((x - nu t) / st)
+  //          = E(x) + Phi(alpha_x),
+  // which increases with the threshold when nu > 0 and decreases when nu < 0
+  // (dR/dx = 2 nu E(x): the other two derivative terms cancel by the Wald
+  // reflection identity exp(2 nu x) phi((x + nu t) / st) = phi((x - nu t) / st)).
+  // Dividing by 2 nu flips the second case back, so D2 is positive either way.
   //
-  // exp(2 * nu * x) * Phi(w) stays a single exponent so that it survives the
-  // range where the two factors separately overflow and underflow.
-  real lRb = log_sum_exp(2 * nu * b + std_normal_lcdf(-(b + nu * t) / st | ), lPb);
-  real lRk = log_sum_exp(2 * nu * k + std_normal_lcdf(-(k + nu * t) / st | ), lPa);
-  real lD2 = linv + (nu > 0 ? log_diff_exp(lRb, lRk) : log_diff_exp(lRk, lRb));
+  // It is NOT formed as log_diff_exp(log R(b), log R(k)). Just above the
+  // non-decision time alpha and beta run past 37, Phi(alpha) and Phi(beta) both
+  // round to exactly 1 and the E terms underflow next to them, so the two logs
+  // are exactly 0 and log_diff_exp(0, 0) is evaluated. Its value, -inf, is
+  // harmless - D2 really is negligible there - but its reverse-mode adjoint is
+  // 0 / expm1(0) = 0 / 0, and that NaN propagates to the gradient of every
+  // parameter. Stan treats a NaN gradient as a divergent transition, and with
+  // `ndt` sitting a few milliseconds below the fastest responses the sampler
+  // crossed that half-millisecond window under most trajectories: 60% of
+  // transitions divergent on the lexical decision data of the decision-making
+  // article, with the posterior itself perfectly healthy.
+  //
+  // So the difference is taken term by term instead:
+  //     R(b) - R(k) = [Phi(beta) - Phi(alpha)] + E(b) - E(k) = P + E_b - E_k,
+  // every piece of which is a log of something small and stays away from the
+  // saturated end of the normal CDF. P comes from whichever tail is small; the
+  // lower tail reuses lPa and lPb, which are exact there, and the upper one
+  // costs two more normal CDFs but only where alpha is large. E_b and E_k stay
+  // single exponents so that they survive the range where exp(2 nu x) and
+  // Phi(w) separately overflow and underflow. The sign of E_b - E_k is
+  // genuinely either (E alone is not monotone in the threshold), so it is
+  // resolved explicitly; the sum is positive for nu > 0 and negative for
+  // nu < 0. The guards below only ever fire when the difference is under one
+  // ulp of its terms, where D2 / D1 is far below double precision anyway.
+  // Measured against quadrature this form is as accurate as the grouped one;
+  // what it buys is a gradient that stays finite as t -> 0.
+  real lEb = 2 * nu * b + std_normal_lcdf(-(b + nu * t) / st | );
+  real lEk = 2 * nu * k + std_normal_lcdf(-(k + nu * t) / st | );
+  real lP = alpha < 3
+            ? log_diff_exp(lPb, lPa)
+            : log_diff_exp(std_normal_lcdf(-alpha | ), std_normal_lcdf(-beta | ));
+  real lD2;
+  if (nu > 0) {
+    if (lEb >= lEk) {
+      lD2 = log_sum_exp(lP, lEb > lEk ? log_diff_exp(lEb, lEk) : negative_infinity());
+    } else {
+      real lx = log_sum_exp(lP, lEb);
+      lD2 = lx > lEk ? log_diff_exp(lx, lEk) : negative_infinity();
+    }
+  } else {
+    real lx = log_sum_exp(lP, lEb);
+    lD2 = lEk > lx ? log_diff_exp(lEk, lx) : negative_infinity();
+  }
+  lD2 += linv;
 
   real ls = lD1 > lD2 ? log_diff_exp(lD1, lD2) : negative_infinity();
   return fmin(ls - log(A), 0);

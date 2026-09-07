@@ -293,7 +293,7 @@ censored trial with the mixture's survival - \code{pcogmod_lognormal(lower.tail 
 bound on the correct response's time rather than dropped. The full account -
 what it is for, what it assumes, and the one check to run before using it -
 is in the \emph{Censoring} section of \code{\link[=rcogmod_invgaussian]{rcogmod_invgaussian()}}, where the
-construction is the censored shifted Wald of Miller et al. (2018).
+construction is the simple censored shifted Wald of Miller et al. (2018).
 }
 
 \examples{

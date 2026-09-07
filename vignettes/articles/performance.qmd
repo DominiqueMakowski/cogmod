@@ -22,13 +22,13 @@ library(cmdstanr)
 ```
 
 Evidence accumulation models are slow and expensive to sample, and a fully mixed model
-with a comprehensive random effects structure can easily take hours or days (or weeks) 
+with a comprehensive random effects structure can easily take hours, days, or weeks
 for real-life datasets. Below are some suggestions to help.
 
 ## The Model
 
 Below is an example of a mixed DDM, with random intercepts and slopes on most distributional parameter of interest.
-We also added a random intercept to `poutlier`, with the assumption that the proportion of very fast trials 
+We also added a random intercept to `poutlier`, with the assumption that the proportion of very fast trials
 (anticipatory / inhibition failure responses vary across participants).
 
 ```{r}
@@ -56,50 +56,9 @@ m <- brm(f,
 )
 ```
 
+## Parallelization
 
-## Approximating with Faster Algorithms
-
-Before committing to a long MCMC run, it is often worth getting a quick,
-approximate answer first. [Pathfinder](https://mc-stan.org/docs/reference-manual/pathfinder.html)
-(Zhang et al., [2022](https://arxiv.org/abs/2108.03782)) is a good first
-choice and significant improvements over other Variational Inference (VI) algorithms 
-like *meanfield ADVI* or *full-rank ADVI*. It is implemented in `cmdstanr` and 
-can be used in `brms` with the `algorithm = "pathfinder"` argument.
-
-```{r}
-#| eval: false
-#| code-fold: false
-
-m_pathfinder <- brm(f,
-  data = df,
-  prior = cogmod_priors(f, df),
-  init = cogmod_inits(f, df),
-  stanvars = cogmod_stanvars(f),
-  backend = "cmdstanr",
-  algorithm = "pathfinder",
-  chains = 16,
-  single_path_draws = 4000,
-  max_lbfgs_iters = 8000
-)
-```
-
-Note that `chains` does not mean MCMC chains here, but controls the number of
- Pathfinder **paths**, and more paths give
-the importance resampling step more diverse material to draw from. Increasing
-`single_path_draws` and `max_lbfgs_iters` similarly buys a better
-approximation at very little extra cost.
-Also, consider using the `threads` argument to parallelize the pathfinder draws across 
-multiple cores.
-
-Pathfinder draws are not a substitute for MCMC posteriors, they approximate
-the posterior and are not guaranteed to be well calibrated, especially for
-variance components and correlations. 
-However, its results can potentially be used to **tighten the priors**,
-which in turn might help with MCMC convergence and sampling efficiency.
-
-## MCMC Performance
-
-The next step is to leverage the compounding benefits of two kinds of parallelization:
+The first step is to leverage the compounding benefits of two kinds of parallelization:
 
 - **Chain parallelization.** Run each of the `chains` on its own core via
   `backend = "cmdstanr"` and `options(mc.cores = parallel::detectCores())` (or
@@ -110,8 +69,8 @@ The next step is to leverage the compounding benefits of two kinds of paralleliz
   `threads = threading(n)`, passed to `brm()` alongside
   `backend = "cmdstanr"`. This has real overhead: Stan has to partition the
   data and reduce the per-thread results back together, so it only pays off
-  once the per-observation likelihood is expensive enough and/or the dataset 
-  is large enough that the reduction overhead is small relative to the work 
+  once the per-observation likelihood is expensive enough and/or the dataset
+  is large enough that the reduction overhead is small relative to the work
   being split.
 
 ```{r}
@@ -134,6 +93,341 @@ Combining the two means a machine with, say, 16 cores can run 4 chains with 4
 threads each, or fewer chains with more threads each if warmup is the
 bottleneck rather than the number of independent chains needed for
 convergence diagnostics.
+
+## Compiler Optimizations
+
+Stan has optimizations that are off by default because they lengthen
+compilation and, in one case, remove a safety net. None of them touches the
+sampler or the posterior; they only make each gradient evaluation cheaper. They
+are passed to `cmdstanr::cmdstan_model()` through `brm()`'s `stan_model_args`:
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+m <- brm(f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  backend = "cmdstanr",
+  stan_model_args = list(
+    stanc_options = list("O1"),
+    cpp_options = list(STAN_CPP_OPTIMS = TRUE, STAN_NO_RANGE_CHECKS = TRUE)
+  )
+)
+```
+
+- `O1` is a flag of the Stan compiler (`stanc`). It rewrites the program so that
+  vectors and matrices of parameters are stored as one block of values and one
+  block of gradients instead of one pair per element, which is much friendlier
+  to the automatic differentiation that dominates a Stan run. It is well
+  tested, but it is the one option that changes the generated C++ nontrivially,
+  which is why Stan has not yet made it the default.
+- `STAN_CPP_OPTIMS` turns on extra C++ compiler optimizations when the program
+  is built. It also rebuilds CmdStan's own object files under those flags the
+  first time it is used, so expect that first compilation to take several
+  minutes longer than usual.
+- `STAN_NO_RANGE_CHECKS` removes the bounds checks on every vector and array
+  access. It is safe once a program is known to run without indexing errors,
+  which the `cogmod` families are, and saves a little on every observation.
+
+In our local benchmarking demo
+([script](https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/metric_dense_e.R)),
+which fits the DDM, LBA, LNR and RDM to 900 lexical decision trials from 6
+participants, with and without participant random intercepts, we found that
+these flags bought nothing on our machine (Windows, the RTools `gcc`). Gradient
+evaluations per second ranged from 20% below to 10% above the default build
+across the 16 models, more often below it than above, and compilation took up
+to 25 s longer. The flags act on the compiled code only, so this should transfer
+across models but not necessarily across compilers: they may still be worth a
+try on Linux or macOS.
+
+## Mass Matrix Adaptation (`metric = "dense_e"`)
+
+The sampler's **metric** (its mass matrix) is the next lever, and it too
+leaves the posterior untouched: NUTS is exact under any metric, so the only
+thing at stake is speed. During warmup, Stan estimates the posterior's scale
+so that its trajectories can take steps of the right size in every direction.
+By default (`diag_e`) it learns **one variance per parameter** and nothing
+about how parameters covary. That is the wrong shape for these models:
+`boundary` and `ndt` often trade off against each other (a later start with a lower
+threshold produces nearly the same RTs as an earlier start with a higher one),
+as do drift and boundary, and the two scale parameters of a race. The posterior
+is a thin diagonal ridge, and a sampler that only knows the axis-aligned widths
+has to creep along it with many small leapfrog steps per iteration. `dense_e`
+estimates the **full covariance** instead, which rotates and rescales that
+ridge into something close to a sphere, so each iteration needs far fewer
+gradient evaluations and the draws are less autocorrelated.
+
+The argument goes straight through `brm()` to `cmdstanr` (with the `rstan`
+backend it is `control = list(metric = "dense_e")`):
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+m <- brm(f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  backend = "cmdstanr",
+  chains = 4, cores = 4,
+  metric = "dense_e"
+)
+```
+
+It is not free, and it does not always win. Two costs scale with the number of
+parameters `d` that Stan samples. Each leapfrog step now multiplies by a
+`d x d` matrix rather than a vector, and warmup has to pin down `d(d+1)/2`
+covariances rather than `d` variances from the same number of warmup
+iterations. For a handful of population-level parameters, as in the
+[decision making models](decision_making.html), both costs are negligible
+and the LBA there samples about twice as fast. For a hierarchy with hundreds
+of participant-level parameters, the covariance estimate gets noisy, the
+per-step cost is felt, and the default is often the safer choice.
+
+In our local benchmarking demo
+([script](https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/metric_dense_e.R)),
+we found that this is exactly the case.
+Each model was sampled under both metrics with the same data, priors, initial
+values, seed and 500 warmup iterations; the table gives the effective draws
+per second of `dense_e` relative to the default, using the smallest bulk ESS
+across all parameters:
+
+| Family | Population-level only (8 to 11 parameters) | With participant random intercepts (22 to 32 parameters) |
+|:--|:--:|:--:|
+| DDM | 2.5 | 0.4 |
+| LBA | 2.7 | 0.1 |
+| LNR | 3.3 | 0.6 |
+| RDM | 0.7 | 0.1 |
+
+With population-level parameters only, `dense_e` cut the trajectories to
+between a quarter (LBA, whose strongest posterior correlation was 0.91, and
+RDM) and two thirds of their default length. For the DDM, LBA and LNR that
+delivered two and a half to three times the effective draws per second; for
+the RDM the shorter trajectories mixed less well per draw and it came out
+slightly behind, on a single seed. With random intercepts for 6 participants
+on two or three parameters, it lost in every family and produced more
+divergences, even though the posterior correlations were just as strong. What
+decided the outcome was the number of parameters, not the strength of the
+correlations. So the rule of thumb is: `dense_e` for population-level fits,
+the default as soon as random effects enter, even a modest number of them.
+
+## Approximating with Faster Algorithms
+
+Everything so far produces the same posterior faster. The next two sections
+trade something for speed. Before committing to a long MCMC run, it is often
+worth getting a quick, approximate answer first.
+[Pathfinder](https://mc-stan.org/docs/reference-manual/pathfinder.html)
+(Zhang et al., [2022](https://arxiv.org/abs/2108.03782)) is a good first
+choice and a significant improvement over other Variational Inference (VI)
+algorithms like *meanfield ADVI* or *full-rank ADVI*. It is implemented in
+`cmdstanr` and can be used in `brms` with the `algorithm = "pathfinder"`
+argument.
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+m_pathfinder <- brm(f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  backend = "cmdstanr",
+  algorithm = "pathfinder",
+  chains = 16,
+  single_path_draws = 4000,
+  max_lbfgs_iters = 8000
+)
+```
+
+Note that `chains` does not mean MCMC chains here, but controls the number of
+Pathfinder **paths**, and more paths give the importance resampling step more
+diverse material to draw from. Increasing `single_path_draws` and
+`max_lbfgs_iters` similarly buys a better approximation at very little extra
+cost. Also, consider using the `threads` argument to parallelize the
+Pathfinder draws across multiple cores.
+
+Pathfinder draws are not a substitute for MCMC posteriors, they approximate
+the posterior and are not guaranteed to be well calibrated, especially for
+variance components and correlations.
+However, its results can potentially be used to **tighten the priors**,
+which in turn might help with MCMC convergence and sampling efficiency.
+
+The other cheap approximation `brms` offers through `cmdstanr` is the
+**Laplace approximation** (`algorithm = "laplace"`). It is the classical
+recipe: find the posterior mode by optimization, take the curvature (the
+Hessian) there, and treat the posterior as the multivariate Normal with that
+mean and covariance. Everything happens on Stan's unconstrained scale, so a
+parameter on a log link comes out log-Normal rather than Normal, which is
+usually the right shape. Pathfinder runs the same kind of optimizer but does
+not wait for it to converge: along the optimization path it builds a
+low-rank Normal approximation at every iterate, keeps the one with the best
+evidence lower bound, and, with several paths started from different points,
+pools their draws with Pareto-smoothed importance resampling.
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+m_laplace <- brm(f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  backend = "cmdstanr",
+  algorithm = "laplace",
+  draws = 4000
+)
+```
+
+Neither is uniformly better. Laplace uses the full Hessian, so for a
+handful of parameters whose posterior is close to Normal on the unconstrained
+scale (a non-hierarchical model with a few hundred trials) it is typically the
+more accurate of the two, and it is the faster one. It has three failure
+modes: the mode is not unique, the Hessian is not positive definite (a flat or
+ridge-shaped direction, which the LBA's scale indeterminacy produces when
+nothing is fixed), or the posterior is far from Normal, as variance components
+with few groups are. Pathfinder's covariance is a low-rank estimate and can be
+cruder for small problems, but its multiple paths and importance resampling
+make it more robust to these failures, and it reports a Pareto `k` diagnostic
+that says when the approximation should not be trusted. It is also what Stan
+recommends as a source of MCMC initial values. Both are cheap next to MCMC
+(seconds for Laplace, a minute or so for Pathfinder on a mixed model), so the
+practical answer is to run both: where they agree with each other, they are
+probably both right, and where they disagree, MCMC is the arbiter.
+
+In our local benchmarking demo
+([script](https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start.R)),
+on a DDM with participant random intercepts (6 participants, 900 trials), we
+found that Laplace took 3 s and Pathfinder 77 s against 4.5 min for MCMC, and
+that both got the population-level means about right while neither could be
+trusted on spread. Pathfinder's posterior SDs were two to four times too small
+for the drift, boundary and `ndt` intercepts and its smallest random-effect SD
+five times too large, and its Pareto `k` of 1.5 said as much. Laplace was worse
+in the other direction: the SDs of those same three intercepts were four to
+thirteen times too large, and the three participant-level SDs, which MCMC put
+at 0.6, 0.16 and 0.05, came out at 4, 3.4 and 1.8 with uncertainties as large
+as the estimates. The curvature of a
+hierarchical posterior at its mode says little about its spread. For the
+condition effects, the quantities one usually cares about, both approximations
+matched MCMC to within a few hundredths.
+
+## Warm Starts: Reusing Initial Values and Metrics
+
+Warmup produces two things: a position inside the bulk of the posterior, and
+an adapted metric and step size. Both are thrown away when the run ends, and
+both can be supplied to the next run instead of being learned again. Stan
+exposes them as the `init`, `inv_metric` and `step_size` arguments of the
+sampler, and `brm()` forwards any argument it does not recognize to
+`cmdstanr`, so no custom Stan is involved. The sampler keeps adapting from the
+supplied values during whatever warmup remains, so the result is a head start
+rather than a fixed setting, and nothing about it changes the posterior being
+sampled: a poor warm start costs speed, not correctness. The usual checks
+(`Rhat`, divergences, effective sample size) remain the judge of the run.
+
+### From a previous fit of the same model
+
+The simplest source is a previous fit of the same model: a pilot run, a fit that
+needs more draws, or the same model under a slightly different prior or seed.
+`brms` keeps the adapted quantities of each chain in the fit's metadata, and
+passing them to a new run lets its warmup shrink to what the step size needs:
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+md <- attr(m$fit, "metadata")   # inv_metric and step_size, one entry per chain
+
+m_more <- brm(fit = m,          # reuse the compiled model
+  init = cogmod_inits(f, df),
+  chains = 4, cores = 4,
+  iter = 2100, warmup = 100,
+  inv_metric = md$inv_metric[[1]],
+  step_size = md$step_size[[1]]
+)
+```
+
+The metric must match the previous run's shape: a `diag_e` fit stores a vector
+of variances, a `dense_e` fit a full matrix, and the new run must ask for the
+same `metric`.
+
+In our local benchmarking demo
+([script](https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start.R)),
+on a population-level LNR, we found that this halves the cost of a refit:
+
+| Run | Warmup | Wall time | Min. bulk ESS | ESS per second |
+|:--|:--:|:--:|:--:|:--:|
+| Reference | 500 | 17 s | 857 | 49 |
+| Warm restart, stored metric and step size | 100 | 8 s | 788 | 102 |
+| Cold start, same short warmup | 100 | 32 s | 391 | 12 |
+
+
+### From a Pathfinder approximation
+
+The second source is an approximation from the previous section. Pathfinder
+draws sit inside the bulk of the posterior, which makes them good initial
+values, and their covariance is a first estimate of the metric. Getting the
+covariance right requires the draws on Stan's **unconstrained** scale, which
+`cmdstanr` can do when the model is compiled with its model methods, so this
+pipeline runs at the `cmdstanr` level. `brms` still writes the program and the
+data, and the result is wrapped back into a `brmsfit` at the end, so every
+post-processing method works as usual.
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+library(cmdstanr)
+
+prior <- cogmod_priors(f, df)
+stanvars <- cogmod_stanvars(f)
+
+# 1. brms writes the Stan program and the data; cmdstanr compiles it
+scode <- stancode(f, data = df, prior = prior, stanvars = stanvars, backend = "cmdstanr")
+sdata <- standata(f, data = df, prior = prior, stanvars = stanvars)
+mod <- cmdstan_model(write_stan_file(scode), compile_model_methods = TRUE)
+
+# 2. Pathfinder
+pf <- mod$pathfinder(data = sdata, init = cogmod_inits(f, df), num_paths = 8, draws = 1000)
+
+# 3. Its covariance on the unconstrained scale is the starting metric
+inv_metric <- cov(pf$unconstrain_draws(format = "draws_matrix"))
+
+# 4. MCMC starting from Pathfinder draws, with that metric, and a shorter warmup
+fit <- mod$sample(
+  data = sdata, init = pf,
+  chains = 4, parallel_chains = 4,
+  iter_warmup = 300, iter_sampling = 500,
+  metric = "dense_e", inv_metric = inv_metric
+)
+
+# 5. Back into brms
+m <- brm(f, data = df, prior = prior, stanvars = stanvars, backend = "cmdstanr", empty = TRUE)
+m$fit <- read_csv_as_stanfit(fit$output_files(), variables = fit$metadata()$stan_variables, model = mod)
+m <- rename_pars(m)
+```
+
+In our local benchmarking demo
+([script](https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start.R)),
+on the same mixed DDM as above, we found that the pipeline works but did not
+pay for itself at this size. Started from Pathfinder draws and covariance and
+left to adapt for 300 iterations, the sampler finished its own work in 3.7 min
+instead of the cold start's 4.4 min with the same effective sample size, but
+Pathfinder's 77 s ate the difference, for a net loss of about 10%. The
+arithmetic favours the warm start as models grow, since Pathfinder scales
+gently with the number of parameters while warmup for a poorly conditioned
+posterior does not, and since a bad random initialization on a large model can
+waste far more than the approximation costs. What one must **not** do is fix
+the metric to the approximation (Stan allows it, by setting `init_buffer` to
+the whole warmup so that no adaptation window runs). Pathfinder's covariance
+was, as the previous section showed, several times too small on most
+parameters, and a sampler that believes it takes tiny steps and hits the
+maximum treedepth: that run took 15 min, diverged on a third of its
+transitions, and returned an effective sample size of 10.
 
 ## High-Performance Clusters (HPCs)
 
@@ -198,7 +492,7 @@ would have taken.
 
 ## Future Directions
 
-A different line of work sidesteps the repeated sampling of MCMC/VI entirely: 
+A different line of work sidesteps the repeated sampling of MCMC/VI entirely:
 **amortized inference**, where a neural network is trained (once, offline, potentially at
 significant upfront cost) to map observed data directly to an approximate
 posterior, so that inference on new datasets afterwards is close to

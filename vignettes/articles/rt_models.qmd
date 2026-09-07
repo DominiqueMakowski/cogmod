@@ -806,9 +806,10 @@ Every model so far was fitted to the correct responses alone, on the argument
 that errors come from a different generative process. Dropping them is not
 free, though: it conditions on the correct process having *won*, which
 truncates its slow tail - the trials on which a slow correct response was
-coming are exactly the trials on which an error got in first. The **censored shifted Wald** (Miller et al., [2018](https://doi.org/10.1177/0146621617710465))
+coming are exactly the trials on which an error got in first. The **simple censored shifted Wald** 
+(Miller et al., [2018](https://doi.org/10.1177/0146621617710465), their Eq. 4)
 keeps those trials without modelling the error process at all. An error at
-time `t` is taken to say one thing about the correct accumulator: it had not
+time `t` is taken to provide further information to the correct accumulator: it had not
 finished by `t`. It therefore enters the likelihood as a **right-censored**
 observation, contributing the Wald's survival `P(T > t)` where a correct
 response contributes its density. This is the standard survival-analysis
@@ -867,29 +868,34 @@ sampler did. Two things are worth knowing before reaching for it.
 
 **What it assumes.** Censoring says the error tells you *nothing* about the
 correct process beyond "not yet". That is what buys the model its stability
-when errors are few - there is no error accumulator to estimate, which is
-exactly the parameter that runs away in a race fitted to a high-accuracy
-condition (see the *Decision Making* vignette) - and it is what stops being
-credible when errors are many, because at that point they are a process of
-their own. `cogmod_priors()` warns above 20% censored trials.
+when errors are few - there is no error accumulator to estimate (see the 
+*Decision Making* vignette). It holds when the error comes
+from a process independent of the correct one, which in practice 
+and is unlikely when a high number of errors is present (> 5%). 
+In these cases, fully modelling the error process is usually preferred.
 
 **The check to run first.** Censoring draws the errors from the surviving
-tail, so it can only ever predict them *slower* than correct responses. Fast
-errors - the signature of a low boundary or a biased start point - cannot be
-produced by construction. So compare the two before fitting:
+tail, so it can only ever predict them *slower* than correct responses. So
+compare the two before fitting:
 
 ```{r}
 aggregate(RT ~ Condition + Error, data = df_cens, FUN = median)
 ```
 
-On these data the errors are, if anything, a shade *faster* than the correct
-responses in both conditions, so the assumption is borderline here at best, which 
-suggests this model is not appropriate for this
-data set. Where errors are faster, use a race that models the error
-accumulator - the RDM or the LBA of the [*Decision Making*](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html) vignette. Where they
-are slower, or where there is no error response at all - go/no-go, deadlines,
-omissions - a non-response genuinely is a right-censored draw from one
-accumulator, and censoring is the exact model rather than an approximation.
+On these data the errors have the same median as the correct responses in
+both conditions, and equal speed is the signature
+of a single diffusion process, and the errors here are 5% (accuracy) and 10%
+(speed) of the trials, which suggests this model is not appropriate for this data set.
+The fit above is shown for its syntax only; but [*Decision Making*](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
+models are the best tool for this data, and even more so if the errors are *faster*
+than the correct responses, the signature of a low boundary or a biased start point.
+Where errors are clearly slower, or where there is no error response at all -
+go/no-go, deadlines, omissions - a non-response genuinely is a right-censored
+draw from one accumulator and censoring is the exact model rather than an
+approximation. `?rcogmod_invgaussian` has Miller et al.'s demonstration: 
+a Wald with a virtual deadline, where dropping the timed-out trials
+or keeping the deadline as if it were an RT biases every parameter and
+censoring recovers them.
 
 One more consequence: `posterior_predict()` predicts the latent, uncensored
 reaction time, as `brms` does for its own families, so `pp_check()` on a

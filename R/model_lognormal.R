@@ -182,7 +182,7 @@
 #' bound on the correct response's time rather than dropped. The full account -
 #' what it is for, what it assumes, and the one check to run before using it -
 #' is in the *Censoring* section of [rcogmod_invgaussian()], where the
-#' construction is the censored shifted Wald of Miller et al. (2018).
+#' construction is the simple censored shifted Wald of Miller et al. (2018).
 #'
 #' @param n Number of observations. If `length(n) > 1`, the length is taken to be
 #'   the number required.

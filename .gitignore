@@ -73,3 +73,6 @@ paper/paper_cache/
 # Practices Statement in paper/paper.qmd.
 paper/wagenmakers2008.csv
 paper/reviewers.txt
+
+# Compiled Stan executables produced by benchmarks/*.R
+benchmarks/results/exe/
