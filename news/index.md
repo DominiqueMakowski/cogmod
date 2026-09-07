@@ -182,7 +182,45 @@
   test guards it, gated behind `COGMOD_TEST_SLOW` like the other tests
   that compile a model of their own.
 
+- **[`rcogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  no longer returns the odd 10-40 s response in place of a fast one.**
+  The sampler inverts the CDF with Newton’s method, and took a step
+  under `1e-10` in log time as convergence. A pass that lands far in the
+  tail finds the survival and the density both denormal, and their ratio
+  makes the step look tiny while the residual is still hundreds of log
+  units off, so the draw was accepted where it stood. It hit about one
+  draw in 4,000 to 20,000 at short boundaries or strong drifts
+  (`boundary = 0.3`, `bias = 0.3`, `drift = -5` is one such cell;
+  `boundary = 2`, `bias = 0.7`, `drift = 6` another), which is rare in
+  [`rcogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  and a handful of absurd draws per observation in
+  [`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html),
+  where every observation gets thousands. Convergence now also requires
+  a small residual, and a test pushes every draw back through the CDF to
+  check it lands on its own quantile.
+
 ### Performance
+
+- **[`rcogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  is 3x faster, and
+  [`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
+  on a
+  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  model up to 16x.** The sampler inverts a series whose length is set by
+  the fastest response it could be asked for, and used that length for
+  every draw: 41 terms at the default start point where the median draw
+  needs 6, 205 at a start point of 0.1. It now runs in stages - 16 terms
+  settle the bulk of the draws, and only the responses too fast for that
+  many go round again with four times as many, until the full series is
+  reached. Nothing is approximated: a draw is only accepted from a stage
+  whose series is exact at its root, and the draws agree with the CDF to
+  `1e-12`. The gain is largest where the parameters vary across draws,
+  as they do in
+  [`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html),
+  because one extreme posterior draw used to set the series length for
+  all of them. Converged draws now also drop out of the Newton
+  iteration, and a fast response starts from the single-barrier
+  small-time approximation rather than from the floor of the bracket.
 
 - **The R-side DDM density no longer goes through
   [`brms::dwiener()`](https://paulbuerkner.com/brms/reference/Wiener.html).**
