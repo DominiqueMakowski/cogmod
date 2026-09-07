@@ -406,6 +406,41 @@ test_that("rcogmod_ddm produces responses below ndt only via outliers", {
 })
 
 
+test_that("every DDM draw lands on its target quantile of the CDF", {
+  # Each draw is the inversion of the defective CDF at a uniform, so pushing it
+  # back through `.ddm_cdf_lower()` must return that uniform. This is exact,
+  # per draw, where the distributional tests above are statistical: it is what
+  # caught the sampler returning a 30 s response for a 3 ms one when Newton
+  # declared convergence on a step size alone, about once in 10,000 draws at
+  # a short boundary and an extreme start point.
+  #
+  # The sampler consumes two runif(n) in this order: the response, then the
+  # quantile. The response check makes this test fail loudly, rather than pass
+  # vacuously, if that ever changes.
+  n <- 20000
+  for (g in list(c(v = 1, a = 0.5, w = 0.1), c(v = -3, a = 0.5, w = 0.1),
+                 c(v = 0.5, a = 1, w = 0.5), c(v = 4, a = 3, w = 0.9),
+                 c(v = 0, a = 2, w = 0.3))) {
+    v <- rep(g[["v"]], n); a <- rep(g[["a"]], n); w <- rep(g[["w"]], n)
+    set.seed(35)
+    u <- stats::runif(n)
+    q <- stats::runif(n)
+    set.seed(35)
+    sim <- .ddm_fpt_rng(n, v, a, w)
+    lower <- sim$response == 0
+    expect_identical(lower, u < .ddm_plower(v, a, w))
+    expect_true(all(is.finite(sim$rt) & sim$rt > 0))
+    vf <- ifelse(lower, v, -v)
+    wf <- ifelse(lower, w, 1 - w)
+    pf <- .ddm_plower(vf, a, wf)
+    surv <- pf - .ddm_cdf_lower(sim$rt, vf, a, wf)
+    expect_lt(max(abs(surv - (1 - q) * pf) / pf), 1e-9,
+              label = sprintf("worst quantile error at v %.1f a %.1f w %.1f",
+                              g[["v"]], g[["a"]], g[["w"]]))
+  }
+})
+
+
 test_that("rcogmod_ddm errors on invalid parameters", {
   expect_error(rcogmod_ddm(10, boundary = 0), "boundary")
   expect_error(rcogmod_ddm(10, bias = 0), "bias")

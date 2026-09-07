@@ -807,8 +807,8 @@ cogmod_ddm <- function(
 # amortise at all (55-90 us per draw at any n).
 #
 # So the draws are taken by inverting the CDF instead, which vectorises across
-# parameter sets because every step acts on the whole vector at once. Two things
-# make it cheap enough to be worth it:
+# parameter sets because every step acts on the whole vector at once. Three
+# things make it cheap enough to be worth it:
 #
 #  * The large-time series for the defective lower-boundary CDF splits into a
 #    part that depends on t and a part that does not. The root-finder varies
@@ -817,20 +817,34 @@ cogmod_ddm <- function(
 #  * The density falls out of the same exp(), because C_k * R_k reduces to
 #    k sin(k pi w) / 2. A Newton step therefore costs exactly what a bisection
 #    step costs.
+#  * The series is solved in stages of growing length (see `.ddm_fpt_rng()`):
+#    the number of terms a draw needs falls as 1 / sqrt(t), so the bulk of the
+#    draws are settled with a short series and only the fastest responses pay
+#    for a long one. Sizing the series for the worst case instead cost 4-7x
+#    on the inner loop - and 18x when the parameters vary across draws, as
+#    they do in `posterior_predict()`, since one extreme draw then sets the
+#    length for all of them.
 #
 # Accurate to 1e-13 in log RT against a 60-step bisection, and the underlying
 # CDF agrees with numerical integration to 1e-9 - where `rtdists::pdiffusion()`
-# is out by up to 5e-4. About 6x faster than `brms::rwiener()` per draw.
+# is out by up to 5e-4. Every draw checked against `.ddm_cdf_lower()` lands
+# within 1e-13 of its target probability.
 
 # Terms are kept until the last one is below this at the earliest time evaluated.
 .DDM_SERIES_TOL <- 1e-13
 # The series length grows as 1/sqrt(t), so an extreme starting point makes it
 # long. The cap trades accuracy for time only in that corner.
 .DDM_SERIES_CAP <- 400L
-# Newton passes before the stragglers are handed to bisection. Eight leaves
-# ~0.6% of draws for the cleanup, which is where the total cost bottoms out:
-# fewer passes and the cleanup dominates, more and the passes do.
-.DDM_NEWTON <- 8L
+# Terms in the first stage, and the factor the count grows by per stage. At the
+# default start point 16 terms settle about 98% of the draws; measured over a
+# grid of drifts, boundaries and start points, 16 x 4 beat every alternative
+# from 8 x 2 to 24 x 4.
+.DDM_SERIES_K0 <- 16L
+.DDM_SERIES_GROW <- 4L
+# Newton passes before the stragglers are handed to bisection. Converged draws
+# leave the active set, so late passes run on a handful of draws and cost next
+# to nothing; twelve leaves about 0.1% for the cleanup.
+.DDM_NEWTON <- 12L
 .DDM_EPS_V <- 1e-8
 
 # P(the lower boundary is hit first), for a process starting at z = w * a.
@@ -865,6 +879,14 @@ cogmod_ddm <- function(
   as.integer(min(.DDM_SERIES_CAP, max(4L, ceiling(max(k)))))
 }
 
+# The inverse of `.ddm_nterms()`: the earliest time at which K terms meet the
+# tolerance, for boundary separation a. A series of K terms is trusted from
+# here on and not below.
+#' @keywords internal
+.ddm_tmin <- function(a, K) {
+  a^2 * (-2 * log(.DDM_SERIES_TOL)) / (pi^2 * K^2)
+}
+
 # The t-independent half of the series, as K x n matrices.
 #
 #   S(t) = P_lo - F_lo(t) = pref * sum_k C_k exp(-R_k t)
@@ -877,13 +899,13 @@ cogmod_ddm <- function(
 #' @keywords internal
 .ddm_series <- function(v, a, w, K) {
   n <- length(v)
-  kk <- matrix(seq_len(K), K, n)
-  aa <- matrix(a, K, n, byrow = TRUE)
-  ww <- matrix(w, K, n, byrow = TRUE)
-  vv <- matrix(v, K, n, byrow = TRUE)
-  kpa <- kk^2 * pi^2 / aa^2
-  list(C = kk * sin(kk * pi * ww) / (vv^2 + kpa),
-       R = vv^2 / 2 + kpa / 2,
+  k <- seq_len(K)
+  # outer() and recycling in place of four K x n copies of the parameters: the
+  # setup was a quarter of the sampler's time at long series lengths.
+  kpa <- outer(k^2 * pi^2, 1 / a^2)
+  v2 <- kpa + rep(v^2, each = K)
+  list(C = matrix(k, K, n) * sin(outer(k * pi, w)) / v2,
+       R = v2 / 2,
        pref = (2 * pi / a^2) * exp(-v * a * w),
        K = K, n = n)
 }
@@ -922,9 +944,115 @@ cogmod_ddm <- function(
 }
 
 
+# Solve log S(t) = ltarget for every column of a prepared series, given the
+# log of a floor the root is known to sit above. Returns log t. The bracket
+# starts at [floor, 60 s] and is widened at the top where the one-term
+# inversion says the root is out that far; a near-driftless process behind a
+# wide boundary can finish well past 60 s.
+#' @keywords internal
+.ddm_solve_series <- function(pre, ltarget, llo, guess) {
+  C <- pre$C; R <- pre$R; pref <- pre$pref; K <- pre$K; m <- pre$n
+  ev <- function(x, idx) {
+    mm <- length(idx)
+    Ri <- R[, idx, drop = FALSE]
+    ce <- C[, idx, drop = FALSE] * exp(-Ri * rep(exp(x), each = K))
+    list(S = pref[idx] * .colSums(ce, K, mm),
+         f = pref[idx] * .colSums(ce * Ri, K, mm))
+  }
+
+  # The one-term inversion: exact in the tail, where a single term carries the
+  # series, and meaningless (negative, or below the floor) for a fast response,
+  # which starts from the small-time guess instead.
+  t1 <- (log(pref * C[1, ]) - ltarget) / R[1, ]
+  tail <- is.finite(t1) & t1 > exp(llo)
+  x <- guess
+  x[tail] <- log(t1[tail])
+
+  # Only a root the one-term inversion already puts past 15 s can lie beyond
+  # 60 s: by then every other term is down by exp(-3 pi^2 t / (2 a^2)) or more
+  # on the first, which is negligible for any boundary under 10. So the
+  # extension check runs on those draws alone rather than on all of them.
+  lhi <- rep(log(60), m)
+  far <- which(is.finite(t1) & t1 > 15)
+  if (length(far)) {
+    lf <- lhi[far]
+    for (i in 1:8) {
+      short <- log(ev(lf, far)$S) > ltarget[far]
+      short[is.na(short)] <- FALSE
+      if (!any(short)) break
+      lf <- ifelse(short, lf + log(16), lf)
+    }
+    lhi[far] <- lf
+  }
+  x <- pmin(pmax(x, llo + 1e-9), lhi - 1e-9)
+
+  out <- x
+  act <- seq_len(m)
+  for (i in seq_len(.DDM_NEWTON)) {
+    sf <- ev(x, act)
+    h <- log(sf$S) - ltarget[act]     # > 0: too much mass left, so t is too small
+    dx <- h * sf$S / pmax(sf$f * exp(x), 1e-300)
+    # S can only come back non-positive far in the tail, from rounding on a
+    # sum that should be ~0, so that side of the bracket moves down.
+    up <- h > 0
+    up[is.na(up)] <- FALSE
+    llo <- ifelse(up, x, llo)
+    lhi <- ifelse(up, lhi, x)
+    # Converged means a tiny step AND a tiny residual. The step alone is not
+    # enough: a pass that lands deep in the tail finds S and f both denormal,
+    # and their ratio makes dx look like 1e-13 while the residual is still
+    # hundreds of log units off. That was a genuine (rare) failure mode, and it
+    # returned a 30 s response for a 3 ms one.
+    conv <- is.finite(dx) & abs(dx) < 1e-10 & is.finite(h) & abs(h) < 1e-8
+    xn <- x + dx
+    # A step out of the bracket falls back to its midpoint, so every pass
+    # makes progress even where Newton is wild.
+    x <- ifelse((!is.finite(xn) | xn <= llo | xn >= lhi) & !conv,
+                (llo + lhi) / 2, xn)
+    # Converged draws leave the active set, so the late passes cost almost
+    # nothing and there is no reason to skimp on them.
+    if (any(conv)) {
+      out[act[conv]] <- x[conv]
+      keep <- !conv
+      act <- act[keep]; x <- x[keep]; llo <- llo[keep]; lhi <- lhi[keep]
+      if (!length(act)) break
+    }
+  }
+
+  # Whatever Newton has not settled is bisected. The bracket is valid by
+  # construction, so this cannot fail to converge.
+  if (length(act)) {
+    C <- C[, act, drop = FALSE]; R <- R[, act, drop = FALSE]
+    pref <- pref[act]; tg <- ltarget[act]; mm <- length(act)
+    for (i in 1:50) {
+      mid <- (llo + lhi) / 2
+      s <- pref * .colSums(C * exp(-R * rep(exp(mid), each = K)), K, mm)
+      up <- log(s) > tg
+      up[is.na(up)] <- FALSE
+      llo <- ifelse(up, mid, llo)
+      lhi <- ifelse(up, lhi, mid)
+    }
+    out[act] <- (llo + lhi) / 2
+  }
+  out
+}
+
+
 # Draw first-passage times for a Wiener process with drift `v`, boundary
 # separation `a` and relative start point `w`, one parameter set per draw.
 # Returns response 1 for the upper boundary, matching brms::rwiener().
+#
+# The series is solved in stages. A series of K terms is exact (to the
+# tolerance) from `.ddm_tmin(a, K)` onwards and unusable below it, so each stage
+# brackets its draws from that time, settles those whose root is comfortably
+# inside the bracket, and hands the rest - the draws that turn out to be faster
+# than this many terms can describe - to the next stage with four times as
+# many terms. The last stage uses the true floor and the full series, exactly
+# as a single-stage solve would, so nothing is ever approximated: a draw is
+# only accepted from a stage whose series is exact at its root. The number of
+# terms a draw needs falls as 1 / sqrt(t), and at the default start point the
+# first stage settles about 98% of them with 16 terms where the full series
+# has 41; at a start point of 0.1 it is 205.
 #' @keywords internal
 .ddm_fpt_rng <- function(n, v, a, w) {
   if (n == 0) return(list(rt = numeric(0), response = numeric(0)))
@@ -937,72 +1065,59 @@ cogmod_ddm <- function(
   vf <- ifelse(resp_lower, v, -v)
   wf <- ifelse(resp_lower, w, 1 - w)
   pf <- .ddm_plower(vf, a, wf)
-
-  lo <- .ddm_tfloor(a, wf)
-  pre <- .ddm_series(vf, a, wf, .ddm_nterms(max(a), min(lo)))
-  C <- pre$C; R <- pre$R; pref <- pre$pref; K <- pre$K
   ltarget <- log1p(-q) + log(pf)
 
-  ev <- function(x, idx = NULL) {
-    if (is.null(idx)) {
-      ce <- C * exp(-R * rep(exp(x), each = K))
-      list(S = pref * .colSums(ce, K, n), f = pref * .colSums(ce * R, K, n))
+  lo <- .ddm_tfloor(a, wf)
+  Kmax <- .ddm_nterms(max(a), min(lo))
+  # Starting guess for the fast responses, where the one-term inversion has
+  # nothing to say: near t = 0 the far boundary is out of reach and the process
+  # is a single-barrier hit at distance a w, driftless to first order, whose CDF
+  # is 2 Phi(-a w / sqrt(t)). Inverting that puts Newton within a pass or two of
+  # the root instead of the four to six it took from the floor.
+  guess <- 2 * log((a * wf) / stats::qnorm(1 - pmin(q * pf, 0.999) / 2))
+
+  rt <- numeric(n)
+  todo <- seq_len(n)
+  K <- min(.DDM_SERIES_K0, Kmax)
+  repeat {
+    final <- K >= Kmax
+    m <- length(todo)
+    tlo <- if (final) lo[todo] else pmax(lo[todo], .ddm_tmin(a[todo], K))
+    llo <- log(tlo)
+    pre <- .ddm_series(vf[todo], a[todo], wf[todo], K)
+    if (final) {
+      deep <- rep(FALSE, m)
     } else {
-      m <- length(idx)
-      Ri <- R[, idx, drop = FALSE]
-      ce <- C[, idx, drop = FALSE] * exp(-Ri * rep(exp(x), each = K))
-      list(S = pref[idx] * .colSums(ce, K, m),
-           f = pref[idx] * .colSums(ce * Ri, K, m))
+      # A root below this stage's floor needs more terms: those draws skip the
+      # solve here rather than grind against the bracket edge. The final stage
+      # has the true floor, below which the CDF is zero, so nothing is deep.
+      s0 <- pre$pref * .colSums(pre$C * exp(-pre$R * rep(tlo, each = K)), K, m)
+      deep <- !(log(s0) > ltarget[todo])
     }
-  }
-
-  llo <- log(lo)
-  lhi <- rep(log(60), n)
-  # A near-driftless process behind a wide boundary can finish well past 60 s,
-  # so the upper end is pushed out until it really does bracket the root.
-  for (i in 1:8) {
-    short <- log(ev(lhi)$S) > ltarget
-    if (!any(short, na.rm = TRUE)) break
-    lhi <- ifelse(short, lhi + log(16), lhi)
-  }
-
-  # Start from the one-term inversion, exact in the tail where a single term
-  # carries the series.
-  x <- log(pmax((log(pref * C[1, ]) - ltarget) / R[1, ], 1e-10))
-  x <- pmin(pmax(x, llo + 1e-9), lhi - 1e-9)
-
-  conv <- rep(FALSE, n)
-  for (i in seq_len(.DDM_NEWTON)) {
-    sf <- ev(x)
-    h <- log(sf$S) - ltarget          # > 0: too much mass left, so t is too small
-    dx <- h * sf$S / pmax(sf$f * exp(x), 1e-300)
-    llo <- ifelse(!conv & h > 0, x, llo)
-    lhi <- ifelse(!conv & h <= 0, x, lhi)
-    xn <- x + dx
-    # A converged draw sits on the bracket edge its own last evaluation set, so
-    # the out-of-bracket test fires on exactly the steps that are already right.
-    # Those are taken; only genuinely wild ones fall back to the midpoint.
-    tiny <- is.finite(dx) & abs(dx) < 1e-10
-    x <- ifelse(conv, x,
-                ifelse((!is.finite(xn) | xn <= llo | xn >= lhi) & !tiny,
-                       (llo + lhi) / 2, xn))
-    conv <- conv | tiny
-  }
-
-  # Whatever Newton has not settled is bisected. The bracket is valid by
-  # construction, so this cannot fail to converge.
-  bad <- which(!conv)
-  if (length(bad)) {
-    bl <- llo[bad]; bh <- lhi[bad]; tg <- ltarget[bad]
-    for (i in 1:50) {
-      mid <- (bl + bh) / 2
-      up <- log(ev(mid, bad)$S) > tg
-      bl <- ifelse(up, mid, bl)
-      bh <- ifelse(up, bh, mid)
+    act <- which(!deep)
+    if (length(act)) {
+      sub <- if (length(act) < m) {
+        list(C = pre$C[, act, drop = FALSE], R = pre$R[, act, drop = FALSE],
+             pref = pre$pref[act], K = K, n = length(act))
+      } else {
+        pre
+      }
+      x <- .ddm_solve_series(sub, ltarget[todo[act]], llo[act], guess[todo[act]])
+      if (final) {
+        rt[todo[act]] <- exp(x)
+      } else {
+        # A root hugging the stage floor is only known to be at or below it -
+        # the series is not trusted underneath - so it goes round again.
+        ok <- x > llo[act] + log(1.5)
+        rt[todo[act[ok]]] <- exp(x[ok])
+        deep[act[!ok]] <- TRUE
+      }
     }
-    x[bad] <- (bl + bh) / 2
+    if (final || !any(deep)) break
+    todo <- todo[deep]
+    K <- min(K * .DDM_SERIES_GROW, Kmax)
   }
-  list(rt = exp(x), response = as.numeric(!resp_lower))
+  list(rt = rt, response = as.numeric(!resp_lower))
 }
 
 
