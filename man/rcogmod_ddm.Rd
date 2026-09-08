@@ -161,7 +161,11 @@ The remaining functions are \code{brms} post-processing methods, called by
 \code{brms} rather than directly: \code{log_lik_cogmod_ddm()} returns a numeric
 vector holding one log-likelihood value per posterior draw for observation
 \code{i}, \code{posterior_predict_cogmod_ddm()} a draws x 2 matrix of reaction times
-and choices simulated for observation \code{i}, and
+and choices simulated for observation \code{i} - or, given a vector of
+observation indices, a \code{(draws * length(i))} x 2 matrix with the draws for
+\code{i[1]} first, which is how to predict many observations in one vectorised
+call rather than through \code{brms}'s one-observation-at-a-time loop (see
+Details) - and
 \code{posterior_epred_cogmod_ddm()} a draws x observations matrix of expected
 reaction times (marginal over the two responses, and only approximate once
 the between-trial variability parameters are non-zero).
@@ -364,6 +368,32 @@ upper tail is then the matching defective survival
 \code{P(RT > q, choice = response)}, so the two add to that response's own
 probability rather than to one. Marginally (\code{response = NULL}) they add to
 one as usual. \code{\link[=pcogmod_rdm]{pcogmod_rdm()}} follows the same convention.
+}
+
+\section{Predicting many observations at once}{
+\code{brms::posterior_predict()} calls \code{posterior_predict_cogmod_ddm()} once per
+observation, each time with every draw's parameters, so a data set of a few
+thousand trials means a few thousand calls of a sampler that is vectorised
+across parameter sets and would rather take them all at once. About half of
+each call is fixed cost, and the loop itself adds as much again. The method
+therefore also accepts a \emph{vector} of observation indices and returns their
+draws stacked, the draws for \code{i[1]} first, so a posterior predictive check
+can be built in a handful of calls instead:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{prep <- brms::prepare_predictions(fit, newdata = data, ndraws = 50)
+# as brms::posterior_predict() does before its loop: linear predictors once
+for (dp in names(prep$dpars)) prep$dpars[[dp]] <- brms::get_dpar(prep, dp)
+chunks <- split(seq_len(prep$nobs), ceiling(seq_len(prep$nobs) / 50))
+pp <- do.call(rbind, lapply(chunks, posterior_predict_cogmod_ddm, prep = prep))
+pp[, 1]  # reaction times; pp[, 2] the choices
+}\if{html}{\out{</div>}}
+
+Chunks of about 50 observations are the sweet spot: the sampler sizes its
+series for the fastest response it might have to describe, and the more
+heterogeneous the parameters in a call, the longer that series. On 2,500
+trials by 50 draws this runs in about a third of the time of
+\code{posterior_predict()}. The other choice families' methods accept a vector
+\code{i} in the same way.
 }
 
 \examples{

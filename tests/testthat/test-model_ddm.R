@@ -441,6 +441,46 @@ test_that("every DDM draw lands on its target quantile of the CDF", {
 })
 
 
+test_that("posterior_predict_cogmod_ddm takes a vector of observations", {
+  # A hand-built brmsprep, shaped as brms::posterior_predict() has it by the
+  # time the family method is called: every dpar already a draws x observations
+  # matrix (or a scalar, for one fixed in the formula). That is all
+  # brms::get_dpar() needs, and it keeps a model fit out of this test.
+  set.seed(11)
+  ndraws <- 20; nobs <- 7
+  prep <- structure(list(
+    dpars = list(
+      mu = matrix(rnorm(ndraws * nobs, 1, 0.5), ndraws, nobs),
+      boundary = matrix(runif(ndraws * nobs, 0.8, 2), ndraws, nobs),
+      bias = matrix(runif(ndraws * nobs, 0.3, 0.7), ndraws, nobs),
+      sigmadrift = 0, sigmabias = 0, sigmandt = 0,
+      # distinct per observation, so the layout of the stacked output shows
+      ndt = matrix(rep(seq(0.1, 0.7, by = 0.1), each = ndraws), ndraws, nobs),
+      poutlier = matrix(0.02, ndraws, nobs)
+    ),
+    family = cogmod_ddm(), nobs = nobs, ndraws = ndraws
+  ), class = "brmsprep")
+
+  one <- posterior_predict_cogmod_ddm(3, prep)
+  expect_equal(dim(one), c(ndraws, 2))
+  expect_true(all(one[, 1] > 0.3))          # ndt of observation 3
+
+  idx <- c(2, 5, 7)
+  many <- posterior_predict_cogmod_ddm(idx, prep)
+  expect_equal(dim(many), c(ndraws * length(idx), 2))
+  expect_true(all(many[, 2] %in% c(0, 1)))
+  # draws for i[1] first, then i[2], ...: each block sits above its own ndt
+  blocks <- split(many[, 1], rep(idx, each = ndraws))
+  for (k in idx) expect_gt(min(blocks[[as.character(k)]]), k / 10)
+  # the outlier component is off by default and on when asked
+  expect_true(all(many[, 1] > 0.2))
+  set.seed(12)
+  with_out <- posterior_predict_cogmod_ddm(rep(idx, 40), prep,
+                                           predict_outliers = TRUE)
+  expect_true(any(with_out[, 1] < 0.2))
+})
+
+
 test_that("rcogmod_ddm errors on invalid parameters", {
   expect_error(rcogmod_ddm(10, boundary = 0), "boundary")
   expect_error(rcogmod_ddm(10, bias = 0), "bias")

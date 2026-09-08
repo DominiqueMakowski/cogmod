@@ -118,7 +118,10 @@ a model. The remaining functions are \code{brms} post-processing methods,
 called by \code{brms} rather than directly: \code{log_lik_cogmod_lnr()} returns a
 numeric vector holding one log-likelihood value per posterior draw for
 observation \code{i}, and \code{posterior_predict_cogmod_lnr()} a draws x 2 matrix
-of reaction times and choices simulated for observation \code{i}.
+of reaction times and choices simulated for observation \code{i} - or, given a
+vector of observation indices, a \code{(draws * length(i))} x 2 matrix with the
+draws for \code{i[1]} first, which predicts many observations in one vectorised
+call; see \code{\link[=posterior_predict_cogmod_ddm]{posterior_predict_cogmod_ddm()}} for the recipe.
 \code{posterior_epred_cogmod_lnr()} returns nothing: the expected reaction
 time of a race has no closed form, so it errors rather than report one -
 summarise \code{posterior_predict()} draws instead.

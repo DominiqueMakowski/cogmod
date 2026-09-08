@@ -1,0 +1,6 @@
+"family","run","participants","warmup","wall_s","ess_bulk_min","ess_per_s","divergent","rhat_max"
+"lnr","pilot (subset)",4,500,78,550,7.05,5,1.006
+"lnr","reference",8,500,112.4,589,5.24,0,1.006
+"lnr","cold, short warmup",8,100,246.6,522,2.12,0,1.005
+"lnr","warm inits only",8,100,264.9,569,2.15,0,1.008
+"lnr","warm inits + metric + step size",8,100,64.9,603,9.3,0,1.006
