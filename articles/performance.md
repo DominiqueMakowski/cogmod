@@ -388,59 +388,59 @@ term (they are standardized effects, so the average is a fair guess).
 Initial values are built the same way from the pilot’s posterior means,
 with the new participants starting at `z = 0`.
 [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
-does all of this, given the pilot fit and the full data; whatever it is
-not given (here the formula) it takes from the pilot:
+does all of this, in two steps. After the pilot, extract what its warmup
+learned as a small table, labelled by Stan parameter name, and keep it:
 
 ``` r
 
-ws <- cogmod_warmstart(m_pilot, data = df)
-ws   # how many entries came from the pilot, how many are new participants
-
-m <- brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
-  init = ws$init, inv_metric = ws$inv_metric, step_size = ws$step_size,
-  backend = "cmdstanr", chains = 4, cores = 4,
-  iter = 600, warmup = 100
-)
+warmstart <- as.data.frame(cogmod_warmstart(m_pilot))
+write.csv(warmstart, "pilot_warmstart.csv", row.names = FALSE)
 ```
 
-The same works the other way round: `cogmod_warmstart(m, formula = f2)`
-is a variant of the model on the same data, whose shared parameters
-start where the first fit left them. Anything the source never had, such
-as a predictor added to the formula, gets Stan’s default variance and
-the generic starting value
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
-would give it, and `print(ws)` counts those entries; many of them means
-the two formulas differ more than intended. The table behind the object
-is a few kilobytes and survives a CSV file, which is how a pilot fitted
-on a laptop can warm-start an array job on a cluster with no `brmsfit`
-in sight:
-
-``` r
-
-write.csv(as.data.frame(ws), "pilot_warmstart.csv", row.names = FALSE)
-ws <- cogmod_warmstart("pilot_warmstart.csv", f, df)   # a file knows neither, so give both
-```
-
-Or, without the intermediate object, one helper per argument of
-[`brm()`](https://paulbuerkner.com/brms/reference/brm.html), all with
-the signature of
+Then, for the full model, hand that table to the three helpers that
+mirror
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
 and
 [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md) -
-the model’s formula and data, then the source under `warmstart`, be it a
-fit, a table or a file - and each mapping the table onto the model on
-the way:
+the model’s formula and data first, the table under `warmstart` - one
+per argument of
+[`brm()`](https://paulbuerkner.com/brms/reference/brm.html):
 
 ``` r
 
-m <- brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
-  init = cogmod_inits(f, df, warmstart = "pilot_warmstart.csv"),
-  inv_metric = cogmod_inv_metric(f, df, warmstart = "pilot_warmstart.csv"),
-  step_size = cogmod_step_size(f, df, warmstart = "pilot_warmstart.csv"),
+warmstart <- read.csv("pilot_warmstart.csv")
+
+m <- brm(f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  stanvars = cogmod_stanvars(f),
+  init = cogmod_inits(f, df, warmstart = warmstart),
+  inv_metric = cogmod_inv_metric(f, df, warmstart = warmstart),
+  step_size = cogmod_step_size(f, df, warmstart = warmstart),
   backend = "cmdstanr", chains = 4, cores = 4,
   iter = 600, warmup = 100
 )
 ```
+
+Each helper maps the table onto the model it is given, which is where
+the pilot’s participants are matched by name and the new ones filled in,
+so the same table serves a refit of the pilot itself and the full sample
+alike. It is a few kilobytes, which is how a pilot fitted on a laptop
+can warm-start an array job on a cluster with no `brmsfit` in sight; the
+pilot fit itself can also stand in for the table wherever `warmstart` is
+taken. To see what the mapping did - how many entries came from the
+pilot, how many are new participants, how many had no counterpart at
+all - build the object for the target model and print it:
+`cogmod_warmstart(warmstart, f, df)`, or straight from the fit
+`cogmod_warmstart(m_pilot, data = df)`, since whatever it is not given
+it takes from the pilot. The same works with a changed formula:
+`cogmod_warmstart(m, formula = f2)` is a variant of the model on the
+same data, whose shared parameters start where the first fit left them.
+Anything the source never had, such as a predictor added to the formula,
+gets Stan’s default variance and the generic starting value
+[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+would give it; many such entries mean the two formulas differ more than
+intended.
 
 In our local benchmarking demo
 ([script](https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start_subset.R)),
