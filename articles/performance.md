@@ -335,25 +335,29 @@ run.
 The simplest source is a previous fit of the same model: a pilot run, a
 fit that needs more draws, or the same model under a slightly different
 prior or seed. `brms` keeps the adapted quantities of each chain in the
-fit’s metadata, and passing them to a new run lets its warmup shrink to
-what the step size needs:
+fit’s metadata (`attr(m$fit, "metadata")`), and
+[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+reads them back, averaged over the chains, together with the posterior
+means as starting values. Passing them to a new run lets its warmup
+shrink to what the step size needs:
 
 ``` r
 
-md <- attr(m$fit, "metadata")   # inv_metric and step_size, one entry per chain
+ws <- cogmod_warmstart(m)   # inv_metric, step_size and init, from the fit itself
 
-m_more <- brm(fit = m,          # reuse the compiled model
-  init = cogmod_inits(f, df),
+m_more <- brm(fit = m,      # reuse the compiled model
+  init = ws$init,
   chains = 4, cores = 4,
   iter = 2100, warmup = 100,
-  inv_metric = md$inv_metric[[1]],
-  step_size = md$step_size[[1]]
+  inv_metric = ws$inv_metric,
+  step_size = ws$step_size
 )
 ```
 
 The metric must match the previous run’s shape: a `diag_e` fit stores a
-vector of variances, a `dense_e` fit a full matrix, and the new run must
-ask for the same `metric`.
+vector of variances, a `dense_e` fit a full matrix, and
+[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+handles only the former.
 
 In our local benchmarking demo
 ([script](https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start.R)),
@@ -365,6 +369,97 @@ refit:
 | Reference | 500 | 17 s | 857 | 49 |
 | Warm restart, stored metric and step size | 100 | 8 s | 788 | 102 |
 | Cold start, same short warmup | 100 | 32 s | 391 | 12 |
+
+### From a pilot fit on some of the participants
+
+A pilot fit on the first few participants, while the model is still
+being worked out, is often followed by the same model on the full
+sample. That pilot has adapted a metric and a step size and has already
+located the population-level parameters, so it is the natural warm start
+for the full fit. Stan refuses its metric as is, though. Every
+participant adds a standardized random effect (`z_1[1, j]`) to each
+group-level term, so the full model has more parameters and the pilot’s
+metric, one variance per parameter, has the wrong length. The remedy is
+to map it across **by parameter name**: the population-level entries
+carry over one to one, a pilot participant’s `z` entries move to that
+participant’s slot in the full model, and the participants the pilot
+never saw take the average of the pilot’s `z` variances for the same
+term (they are standardized effects, so the average is a fair guess).
+Initial values are built the same way from the pilot’s posterior means,
+with the new participants starting at `z = 0`.
+[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+does all of this, given the pilot fit and the full data; whatever it is
+not given (here the formula) it takes from the pilot:
+
+``` r
+
+ws <- cogmod_warmstart(m_pilot, data = df)
+ws   # how many entries came from the pilot, how many are new participants
+
+m <- brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
+  init = ws$init, inv_metric = ws$inv_metric, step_size = ws$step_size,
+  backend = "cmdstanr", chains = 4, cores = 4,
+  iter = 600, warmup = 100
+)
+```
+
+The same works the other way round: `cogmod_warmstart(m, formula = f2)`
+is a variant of the model on the same data, whose shared parameters
+start where the first fit left them. Anything the source never had, such
+as a predictor added to the formula, gets Stan’s default variance and
+the generic starting value
+[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+would give it, and `print(ws)` counts those entries; many of them means
+the two formulas differ more than intended. The table behind the object
+is a few kilobytes and survives a CSV file, which is how a pilot fitted
+on a laptop can warm-start an array job on a cluster with no `brmsfit`
+in sight:
+
+``` r
+
+write.csv(as.data.frame(ws), "pilot_warmstart.csv", row.names = FALSE)
+ws <- cogmod_warmstart("pilot_warmstart.csv", f, df)   # a file knows neither, so give both
+```
+
+In our local benchmarking demo
+([script](https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start_subset.R)),
+on the mixed LNR (participant random intercepts on `mu` and `ndt`) and
+the mixed DDM (on `mu`, `boundary` and `ndt`) of the previous sections,
+a pilot on 4 of 8 participants warm-started the full fit to about twice
+the effective draws per second of a cold start with the full warmup, and
+four to six times those of a cold start with the same short warmup:
+
+| Family | Run | Participants | Warmup | Wall time | Min. bulk ESS | ESS per second |
+|:---|:---|:--:|:--:|:--:|:--:|:--:|
+| LNR | Pilot fit | 4 | 500 | 78 s | 550 | 7.1 |
+| LNR | Reference, cold start | 8 | 500 | 112 s | 589 | 5.2 |
+| LNR | Cold start, short warmup | 8 | 100 | 247 s | 522 | 2.1 |
+| LNR | Pilot initial values only | 8 | 100 | 265 s | 569 | 2.2 |
+| LNR | [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md): initial values, metric and step size | 8 | 100 | 65 s | 603 | 9.3 |
+| DDM | Pilot fit | 4 | 500 | 4.4 min | 337 | 1.29 |
+| DDM | Reference, cold start | 8 | 500 | 11.2 min | 276 | 0.41 |
+| DDM | Cold start, short warmup | 8 | 100 | 29.2 min | 246 | 0.14 |
+| DDM | Pilot initial values only | 8 | 100 | 28.4 min | 298 | 0.18 |
+| DDM | [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md): initial values, metric and step size | 8 | 100 | 4.1 min | 209 | 0.85 |
+
+Two things stand out. First, the initial values alone are worth nothing:
+the runs that started from the pilot’s posterior means but let the
+sampler find its own metric were as slow as the cold ones. A short
+warmup does not hurt because the chains start in the wrong place, they
+start close enough either way, but because the step size is left
+unadapted, and the sampler then pays for it on every iteration of the
+sampling phase, here with wall times two and a half times the
+reference’s. Second, the pilot’s metric does not have to be right to
+help. Its population-level variances were two to three times the full
+fit’s (a posterior narrows as participants are added, and the LNR
+pilot’s step size was accordingly smaller, 0.05 against 0.09), yet 100
+iterations of adaptation from that start were enough. The
+population-level estimates of every run agreed to two decimals. Note
+that this is the diagonal metric; a `dense_e` pilot would need the same
+treatment on a matrix, with zero covariances for the new participants,
+which
+[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+does not do.
 
 ### From a Pathfinder approximation
 

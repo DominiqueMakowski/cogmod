@@ -172,10 +172,14 @@ functions are `brms` post-processing methods, called by `brms` rather
 than directly: `log_lik_cogmod_lnr()` returns a numeric vector holding
 one log-likelihood value per posterior draw for observation `i`, and
 `posterior_predict_cogmod_lnr()` a draws x 2 matrix of reaction times
-and choices simulated for observation `i`.
-`posterior_epred_cogmod_lnr()` returns nothing: the expected reaction
-time of a race has no closed form, so it errors rather than report one -
-summarise
+and choices simulated for observation `i` - or, given a vector of
+observation indices, a `(draws * length(i))` x 2 matrix with the draws
+for `i[1]` first, which predicts many observations in one vectorised
+call; see
+[`posterior_predict_cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+for the recipe. `posterior_epred_cogmod_lnr()` returns nothing: the
+expected reaction time of a race has no closed form, so it errors rather
+than report one - summarise
 [`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
 draws instead.
 

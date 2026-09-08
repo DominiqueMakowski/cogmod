@@ -4,6 +4,37 @@
 
 ### New features
 
+- **New
+  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)**
+  turns what a previous fit’s warmup produced - the adapted inverse
+  metric, the step size and the posterior means - into the `init`,
+  `inv_metric` and `step_size` arguments of a new
+  [`brm()`](https://paulbuerkner.com/brms/reference/brm.html) call, so
+  that a refit, or the same model on more participants, can run a much
+  shorter warmup. Stan adapts one variance per unconstrained parameter,
+  and the function labels each with its Stan name (read off the
+  generated program with the parser
+  [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  already has) and joins the two models on those names: population-level
+  entries carry over, a pilot participant’s standardized effects follow
+  it by level name to its position in the bigger model, new participants
+  take their effect’s average variance and start at zero, and anything
+  without a counterpart gets Stan’s default variance and a generic
+  start, with a count in [`print()`](https://rdrr.io/r/base/print.html).
+  The standardized effects and Cholesky factors that `brms` drops from a
+  saved fit are rebuilt from the `r_`, `sd_` and `cor_` it keeps.
+  [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) gives a
+  table of a few kilobytes that survives
+  [`write.csv()`](https://rdrr.io/r/utils/write.table.html) and can be
+  passed back as a file path, so a pilot fitted on a laptop can
+  warm-start an array job on a cluster. Works for any `brms` model
+  fitted with the `cmdstanr` backend and the diagonal metric. On a mixed
+  LNR and a mixed DDM, a pilot on 4 of 8 participants warm-started the
+  full fit to about twice the effective draws per second of a cold start
+  with the full warmup, and four to six times those of a cold start with
+  the same short warmup; the starting values alone bought nothing, so
+  the metric and step size are the product (`vignette("performance")`).
+
 - **[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
   gains `sigmandt`**, the between-trial range of the non-decision time
   (`st0`): each trial’s non-decision time is drawn from
@@ -222,6 +253,21 @@
   iteration, and a fast response starts from the single-barrier
   small-time approximation rather than from the floor of the bracket.
 
+- **The choice families’ `posterior_predict_*()` methods take a vector
+  of observations**, returning the draws stacked with those for `i[1]`
+  first.
+  [`brms::posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
+  calls the method once per observation, and with a few dozen draws per
+  call about half of each call is fixed cost and the loop adds as much
+  again; predicting in chunks of ~50 observations from a prepared
+  `brmsprep` instead runs a posterior predictive check on 2,500 DDM
+  trials in about a third of the time. The recipe is in
+  [`?posterior_predict_cogmod_ddm`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md).
+  The DDM sampler’s own fixed cost per call is also down by about 15%,
+  from indexed assignment in place of
+  [`ifelse()`](https://rdrr.io/r/base/ifelse.html) and no column copies
+  while every draw is still active; the draws are bit-identical.
+
 - **The R-side DDM density no longer goes through
   [`brms::dwiener()`](https://paulbuerkner.com/brms/reference/Wiener.html).**
   [`dcogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md),
@@ -258,16 +304,21 @@
   metric a poor fit, what the dense metric costs as the number of
   parameters grows, and how to pass it through either backend. **Warm
   starts**: reusing the adapted metric and step size that `brms` keeps
-  in a fit’s metadata to shorten the warmup of a refit, and a
-  `cmdstanr`-level pipeline that initializes MCMC from Pathfinder draws
-  and their unconstrained covariance, then wraps the result back into a
-  `brmsfit`, with the reasons never to fix the metric to a variational
-  approximation. The approximation section now also covers the **Laplace
-  approximation** (`algorithm = "laplace"`) and how it compares with
-  Pathfinder. Each section reports what the option bought on the DDM,
-  LBA, LNR and RDM in a local benchmark; the scripts behind those
-  numbers live in `benchmarks/` (not part of the installed package) and
-  can be rerun on any model.
+  in a fit’s metadata to shorten the warmup of a refit; carrying a pilot
+  fit’s metric, step size and posterior means over to the same model on
+  more participants, which has more parameters, by mapping the metric
+  across by parameter name (about twice the effective draws per second
+  of a cold start on a mixed LNR and a mixed DDM, where the pilot’s
+  initial values alone bought nothing); and a `cmdstanr`-level pipeline
+  that initializes MCMC from Pathfinder draws and their unconstrained
+  covariance, then wraps the result back into a `brmsfit`, with the
+  reasons never to fix the metric to a variational approximation. The
+  approximation section now also covers the **Laplace approximation**
+  (`algorithm = "laplace"`) and how it compares with Pathfinder. Each
+  section reports what the option bought on the DDM, LBA, LNR and RDM in
+  a local benchmark; the scripts behind those numbers live in
+  `benchmarks/` (not part of the installed package) and can be rerun on
+  any model.
 
 ### Breaking changes
 

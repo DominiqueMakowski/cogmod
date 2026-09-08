@@ -227,7 +227,10 @@ a model. The remaining functions are <code>brms</code> post-processing methods,
 called by <code>brms</code> rather than directly: <code>log_lik_cogmod_lnr()</code> returns a
 numeric vector holding one log-likelihood value per posterior draw for
 observation <code>i</code>, and <code>posterior_predict_cogmod_lnr()</code> a draws x 2 matrix
-of reaction times and choices simulated for observation <code>i</code>.
+of reaction times and choices simulated for observation <code>i</code> - or, given a
+vector of observation indices, a <code>(draws * length(i))</code> x 2 matrix with the
+draws for <code>i[1]</code> first, which predicts many observations in one vectorised
+call; see <code><a href="rcogmod_ddm.html">posterior_predict_cogmod_ddm()</a></code> for the recipe.
 <code>posterior_epred_cogmod_lnr()</code> returns nothing: the expected reaction
 time of a race has no closed form, so it errors rather than report one -
 summarise <code><a href="https://mc-stan.org/rstantools/reference/posterior_predict.html" class="external-link">posterior_predict()</a></code> draws instead.</p>

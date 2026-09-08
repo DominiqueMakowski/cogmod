@@ -225,6 +225,11 @@
   : Priors that make a cogmod posterior proper
 - [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
   : Starting values that keep the sampler out of the flat regions
+- [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  [`as.data.frame(`*`<cogmod_warmstart>`*`)`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  [`print(`*`<cogmod_warmstart>`*`)`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  : Warm-start a fit from a previous one: metric, step size and starting
+  values
 - [`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md)
   : The Stan code a cogmod family needs, read off the model
 - [`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)

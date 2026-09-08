@@ -300,7 +300,11 @@ The remaining functions are <code>brms</code> post-processing methods, called by
 <code>brms</code> rather than directly: <code>log_lik_cogmod_ddm()</code> returns a numeric
 vector holding one log-likelihood value per posterior draw for observation
 <code>i</code>, <code>posterior_predict_cogmod_ddm()</code> a draws x 2 matrix of reaction times
-and choices simulated for observation <code>i</code>, and
+and choices simulated for observation <code>i</code> - or, given a vector of
+observation indices, a <code>(draws * length(i))</code> x 2 matrix with the draws for
+<code>i[1]</code> first, which is how to predict many observations in one vectorised
+call rather than through <code>brms</code>'s one-observation-at-a-time loop (see
+Details) - and
 <code>posterior_epred_cogmod_ddm()</code> a draws x observations matrix of expected
 reaction times (marginal over the two responses, and only approximate once
 the between-trial variability parameters are non-zero).</p>
@@ -454,6 +458,29 @@ upper tail is then the matching defective survival
 <code>P(RT &gt; q, choice = response)</code>, so the two add to that response's own
 probability rather than to one. Marginally (<code>response = NULL</code>) they add to
 one as usual. <code><a href="rcogmod_rdm.html">pcogmod_rdm()</a></code> follows the same convention.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="predicting-many-observations-at-once">Predicting many observations at once<a class="anchor" aria-label="anchor" href="#predicting-many-observations-at-once"></a></h2>
+    <p><code><a href="https://mc-stan.org/rstantools/reference/posterior_predict.html" class="external-link">brms::posterior_predict()</a></code> calls <code>posterior_predict_cogmod_ddm()</code> once per
+observation, each time with every draw's parameters, so a data set of a few
+thousand trials means a few thousand calls of a sampler that is vectorised
+across parameter sets and would rather take them all at once. About half of
+each call is fixed cost, and the loop itself adds as much again. The method
+therefore also accepts a <em>vector</em> of observation indices and returns their
+draws stacked, the draws for <code>i[1]</code> first, so a posterior predictive check
+can be built in a handful of calls instead:</p>
+<p></p><div class="sourceCode r"><pre><code><span><span class="va">prep</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/prepare_predictions.html" class="external-link">prepare_predictions</a></span><span class="op">(</span><span class="va">fit</span>, newdata <span class="op">=</span> <span class="va">data</span>, ndraws <span class="op">=</span> <span class="fl">50</span><span class="op">)</span></span>
+<span><span class="co"># as brms::posterior_predict() does before its loop: linear predictors once</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">dp</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">prep</span><span class="op">$</span><span class="va">dpars</span><span class="op">)</span><span class="op">)</span> <span class="va">prep</span><span class="op">$</span><span class="va">dpars</span><span class="op">[[</span><span class="va">dp</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/get_dpar.html" class="external-link">get_dpar</a></span><span class="op">(</span><span class="va">prep</span>, <span class="va">dp</span><span class="op">)</span></span>
+<span><span class="va">chunks</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html" class="external-link">split</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">prep</span><span class="op">$</span><span class="va">nobs</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">ceiling</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">prep</span><span class="op">$</span><span class="va">nobs</span><span class="op">)</span> <span class="op">/</span> <span class="fl">50</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">pp</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">chunks</span>, <span class="va">posterior_predict_cogmod_ddm</span>, prep <span class="op">=</span> <span class="va">prep</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">pp</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span>  <span class="co"># reaction times; pp[, 2] the choices</span></span></code></pre><p></p></div>
+<p>Chunks of about 50 observations are the sweet spot: the sampler sizes its
+series for the fastest response it might have to describe, and the more
+heterogeneous the parameters in a call, the longer that series. On 2,500
+trials by 50 draws this runs in about a third of the time of
+<code><a href="https://mc-stan.org/rstantools/reference/posterior_predict.html" class="external-link">posterior_predict()</a></code>. The other choice families' methods accept a vector
+<code>i</code> in the same way.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

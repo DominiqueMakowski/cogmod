@@ -252,20 +252,20 @@
 <p>Warmup produces two things: a position inside the bulk of the posterior, and an adapted metric and step size. Both are thrown away when the run ends, and both can be supplied to the next run instead of being learned again. Stan exposes them as the <code>init</code>, <code>inv_metric</code> and <code>step_size</code> arguments of the sampler, and <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code> forwards any argument it does not recognize to <code>cmdstanr</code>, so no custom Stan is involved. The sampler keeps adapting from the supplied values during whatever warmup remains, so the result is a head start rather than a fixed setting, and nothing about it changes the posterior being sampled: a poor warm start costs speed, not correctness. The usual checks (<code>Rhat</code>, divergences, effective sample size) remain the judge of the run.</p>
 <section class="level3"><h3 id="from-a-previous-fit-of-the-same-model">From a previous fit of the same model<a class="anchor" aria-label="anchor" href="#from-a-previous-fit-of-the-same-model"></a>
 </h3>
-<p>The simplest source is a previous fit of the same model: a pilot run, a fit that needs more draws, or the same model under a slightly different prior or seed. <code>brms</code> keeps the adapted quantities of each chain in the fit’s metadata, and passing them to a new run lets its warmup shrink to what the step size needs:</p>
+<p>The simplest source is a previous fit of the same model: a pilot run, a fit that needs more draws, or the same model under a slightly different prior or seed. <code>brms</code> keeps the adapted quantities of each chain in the fit’s metadata (<code>attr(m$fit, "metadata")</code>), and <code><a href="../reference/cogmod_warmstart.html">cogmod_warmstart()</a></code> reads them back, averaged over the chains, together with the posterior means as starting values. Passing them to a new run lets its warmup shrink to what the step size needs:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">md</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">m</span><span class="op">$</span><span class="va">fit</span>, <span class="st">"metadata"</span><span class="op">)</span>   <span class="co"># inv_metric and step_size, one entry per chain</span></span>
+<code class="sourceCode R"><span><span class="va">ws</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cogmod_warmstart.html">cogmod_warmstart</a></span><span class="op">(</span><span class="va">m</span><span class="op">)</span>   <span class="co"># inv_metric, step_size and init, from the fit itself</span></span>
 <span></span>
-<span><span class="va">m_more</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span>fit <span class="op">=</span> <span class="va">m</span>,          <span class="co"># reuse the compiled model</span></span>
-<span>  init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
+<span><span class="va">m_more</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span>fit <span class="op">=</span> <span class="va">m</span>,      <span class="co"># reuse the compiled model</span></span>
+<span>  init <span class="op">=</span> <span class="va">ws</span><span class="op">$</span><span class="va">init</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">4</span>, cores <span class="op">=</span> <span class="fl">4</span>,</span>
 <span>  iter <span class="op">=</span> <span class="fl">2100</span>, warmup <span class="op">=</span> <span class="fl">100</span>,</span>
-<span>  inv_metric <span class="op">=</span> <span class="va">md</span><span class="op">$</span><span class="va">inv_metric</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>,</span>
-<span>  step_size <span class="op">=</span> <span class="va">md</span><span class="op">$</span><span class="va">step_size</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span></span>
+<span>  inv_metric <span class="op">=</span> <span class="va">ws</span><span class="op">$</span><span class="va">inv_metric</span>,</span>
+<span>  step_size <span class="op">=</span> <span class="va">ws</span><span class="op">$</span><span class="va">step_size</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
-<p>The metric must match the previous run’s shape: a <code>diag_e</code> fit stores a vector of variances, a <code>dense_e</code> fit a full matrix, and the new run must ask for the same <code>metric</code>.</p>
+<p>The metric must match the previous run’s shape: a <code>diag_e</code> fit stores a vector of variances, a <code>dense_e</code> fit a full matrix, and <code><a href="../reference/cogmod_warmstart.html">cogmod_warmstart()</a></code> handles only the former.</p>
 <p>In our local benchmarking demo (<a href="https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start.R" class="external-link">script</a>), on a population-level LNR, we found that this halves the cost of a refit:</p>
 <table class="table caption-top">
 <thead><tr class="header">
@@ -298,11 +298,147 @@
 <td style="text-align: center;">12</td>
 </tr>
 </tbody>
-</table></section><section class="level3"><h3 id="from-a-pathfinder-approximation">From a Pathfinder approximation<a class="anchor" aria-label="anchor" href="#from-a-pathfinder-approximation"></a>
+</table></section><section class="level3"><h3 id="from-a-pilot-fit-on-some-of-the-participants">From a pilot fit on some of the participants<a class="anchor" aria-label="anchor" href="#from-a-pilot-fit-on-some-of-the-participants"></a>
+</h3>
+<p>A pilot fit on the first few participants, while the model is still being worked out, is often followed by the same model on the full sample. That pilot has adapted a metric and a step size and has already located the population-level parameters, so it is the natural warm start for the full fit. Stan refuses its metric as is, though. Every participant adds a standardized random effect (<code>z_1[1, j]</code>) to each group-level term, so the full model has more parameters and the pilot’s metric, one variance per parameter, has the wrong length. The remedy is to map it across <strong>by parameter name</strong>: the population-level entries carry over one to one, a pilot participant’s <code>z</code> entries move to that participant’s slot in the full model, and the participants the pilot never saw take the average of the pilot’s <code>z</code> variances for the same term (they are standardized effects, so the average is a fair guess). Initial values are built the same way from the pilot’s posterior means, with the new participants starting at <code>z = 0</code>. <code><a href="../reference/cogmod_warmstart.html">cogmod_warmstart()</a></code> does all of this, given the pilot fit and the full data; whatever it is not given (here the formula) it takes from the pilot:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ws</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cogmod_warmstart.html">cogmod_warmstart</a></span><span class="op">(</span><span class="va">m_pilot</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span></span>
+<span><span class="va">ws</span>   <span class="co"># how many entries came from the pilot, how many are new participants</span></span>
+<span></span>
+<span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span>, prior <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>, stanvars <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span>
+<span>  init <span class="op">=</span> <span class="va">ws</span><span class="op">$</span><span class="va">init</span>, inv_metric <span class="op">=</span> <span class="va">ws</span><span class="op">$</span><span class="va">inv_metric</span>, step_size <span class="op">=</span> <span class="va">ws</span><span class="op">$</span><span class="va">step_size</span>,</span>
+<span>  backend <span class="op">=</span> <span class="st">"cmdstanr"</span>, chains <span class="op">=</span> <span class="fl">4</span>, cores <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  iter <span class="op">=</span> <span class="fl">600</span>, warmup <span class="op">=</span> <span class="fl">100</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<p>The same works the other way round: <code>cogmod_warmstart(m, formula = f2)</code> is a variant of the model on the same data, whose shared parameters start where the first fit left them. Anything the source never had, such as a predictor added to the formula, gets Stan’s default variance and the generic starting value <code><a href="../reference/cogmod_inits.html">cogmod_inits()</a></code> would give it, and <code>print(ws)</code> counts those entries; many of them means the two formulas differ more than intended. The table behind the object is a few kilobytes and survives a CSV file, which is how a pilot fitted on a laptop can warm-start an array job on a cluster with no <code>brmsfit</code> in sight:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">ws</span><span class="op">)</span>, <span class="st">"pilot_warmstart.csv"</span>, row.names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="va">ws</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cogmod_warmstart.html">cogmod_warmstart</a></span><span class="op">(</span><span class="st">"pilot_warmstart.csv"</span>, <span class="va">f</span>, <span class="va">df</span><span class="op">)</span>   <span class="co"># a file knows neither, so give both</span></span></code></pre></div>
+</div>
+<p>In our local benchmarking demo (<a href="https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start_subset.R" class="external-link">script</a>), on the mixed LNR (participant random intercepts on <code>mu</code> and <code>ndt</code>) and the mixed DDM (on <code>mu</code>, <code>boundary</code> and <code>ndt</code>) of the previous sections, a pilot on 4 of 8 participants warm-started the full fit to about twice the effective draws per second of a cold start with the full warmup, and four to six times those of a cold start with the same short warmup:</p>
+<table class="table caption-top">
+<colgroup>
+<col style="width: 11%">
+<col style="width: 11%">
+<col style="width: 15%">
+<col style="width: 15%">
+<col style="width: 15%">
+<col style="width: 15%">
+<col style="width: 15%">
+</colgroup>
+<thead><tr class="header">
+<th style="text-align: left;">Family</th>
+<th style="text-align: left;">Run</th>
+<th style="text-align: center;">Participants</th>
+<th style="text-align: center;">Warmup</th>
+<th style="text-align: center;">Wall time</th>
+<th style="text-align: center;">Min. bulk ESS</th>
+<th style="text-align: center;">ESS per second</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">LNR</td>
+<td style="text-align: left;">Pilot fit</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">500</td>
+<td style="text-align: center;">78 s</td>
+<td style="text-align: center;">550</td>
+<td style="text-align: center;">7.1</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">LNR</td>
+<td style="text-align: left;">Reference, cold start</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">500</td>
+<td style="text-align: center;">112 s</td>
+<td style="text-align: center;">589</td>
+<td style="text-align: center;">5.2</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">LNR</td>
+<td style="text-align: left;">Cold start, short warmup</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">247 s</td>
+<td style="text-align: center;">522</td>
+<td style="text-align: center;">2.1</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">LNR</td>
+<td style="text-align: left;">Pilot initial values only</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">265 s</td>
+<td style="text-align: center;">569</td>
+<td style="text-align: center;">2.2</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">LNR</td>
+<td style="text-align: left;">
+<code><a href="../reference/cogmod_warmstart.html">cogmod_warmstart()</a></code>: initial values, metric and step size</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">65 s</td>
+<td style="text-align: center;">603</td>
+<td style="text-align: center;">9.3</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">DDM</td>
+<td style="text-align: left;">Pilot fit</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">500</td>
+<td style="text-align: center;">4.4 min</td>
+<td style="text-align: center;">337</td>
+<td style="text-align: center;">1.29</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">DDM</td>
+<td style="text-align: left;">Reference, cold start</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">500</td>
+<td style="text-align: center;">11.2 min</td>
+<td style="text-align: center;">276</td>
+<td style="text-align: center;">0.41</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">DDM</td>
+<td style="text-align: left;">Cold start, short warmup</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">29.2 min</td>
+<td style="text-align: center;">246</td>
+<td style="text-align: center;">0.14</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">DDM</td>
+<td style="text-align: left;">Pilot initial values only</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">28.4 min</td>
+<td style="text-align: center;">298</td>
+<td style="text-align: center;">0.18</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">DDM</td>
+<td style="text-align: left;">
+<code><a href="../reference/cogmod_warmstart.html">cogmod_warmstart()</a></code>: initial values, metric and step size</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">4.1 min</td>
+<td style="text-align: center;">209</td>
+<td style="text-align: center;">0.85</td>
+</tr>
+</tbody>
+</table>
+<p>Two things stand out. First, the initial values alone are worth nothing: the runs that started from the pilot’s posterior means but let the sampler find its own metric were as slow as the cold ones. A short warmup does not hurt because the chains start in the wrong place, they start close enough either way, but because the step size is left unadapted, and the sampler then pays for it on every iteration of the sampling phase, here with wall times two and a half times the reference’s. Second, the pilot’s metric does not have to be right to help. Its population-level variances were two to three times the full fit’s (a posterior narrows as participants are added, and the LNR pilot’s step size was accordingly smaller, 0.05 against 0.09), yet 100 iterations of adaptation from that start were enough. The population-level estimates of every run agreed to two decimals. Note that this is the diagonal metric; a <code>dense_e</code> pilot would need the same treatment on a matrix, with zero covariances for the new participants, which <code><a href="../reference/cogmod_warmstart.html">cogmod_warmstart()</a></code> does not do.</p>
+</section><section class="level3"><h3 id="from-a-pathfinder-approximation">From a Pathfinder approximation<a class="anchor" aria-label="anchor" href="#from-a-pathfinder-approximation"></a>
 </h3>
 <p>The second source is an approximation from the previous section. Pathfinder draws sit inside the bulk of the posterior, which makes them good initial values, and their covariance is a first estimate of the metric. Getting the covariance right requires the draws on Stan’s <strong>unconstrained</strong> scale, which <code>cmdstanr</code> can do when the model is compiled with its model methods, so this pipeline runs at the <code>cmdstanr</code> level. <code>brms</code> still writes the program and the data, and the result is wrapped back into a <code>brmsfit</code> at the end, so every post-processing method works as usual.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://mc-stan.org/cmdstanr/" class="external-link">cmdstanr</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">prior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span></span>
@@ -338,7 +474,7 @@
 <p>Chain and thread parallelization is limited by the cores on one machine. The next step is to spread chains across many machines - typically many short jobs on an HPC scheduler rather than one long job. Because warmup dominates total sampling time for these models, recruiting many nodes for a <strong>short</strong> run (fewer post-warmup iterations each) is usually more efficient than recruiting a few nodes for a long one: each job pays the fixed compilation and warmup cost once, but the post-warmup work is what actually needs to scale with the number of draws you want.</p>
 <p>A typical job array (SLURM shown here) runs one or two chains per node, threading each chain across the cores left over after dividing them among the node’s chains:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">task_id</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"SLURM_ARRAY_TASK_ID"</span>, unset <span class="op">=</span> <span class="st">"1"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">total_cores</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"SLURM_CPUS_PER_TASK"</span>, unset <span class="op">=</span> <span class="st">"2"</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
@@ -365,7 +501,7 @@
 </div>
 <p>Each array task produces its own <code>brmsfit</code> with a handful of chains. Once all tasks have finished, combine them into a single fit with <code><a href="https://paulbuerkner.com/brms/reference/combine_models.html" class="external-link">brms::combine_models()</a></code>, which concatenates the post-warmup draws across fits (they must share the same model structure and data):</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode cell-code" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fits</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.files.html" class="external-link">list.files</a></span><span class="op">(</span>pattern <span class="op">=</span> <span class="st">"^m_node_.*\\.rds$"</span><span class="op">)</span>, <span class="va">readRDS</span><span class="op">)</span></span>
 <span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="fu">brms</span><span class="fu">::</span><span class="va"><a href="https://paulbuerkner.com/brms/reference/combine_models.html" class="external-link">combine_models</a></span>, <span class="va">fits</span><span class="op">)</span></span></code></pre></div>
 </div>
