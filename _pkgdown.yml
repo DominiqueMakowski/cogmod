@@ -57,6 +57,7 @@ reference:
       contents:
           - cogmod_priors
           - cogmod_inits
+          - cogmod_warmstart
           - cogmod_stanvars
           - p_outlier
           - with_outliers

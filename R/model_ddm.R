@@ -198,7 +198,11 @@
 #'   `brms` rather than directly: `log_lik_cogmod_ddm()` returns a numeric
 #'   vector holding one log-likelihood value per posterior draw for observation
 #'   `i`, `posterior_predict_cogmod_ddm()` a draws x 2 matrix of reaction times
-#'   and choices simulated for observation `i`, and
+#'   and choices simulated for observation `i` - or, given a vector of
+#'   observation indices, a `(draws * length(i))` x 2 matrix with the draws for
+#'   `i[1]` first, which is how to predict many observations in one vectorised
+#'   call rather than through `brms`'s one-observation-at-a-time loop (see
+#'   Details) - and
 #'   `posterior_epred_cogmod_ddm()` a draws x observations matrix of expected
 #'   reaction times (marginal over the two responses, and only approximate once
 #'   the between-trial variability parameters are non-zero).
@@ -943,19 +947,19 @@ cogmod_ddm <- function(
 # P(the lower boundary is hit first), for a process starting at z = w * a.
 #' @keywords internal
 .ddm_plower <- function(v, a, w) {
-  out <- numeric(length(v))
-  small <- abs(v) < .DDM_EPS_V
   # A driftless walk hits 0 first with probability (a - z) / a: the start point
   # divides the interval and nothing biases it either way.
-  if (any(small)) out[small] <- 1 - w[small]
-  g <- !small
+  out <- 1 - w
+  g <- abs(v) >= .DDM_EPS_V
   if (any(g)) {
     x <- -2 * v[g] * a[g]
     y <- x * w[g]
     # Both exponents share the sign of -v, so writing it this way keeps whichever
     # one could overflow out of the expression entirely.
-    out[g] <- ifelse(x < 0, (exp(x) - exp(y)) / expm1(x),
-                     (1 - exp(y - x)) / (1 - exp(-x)))
+    r <- (1 - exp(y - x)) / (1 - exp(-x))
+    neg <- x < 0
+    if (any(neg)) r[neg] <- (exp(x[neg]) - exp(y[neg])) / expm1(x[neg])
+    out[g] <- r
   }
   pmin(pmax(out, 0), 1)
 }
@@ -1042,15 +1046,25 @@ cogmod_ddm <- function(
 # starts at [floor, 60 s] and is widened at the top where the one-term
 # inversion says the root is out that far; a near-driftless process behind a
 # wide boundary can finish well past 60 s.
+#
+# Indexed assignment rather than ifelse() throughout, and no column subsetting
+# while every draw is still active: brms calls the sampler once per observation
+# with a few dozen draws, and at that size the cost is the number of R-level
+# operations, not the arithmetic.
 #' @keywords internal
 .ddm_solve_series <- function(pre, ltarget, llo, guess) {
   C <- pre$C; R <- pre$R; pref <- pre$pref; K <- pre$K; m <- pre$n
-  ev <- function(x, idx) {
-    mm <- length(idx)
-    Ri <- R[, idx, drop = FALSE]
-    ce <- C[, idx, drop = FALSE] * exp(-Ri * rep(exp(x), each = K))
-    list(S = pref[idx] * .colSums(ce, K, mm),
-         f = pref[idx] * .colSums(ce * Ri, K, mm))
+  ev <- function(x, idx = NULL) {
+    if (is.null(idx)) {
+      ce <- C * exp(-R * rep(exp(x), each = K))
+      list(S = pref * .colSums(ce, K, m), f = pref * .colSums(ce * R, K, m))
+    } else {
+      mm <- length(idx)
+      Ri <- R[, idx, drop = FALSE]
+      ce <- C[, idx, drop = FALSE] * exp(-Ri * rep(exp(x), each = K))
+      list(S = pref[idx] * .colSums(ce, K, mm),
+           f = pref[idx] * .colSums(ce * Ri, K, mm))
+    }
   }
 
   # The one-term inversion: exact in the tail, where a single term carries the
@@ -1073,24 +1087,25 @@ cogmod_ddm <- function(
       short <- log(ev(lf, far)$S) > ltarget[far]
       short[is.na(short)] <- FALSE
       if (!any(short)) break
-      lf <- ifelse(short, lf + log(16), lf)
+      lf[short] <- lf[short] + log(16)
     }
     lhi[far] <- lf
   }
   x <- pmin(pmax(x, llo + 1e-9), lhi - 1e-9)
 
   out <- x
-  act <- seq_len(m)
+  act <- NULL                        # NULL: every draw is still active
+  tg <- ltarget
   for (i in seq_len(.DDM_NEWTON)) {
     sf <- ev(x, act)
-    h <- log(sf$S) - ltarget[act]     # > 0: too much mass left, so t is too small
+    h <- log(sf$S) - tg               # > 0: too much mass left, so t is too small
     dx <- h * sf$S / pmax(sf$f * exp(x), 1e-300)
     # S can only come back non-positive far in the tail, from rounding on a
     # sum that should be ~0, so that side of the bracket moves down.
     up <- h > 0
     up[is.na(up)] <- FALSE
-    llo <- ifelse(up, x, llo)
-    lhi <- ifelse(up, lhi, x)
+    llo[up] <- x[up]
+    lhi[!up] <- x[!up]
     # Converged means a tiny step AND a tiny residual. The step alone is not
     # enough: a pass that lands deep in the tail finds S and f both denormal,
     # and their ratio makes dx look like 1e-13 while the residual is still
@@ -1100,30 +1115,34 @@ cogmod_ddm <- function(
     xn <- x + dx
     # A step out of the bracket falls back to its midpoint, so every pass
     # makes progress even where Newton is wild.
-    x <- ifelse((!is.finite(xn) | xn <= llo | xn >= lhi) & !conv,
-                (llo + lhi) / 2, xn)
+    wild <- (!is.finite(xn) | xn <= llo | xn >= lhi) & !conv
+    xn[wild] <- (llo[wild] + lhi[wild]) / 2
+    x <- xn
     # Converged draws leave the active set, so the late passes cost almost
     # nothing and there is no reason to skimp on them.
     if (any(conv)) {
+      if (is.null(act)) act <- seq_len(m)
       out[act[conv]] <- x[conv]
       keep <- !conv
       act <- act[keep]; x <- x[keep]; llo <- llo[keep]; lhi <- lhi[keep]
+      tg <- tg[keep]
       if (!length(act)) break
     }
   }
 
   # Whatever Newton has not settled is bisected. The bracket is valid by
   # construction, so this cannot fail to converge.
+  if (is.null(act)) act <- seq_len(m)
   if (length(act)) {
     C <- C[, act, drop = FALSE]; R <- R[, act, drop = FALSE]
-    pref <- pref[act]; tg <- ltarget[act]; mm <- length(act)
+    pref <- pref[act]; mm <- length(act)
     for (i in 1:50) {
       mid <- (llo + lhi) / 2
       s <- pref * .colSums(C * exp(-R * rep(exp(mid), each = K)), K, mm)
       up <- log(s) > tg
       up[is.na(up)] <- FALSE
-      llo <- ifelse(up, mid, llo)
-      lhi <- ifelse(up, lhi, mid)
+      llo[up] <- mid[up]
+      lhi[!up] <- mid[!up]
     }
     out[act] <- (llo + lhi) / 2
   }
@@ -1155,8 +1174,9 @@ cogmod_ddm <- function(
   q <- stats::runif(n)
   # The upper boundary is the lower one of the reflected process, so flipping
   # those draws leaves a single lower-boundary problem to solve.
-  vf <- ifelse(resp_lower, v, -v)
-  wf <- ifelse(resp_lower, w, 1 - w)
+  upper <- !resp_lower
+  vf <- v; vf[upper] <- -v[upper]
+  wf <- w; wf[upper] <- 1 - w[upper]
   pf <- .ddm_plower(vf, a, wf)
   ltarget <- log1p(-q) + log(pf)
 
@@ -1210,7 +1230,7 @@ cogmod_ddm <- function(
     todo <- todo[deep]
     K <- min(K * .DDM_SERIES_GROW, Kmax)
   }
-  list(rt = rt, response = as.numeric(!resp_lower))
+  list(rt = rt, response = as.numeric(upper))
 }
 
 
@@ -1433,6 +1453,34 @@ log_lik_cogmod_ddm <- function(i, prep) {
 #' @rdname rcogmod_ddm
 #' @inheritParams rcogmod_betagate
 #' @importFrom brms get_dpar
+#'
+#' @details
+#' # Predicting many observations at once
+#'
+#' `brms::posterior_predict()` calls `posterior_predict_cogmod_ddm()` once per
+#' observation, each time with every draw's parameters, so a data set of a few
+#' thousand trials means a few thousand calls of a sampler that is vectorised
+#' across parameter sets and would rather take them all at once. About half of
+#' each call is fixed cost, and the loop itself adds as much again. The method
+#' therefore also accepts a *vector* of observation indices and returns their
+#' draws stacked, the draws for `i[1]` first, so a posterior predictive check
+#' can be built in a handful of calls instead:
+#'
+#' ```r
+#' prep <- brms::prepare_predictions(fit, newdata = data, ndraws = 50)
+#' # as brms::posterior_predict() does before its loop: linear predictors once
+#' for (dp in names(prep$dpars)) prep$dpars[[dp]] <- brms::get_dpar(prep, dp)
+#' chunks <- split(seq_len(prep$nobs), ceiling(seq_len(prep$nobs) / 50))
+#' pp <- do.call(rbind, lapply(chunks, posterior_predict_cogmod_ddm, prep = prep))
+#' pp[, 1]  # reaction times; pp[, 2] the choices
+#' ```
+#'
+#' Chunks of about 50 observations are the sweet spot: the sampler sizes its
+#' series for the fastest response it might have to describe, and the more
+#' heterogeneous the parameters in a call, the longer that series. On 2,500
+#' trials by 50 draws this runs in about a third of the time of
+#' `posterior_predict()`. The other choice families' methods accept a vector
+#' `i` in the same way.
 #' @export
 posterior_predict_cogmod_ddm <- function(i, prep, predict_outliers = NULL,
                                          ...) {

@@ -6,7 +6,9 @@ suppressPackageStartupMessages({
   library(brms)
   library(cmdstanr)
   library(posterior)
-  library(cogmod)
+  # The working tree's cogmod, not whatever is installed: the benchmarks are
+  # meant to measure the code in this repository.
+  pkgload::load_all(".", quiet = TRUE)
 })
 
 # ---- Data -----------------------------------------------------------------------
