@@ -4,16 +4,29 @@
 \alias{cogmod_inits}
 \title{Starting values that keep the sampler out of the flat regions}
 \usage{
-cogmod_inits(formula, data, jitter = 0.25, ...)
+cogmod_inits(formula = NULL, data = NULL, jitter = NULL, warmstart = NULL, ...)
 }
 \arguments{
 \item{formula}{The model formula, as passed to \code{brms::brm()}. Must carry the
-family, i.e. be built with \code{brms::bf(..., family = cogmod_gamma())}.}
+family, i.e. be built with \code{brms::bf(..., family = cogmod_gamma())}. May
+be left \code{NULL} only when \code{warmstart} is a \code{brmsfit}, whose formula is then
+used.}
 
-\item{data}{The data, as passed to \code{brms::brm()}.}
+\item{data}{The data, as passed to \code{brms::brm()}. May be left \code{NULL} only
+when \code{warmstart} is a \code{brmsfit}, whose data are then used.}
 
 \item{jitter}{SD of the noise added on the unconstrained scale, so that
-chains start at different points. Set to \code{0} for identical starts.}
+chains start at different points. Set to \code{0} for identical starts. \code{NULL}
+(the default) means 0.25, or 0.05 with a \code{warmstart}, whose values come
+from a converged posterior and should not be scattered far.}
+
+\item{warmstart}{A previous fit to start from instead of the family's
+generic values: a \code{brmsfit}, a \code{\link[=cogmod_warmstart]{cogmod_warmstart()}} object, the data frame
+\code{as.data.frame()} makes of one, or the path to a CSV file of it. The
+starting values are its posterior means, mapped onto this model by
+parameter name (a pilot on fewer participants included; see
+\code{\link[=cogmod_warmstart]{cogmod_warmstart()}}); whatever it has no value for keeps the value this
+function would give it anyway.}
 
 \item{...}{Passed to \code{brms::make_stancode()} and \code{brms::make_standata()}, for
 arguments such as \code{data2}.}

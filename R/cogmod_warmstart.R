@@ -75,16 +75,32 @@
 #' which is why `formula` and `data` are needed rather than just a count of
 #' participants: `brms` decides the layout from both.
 #'
-#' # Storing it
+#' # Storing it, and the three helpers
 #'
 #' `as.data.frame()` gives a small table (one row per unconstrained parameter:
-#' label, group level, variance, posterior mean, step size) that can be written
-#' with [utils::write.csv()] and passed back as the first argument, either as
-#' a data frame or as a file path. A pilot fitted on a laptop can so
+#' label, group and level, variance, posterior mean, step size) that can be
+#' written with [utils::write.csv()], so that a pilot fitted on a laptop can
 #' warm-start an array job on a cluster with a file of a few kilobytes and no
-#' `brmsfit` in sight. Since the labels are tied to the Stan program, a table
-#' written for one formula falls back to the defaults, with a note, when
-#' applied to a different one.
+#' `brmsfit` in sight. On the other side, three helpers with the signature of
+#' [cogmod_priors()] and [cogmod_inits()] - the model's formula and data first,
+#' the source under `warmstart` - each give one argument of the `brm()` call:
+#'
+#' ```r
+#' tab <- read.csv("pilot_warmstart.csv")   # or the path, or the brmsfit itself
+#' m <- brm(formula, data = data, prior = ..., stanvars = ...,
+#'          init = cogmod_inits(formula, data, warmstart = tab),
+#'          inv_metric = cogmod_inv_metric(formula, data, warmstart = tab),
+#'          step_size = cogmod_step_size(formula, data, warmstart = tab),
+#'          warmup = 100, iter = 600, backend = "cmdstanr")
+#' ```
+#'
+#' Each maps the table onto the model `formula` and `data` describe, so it
+#' does not matter which model the table was written for: a table from a pilot
+#' on fewer participants is extended, one written for another formula falls
+#' back to the defaults with a note. When the table was made for this very
+#' model, `tab$inv_metric` and `tab$step_size[1]` are the same numbers (the
+#' step size is one number repeated down the column; a whole column there
+#' would be read as one step size per chain).
 #'
 #' # What it is worth
 #'
@@ -126,8 +142,11 @@
 #'     group-level parameter, the grouping factor, the coefficient and, for a
 #'     standardized effect, the level it stands for; otherwise `NA`),
 #'     `inv_metric`, `mean` (the source posterior mean, `NA` where none
-#'     applies), `step_size` and `source` (`"pilot"`, `"new level"` or
-#'     `"default"`).}
+#'     applies) and `step_size` (the same value in every row). This is what
+#'     `as.data.frame()` returns.}
+#'   \item{`counts`, `missing`}{How many entries came from the source, are new
+#'     group levels, or have no counterpart, and the names of the latter; what
+#'     `print()` reports.}
 #' }
 #'
 #' @seealso [cogmod_inits()], which supplies the starting values used where
@@ -149,7 +168,12 @@
 #'
 #' # Keep it for a cluster
 #' write.csv(as.data.frame(ws), "pilot_warmstart.csv", row.names = FALSE)
-#' ws <- cogmod_warmstart("pilot_warmstart.csv", f, df)
+#' # ... and there, one helper per argument, all with the same signature
+#' m <- brms::brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
+#'                init = cogmod_inits(f, df, warmstart = "pilot_warmstart.csv"),
+#'                inv_metric = cogmod_inv_metric(f, df, warmstart = "pilot_warmstart.csv"),
+#'                step_size = cogmod_step_size(f, df, warmstart = "pilot_warmstart.csv"),
+#'                warmup = 100, iter = 600, backend = "cmdstanr")
 #' }
 #'
 #' @export
@@ -171,31 +195,47 @@ cogmod_warmstart <- function(x, formula = NULL, data = NULL, jitter = 0.05, ...)
   }
   target <- .warmstart_target(formula, data, ...)
   tab <- .warmstart_join(src, target$table)
+  init <- .init_fun(.warmstart_apply_means(target$plan, tab), jitter)
 
-  plan <- target$plan
-  init_base <- .warmstart_apply_means(plan, tab)
-  init <- function(chain_id = 1) {
-    out <- lapply(init_base, function(e) {
-      v <- e$value
-      if (jitter > 0) {
-        v <- switch(
-          e$kind,
-          bounds = .jitter_bounded(v, e$lower, e$upper, jitter),
-          sorted = sort(v + stats::rnorm(length(v), 0, jitter)),
-          v # "fixed": a Cholesky factor or simplex that jitter would invalidate
-        )
-      }
-      if (length(e$dim) > 1) dim(v) <- e$dim
-      v
-    })
-    stats::setNames(out, vapply(init_base, `[[`, character(1), "name"))
-  }
+  # Where each entry came from is reported, not stored: the table is what
+  # gets written to a file and read back as a source, and it should carry
+  # nothing that is not about the target model.
+  counts <- table(factor(tab$source, levels = c("pilot", "new level", "default")))
+  missing <- unique(sub("\\[.*$", "", tab$parameter[tab$source == "default"]))
+  tab$source <- NULL
 
   structure(
     list(inv_metric = unname(tab$inv_metric), step_size = tab$step_size[1],
-         init = init, table = tab),
+         init = init, table = tab,
+         counts = stats::setNames(as.integer(counts), names(counts)), missing = missing),
     class = "cogmod_warmstart"
   )
+}
+
+
+#' @rdname cogmod_warmstart
+#' @param warmstart The source, as `x` above: a `brmsfit`, a `cogmod_warmstart`
+#'   object, its data frame, or the path to a CSV file of it.
+#' @export
+cogmod_inv_metric <- function(formula = NULL, data = NULL, warmstart, ...) {
+  if (missing(warmstart)) {
+    stop("`warmstart` is required: the fit, table or file to take the metric from.",
+         call. = FALSE)
+  }
+  cogmod_warmstart(warmstart, formula = formula, data = data, jitter = 0, ...)$inv_metric
+}
+
+
+#' @rdname cogmod_warmstart
+#' @export
+cogmod_step_size <- function(formula = NULL, data = NULL, warmstart, ...) {
+  if (missing(warmstart)) {
+    stop("`warmstart` is required: the fit, table or file to take the step size from.",
+         call. = FALSE)
+  }
+  # The step size is a property of the source alone, so the target model is
+  # accepted for symmetry with the other helpers and not needed.
+  .warmstart_source(warmstart)$step_size[1]
 }
 
 
@@ -211,20 +251,16 @@ as.data.frame.cogmod_warmstart <- function(x, row.names = NULL, optional = FALSE
 #' @rdname cogmod_warmstart
 #' @export
 print.cogmod_warmstart <- function(x, ...) {
-  tab <- x$table
-  n <- nrow(tab)
-  from <- sum(tab$source == "pilot")
-  newl <- sum(tab$source == "new level")
-  dflt <- sum(tab$source == "default")
+  n <- nrow(x$table)
+  from <- x$counts[["pilot"]]
+  newl <- x$counts[["new level"]]
+  dflt <- x$counts[["default"]]
   cat(sprintf("<cogmod_warmstart> %d unconstrained parameters, step size %.3g\n", n, x$step_size))
   cat(sprintf("  %d carried over from the source", from))
   if (newl) cat(sprintf(", %d for new group levels (term average, start at 0)", newl))
   if (dflt) cat(sprintf(", %d without a counterpart (variance 1, generic start)", dflt))
   cat("\n")
-  if (dflt) {
-    show <- unique(sub("\\[.*$", "", tab$parameter[tab$source == "default"]))
-    cat("  without counterpart:", paste(show, collapse = ", "), "\n")
-  }
+  if (dflt) cat("  without counterpart:", paste(x$missing, collapse = ", "), "\n")
   cat("  Use: brm(..., init = ws$init, inv_metric = ws$inv_metric, step_size = ws$step_size)\n")
   invisible(x)
 }

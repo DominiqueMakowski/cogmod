@@ -2,11 +2,17 @@
 % Please edit documentation in R/cogmod_warmstart.R
 \name{cogmod_warmstart}
 \alias{cogmod_warmstart}
+\alias{cogmod_inv_metric}
+\alias{cogmod_step_size}
 \alias{as.data.frame.cogmod_warmstart}
 \alias{print.cogmod_warmstart}
 \title{Warm-start a fit from a previous one: metric, step size and starting values}
 \usage{
 cogmod_warmstart(x, formula = NULL, data = NULL, jitter = 0.05, ...)
+
+cogmod_inv_metric(formula = NULL, data = NULL, warmstart, ...)
+
+cogmod_step_size(formula = NULL, data = NULL, warmstart, ...)
 
 \method{as.data.frame}{cogmod_warmstart}(x, row.names = NULL, optional = FALSE, ...)
 
@@ -32,6 +38,9 @@ posterior; \code{0} gives identical starts.}
 \code{\link[brms:brm]{brms::brm()}} (with \code{empty = TRUE}) when the target model is built, for
 arguments such as \code{data2}.}
 
+\item{warmstart}{The source, as \code{x} above: a \code{brmsfit}, a \code{cogmod_warmstart}
+object, its data frame, or the path to a CSV file of it.}
+
 \item{row.names, optional}{Ignored; present for compatibility with the
 \code{\link[=as.data.frame]{as.data.frame()}} generic.}
 }
@@ -49,8 +58,11 @@ target program declares.}
 group-level parameter, the grouping factor, the coefficient and, for a
 standardized effect, the level it stands for; otherwise \code{NA}),
 \code{inv_metric}, \code{mean} (the source posterior mean, \code{NA} where none
-applies), \code{step_size} and \code{source} (\code{"pilot"}, \code{"new level"} or
-\code{"default"}).}
+applies) and \code{step_size} (the same value in every row). This is what
+\code{as.data.frame()} returns.}
+\item{\code{counts}, \code{missing}}{How many entries came from the source, are new
+group levels, or have no counterpart, and the names of the latter; what
+\code{print()} reports.}
 }
 }
 \description{
@@ -127,15 +139,30 @@ which is why \code{formula} and \code{data} are needed rather than just a count 
 participants: \code{brms} decides the layout from both.
 }
 
-\section{Storing it}{
+\section{Storing it, and the three helpers}{
 \code{as.data.frame()} gives a small table (one row per unconstrained parameter:
-label, group level, variance, posterior mean, step size) that can be written
-with \code{\link[utils:write.table]{utils::write.csv()}} and passed back as the first argument, either as
-a data frame or as a file path. A pilot fitted on a laptop can so
+label, group and level, variance, posterior mean, step size) that can be
+written with \code{\link[utils:write.table]{utils::write.csv()}}, so that a pilot fitted on a laptop can
 warm-start an array job on a cluster with a file of a few kilobytes and no
-\code{brmsfit} in sight. Since the labels are tied to the Stan program, a table
-written for one formula falls back to the defaults, with a note, when
-applied to a different one.
+\code{brmsfit} in sight. On the other side, three helpers with the signature of
+\code{\link[=cogmod_priors]{cogmod_priors()}} and \code{\link[=cogmod_inits]{cogmod_inits()}} - the model's formula and data first,
+the source under \code{warmstart} - each give one argument of the \code{brm()} call:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{tab <- read.csv("pilot_warmstart.csv")   # or the path, or the brmsfit itself
+m <- brm(formula, data = data, prior = ..., stanvars = ...,
+         init = cogmod_inits(formula, data, warmstart = tab),
+         inv_metric = cogmod_inv_metric(formula, data, warmstart = tab),
+         step_size = cogmod_step_size(formula, data, warmstart = tab),
+         warmup = 100, iter = 600, backend = "cmdstanr")
+}\if{html}{\out{</div>}}
+
+Each maps the table onto the model \code{formula} and \code{data} describe, so it
+does not matter which model the table was written for: a table from a pilot
+on fewer participants is extended, one written for another formula falls
+back to the defaults with a note. When the table was made for this very
+model, \code{tab$inv_metric} and \code{tab$step_size[1]} are the same numbers (the
+step size is one number repeated down the column; a whole column there
+would be read as one step size per chain).
 }
 
 \section{What it is worth}{
@@ -165,7 +192,12 @@ m <- brms::brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_sta
 
 # Keep it for a cluster
 write.csv(as.data.frame(ws), "pilot_warmstart.csv", row.names = FALSE)
-ws <- cogmod_warmstart("pilot_warmstart.csv", f, df)
+# ... and there, one helper per argument, all with the same signature
+m <- brms::brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
+               init = cogmod_inits(f, df, warmstart = "pilot_warmstart.csv"),
+               inv_metric = cogmod_inv_metric(f, df, warmstart = "pilot_warmstart.csv"),
+               step_size = cogmod_step_size(f, df, warmstart = "pilot_warmstart.csv"),
+               warmup = 100, iter = 600, backend = "cmdstanr")
 }
 
 }

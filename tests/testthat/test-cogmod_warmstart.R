@@ -81,7 +81,8 @@ test_that("the same model reproduces its source", {
   expect_s3_class(ws, "cogmod_warmstart")
   expect_equal(ws$inv_metric, src$inv_metric)
   expect_equal(ws$step_size, 0.1)
-  expect_true(all(ws$table$source == "pilot"))
+  expect_equal(unname(ws$counts), c(nrow(src), 0L, 0L))
+  expect_false("source" %in% names(ws$table))
 
   init <- ws$init(1)
   decl <- vapply(cogmod:::.stan_param_decls(
@@ -110,7 +111,6 @@ test_that("participants follow their names into a bigger model", {
   # population-level entries carry over one to one
   pop <- is.na(tab$group)
   expect_equal(tab$inv_metric[pop], src$inv_metric[match(tab$parameter[pop], src$parameter)])
-  expect_true(all(tab$source[pop] == "pilot"))
 
   # p1 was level 1 of the pilot and is level 2 of the full model; p3 moves 2 -> 4
   pick <- function(t, p) t$inv_metric[t$parameter == p]
@@ -121,7 +121,8 @@ test_that("participants follow their names into a bigger model", {
   expect_equal(tab$level[tab$parameter == "z_1[1,4]"], "p3")
 
   # a1 and p2 are new: the coefficient's average variance, and a start at zero
-  new <- tab[tab$source == "new level", ]
+  expect_equal(ws$counts[["new level"]], 2 * 2 + 2)
+  new <- tab[!is.na(tab$level) & tab$mean == 0, ]
   expect_setequal(unique(new$level), c("a1", "p2"))
   expect_equal(pick(tab, "z_1[1,1]"), mean(src$inv_metric[src$parameter %in% c("z_1[1,1]", "z_1[1,2]")]))
   expect_equal(pick(tab, "z_1[2,3]"), mean(src$inv_metric[src$parameter %in% c("z_1[2,1]", "z_1[2,2]")]))
@@ -142,13 +143,14 @@ test_that("a changed formula falls back to defaults, with a note", {
                  family = cogmod_lnr())
   expect_message(ws <- cogmod_warmstart(src, f2, d2, jitter = 0), "no counterpart")
   tab <- ws$table
-  expect_equal(tab$source[tab$parameter == "b[2]"], "default")
+  expect_equal(ws$counts[["default"]], 1L)
+  expect_equal(ws$missing, "b")
   expect_equal(tab$inv_metric[tab$parameter == "b[2]"], 1)
-  expect_equal(tab$source[tab$parameter == "b[1]"], "pilot")
+  expect_true(is.na(tab$mean[tab$parameter == "b[2]"]))
+  expect_equal(tab$inv_metric[tab$parameter == "b[1]"], src$inv_metric[src$parameter == "b[1]"])
   # the intercept's random effect is still the same effect, slope or no slope
-  expect_equal(tab$source[tab$parameter == "z_1[1,2]"], "pilot")
   expect_equal(tab$inv_metric[tab$parameter == "z_1[1,2]"], src$inv_metric[src$parameter == "z_1[1,1]"])
-  expect_equal(tab$source[tab$parameter == "sd_1[1]"], "pilot")
+  expect_equal(tab$inv_metric[tab$parameter == "sd_1[1]"], src$inv_metric[src$parameter == "sd_1[1]"])
   expect_false(any(grepl("^L_", tab$parameter)))
   expect_output(print(ws), "without a counterpart")
   init <- ws$init(1)
@@ -185,6 +187,51 @@ test_that("the table round-trips through a data frame and a CSV file", {
   expect_equal(from_file$inv_metric, ws$inv_metric)
   expect_equal(from_file$init(1), ws$init(1))
   expect_equal(from_file$step_size, 0.1)
+})
+
+
+test_that("cogmod_inits() takes the table as a warm start", {
+  src <- fake_source(f, d_pilot)
+  ws <- cogmod_warmstart(src, f, d_full, jitter = 0)
+  tab <- as.data.frame(ws)
+
+  # the same starting values, whether through cogmod_warmstart() or cogmod_inits()
+  init <- cogmod_inits(f, d_full, warmstart = tab, jitter = 0)
+  expect_equal(init(1), ws$init(1))
+  # ... and from the file, or from the pilot's own table (mapped on the way)
+  tmp <- tempfile(fileext = ".csv")
+  utils::write.csv(tab, tmp, row.names = FALSE)
+  expect_equal(cogmod_inits(f, d_full, warmstart = tmp, jitter = 0)(1), ws$init(1))
+  expect_equal(cogmod_inits(f, d_full, warmstart = src, jitter = 0)(1), ws$init(1))
+
+  # the default jitter is the small one of a warm start
+  set.seed(1); a <- cogmod_inits(f, d_full, warmstart = tab)(1)
+  set.seed(1); b <- cogmod_warmstart(tab, f, d_full)$init(1)
+  expect_equal(a, b)
+  set.seed(1); wide <- cogmod_inits(f, d_full)(1)
+  expect_false(isTRUE(all.equal(a$Intercept, wide$Intercept)))
+
+  # a table made for this model has its columns in Stan's order already
+  expect_equal(tab$inv_metric, ws$inv_metric)
+  expect_equal(unique(tab$step_size), ws$step_size)
+})
+
+
+test_that("cogmod_inv_metric() and cogmod_step_size() share the helpers' signature", {
+  src <- fake_source(f, d_pilot)
+  ws <- cogmod_warmstart(src, f, d_full)
+  expect_equal(cogmod_inv_metric(f, d_full, warmstart = src), ws$inv_metric)
+  expect_equal(cogmod_inv_metric(f, d_full, src), ws$inv_metric)      # positional, like the others
+  expect_equal(cogmod_step_size(f, d_full, warmstart = src), 0.1)
+  # the step size does not depend on the target, so the model may be omitted
+  expect_equal(cogmod_step_size(warmstart = as.data.frame(ws)), 0.1)
+  tmp <- tempfile(fileext = ".csv")
+  utils::write.csv(as.data.frame(ws), tmp, row.names = FALSE)
+  expect_equal(cogmod_inv_metric(f, d_full, warmstart = tmp), ws$inv_metric)
+  expect_equal(cogmod_step_size(f, d_full, warmstart = tmp), 0.1)
+  expect_error(cogmod_inv_metric(f, d_full), "`warmstart` is required")
+  expect_error(cogmod_step_size(f, d_full), "`warmstart` is required")
+  expect_error(cogmod_inits(f), "`formula` and `data` are required")
 })
 
 
@@ -226,7 +273,7 @@ test_that("a fitted pilot warm-starts the full model", {
   ws0 <- cogmod_warmstart(pilot, jitter = 0)
   expect_equal(ws0$inv_metric, unname(Reduce(`+`, md$inv_metric) / 2))
   expect_equal(ws0$step_size, mean(unlist(md$step_size)))
-  expect_true(all(ws0$table$source == "pilot"))
+  expect_equal(ws0$counts[["pilot"]], length(ws0$inv_metric))
   init <- ws0$init(1)
   expect_equal(init$Intercept, mean(brms::as_draws_matrix(pilot)[, "Intercept"]))
   # r = sd * L z reproduces the saved group-level effect
@@ -237,8 +284,11 @@ test_that("a fitted pilot warm-starts the full model", {
   ws <- cogmod_warmstart(pilot, data = d_full)
   expect_equal(ws$table, cogmod_warmstart(pilot, f, d_full)$table)
   expect_equal(cogmod_warmstart(pilot, formula = f, jitter = 0)$inv_metric, ws0$inv_metric)
+  expect_equal(cogmod_inv_metric(warmstart = pilot), ws0$inv_metric)
+  expect_equal(cogmod_step_size(warmstart = pilot), ws0$step_size)
+  expect_equal(cogmod_inits(warmstart = pilot, jitter = 0)(1), ws0$init(1))
   # the full model takes the mapped metric and runs
-  expect_equal(sum(ws$table$source == "new level"), 2 * 2 + 2)
+  expect_equal(ws$counts[["new level"]], 2 * 2 + 2)
   m <- suppressMessages(brms::brm(
     f, data = d_full, prior = cogmod_priors(f, d_full), stanvars = cogmod_stanvars(f),
     init = ws$init, inv_metric = ws$inv_metric, step_size = ws$step_size,

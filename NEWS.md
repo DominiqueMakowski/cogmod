@@ -17,9 +17,14 @@
   Cholesky factors that `brms` drops from a saved fit are rebuilt from the
   `r_`, `sd_` and `cor_` it keeps. `as.data.frame()` gives a table of a few
   kilobytes that survives `write.csv()` and can be passed back as a file path,
-  so a pilot fitted on a laptop can warm-start an array job on a cluster.
-  Works for any `brms` model fitted with the `cmdstanr` backend and the
-  diagonal metric. On a mixed LNR and a mixed DDM, a pilot on 4 of 8
+  so a pilot fitted on a laptop can warm-start an array job on a cluster. On
+  the other side, `cogmod_inits()` gains a `warmstart` argument and the new
+  `cogmod_inv_metric()` and `cogmod_step_size()` share its signature - the
+  model's formula and data, then the source, be it a fit, a table or a file -
+  so that each argument of `brm()` has one helper and the table is mapped onto
+  the model on the way. Whatever of `formula` and `data` is not given is taken
+  from the source fit. Works for any `brms` model fitted
+  with the `cmdstanr` backend and the diagonal metric. On a mixed LNR and a mixed DDM, a pilot on 4 of 8
   participants warm-started the full fit to about twice the effective draws
   per second of a cold start with the full warmup, and four to six times those
   of a cold start with the same short warmup; the starting values alone bought

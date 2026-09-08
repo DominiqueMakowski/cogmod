@@ -84,10 +84,22 @@
 #' `softplus` link and so are equally badly served by starting at `log(2)`.
 #'
 #' @param formula The model formula, as passed to `brms::brm()`. Must carry the
-#'   family, i.e. be built with `brms::bf(..., family = cogmod_gamma())`.
-#' @param data The data, as passed to `brms::brm()`.
+#'   family, i.e. be built with `brms::bf(..., family = cogmod_gamma())`. May
+#'   be left `NULL` only when `warmstart` is a `brmsfit`, whose formula is then
+#'   used.
+#' @param data The data, as passed to `brms::brm()`. May be left `NULL` only
+#'   when `warmstart` is a `brmsfit`, whose data are then used.
 #' @param jitter SD of the noise added on the unconstrained scale, so that
-#'   chains start at different points. Set to `0` for identical starts.
+#'   chains start at different points. Set to `0` for identical starts. `NULL`
+#'   (the default) means 0.25, or 0.05 with a `warmstart`, whose values come
+#'   from a converged posterior and should not be scattered far.
+#' @param warmstart A previous fit to start from instead of the family's
+#'   generic values: a `brmsfit`, a [cogmod_warmstart()] object, the data frame
+#'   `as.data.frame()` makes of one, or the path to a CSV file of it. The
+#'   starting values are its posterior means, mapped onto this model by
+#'   parameter name (a pilot on fewer participants included; see
+#'   [cogmod_warmstart()]); whatever it has no value for keeps the value this
+#'   function would give it anyway.
 #' @param ... Passed to `brms::make_stancode()` and `brms::make_standata()`, for
 #'   arguments such as `data2`.
 #'
@@ -116,7 +128,21 @@
 #' }
 #'
 #' @export
-cogmod_inits <- function(formula, data, jitter = 0.25, ...) {
+cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart = NULL, ...) {
+  # A warm start is cogmod_warmstart()'s job: it builds this function's plan
+  # for the model, then writes the previous fit's posterior means over it.
+  # Only there can `formula` or `data` be left out, taken from the fit.
+  if (!is.null(warmstart)) {
+    ws <- cogmod_warmstart(warmstart, formula = formula, data = data,
+                           jitter = if (is.null(jitter)) 0.05 else jitter, ...)
+    return(ws$init)
+  }
+  if (is.null(formula) || is.null(data)) {
+    stop("`formula` and `data` are required, unless `warmstart` is a brmsfit ",
+         "to take them from.", call. = FALSE)
+  }
+  if (is.null(jitter)) jitter <- 0.25
+
   family <- .cogmod_family(formula)
   fam <- .family_name(family)
   targets <- if (is.null(fam)) NULL else .init_targets(family)
@@ -144,7 +170,15 @@ cogmod_inits <- function(formula, data, jitter = 0.25, ...) {
     brms::make_standata(formula, data = data, family = family, ...)
   )
   plan <- .init_plan(.stan_param_decls(code), as.list(sdata), targets, links)
+  .init_fun(plan, jitter)
+}
 
+
+# The `init` function brm() gets: one draw of the plan per call, each entry
+# jittered on the scale Stan samples on and shaped as declared. Shared with
+# cogmod_warmstart(), whose plan carries a previous fit's means.
+#' @keywords internal
+.init_fun <- function(plan, jitter) {
   function(chain_id = 1) {
     out <- lapply(plan, function(e) {
       v <- e$value
