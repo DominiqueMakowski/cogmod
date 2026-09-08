@@ -27,13 +27,24 @@
   table of a few kilobytes that survives
   [`write.csv()`](https://rdrr.io/r/utils/write.table.html) and can be
   passed back as a file path, so a pilot fitted on a laptop can
-  warm-start an array job on a cluster. Works for any `brms` model
-  fitted with the `cmdstanr` backend and the diagonal metric. On a mixed
-  LNR and a mixed DDM, a pilot on 4 of 8 participants warm-started the
-  full fit to about twice the effective draws per second of a cold start
-  with the full warmup, and four to six times those of a cold start with
-  the same short warmup; the starting values alone bought nothing, so
-  the metric and step size are the product (`vignette("performance")`).
+  warm-start an array job on a cluster. On the other side,
+  [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  gains a `warmstart` argument and the new
+  [`cogmod_inv_metric()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  and
+  [`cogmod_step_size()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  share its signature - the model’s formula and data, then the source,
+  be it a fit, a table or a file - so that each argument of
+  [`brm()`](https://paulbuerkner.com/brms/reference/brm.html) has one
+  helper and the table is mapped onto the model on the way. Whatever of
+  `formula` and `data` is not given is taken from the source fit. Works
+  for any `brms` model fitted with the `cmdstanr` backend and the
+  diagonal metric. On a mixed LNR and a mixed DDM, a pilot on 4 of 8
+  participants warm-started the full fit to about twice the effective
+  draws per second of a cold start with the full warmup, and four to six
+  times those of a cold start with the same short warmup; the starting
+  values alone bought nothing, so the metric and step size are the
+  product (`vignette("performance")`).
 
 - **[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
   gains `sigmandt`**, the between-trial range of the non-decision time

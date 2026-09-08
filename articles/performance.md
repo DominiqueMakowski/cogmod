@@ -421,6 +421,27 @@ write.csv(as.data.frame(ws), "pilot_warmstart.csv", row.names = FALSE)
 ws <- cogmod_warmstart("pilot_warmstart.csv", f, df)   # a file knows neither, so give both
 ```
 
+Or, without the intermediate object, one helper per argument of
+[`brm()`](https://paulbuerkner.com/brms/reference/brm.html), all with
+the signature of
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+and
+[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md) -
+the model’s formula and data, then the source under `warmstart`, be it a
+fit, a table or a file - and each mapping the table onto the model on
+the way:
+
+``` r
+
+m <- brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
+  init = cogmod_inits(f, df, warmstart = "pilot_warmstart.csv"),
+  inv_metric = cogmod_inv_metric(f, df, warmstart = "pilot_warmstart.csv"),
+  step_size = cogmod_step_size(f, df, warmstart = "pilot_warmstart.csv"),
+  backend = "cmdstanr", chains = 4, cores = 4,
+  iter = 600, warmup = 100
+)
+```
+
 In our local benchmarking demo
 ([script](https://github.com/DominiqueMakowski/cogmod/blob/main/benchmarks/warm_start_subset.R)),
 on the mixed LNR (participant random intercepts on `mu` and `ndt`) and

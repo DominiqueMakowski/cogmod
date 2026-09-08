@@ -26,6 +26,10 @@ Nothing about it changes the posterior being sampled.
 ``` r
 cogmod_warmstart(x, formula = NULL, data = NULL, jitter = 0.05, ...)
 
+cogmod_inv_metric(formula = NULL, data = NULL, warmstart, ...)
+
+cogmod_step_size(formula = NULL, data = NULL, warmstart, ...)
+
 # S3 method for class 'cogmod_warmstart'
 as.data.frame(x, row.names = NULL, optional = FALSE, ...)
 
@@ -68,6 +72,11 @@ print(x, ...)
   (with `empty = TRUE`) when the target model is built, for arguments
   such as `data2`.
 
+- warmstart:
+
+  The source, as `x` above: a `brmsfit`, a `cogmod_warmstart` object,
+  its data frame, or the path to a CSV file of it.
+
 - row.names, optional:
 
   Ignored; present for compatibility with the
@@ -100,8 +109,15 @@ An object of class `cogmod_warmstart`: a list with
   parameter, the grouping factor, the coefficient and, for a
   standardized effect, the level it stands for; otherwise `NA`),
   `inv_metric`, `mean` (the source posterior mean, `NA` where none
-  applies), `step_size` and `source` (`"pilot"`, `"new level"` or
-  `"default"`).
+  applies) and `step_size` (the same value in every row). This is what
+  [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html)
+  returns.
+
+- `counts`, `missing`:
+
+  How many entries came from the source, are new group levels, or have
+  no counterpart, and the names of the latter; what
+  [`print()`](https://rdrr.io/r/base/print.html) reports.
 
 ## What is carried over, and how
 
@@ -161,18 +177,36 @@ labels are in `ws$table`. The metric must match the target program
 exactly, which is why `formula` and `data` are needed rather than just a
 count of participants: `brms` decides the layout from both.
 
-## Storing it
+## Storing it, and the three helpers
 
 [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) gives a
-small table (one row per unconstrained parameter: label, group level,
-variance, posterior mean, step size) that can be written with
-[`utils::write.csv()`](https://rdrr.io/r/utils/write.table.html) and
-passed back as the first argument, either as a data frame or as a file
-path. A pilot fitted on a laptop can so warm-start an array job on a
-cluster with a file of a few kilobytes and no `brmsfit` in sight. Since
-the labels are tied to the Stan program, a table written for one formula
-falls back to the defaults, with a note, when applied to a different
-one.
+small table (one row per unconstrained parameter: label, group and
+level, variance, posterior mean, step size) that can be written with
+[`utils::write.csv()`](https://rdrr.io/r/utils/write.table.html), so
+that a pilot fitted on a laptop can warm-start an array job on a cluster
+with a file of a few kilobytes and no `brmsfit` in sight. On the other
+side, three helpers with the signature of
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+and
+[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md) -
+the model's formula and data first, the source under `warmstart` - each
+give one argument of the
+[`brm()`](https://paulbuerkner.com/brms/reference/brm.html) call:
+
+    tab <- read.csv("pilot_warmstart.csv")   # or the path, or the brmsfit itself
+    m <- brm(formula, data = data, prior = ..., stanvars = ...,
+             init = cogmod_inits(formula, data, warmstart = tab),
+             inv_metric = cogmod_inv_metric(formula, data, warmstart = tab),
+             step_size = cogmod_step_size(formula, data, warmstart = tab),
+             warmup = 100, iter = 600, backend = "cmdstanr")
+
+Each maps the table onto the model `formula` and `data` describe, so it
+does not matter which model the table was written for: a table from a
+pilot on fewer participants is extended, one written for another formula
+falls back to the defaults with a note. When the table was made for this
+very model, `tab$inv_metric` and `tab$step_size[1]` are the same numbers
+(the step size is one number repeated down the column; a whole column
+there would be read as one step size per chain).
 
 ## What it is worth
 
@@ -208,6 +242,11 @@ m <- brms::brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_sta
 
 # Keep it for a cluster
 write.csv(as.data.frame(ws), "pilot_warmstart.csv", row.names = FALSE)
-ws <- cogmod_warmstart("pilot_warmstart.csv", f, df)
+# ... and there, one helper per argument, all with the same signature
+m <- brms::brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
+               init = cogmod_inits(f, df, warmstart = "pilot_warmstart.csv"),
+               inv_metric = cogmod_inv_metric(f, df, warmstart = "pilot_warmstart.csv"),
+               step_size = cogmod_step_size(f, df, warmstart = "pilot_warmstart.csv"),
+               warmup = 100, iter = 600, backend = "cmdstanr")
 } # }
 ```

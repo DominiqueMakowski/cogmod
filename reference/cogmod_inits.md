@@ -14,7 +14,7 @@ chain does not error, it simply never moves.
 ## Usage
 
 ``` r
-cogmod_inits(formula, data, jitter = 0.25, ...)
+cogmod_inits(formula = NULL, data = NULL, jitter = NULL, warmstart = NULL, ...)
 ```
 
 ## Arguments
@@ -24,17 +24,36 @@ cogmod_inits(formula, data, jitter = 0.25, ...)
   The model formula, as passed to
   [`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html).
   Must carry the family, i.e. be built with
-  `brms::bf(..., family = cogmod_gamma())`.
+  `brms::bf(..., family = cogmod_gamma())`. May be left `NULL` only when
+  `warmstart` is a `brmsfit`, whose formula is then used.
 
 - data:
 
   The data, as passed to
-  [`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html).
+  [`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html). May
+  be left `NULL` only when `warmstart` is a `brmsfit`, whose data are
+  then used.
 
 - jitter:
 
   SD of the noise added on the unconstrained scale, so that chains start
-  at different points. Set to `0` for identical starts.
+  at different points. Set to `0` for identical starts. `NULL` (the
+  default) means 0.25, or 0.05 with a `warmstart`, whose values come
+  from a converged posterior and should not be scattered far.
+
+- warmstart:
+
+  A previous fit to start from instead of the family's generic values: a
+  `brmsfit`, a
+  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  object, the data frame
+  [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) makes
+  of one, or the path to a CSV file of it. The starting values are its
+  posterior means, mapped onto this model by parameter name (a pilot on
+  fewer participants included; see
+  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md));
+  whatever it has no value for keeps the value this function would give
+  it anyway.
 
 - ...:
 

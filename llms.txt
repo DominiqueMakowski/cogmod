@@ -438,6 +438,8 @@ for subjective scale models.
 - [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
   : Starting values that keep the sampler out of the flat regions
 - [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  [`cogmod_inv_metric()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  [`cogmod_step_size()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
   [`as.data.frame(`*`<cogmod_warmstart>`*`)`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
   [`print(`*`<cogmod_warmstart>`*`)`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
   : Warm-start a fit from a previous one: metric, step size and starting

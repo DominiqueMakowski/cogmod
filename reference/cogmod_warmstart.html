@@ -97,6 +97,10 @@ changes the posterior being sampled.</p>
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">cogmod_warmstart</span><span class="op">(</span><span class="va">x</span>, formula <span class="op">=</span> <span class="cn">NULL</span>, data <span class="op">=</span> <span class="cn">NULL</span>, jitter <span class="op">=</span> <span class="fl">0.05</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
+<span><span class="fu">cogmod_inv_metric</span><span class="op">(</span>formula <span class="op">=</span> <span class="cn">NULL</span>, data <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">warmstart</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">cogmod_step_size</span><span class="op">(</span>formula <span class="op">=</span> <span class="cn">NULL</span>, data <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">warmstart</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
 <span><span class="co"># S3 method for class 'cogmod_warmstart'</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">x</span>, row.names <span class="op">=</span> <span class="cn">NULL</span>, optional <span class="op">=</span> <span class="cn">FALSE</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
@@ -135,6 +139,11 @@ posterior; <code>0</code> gives identical starts.</p></dd>
 arguments such as <code>data2</code>.</p></dd>
 
 
+<dt id="arg-warmstart">warmstart<a class="anchor" aria-label="anchor" href="#arg-warmstart"></a></dt>
+<dd><p>The source, as <code>x</code> above: a <code>brmsfit</code>, a <code>cogmod_warmstart</code>
+object, its data frame, or the path to a CSV file of it.</p></dd>
+
+
 <dt id="arg-row-names-optional">row.names, optional<a class="anchor" aria-label="anchor" href="#arg-row-names-optional"></a></dt>
 <dd><p>Ignored; present for compatibility with the
 <code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code> generic.</p></dd>
@@ -160,8 +169,13 @@ target program declares.</p></dd>
 group-level parameter, the grouping factor, the coefficient and, for a
 standardized effect, the level it stands for; otherwise <code>NA</code>),
 <code>inv_metric</code>, <code>mean</code> (the source posterior mean, <code>NA</code> where none
-applies), <code>step_size</code> and <code>source</code> (<code>"pilot"</code>, <code>"new level"</code> or
-<code>"default"</code>).</p></dd>
+applies) and <code>step_size</code> (the same value in every row). This is what
+<code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code> returns.</p></dd>
+
+<dt><code>counts</code>, <code>missing</code></dt>
+<dd><p>How many entries came from the source, are new
+group levels, or have no counterpart, and the names of the latter; what
+<code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> reports.</p></dd>
 
 
 </dl></div>
@@ -214,15 +228,27 @@ which is why <code>formula</code> and <code>data</code> are needed rather than j
 participants: <code>brms</code> decides the layout from both.</p>
     </div>
     <div class="section level2">
-    <h2 id="storing-it">Storing it<a class="anchor" aria-label="anchor" href="#storing-it"></a></h2>
+    <h2 id="storing-it-and-the-three-helpers">Storing it, and the three helpers<a class="anchor" aria-label="anchor" href="#storing-it-and-the-three-helpers"></a></h2>
     <p><code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code> gives a small table (one row per unconstrained parameter:
-label, group level, variance, posterior mean, step size) that can be written
-with <code><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">utils::write.csv()</a></code> and passed back as the first argument, either as
-a data frame or as a file path. A pilot fitted on a laptop can so
+label, group and level, variance, posterior mean, step size) that can be
+written with <code><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">utils::write.csv()</a></code>, so that a pilot fitted on a laptop can
 warm-start an array job on a cluster with a file of a few kilobytes and no
-<code>brmsfit</code> in sight. Since the labels are tied to the Stan program, a table
-written for one formula falls back to the defaults, with a note, when
-applied to a different one.</p>
+<code>brmsfit</code> in sight. On the other side, three helpers with the signature of
+<code><a href="cogmod_priors.html">cogmod_priors()</a></code> and <code><a href="cogmod_inits.html">cogmod_inits()</a></code> - the model's formula and data first,
+the source under <code>warmstart</code> - each give one argument of the <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code> call:</p>
+<p></p><div class="sourceCode r"><pre><code><span><span class="va">tab</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv</a></span><span class="op">(</span><span class="st">"pilot_warmstart.csv"</span><span class="op">)</span>   <span class="co"># or the path, or the brmsfit itself</span></span>
+<span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">formula</span>, data <span class="op">=</span> <span class="va">data</span>, prior <span class="op">=</span> <span class="va">...</span>, stanvars <span class="op">=</span> <span class="va">...</span>,</span>
+<span>         init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">formula</span>, <span class="va">data</span>, warmstart <span class="op">=</span> <span class="va">tab</span><span class="op">)</span>,</span>
+<span>         inv_metric <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_warmstart.html">cogmod_inv_metric</a></span><span class="op">(</span><span class="va">formula</span>, <span class="va">data</span>, warmstart <span class="op">=</span> <span class="va">tab</span><span class="op">)</span>,</span>
+<span>         step_size <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_warmstart.html">cogmod_step_size</a></span><span class="op">(</span><span class="va">formula</span>, <span class="va">data</span>, warmstart <span class="op">=</span> <span class="va">tab</span><span class="op">)</span>,</span>
+<span>         warmup <span class="op">=</span> <span class="fl">100</span>, iter <span class="op">=</span> <span class="fl">600</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span><span class="op">)</span></span></code></pre><p></p></div>
+<p>Each maps the table onto the model <code>formula</code> and <code>data</code> describe, so it
+does not matter which model the table was written for: a table from a pilot
+on fewer participants is extended, one written for another formula falls
+back to the defaults with a note. When the table was made for this very
+model, <code>tab$inv_metric</code> and <code>tab$step_size[1]</code> are the same numbers (the
+step size is one number repeated down the column; a whole column there
+would be read as one step size per chain).</p>
     </div>
     <div class="section level2">
     <h2 id="what-it-is-worth">What it is worth<a class="anchor" aria-label="anchor" href="#what-it-is-worth"></a></h2>
@@ -258,7 +284,12 @@ the source has none, and <code>vignette("performance")</code>.</p></div>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Keep it for a cluster</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">ws</span><span class="op">)</span>, <span class="st">"pilot_warmstart.csv"</span>, row.names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">ws</span> <span class="op">&lt;-</span> <span class="fu">cogmod_warmstart</span><span class="op">(</span><span class="st">"pilot_warmstart.csv"</span>, <span class="va">f</span>, <span class="va">df</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># ... and there, one helper per argument, all with the same signature</span></span></span>
+<span class="r-in"><span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span>, prior <span class="op">=</span> <span class="fu"><a href="cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>, stanvars <span class="op">=</span> <span class="fu"><a href="cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>               init <span class="op">=</span> <span class="fu"><a href="cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="st">"pilot_warmstart.csv"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>               inv_metric <span class="op">=</span> <span class="fu">cogmod_inv_metric</span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="st">"pilot_warmstart.csv"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>               step_size <span class="op">=</span> <span class="fu">cogmod_step_size</span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="st">"pilot_warmstart.csv"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>               warmup <span class="op">=</span> <span class="fl">100</span>, iter <span class="op">=</span> <span class="fl">600</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
