@@ -592,8 +592,50 @@ cogmod_ddm <- function(
 # the non-decision time are integrated out by Gauss-Legendre quadrature over
 # their Uniform distributions, on the log scale. The non-decision time is
 # integrated only up to `t` - a later start leaves no time to decide in and
-# contributes nothing - which is what keeps the integrand smooth and the
-# fixed-node rule accurate.
+# contributes nothing - so the per-trial decision time `u` runs over
+# `[t - st0, t]`, floored at zero.
+#
+# The st0 integral is taken over LOG decision time, `u = exp(s)`, and from a
+# lower end where the density is dead rather than from zero. A fixed rule on
+# the plain time scale fails whenever the st0 range reaches down to fast
+# decision times: the first-passage density then rises from nothing to its
+# peak - near `a^2 w^2 / 3` for a start point `a w` from the responding
+# boundary - inside a sliver of the range, and 25 nodes spread over the whole
+# of it cannot resolve that. It is the defect reported against
+# `rtdists::ddiffusion()` in rtdists issue #28, and it was here too: against a
+# converged rule the plain-scale 25-node rule was out by 5e-4 on the issue's
+# own example (`a = 0.5`, `v = 0.5`, `w = 0.3`, `st0 = 0.16`, `t = 0.16`), by
+# 3% at `w = 0.1`, `st0 = 0.2`, `t = 0.2`, and by 50% with the start point
+# almost on the boundary. In `s` the peak is about one log unit wide wherever
+# it sits, so the same 25 nodes see it at the same resolution at any time
+# scale, and the density's two tails - `exp(-c / u)` on the left,
+# `exp(-lambda u)` on the right - both become double exponentials, which is as
+# gentle as an integrand gets.
+#
+# The lower end: the small-time series is dominated by `exp(-c / u)` with
+# `c = a^2 w^2 / 2`, whose exponent is `1.5` at the peak of the leading term,
+# or `c / t` if `t` itself is earlier than that peak. The integral starts where
+# that exponent has grown by `.DDM_ST0_DEAD` more - where the integrand is
+# `e^-25` below its peak - or at `t - st0` if that is later. Without the
+# cutoff the log range would run to `-Inf`; with it the range is three log
+# units to the left of the peak plus `log(t / peak)` to its right, and no node
+# is spent where nothing is. The cutoff depends on the start point, so the st0
+# nodes are laid out afresh for each start-point node: a few length-n
+# operations and one `exp()` per node, against the series evaluation itself,
+# which is where the time goes.
+#
+# How many nodes the log range then needs is nearly a matter of its length
+# alone, since the peak's width in `s` does not change: against the rule at
+# 1600 nodes, 25 nodes hold 1e-9 up to six log units, 5e-7 up to ten, and
+# 1e-5 at fourteen - a 10 s response under a 10 s st0 range with the start
+# point 5% of a 0.5 boundary from the response - where 40 nodes hold 3e-8. So
+# the st0 rule gets `.DDM_ST0_NODES_PER_LOG` nodes per log unit of the widest
+# range in the call, and never fewer than `nodes`. That is a no-op below eight
+# log units, and a range that stops short of zero only exceeds them if it
+# reaches within a 3000th of the decision time of it; so in practice the rule
+# grows only for responses faster than the st0 range itself, and then only with
+# the start point near the boundary or a long response - which is exactly
+# where the plain-scale rule failed.
 #
 # The st0 nodes are evaluated in one call per start-point node, as a nodes x
 # observations block, and combined with a log-sum-exp down the columns. The
@@ -603,14 +645,24 @@ cogmod_ddm <- function(
 #
 # `sw` is the start-point range as a fraction of `[0, 1]` and `st0` the
 # non-decision-time range in seconds, both as `.cogmod_ddm_draw_trialwise()`
-# and the Stan code define them, with `ndt` the LOWER end of the st0 range: so
-# the per-trial decision time runs from `t - st0` up to `t`.
+# and the Stan code define them, with `ndt` the LOWER end of the st0 range.
 #
-# Validated against the Stan likelihood in [cogmod_ddm_stanvars()]: the maximum
-# relative error is at machine precision when only drift and starting-point
-# variability are present, and below 1e-5 with all three.
+# Validated against this same rule at 800 and 1600 nodes, which agree with each
+# other to 1e-13: on the issue-28 sweep (`a = 0.5`, `v = 0.5`, `w` from 0.1,
+# `st0` up to 0.2, `t` from 0.02 to 0.5, with and without start-point
+# variability) the result is within 1e-9 everywhere, within 4e-12 over a grid
+# of 800 cells that also has 4 s responses under a 5 s st0 range, drifts of 3,
+# and the start point 2.5% of the boundary from the response, and within 4e-12
+# on the 10 s cases above - the last two with the rule sized to the widest
+# range in the call, as it would be in use. Where the st0 range stays inside
+# the response time the values agree with the plain-scale rule's to 1e-13 - it
+# was right there - for no measurable difference in cost: on 4000 draws of a
+# typical observation the two land within a tenth of each other either way
+# between runs, the series evaluation being where the time goes. The Stan
+# likelihood in [cogmod_ddm_stanvars()] agrees to 1e-5 (test-model_ddm.R);
+# the worst cells sit at 2e-6, which is Stan's own stopping tolerance.
 #
-# `nodes` is the number of quadrature nodes per integrated dimension.
+# `nodes` is the least number of quadrature nodes per integrated dimension.
 #' @keywords internal
 .ddm_ldens_var <- function(pars, nodes = 25) {
   t <- pars$t
@@ -632,21 +684,31 @@ cogmod_ddm <- function(
   degenerate <- list(nodes = 0, weights = 2)
   quad <- .gauss_legendre(nodes)
   w_quad <- if (any(sw > 0)) quad else degenerate
-  t_quad <- if (any(st0 > 0)) quad else degenerate
-  nb <- length(t_quad$nodes)
 
-  # The st0 range that leaves a positive decision time, and the Jacobian of
-  # mapping the nodes onto it - `1 / 2` where st0 is zero, so the two weights
-  # of the degenerate rule average back to the point value.
-  span <- pmax(pmin(st0, t), 0)
-  lscale <- ifelse(st0 > 0, log(span) - log(2 * st0), -log(2))
+  spread <- st0 > 0
+  u_lo <- pmax(t - st0, 0)
+  log_t <- log(t)
+
+  # The st0 rule, sized to the widest log range any start-point node will
+  # face: the node nearest the boundary has the smallest `c` and hence the
+  # lowest cutoff (see above). `w - sw / 2` is just beyond the outermost node,
+  # so the range is if anything overstated.
+  if (any(spread)) {
+    cc <- a^2 * (w - sw / 2)^2 / 2
+    lrange <- log_t - log(pmax(u_lo, cc / (pmax(1.5, cc / t) + .DDM_ST0_DEAD)))
+    nodes_t <- ceiling(.DDM_ST0_NODES_PER_LOG * max(lrange[spread]))
+    nodes_t <- min(max(nodes, nodes_t), .DDM_ST0_NODES_MAX)
+    t_quad <- if (nodes_t == nodes) quad else .gauss_legendre(nodes_t)
+  } else {
+    t_quad <- degenerate
+  }
+  nb <- length(t_quad$nodes)
+  lw <- log(t_quad$weights)
 
   # Everything the st0 dimension needs, laid out node-fastest: element
   # (b, i) of the block sits at position (i - 1) * nb + b, so a vector
   # repeated `each = nb` pairs with the node vector recycled `n` times.
   each <- function(x) rep(x, each = nb)
-  t_b <- each(t) - each(span) / 2 * (t_quad$nodes + 1)
-  base <- each(lscale) + log(t_quad$weights)
   v_b <- each(v)
   a_b <- each(a)
   sv_b <- each(sv)
@@ -654,7 +716,21 @@ cogmod_ddm <- function(
   out <- rep(-Inf, n)
   for (ia in seq_along(w_quad$nodes)) {
     w_a <- w + (sw / 2) * w_quad$nodes[ia]
-    lt <- matrix(base + .ddm_lfpt(t_b, v_b, a_b, each(w_a), sv_b), nb, n)
+    # The log range: from where the density is dead (see above), or from
+    # `t - st0` if that is later, up to `t`.
+    cc <- a^2 * w_a^2 / 2
+    lo <- log(pmax(u_lo, cc / (pmax(1.5, cc / t) + .DDM_ST0_DEAD)))
+    half <- pmax(log_t - lo, 0) / 2
+    # The Jacobian of the nodes onto that range, the `1 / st0` of the uniform
+    # density, and the `du = u ds` of the substitution, which is `s_b` itself
+    # and is added below. Where st0 is zero the range has collapsed onto `t`,
+    # every node sits at `log(t)`, and the `-log(t)` here cancels that term so
+    # the weights - two of them, or a full rule's when other elements have an
+    # st0 - average back to the point value.
+    lscale <- ifelse(spread, log(half) - log(st0), -log(2) - log_t)
+    s_b <- each(log_t - half) + each(half) * t_quad$nodes
+    lt <- matrix(each(lscale) + lw + s_b +
+                   .ddm_lfpt(exp(s_b), v_b, a_b, each(w_a), sv_b), nb, n)
     # log-sum-exp down the columns; a column of -Inf stays -Inf rather than NaN
     mx <- lt[1, ]
     for (b in seq_len(nb)[-1]) mx <- pmax(mx, lt[b, ])
@@ -669,6 +745,23 @@ cogmod_ddm <- function(
   }
   out
 }
+
+# How far below its peak, in log units, the first-passage density is taken as
+# dead when `.ddm_ldens_var()` places the lower end of its st0 quadrature.
+# `e^-25` is 1e-11: the mass dropped is far below the rule's own error, and
+# each extra unit here would only stretch the log range the nodes have to
+# cover.
+#' @keywords internal
+.DDM_ST0_DEAD <- 25
+
+# Nodes per log unit of decision time for the st0 rule of `.ddm_ldens_var()`,
+# and the most it will use. Three per unit hold 3e-8 at fourteen log units; the
+# cap is reached only by an absurd range - a start point within 1e-6 of the
+# boundary, say - and keeps one such element from sizing the block for all.
+#' @keywords internal
+.DDM_ST0_NODES_PER_LOG <- 3
+#' @keywords internal
+.DDM_ST0_NODES_MAX <- 100L
 
 
 #' Translate `cogmod`'s parameterization into `rtdists`' one

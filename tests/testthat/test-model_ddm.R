@@ -184,6 +184,55 @@ test_that("the variability parameters are legitimately zero", {
 })
 
 
+test_that("the st0 quadrature resolves a range that reaches fast decision times", {
+  # rtdists issue #28, reproduced here before the fix: when the st0 range
+  # covers decision times from about zero up to `t`, the integrand over the
+  # non-decision time holds the whole early peak of the first-passage density
+  # inside a sliver of the range, and a fixed 25-node rule on the plain time
+  # scale missed it by up to 3% on the sweep below. The rule now runs over log
+  # decision time from where the density is dead, and these are the cases that
+  # broke the old one, checked against the same rule at 400 nodes (which agrees
+  # with 800 and 1600 nodes to 1e-12).
+  ldens <- function(t, w, st0, sw, response = 0, sv = 0, nodes = 25) {
+    n <- max(length(t), length(w), length(st0), length(sw), length(response))
+    pars <- list(
+      t = rep_len(t, n), drift = rep_len(0.5, n), boundary = rep_len(0.5, n),
+      bias = rep_len(w, n), response = rep_len(response, n),
+      sigmadrift = rep_len(sv, n), sigmabias = rep_len(sw, n),
+      sigmandt = rep_len(st0, n)
+    )
+    cogmod:::.ddm_ldens_var(pars, nodes = nodes)
+  }
+  relerr <- function(x, ref) abs(exp(x - ref) - 1)
+
+  # the issue's own examples: start point near the responding boundary, and
+  # the st0 range reaching down to zero decision time (the old rule was out by
+  # 5.5e-4, 5.7e-3, 6e-6, 5.5e-4 and 6e-7 on these, in order)
+  hard <- list(
+    list(t = 0.16, w = 0.3, st0 = 0.16, sw = 0),
+    list(t = 0.16, w = 0.3, st0 = 0.16, sw = 0.5),
+    list(t = 0.16, w = 0.3, st0 = 0.16, sw = 0, response = 1),
+    list(t = 0.16, w = 0.3, st0 = 0.16, sw = 0, sv = 0.3),
+    list(t = 0.025, w = 0.3, st0 = 0.1, sw = 0)
+  )
+  for (h in hard) {
+    expect_lt(relerr(do.call(ldens, h), do.call(ldens, c(h, nodes = 400))),
+              1e-9)
+  }
+
+  # the sweep: 120 cells, half of them with the range reaching zero
+  g <- expand.grid(w = c(0.1, 0.2, 0.3, 0.5), st0 = c(0.05, 0.1, 0.2),
+                   sw = c(0, 0.5), t = c(0.02, 0.05, 0.1, 0.2, 0.5))
+  e <- relerr(ldens(g$t, g$w, g$st0, g$sw), ldens(g$t, g$w, g$st0, g$sw, nodes = 400))
+  expect_lt(max(e), 1e-8)
+
+  # and through the public density, with the range placed by `ndt`
+  d <- dcogmod_ddm(0.46, drift = 0.5, boundary = 0.5, bias = 0.3, ndt = 0.3,
+                   response = 0, sigmabias = 0.5, sigmandt = 0.16, log = TRUE)
+  expect_equal(d, ldens(0.16, 0.3, 0.16, 0.5, nodes = 400), tolerance = 1e-9)
+})
+
+
 # rcogmod_ddm -------------------------------------------------------------
 
 test_that("rcogmod_ddm returns rt and response", {
@@ -635,8 +684,16 @@ test_that("Stan cogmod_ddm_lpdf matches dcogmod_ddm", {
       g$boundary == 1.2 & g$bias == 0.5 & g$ndt == 0.15 & g$poutlier == 0.001
     }
   )
-  for (i in seq_len(nrow(grid))) {
-    g <- grid[i, ]
+  # The regime of rtdists issue #28 - the st0 range reaching down to fast
+  # decision times, the start point near the responding boundary - where the R
+  # side used to be out by up to 3%. Every cell is in the 7-parameter branch.
+  hard <- expand.grid(
+    Y = 0.1 + c(0.025, 0.16, 0.2), mu = 0.5, boundary = 0.5, bias = c(0.1, 0.3),
+    sigmadrift = c(0, 0.3), sigmabias = c(0, 0.5), sigmandt = c(0.16, 0.2),
+    ndt = 0.1, poutlier = 0.01, dec = 0:1
+  )
+  for (i in seq_len(nrow(grid) + nrow(hard))) {
+    g <- if (i <= nrow(grid)) grid[i, ] else hard[i - nrow(grid), ]
     stan <- lpdf(g$Y, g$mu, g$boundary, g$bias, g$sigmadrift, g$sigmabias,
                  g$sigmandt, g$ndt, g$poutlier, as.integer(g$dec))
     r <- dcogmod_ddm(g$Y, g$mu, g$boundary, g$bias, g$ndt, response = g$dec,
@@ -648,8 +705,11 @@ test_that("Stan cogmod_ddm_lpdf matches dcogmod_ddm", {
       # Relative, not absolute. The floor is looser than the closed-form
       # families manage because the 7-parameter branch is adaptive quadrature on
       # the Stan side and fixed-node Gauss-Legendre on the R side: the two
-      # integrate the same function by different rules.
-      expect_lt(abs(stan - r) / max(1, abs(r)), 1e-4)
+      # integrate the same function by different rules. The R side agrees with
+      # itself at 400 nodes to 1e-9 on every cell here (see the quadrature test
+      # above), and the worst cells sit at 2e-6, which is Stan's own stopping
+      # tolerance - so this is as tight as the comparison can be made.
+      expect_lt(abs(stan - r) / max(1, abs(r)), 1e-5)
     }
   }
 

@@ -101,6 +101,34 @@
 
 ## Bug fixes
 
+* **`dcogmod_ddm()` and everything built on it (`log_lik()`, `loo()`,
+  `p_outlier()`, the other R-side post-processing of `cogmod_ddm()` fits) are
+  now accurate when the `sigmandt` range reaches down to fast decision
+  times.** The R density integrates the non-decision time out with a fixed
+  25-node Gauss-Legendre rule, and when that range covers decision times from
+  about zero up to the response - a fast response, or a wide `sigmandt` - the
+  integrand holds the whole early peak of the first-passage density inside a
+  sliver of it, which 25 nodes on the plain time scale cannot resolve. It is
+  the defect reported against `rtdists::ddiffusion()` in
+  [rtdists issue 28](https://github.com/rtdists/rtdists/issues/28), and it was
+  here too: on the issue's own example (`boundary = 0.5`, `drift = 0.5`,
+  `bias = 0.3`, `sigmandt = 0.16`, decision time 0.16) the density was out by
+  5e-4, by 3% with `bias = 0.1` and `sigmandt = 0.2`, and by 50% with the start
+  point almost on the responding boundary. The rule now runs over *log*
+  decision time, from the point where the density is dead rather than from
+  zero, so the peak is about one log unit wide wherever it sits and the same
+  25 nodes resolve it at any time scale, and the rule takes more nodes only
+  when the log range is wide enough to need them: the worst error over the
+  issue's sweep is now below 1e-9, and below 4e-12 over a much broader grid,
+  against a converged 1600-node rule. Densities with `sigmandt = 0` are
+  unchanged to the last bit, and the common case - `sigmandt` well inside the
+  response time, where the old rule was already accurate - gives the same
+  values at the same cost. The Stan likelihood uses Stan's own adaptive
+  `wiener_lpdf()` and was never affected, so fitted models are unchanged; only
+  their R-side post-processing moves, and only in that regime. The
+  R-versus-Stan density test is tightened from a relative 1e-4 to 1e-5
+  accordingly, which is Stan's own tolerance.
+
 * **`cogmod_rdm()` no longer produces divergent transitions by the hundred on
   healthy posteriors.** The Stan log-survival of the losing accumulator formed
   its reflection term as `log_diff_exp(log R(b), log R(k))`, and for a response
