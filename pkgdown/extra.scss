@@ -1,0 +1,8 @@
+// Quarto hides the source of a cell with `echo: false` by tagging it
+// `.hidden` and relying on its own stylesheet for the rule. pkgdown renders
+// articles with `theme: none` (see `pkgdown:::quarto_format()`), which drops
+// that stylesheet - so without this the `{ojs}` source of the widget at the
+// top of the Decision Making article would be printed on the site.
+.cell-code.hidden {
+    display: none !important;
+}

@@ -11,6 +11,16 @@ editor_options:
   chunk_output_type: console
 ---
 
+## The Key Concept
+
+Most "decision-making" models are **evidence accumulation models**: they assume that evidence for a decision or choice is accumulated over time until it reaches a threshold. The time it takes to reach the threshold is the observed response time (RT). Many "variants" of such models exist, differing in the assumptions they make about the accumulation process.
+
+
+{{< include _widget.qmd >}}
+
+
+## The Data
+
 ```{r}
 #| label: setup
 #| message: false
@@ -26,7 +36,6 @@ library(cmdstanr)
 options(mc.cores = parallel::detectCores() - 2)
 ```
 
-## The Data
 
 Decision making models jointly account for the **choice** that was made and
 the **response time (RT)** it took to make it. Rather than simulating data,

@@ -1,28 +1,14 @@
 
 
-<!-- cogitR -->
-
-<!-- cogbox -->
-
-<!-- brainexplain -->
-
-<!-- brainy: The R package for Computational Cognitive Models -->
-
-<!-- BrainieR -->
-
-<!-- ComputationalCognition -->
-
-<!-- cocomor -->
-
 # cogmod <img src="man/figures/logo.png" align="right" height="200" alt="cogmod logo" />
 
+[![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
 [![CRAN
 status](https://img.shields.io/cran/v/cogmod.svg)](https://cran.r-project.org/package=cogmod)
+[![R-CMD-check](https://github.com/DominiqueMakowski/cogmod/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/DominiqueMakowski/cogmod/actions/workflows/R-CMD-check.yaml)
+[![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
 [![CRAN
 downloads](https://cranlogs.r-pkg.org/badges/grand-total/cogmod.svg)](https://cran.r-project.org/package=cogmod)
-[![R-CMD-check](https://github.com/DominiqueMakowski/cogmod/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/DominiqueMakowski/cogmod/actions/workflows/R-CMD-check.yaml)
-[![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
-[![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
 
 *Models of Cognition for Subjective Scales and Decision Making Tasks in
 R*
@@ -124,9 +110,7 @@ Install the released version from
 install.packages("cogmod")
 ```
 
-Or the development version from GitHub, which has the newest families
-and fixes ahead of the next CRAN release (see
-[NEWS](https://dominiquemakowski.github.io/cogmod/news/index.html)):
+Or the development version from GitHub:
 
 ``` r
 if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
@@ -142,12 +126,20 @@ to set up CmdStan.
 
 ## Usage
 
-using a `cogmod` model requires two arguments beyond a standard `brm()`
+Using a `cogmod` model requires two arguments beyond a standard `brm()`
 call: `family` and `stanvars`. Two further helpers, `cogmod_priors()`
 and `cogmod_inits()`, are strictly speaking optional but should be
 treated as part of the call: they provide adapted chain-initialization
 values and weakly informative priors on the sensitive parameters to
 limit convergence issues and other sampling pathologies.
+
+Note that `brms` *estimates* every parameter of the family that the
+formula does not mention, so the parameters that are hard to identify
+are best pinned explicitly: `sigmabias = 0` below (the start-point
+range, which turns the shifted LogNormal into a single-accumulator LBA),
+and likewise `sigmadrift = 0` and `sigmandt = 0` for
+`cogmod_invgaussian()`, unless the design and the amount of data speak
+to that source of between-trial variability.
 
 ``` r
 library(cogmod)
@@ -158,6 +150,7 @@ f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
   ndt ~ Condition,
+  sigmabias = 0,  # No start-point variability
   family = cogmod_lognormal()
 )
 
@@ -180,6 +173,32 @@ Models](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
 and [Decision Making
 Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
 vignettes for more detailed examples.
+
+These models are slow to sample, and refits are common - the same model
+on more data, or a pilot on a few participants followed by the full
+sample. `cogmod_warmstart()` carries over what a previous fit’s warmup
+learned (its adapted metric, step size and location), so that the new
+run needs only a short warmup:
+
+``` r
+ws <- cogmod_warmstart(m_pilot, data = df)  # map the pilot onto the full model
+
+m <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  stanvars = cogmod_stanvars(f),
+  init = ws$init,
+  inv_metric = ws$inv_metric,
+  step_size = ws$step_size,
+  warmup = 100, iter = 600,
+  backend = "cmdstanr"
+)
+```
+
+See the
+[Performance](https://dominiquemakowski.github.io/cogmod/articles/performance.html)
+vignette for what this buys and when it is safe.
 
 ![](man/figures/decision_making1.png) ![](man/figures/rt_models1.png)
 

@@ -1,0 +1,609 @@
+<!-- Pulled into decision_making.qmd by quarto's `include` shortcode:
+the interactive shifted-Wald / Wiener figure that opens the article. The
+leading underscore keeps it out of both quarto's project render targets and
+pkgdown's article list (`pkgdown:::package_vignettes()` drops files whose name
+starts with one), so it is only ever pulled into its parent.
+
+`density` is `dcogmod_invgaussian()` written out in JavaScript - a Wiener
+process with unit diffusion noise reaching `boundary`, shifted by `ndt` - and
+`trials` simulates the same process it is the first-passage time of. Keep the
+two in step. `Plot`, `d3` and `Inputs` come bundled in the quarto-ojs runtime;
+anything else would be fetched from a CDN at page load, so do not reach for
+one.
+
+Everything lives in one set of axes: evidence vertically, time horizontally.
+That is what lets the boundary slider physically raise and lower the boundary
+line, with the density that rides on it and the drift arrow that lands on it
+moving too. The y domain is therefore fixed - it cannot key off `boundary`
+without pinning the boundary in place. The plot geometry lives in `cfg` rather
+than in the call, because `driftArc` has to measure the same frame in pixels. -->
+
+<!-- One colour per parameter, carried all the way through: the name, the
+slider, the line it moves and the double arrow that measures it. These three
+hex codes are the ones in `cfg` below - change them in both places or the
+correspondence quietly breaks. Each is set as a custom property on the
+wrapper, which is the one kind of value that reaches both the parameter name
+and the inside of a form control. -->
+
+```{=html}
+<style>
+.cogmod-title { display: block; font-size: 1.15rem; font-weight: 700;
+  margin-bottom: 0.9rem; }
+.cogmod-par-drift { --par: #009E73; }
+.cogmod-par-boundary { --par: #F4511E; }
+.cogmod-par-ndt { --par: #8E24AA; }
+.cogmod-par code:not(.sourceCode) { color: var(--par); font-weight: 600;
+  background: none; padding: 0; }
+/* 11px is the size of the labels inside the figure, so a parameter reads the
+   same weight on either side of it. */
+.cogmod-full { display: block; font-size: 11px; line-height: 1.35;
+  color: #6c757d; }
+/* The number box is the only thing here that states a value at rest, and it
+   takes up more room than the value is worth. Hidden, with the value put in a
+   bubble over the thumb for as long as the pointer is on the slider. */
+.cogmod-par input[type="number"] { display: none; }
+.cogmod-par form { position: relative; }
+/* quarto puts every cell output in a box of its own with `overflow: auto`,
+   which crops the bubble off the moment it rises above the slider. */
+.cogmod-par .cell, .cogmod-par .cell-output { overflow: visible; }
+.cogmod-bubble { position: absolute; bottom: 100%; margin-bottom: 3px;
+  transform: translateX(-50%); padding: 0 0.35rem; border-radius: 3px;
+  background: var(--par); color: #fff; font-size: 11px;
+  font-family: var(--bs-font-monospace, monospace); line-height: 1.5;
+  opacity: 0; transition: opacity 0.12s; pointer-events: none; }
+/* The form is the slider and nothing else once the number box is hidden, so
+   hovering it is hovering the slider. The second selector keeps the bubble up
+   during a drag, when the pointer has usually left the form. */
+.cogmod-par form:hover .cogmod-bubble,
+.cogmod-par form:has(input:active) .cogmod-bubble { opacity: 1; }
+/* The thumb is painted by hand rather than with `accent-color`, which lets
+   the browser pick the track underneath it: chromium reads the drift green as
+   dark and hands it a black track, so the three sliders come out unalike. */
+.cogmod-par input[type="range"] { -webkit-appearance: none; appearance: none;
+  height: 14px; background: none; }
+.cogmod-par input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px; background: #dfe3e8; }
+.cogmod-par input[type="range"]::-moz-range-track {
+  height: 4px; border-radius: 2px; background: #dfe3e8; }
+.cogmod-par input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 13px; height: 13px;
+  margin-top: -4.5px; border-radius: 50%; background: var(--par); }
+.cogmod-par input[type="range"]::-moz-range-thumb {
+  width: 13px; height: 13px; border: none; border-radius: 50%;
+  background: var(--par); }
+</style>
+```
+
+::::: {style="display: flex; flex-wrap: wrap; gap: 1.75rem; align-items: flex-start; margin-bottom: 0.5rem;"}
+
+:::: {style="flex: 0 0 200px; min-width: 0;"}
+
+[Wald Model]{.cogmod-title}
+
+::: {.cogmod-par .cogmod-par-drift}
+`drift` [drift rate]{.cogmod-full}
+
+```{ojs}
+//| echo: false
+viewof drift = Inputs.range([1.5, 6], {value: 3, step: 0.1, width: 190})
+```
+:::
+
+::: {.cogmod-par .cogmod-par-boundary}
+`boundary` [decision threshold]{.cogmod-full}
+
+```{ojs}
+//| echo: false
+viewof boundary = Inputs.range([0.3, 0.8], {value: 0.5, step: 0.05, width: 190})
+```
+:::
+
+::: {.cogmod-par .cogmod-par-ndt}
+`ndt` [non-decision time]{.cogmod-full}
+
+```{ojs}
+//| echo: false
+viewof ndt = Inputs.range([0, 0.4], {value: 0.2, step: 0.01, width: 190})
+```
+:::
+
+::::
+
+:::: {style="flex: 1 1 380px; min-width: 0;"}
+
+```{ojs}
+//| echo: false
+// Both wrappers only decorate the figure and hand it back, so the plot below
+// reads as it did before it was draggable and before it was animated.
+dragHandles(fireTrials(Plot.plot({
+  width: plotWidth,
+  height: cfg.height,
+  marginLeft: cfg.mleft,
+  marginRight: cfg.mright,
+  marginTop: cfg.mtop,
+  marginBottom: cfg.mbottom,
+  // No ticks anywhere on time - the axis is the arrow drawn at the start
+  // point below, and the one number worth reading is the mean RT.
+  x: {domain: [0, cfg.tmax], axis: null},
+  // Two numbers on the evidence axis, the start point and the boundary, with
+  // no tick marks: nothing else here has a protruding tick, and the labels
+  // sit close enough to the frame to read without one.
+  // The label is rotated a quarter turn anticlockwise, which turns the arrow
+  // it is written with at each end into one pointing down and one pointing up.
+  // Plot's own `labelArrow` would add a third.
+  y: {domain: [cfg.ybot, cfg.ytop], label: "← Evidence →",
+      labelArrow: "none", labelAnchor: "center", ticks: [0, boundary],
+      tickFormat: d3.format(".2f"), tickSize: 0, tickPadding: 7},
+  marks: [
+    // The RT distribution, sitting on the boundary it is the crossing time of.
+    Plot.areaY(density, {x: "t", y1: "base", y2: "y", fill: cfg.blue,
+                         fillOpacity: 0.15}),
+    Plot.line(density, {x: "t", y: "y", stroke: cfg.blue, strokeWidth: 2}),
+    // Thirty trials, redrawn from scratch whenever a slider moves.
+    Plot.line(trials.rows, {x: "t", y: "x", z: "id", stroke: cfg.blue,
+                            strokeOpacity: 0.42, strokeWidth: 0.9, clip: true}),
+    // Time runs along the start point. Black, because it is the one line here
+    // that is an axis rather than an annotation.
+    Plot.arrow([{x1: 0, y1: 0, x2: cfg.tmax, y2: 0}],
+               {x1: "x1", y1: "y1", x2: "x2", y2: "y2", stroke: cfg.black,
+                strokeWidth: 1.2, headLength: 7}),
+    Plot.text([{t: cfg.tmax, y: 0}],
+              {x: "t", y: "y", text: ["Time"], dx: -12, dy: 13,
+               textAnchor: "end", fill: cfg.black, fontSize: 11}),
+    // Nothing accumulates before ndt. The double arrow just above the time
+    // arrow, spanning the flat stretch every path starts with, measures it
+    // off - and is the whole annotation: a dropped line up to the boundary
+    // only repeated what the foot of the drift arrow already marks.
+    Plot.arrow(ndtSpan, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                         stroke: cfg.purple, strokeWidth: 1, headLength: 6}),
+    Plot.text(ndtSpan.slice(0, 1),
+              {x: "x1", y: "y1", text: ["ndt"], dy: -7, fill: cfg.purple,
+               fontSize: 11, stroke: "white", strokeWidth: 3,
+               paintOrder: "stroke"}),
+    // The boundary is the second axis of the figure, so it is drawn at the
+    // weight of one rather than laid over the frame as a heavier line.
+    Plot.ruleY([boundary], {stroke: cfg.orange, strokeWidth: 1.2}),
+    Plot.text([{t: cfg.tmax, y: boundary}],
+              {x: "t", y: "y", text: ["boundary"], dy: -7, textAnchor: "end",
+               fill: cfg.orange, fontSize: 11}),
+    // The boundary is a distance from the start point, not a place on the
+    // clock. A dimension line at the right edge, where the paths have all
+    // finished, says which of the two it is - directly under its label.
+    Plot.arrow(boundarySpan, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                              stroke: cfg.orange, strokeWidth: 1,
+                              headLength: 6}),
+    // The mean drift path: its slope is the drift rate, and it reaches the
+    // boundary exactly at the mean decision time, which is where the dashed
+    // line above it stands. The arc at its foot marks that slope as an angle.
+    Plot.arrow([{x1: ndt, y1: 0, x2: ndt + boundary / drift, y2: boundary}],
+               {x1: "x1", y1: "y1", x2: "x2", y2: "y2", stroke: cfg.green,
+                strokeWidth: 2.2, headLength: 9}),
+    Plot.arrow(driftArc.data, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                               stroke: cfg.green, strokeWidth: 1.2,
+                               headLength: 6, bend: driftArc.bend}),
+    // The white stroke is a halo: these labels sit over the path tangle. The
+    // label sits in the wedge the arc marks out rather than partway up the
+    // arrow, which at a steep drift would put it on top of the boundary.
+    Plot.text([driftArc.label],
+              {x: "x", y: "y", text: ["drift"], dx: 2, textAnchor: "start",
+               fill: cfg.green, fontSize: 11, stroke: "white", strokeWidth: 3,
+               paintOrder: "stroke"}),
+    Plot.dot(trials.hits, {x: "t", y: () => boundary, fill: cfg.orange, r: 3}),
+    Plot.ruleX([ndt + boundary / drift],
+               {y1: boundary, y2: cfg.ytop, stroke: cfg.grey,
+                strokeDasharray: "4,3"}),
+    Plot.text([{t: ndt + boundary / drift}],
+              {x: "t", text: ["mean RT " + d3.format(".2f")(ndt + boundary / drift) + " s"],
+               frameAnchor: "top", textAnchor: "start", dx: 4, dy: 8,
+               fill: cfg.grey, fontSize: 11})
+  ]
+})))
+```
+
+::::
+
+:::::
+
+```{ojs}
+//| echo: false
+// tmax and the slider ranges are set against each other: the slowest corner
+// of the parameter space (drift 1.5, boundary 0.8, ndt 0.4) has a mean RT of
+// 0.93 s, so 1.2 s of axis holds every setting without the frame ever having
+// to rescale - which it must not do, or raising ndt would stop looking like a
+// shift. Same for the evidence axis: ytop clears the tallest density (boundary
+// 0.8 + dheight) and the frame is otherwise as tight as it can be, because the
+// accumulation band is only as tall as `boundary` and the smallest one has to
+// stay readable - which is also why the slider stops at 0.3. ybot leaves room
+// for the paths, which wander below zero on the way up. ndty is where the ndt
+// dimension line sits: a few pixels above the time arrow, in the strip the
+// paths cannot leave until ndt has passed. mtop carries nothing, so the frame
+// is back to what it was now the title has moved into the column on the left.
+// One colour per parameter - drift green, boundary orange, ndt purple - and
+// each one is worn by everything that parameter owns, the slider included.
+// The three are repeated in the <style> block at the top of this file, which
+// cannot read them from here. blue is the model's own output (density and
+// paths), grey is for annotation that belongs to no parameter, black is the
+// time axis.
+cfg = ({tmax: 1.2, dt: 0.005, npaths: 30, ybot: -0.5, ytop: 1.4, dheight: 0.55,
+        ndty: 0.07, height: 300, mleft: 46, mright: 18, mtop: 18, mbottom: 16,
+        blue: "#3F51B5", orange: "#F4511E", green: "#009E73",
+        purple: "#8E24AA", grey: "#90A4AE", black: "#000000"})
+```
+
+```{ojs}
+//| echo: false
+// The parameters column takes 200px plus the flex gap; Inputs.range does not
+// carry its own label here, so the column is exactly as wide as it says.
+plotWidth = Math.max(320, Math.min(width, 900) - 232)
+```
+
+```{ojs}
+//| echo: false
+// Three of the marks are handles. The boundary line drags up and down, an
+// invisible vertical line at ndt drags left and right, and the drift arrow
+// pivots about its foot - each writing to its own slider, so a value still
+// lives in exactly one place and the figure is only a second way in.
+//
+// Every change rebuilds the plot, so the element the pointer went down on is
+// gone by the second frame of a drag. The move and release listeners therefore
+// go on the window, and the geometry they work from is measured once at
+// pointerdown - which stays true, because each rebuild is the same size in the
+// same place. The figure is drawn in its own svg units, so a screen pixel is
+// worth `box.height / rect.height` of them: the two agree at full size and
+// part company when the column is narrow enough for Plot's max-width to kick
+// in.
+dragHandles = function(plot) {
+  const GRAB = 7;                    // how near the pointer has to come, in px
+  const slider = {
+    drift: (viewof drift).querySelector('input[type="range"]'),
+    boundary: (viewof boundary).querySelector('input[type="range"]'),
+    ndt: (viewof ndt).querySelector('input[type="range"]')
+  };
+  const at = (key) => Number(slider[key].value);
+  const box = plot.viewBox.baseVal;
+  const perPixel = (rect) => box.height / rect.height;
+  // Where a value sits on screen, and the value at a point on screen: the same
+  // map read each way, once per axis.
+  const mapper = (scale, edge) => {
+    const [d0, d1] = scale.domain, [p0, p1] = scale.range;
+    const k = (p1 - p0) / (d1 - d0);
+    return {
+      to: (v, rect) => edge(rect) + (p0 + (v - d0) * k) / perPixel(rect),
+      from: (p, rect) => d0 + ((p - edge(rect)) * perPixel(rect) - p0) / k
+    };
+  };
+  const X = mapper(plot.scale("x"), (rect) => rect.left);
+  const Y = mapper(plot.scale("y"), (rect) => rect.top);
+  const toSegment = (p, a, b) => {
+    const vx = b.x - a.x, vy = b.y - a.y, len = vx * vx + vy * vy;
+    const t = len ? Math.max(0, Math.min(1, ((p.x - a.x) * vx +
+                                             (p.y - a.y) * vy) / len)) : 0;
+    return Math.hypot(p.x - (a.x + t * vx), p.y - (a.y + t * vy));
+  };
+
+  // `away` is the distance from the pointer to the handle; `read` is the value
+  // the pointer is asking that parameter to take.
+  const handle = {
+    boundary: {
+      cursor: "ns-resize",
+      away: (p, rect) => Math.abs(p.y - Y.to(at("boundary"), rect)),
+      read: (p, rect) => Y.from(p.y, rect)
+    },
+    ndt: {
+      cursor: "ew-resize",
+      // Nothing is drawn at ndt any more, so the line to grab is the one the
+      // double arrow ends on, and only over the stretch of the figure ndt has
+      // anything to say about: the time axis up to the boundary.
+      away: (p, rect) =>
+        p.y < Y.to(at("boundary"), rect) - GRAB || p.y > Y.to(0, rect) + GRAB
+          ? Infinity : Math.abs(p.x - X.to(at("ndt"), rect)),
+      read: (p, rect) => X.from(p.x, rect)
+    },
+    drift: {
+      cursor: "move",
+      // The arrow turns about its foot, so the rate the pointer asks for is
+      // the slope of the line from the foot out to it - evidence over time,
+      // which is what a drift rate is.
+      away: (p, rect) => toSegment(p,
+        {x: X.to(at("ndt"), rect), y: Y.to(0, rect)},
+        {x: X.to(at("ndt") + at("boundary") / at("drift"), rect),
+         y: Y.to(at("boundary"), rect)}),
+      read: (p, rect) => Y.from(p.y, rect) / (X.from(p.x, rect) - at("ndt"))
+    }
+  };
+
+  // Lines this thin are too fine to aim at, so anything within GRAB counts,
+  // and where two handles are both in reach the nearer one wins.
+  const nearest = (event, rect) => {
+    const p = {x: event.clientX, y: event.clientY};
+    let pick = null, best = GRAB;
+    for (const key in handle) {
+      const away = handle[key].away(p, rect);
+      if (away < best) { pick = key; best = away; }
+    }
+    return pick;
+  };
+
+  plot.addEventListener("pointermove", (event) => {
+    const pick = nearest(event, plot.getBoundingClientRect());
+    plot.style.cursor = pick ? handle[pick].cursor : "";
+  });
+
+  plot.addEventListener("pointerdown", (event) => {
+    const rect = plot.getBoundingClientRect();
+    const pick = nearest(event, rect);
+    if (!pick) return;
+    event.preventDefault();
+    document.body.style.userSelect = "none";
+    const input = slider[pick];
+    const lo = Number(input.min), hi = Number(input.max);
+    const step = Number(input.step);
+    const move = (e) => {
+      const asked = handle[pick].read({x: e.clientX, y: e.clientY}, rect);
+      if (!Number.isFinite(asked)) return;      // straight above the pivot
+      const v = Math.max(lo, Math.min(hi, Math.round(asked / step) * step));
+      if (v === Number(input.value)) return;
+      input.value = v;
+      input.dispatchEvent(new Event("input", {bubbles: true}));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  });
+
+  return plot;
+}
+```
+
+```{ojs}
+//| echo: false
+// A fresh set of trials every seven seconds - long enough for the one before
+// it to have finished arriving and stood complete for a beat. The figure is an explainer, so
+// it runs on its own - but not for a reader who has asked their machine for
+// less movement, who gets one static set and no timer at all, and not while
+// the figure is off screen, because this sits near the top of a long article
+// and a figure nobody is looking at has no business simulating anything. The
+// sliders are watched rather than the plot: they are in the same row, and
+// unlike the plot they are not rebuilt out from under the observer.
+volley = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? null
+  : Generators.observe((next) => {
+      let n = 0, timer = null;
+      next(n);
+      const watch = new IntersectionObserver(([seen]) => {
+        if (seen.isIntersecting && timer === null) {
+          timer = setInterval(() => next(++n), 7000);
+        } else if (!seen.isIntersecting && timer !== null) {
+          clearInterval(timer);
+          timer = null;
+        }
+      });
+      watch.observe(viewof boundary);
+      return () => {
+        if (timer !== null) clearInterval(timer);
+        watch.disconnect();
+      };
+    })
+```
+
+```{ojs}
+//| echo: false
+// True once per volley. The plot is rebuilt whenever a parameter changes too,
+// and those rebuilds must not restart the sweep: the traces would be wiped off
+// the figure for as long as a slider or a handle was moving. Cell state, not
+// cell value - nothing depends on it, so it is created once and remembers.
+newVolley = {
+  let seen = null;
+  return (n) => (n === seen ? false : (seen = n, true));
+}
+```
+
+```{ojs}
+//| echo: false
+// The trials are fired one at a time rather than arriving as a block: each
+// trace gets a clip of its own and they are let go a fifth of a second apart,
+// so the reader watches evidence pile up thirty times over instead of once.
+// Each trace draws at three times the model's own speed - at real time a
+// single one takes a second, which is long enough that the set stops reading
+// as one thing - and the dot a trace ends on rides that same trace's clip, so
+// it lands as the trace reaches the boundary rather than when the set is done.
+//
+// A set takes 29 x 200 + 400 = 6.2 s to fill, and the timer below comes round
+// at 7 s: the last trace holds for a moment, then the figure clears and starts
+// over. Clearing is the cheap end of the two - keeping the traces and dropping
+// the oldest would mean a rolling buffer, a launch time carried per trace, and
+// a rebuild every time one was fired.
+//
+// Each rect is full width and *scaled* down to nothing, rather than drawn at
+// zero width and grown: a browser that will not run the animation is then left
+// with rects that cover everything and traces that are simply all there.
+fireTrials = function(plot) {
+  if (volley === null || !newVolley(volley)) return plot;
+  const SPEED = 3;                       // times the model's own clock
+  const STAGGER = 200;                   // ms between one trace and the next
+  const svgns = "http://www.w3.org/2000/svg";
+  const box = plot.viewBox.baseVal;
+  const [x0, x1] = plot.scale("x").range;
+  // The trials are the one line mark drawing more than a single path; the rest
+  // of the figure is the frame, and stays.
+  const held = [...plot.querySelectorAll('g[aria-label="line"]')]
+    .find((g) => g.querySelectorAll("path").length > 1);
+  if (!held) return plot;
+  const clipOf = [...held.querySelectorAll("path")].map((path, i) => {
+    const id = "cogmod-shot-" + volley + "-" + i;
+    const clip = document.createElementNS(svgns, "clipPath");
+    clip.setAttribute("id", id);
+    const front = document.createElementNS(svgns, "rect");
+    front.setAttribute("x", x0);
+    front.setAttribute("y", 0);
+    front.setAttribute("width", x1 - x0);
+    front.setAttribute("height", box.height);
+    front.style.transformBox = "view-box";
+    front.style.transformOrigin = x0 + "px 0px";
+    clip.appendChild(front);
+    plot.insertBefore(clip, plot.firstChild);
+    path.setAttribute("clip-path", "url(#" + id + ")");
+    // `both` holds the first frame through the delay, so a trace waiting its
+    // turn is clipped away rather than sitting there whole.
+    front.animate([{transform: "scaleX(0)"}, {transform: "scaleX(1)"}],
+                  {duration: cfg.tmax * 1000 / SPEED, delay: i * STAGGER,
+                   easing: "linear", fill: "both"});
+    return id;
+  });
+  // Plot draws the dots in the order the hits were recorded, and the paths one
+  // per trial in trial order, which is what lets a dot find its own trace.
+  const dots = plot.querySelector('g[aria-label="dot"]');
+  if (dots) {
+    [...dots.children].forEach((dot, i) => {
+      const hit = trials.hits[i];
+      if (hit && clipOf[hit.id]) {
+        dot.setAttribute("clip-path", "url(#" + clipOf[hit.id] + ")");
+      }
+    });
+  }
+  return plot;
+}
+```
+
+```{ojs}
+//| echo: false
+// The value bubble each slider shows while the pointer is on it. This runs
+// once per input rather than on every move: it names the three `viewof`
+// elements, not their values, so ojs does not re-run it when a slider moves -
+// the listener takes over from there. Showing and hiding is left to CSS.
+//
+// The thumb is 13px wide and slides between the two ends of the track, so its
+// centre travels the width of the input less one thumb - which is the offset
+// the bubble has to follow to sit over it.
+bubbles = {
+  for (const form of [viewof drift, viewof boundary, viewof ndt]) {
+    const range = form.querySelector('input[type="range"]');
+    const bubble = form.appendChild(document.createElement("span"));
+    bubble.className = "cogmod-bubble";
+    const place = () => {
+      const lo = Number(range.min), hi = Number(range.max);
+      const frac = (range.valueAsNumber - lo) / (hi - lo);
+      bubble.textContent = range.value;
+      bubble.style.left = (range.offsetLeft + 6.5 +
+                           frac * (range.offsetWidth - 13)) + "px";
+    };
+    range.addEventListener("input", place);
+    place();
+  }
+  return "attached";
+}
+```
+
+```{ojs}
+//| echo: false
+// Two arrows pointing outwards from the midpoint, which is where the label
+// goes. Below about 40 ms of ndt the heads would be longer than the span they
+// measure, so the whole annotation drops out rather than turn into a blob.
+ndtSpan = ndt > 0.04
+  ? [{x1: ndt / 2, y1: cfg.ndty, x2: 0, y2: cfg.ndty},
+     {x1: ndt / 2, y1: cfg.ndty, x2: ndt, y2: cfg.ndty}]
+  : []
+```
+
+```{ojs}
+//| echo: false
+// The same two-arrows-from-the-midpoint trick standing up: from the time line
+// to the boundary, at the right edge of the frame. No dropout guard, because
+// the shortest boundary the slider allows is still 40-odd pixels tall. bx is
+// a hair in from tmax so the strokes clear the edge.
+boundarySpan = {
+  const bx = cfg.tmax - 0.02;
+  return [{x1: bx, y1: boundary / 2, x2: bx, y2: 0},
+          {x1: bx, y1: boundary / 2, x2: bx, y2: boundary}];
+}
+```
+
+```{ojs}
+//| echo: false
+// The arc at the foot of the drift arrow, marking the angle it makes with
+// time. Both ends have to be the same distance from the corner *on screen*,
+// and the two axes carry different units, so this measures the frame in
+// pixels and converts back. The radius shrinks with the arrow so that a steep,
+// short arrow does not end up with an arc longer than itself.
+//
+// `bend` is the angle between the chord and the tangent at its ends, which for
+// a circular arc is half the angle it subtends - so passing half the drift
+// angle is what makes this an arc centred on the corner rather than a line
+// cutting it off. It has to be computed: at 40 degrees, Plot's own default
+// bend of 22.5 leaves a sagitta of two pixels and the curve reads as straight.
+driftArc = {
+  const pxPerSec = (plotWidth - cfg.mleft - cfg.mright) / cfg.tmax;
+  const pxPerEv = (cfg.height - cfg.mtop - cfg.mbottom) / (cfg.ytop - cfg.ybot);
+  const dx = (boundary / drift) * pxPerSec;
+  const dy = boundary * pxPerEv;
+  const len = Math.hypot(dx, dy);
+  const r = Math.min(34, 0.45 * len);
+  const half = Math.atan2(dy, dx) / 2;
+  return {
+    data: [{x1: ndt + r / pxPerSec, y1: 0,
+            x2: ndt + (r * dx / len) / pxPerSec, y2: (r * dy / len) / pxPerEv}],
+    bend: -half * 180 / Math.PI,
+    // Out along the middle of the wedge, just clear of the arc.
+    label: {x: ndt + (r + 14) * Math.cos(half) / pxPerSec,
+            y: (r + 14) * Math.sin(half) / pxPerEv}
+  };
+}
+```
+
+```{ojs}
+//| echo: false
+// Shifted Wald density: the first-passage time of a Wiener process with unit
+// diffusion noise, i.e. dcogmod_invgaussian(t, drift, boundary, ndt).
+density = {
+  const n = 500;
+  const raw = [];
+  let fmax = 0;
+  for (let i = 0; i <= n; i++) {
+    const t = cfg.tmax * i / n;
+    const d = t - ndt;
+    const f = d <= 0 ? 0
+      : boundary / Math.sqrt(2 * Math.PI * Math.pow(d, 3)) *
+        Math.exp(-Math.pow(boundary - drift * d, 2) / (2 * d));
+    if (f > fmax) fmax = f;
+    raw.push({t: t, f: f});
+  }
+  // The curve is drawn in evidence units, on top of the boundary, with its
+  // peak pinned to a fixed height. The vertical scale of a density means
+  // nothing on an evidence axis, and at drift 6, boundary 0.5 the peak is
+  // twelve times what it is at drift 1 - unpinned, it would leave the frame.
+  return raw.map(r => ({t: r.t, base: boundary,
+                        y: boundary + (fmax > 0 ? r.f / fmax : 0) * cfg.dheight}));
+}
+```
+
+```{ojs}
+//| echo: false
+// Euler-Maruyama paths for the same process, re-drawn whenever a slider moves.
+trials = {
+  volley;                       // a fresh set with every volley, and every move
+  const rnorm = d3.randomNormal(0, 1);
+  const sd = Math.sqrt(cfg.dt);
+  const nsteps = Math.ceil((cfg.tmax - ndt) / cfg.dt);
+  const rows = [];
+  const hits = [];
+  for (let k = 0; k < cfg.npaths; k++) {
+    let x = 0;
+    rows.push({id: k, t: 0, x: 0});
+    rows.push({id: k, t: ndt, x: 0});
+    for (let i = 1; i <= nsteps; i++) {
+      x += drift * cfg.dt + sd * rnorm();
+      const t = ndt + i * cfg.dt;
+      if (x >= boundary) {
+        rows.push({id: k, t: t, x: boundary});
+        hits.push({id: k, t: t});
+        break;
+      }
+      rows.push({id: k, t: t, x: x});
+    }
+  }
+  return {rows: rows, hits: hits};
+}
+```
