@@ -280,6 +280,7 @@ scores.
 f <- bf(
   RT ~ Condition + (Condition | Participant),
   sigma ~ Condition + (Condition | Participant),
+  sigmabias = 0,
   ndt ~ Condition + (Condition | Participant),
   family = cogmod_lognormal()
 )

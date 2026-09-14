@@ -137,7 +137,10 @@ Functions:
 \code{log(RT - ndt)} follows a \strong{Student-t} distribution with location \code{mu},
 scale \code{sigma} and \code{dof} degrees of freedom. As \code{dof} grows the Student-t
 becomes the Normal, so \code{\link[=cogmod_lognormal]{cogmod_lognormal()}} is the \code{dof -> Inf} limit: this
-family varies \strong{kurtosis} where \code{\link[=cogmod_loggamma]{cogmod_loggamma()}} varies skew.
+family varies \strong{kurtosis} where \code{\link[=cogmod_loggamma]{cogmod_loggamma()}} varies skew. It has no
+\code{sigmabias}: the start-point range of \code{\link[=cogmod_lognormal]{cogmod_lognormal()}} needs a partial
+first moment of the rate distribution, and \code{exp()} of a Student-t has no
+moments at all.
 
 \code{dof} is what \code{brms::student()} calls \code{nu}. It is renamed here because
 \code{\link[=cogmod_lnr]{cogmod_lnr()}} already spends \code{nuzero} and \code{nuone} on drift rates, and

@@ -50,6 +50,61 @@
 #' )
 #' ```
 #'
+#' # Centring the priors on a previous fit
+#'
+#' `warmstart` takes what [cogmod_warmstart()] takes - a `brmsfit`, the table
+#' [as.data.frame()] makes of one, or the path to a CSV of it - and re-centres
+#' the priors on that fit's posterior: each prior becomes
+#' `normal(median, prior_scale * sd)`, the median and SD being the source's
+#' for that same parameter. It applies to the population-level intercepts and
+#' coefficients, the group-level SDs, and any dpar left out of the formula and
+#' so declared as a plain auxiliary parameter. The group-level correlations
+#' keep their LKJ, and the standardized effects have no stated prior to
+#' change.
+#'
+#' No transformation is involved, which is the reason this is safe to do
+#' automatically: the parameter a prior row is about *is* the parameter the
+#' source sampled, matched by its `class`, `dpar`, `coef` and `group`. In
+#' particular the `Intercept` prior is stated on the centred intercept in both
+#' models, so that is what the median comes from.
+#'
+#' **This changes the posterior.** It is not in the same category as
+#' [cogmod_inv_metric()] and [cogmod_step_size()], which only change how the
+#' sampler moves: a prior is part of the model, and a fit with these priors is
+#' answering a different question from one with the defaults. Two consequences
+#' are worth stating plainly.
+#'
+#' First, **if the source was fitted to data the new model also contains, this
+#' double-counts it.** A pilot on 5 of 10 participants, used to centre the
+#' priors for the fit on all 10, uses those 5 participants twice - once as a
+#' prior and once as data - and the intervals it produces are too narrow by an
+#' amount nothing in the output reveals. That is the standard warm-start
+#' setup, and it is exactly the setup in which this argument should not be
+#' used for anything you intend to report. It is legitimate when the source is
+#' an independent data set - last year's sample, another lab's, a different
+#' session of the same task - or when you are deliberately doing a sequential
+#' analysis and the priors *are* the previous posterior.
+#'
+#' Second, `prior_scale` is what stands between the two extremes.
+#' `prior_scale = 1` uses the source's posterior as the prior, which is the
+#' maximally informative choice and the one that double-counts hardest;
+#' letting it grow widens the prior until it is only saying roughly where the
+#' parameter lives. The default of 3 gives a prior with nine times the
+#' variance of the source's posterior, so it carries something like a ninth of
+#' the information - enough to put the sampler in the right region and keep it
+#' out of the flat directions these likelihoods have, weak enough that data
+#' disagreeing with the pilot will win.
+#'
+#' A parameter the source never saw - a new predictor, a group-level term it
+#' did not have - keeps whatever prior the rest of this function gave it, and
+#' [cogmod_warmstart()]'s `print()` says how many of those there are.
+#'
+#' ```r
+#' # last year's sample as the prior for this year's
+#' priors <- cogmod_priors(f, df, warmstart = fit_2025)
+#' priors <- cogmod_priors(f, df, warmstart = fit_2025, prior_scale = 6)  # weaker
+#' ```
+#'
 #' # Supported families
 #'
 #' The family is read off `formula`, so build it with
@@ -70,11 +125,14 @@
 #'
 #' | class | `ndt` | `poutlier` | `shape` |
 #' | --- | --- | --- | --- |
-#' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2, 0.2)` | `normal(-5, 1)` | `normal(0, 0.5)` |
+#' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2, 0.5)` | `normal(-5, 1)` | `normal(0, 0.5)` |
 #' | `b` (slopes) | `normal(0, 0.2)` | `normal(0, 0.2)` | `normal(0, 0.2)` |
 #' | `sd`, `sds` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
 #'
-#' `normal(-1.2, 0.2)` puts `ndt` at roughly 170 to 300 ms. Like everything
+#' `normal(-1.2, 0.5)` centres `ndt` on 0.30 s, with 95% of its mass between
+#' about 0.11 and 0.80 s: wide enough for the non-decision times of slower
+#' populations and more demanding responses, and still a fence against the
+#' `ndt -> 0` direction the likelihood cannot close on its own. Like everything
 #' else in these families it is stated in **seconds**, which is the unit the
 #' package expects throughout. `poutlier` is a proportion and
 #' does not move: `normal(-5, 1)` is centred at about 0.7% and puts roughly 95%
@@ -148,6 +206,13 @@
 #'   mirror-image plateau, but it is the response's own intercept and `brms`
 #'   already gives it a proper `student_t` default, so it is left alone. Model a
 #'   rarely-chosen option and it is worth mirroring the `nuone` prior onto it.
+#'   `sigmabias`, the start-point range, has the flat direction
+#'   [cogmod_lba1()]'s has - the likelihood stops changing as it approaches
+#'   zero - and gets the same treatment, rescaled to its unit, the threshold
+#'   offset of 1. Fix it at zero unless the design speaks to start-point
+#'   variability.
+#' - [cogmod_lognormal()]: `sigmabias`, the same start-point range as the
+#'   LNR's (the LNR races two of these accumulators), with the same rows.
 #'
 #' All of them are the same failure as `ndt` and `poutlier`: an infinite flat
 #' region under a flat prior. See [cogmod_lba1()], [cogmod_rdm()],
@@ -214,7 +279,7 @@
 #'
 #' | dpar | in `bf()` (link scale) | omitted (natural scale) |
 #' | --- | --- | --- |
-#' | `ndt` | `normal(-1.2, 0.2)` | `lognormal(-1.2, 0.2)` |
+#' | `ndt` | `normal(-1.2, 0.5)` | `lognormal(-1.2, 0.5)` |
 #' | `poutlier` | `normal(-5, 1)` | `exponential(100)` |
 #' | `shape` | `normal(0, 0.5)` | `normal(0, 0.5)` |
 #' | `sigmabias`, `boundary` ([cogmod_lba1()], [cogmod_rdm()], [cogmod_lba2()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
@@ -226,6 +291,7 @@
 #' | `sigmadrift` ([cogmod_invgaussian()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 #' | `nuone` ([cogmod_lnr()]) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` |
 #' | `sigmazero`, `sigmaone` ([cogmod_lnr()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
+#' | `sigmabias` ([cogmod_lnr()], [cogmod_lognormal()]) | `normal(0, 1)` | `lognormal(-0.35, 0.75)` |
 #' | `dof` ([cogmod_logstudent()]) | `normal(1.8, 0.7)` | `lognormal(1.8, 0.7)` |
 #' | `tau` ([cogmod_exwald()]) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
 #' | `mu` ([cogmod_exgaussian()]) | `normal(0.4, 0.25)` | - (always modelled) |
@@ -276,6 +342,15 @@
 #' @param data The data, as passed to `brms::brm()`.
 #' @param ... Passed to `brms::get_prior()` and `brms::validate_prior()`, for
 #'   arguments such as `data2` or `knots`.
+#' @param warmstart Optional. A previous fit to centre the priors on: a
+#'   `brmsfit`, a `cogmod_warmstart` object, its data frame, or the path to a
+#'   CSV of it, as [cogmod_warmstart()] takes. `NULL` (the default) leaves the
+#'   priors where this function put them. **Changes the posterior, and
+#'   double-counts the source's data if the new model contains it** - see the
+#'   section above.
+#' @param prior_scale The prior SD, as a multiple of the source's posterior
+#'   SD. Only used with `warmstart`. Larger is weaker; 1 would use the
+#'   source's posterior as the prior.
 #'
 #' @return A `brmsprior` object, to pass to `brms::brm(prior = )`.
 #'
@@ -285,7 +360,7 @@
 #'     tasks. *Behavior Research Methods*, *56*(7), 7280-7306.
 #'     \doi{10.3758/s13428-024-02419-y}
 #'
-#' @seealso [cogmod_inits()], [cogmod_stanvars()]
+#' @seealso [cogmod_inits()], [cogmod_stanvars()], [cogmod_warmstart()]
 #'
 #' @examples
 #' d <- data.frame(RT = rcogmod_lognormal(50, ndt = 0.3, poutlier = 0.02))
@@ -302,7 +377,7 @@
 #' )
 #'
 #' @export
-cogmod_priors <- function(formula, data, ...) {
+cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3) {
   family <- .cogmod_family(formula)
   fam <- .family_name(family)
 
@@ -326,13 +401,86 @@ cogmod_priors <- function(formula, data, ...) {
       "The family is read off the formula, so build it with ",
       "bf(..., family = cogmod_lognormal())."
     )
-    args <- list(brms::empty_prior(), formula, data, ...)
-    if (!is.null(family)) args$family <- family
-    return(do.call(brms::validate_prior, args))
+    out <- brms::empty_prior()
   }
 
-  brms::validate_prior(out, formula, data, family = family, ...)
+  # Last, so that it can override any of the above: a previous fit's posterior
+  # is a stronger statement about where a parameter is than a default location
+  # chosen for the family in general.
+  if (!is.null(warmstart)) {
+    out <- .priors_warmstart(out, formula, data, family, warmstart, prior_scale, ...)
+  }
+
+  args <- list(out, formula, data, ...)
+  if (!is.null(family)) args$family <- family
+  do.call(brms::validate_prior, args)
 }
+
+
+# Re-centres the priors on a previous fit's posterior: normal(median, scale *
+# sd) for every prior row whose parameter the source has a posterior for.
+#
+# The join is on the address a get_prior() row carries - class, dpar, coef and
+# group - which cogmod_warmstart() attaches to each unconstrained parameter as
+# it labels the metric. That is what makes the scales line up: the Stan
+# parameter a prior row is about is the same parameter the source sampled, so
+# no transformation is involved. `Intercept` is the centred intercept in both,
+# which is the one brms states the "Intercept" prior on.
+#
+# `base` is what the rest of cogmod_priors() decided; rows it set for a
+# parameter the source knows are replaced, rows for anything else survive.
+#' @keywords internal
+.priors_warmstart <- function(base, formula, data, family, warmstart, prior_scale, ...) {
+  if (!is.numeric(prior_scale) || length(prior_scale) != 1L ||
+      !is.finite(prior_scale) || prior_scale <= 0) {
+    stop("`prior_scale` must be a single positive number: the multiple of the ",
+         "source's posterior SD to use as the prior SD.", call. = FALSE)
+  }
+  post <- cogmod_warmstart(warmstart, formula = formula, data = data,
+                           jitter = 0, ...)$prior
+  if (!nrow(post)) {
+    message("The warm-start source carries no posterior median and SD, so there ",
+            "is nothing to centre the priors on; leaving them as they are. A ",
+            "table written before cogmod_priors(warmstart = ) existed has only ",
+            "the metric and the means - rewrite it from the fit.")
+    return(base)
+  }
+
+  args <- list(formula, data = data, ...)
+  if (!is.null(family)) args$family <- family
+  p <- do.call(brms::get_prior, args)
+  # Kept whole: the only place the full coefficient list still exists, which
+  # is what says whether a blanket row has been left covering nothing.
+  all_rows <- p
+
+  key <- function(d) paste(d$class, d$dpar, d$coef, d$group, sep = "|")
+  idx <- match(key(p), key(post))
+  hit <- !is.na(idx) & !nzchar(p$resp)
+  if (!any(hit)) {
+    message("None of the model's prior slots matched a parameter in the warm-start ",
+            "source, so the priors are unchanged. Usually this means the source ",
+            "was written for a different formula.")
+    return(base)
+  }
+
+  new <- p[hit, , drop = FALSE]
+  new$prior <- sprintf("normal(%s, %s)",
+                       .num_str(post$median[idx[hit]]),
+                       .num_str(prior_scale * post$sd[idx[hit]]))
+
+  out <- rbind(base[!key(base) %in% key(new), , drop = FALSE], new)
+  # Setting every coefficient a blanket row covers leaves the blanket covering
+  # nothing, which brms warns about; the same check .priors_dpars() ends with.
+  gone <- vapply(seq_len(nrow(out)), .blanket_now_unused, logical(1),
+                 p = out, all_rows = all_rows)
+  out[!gone, , drop = FALSE]
+}
+
+
+# A number as Stan will read it back. "g" keeps eight significant digits and
+# falls to exponent notation only when that is shorter, which Stan accepts.
+#' @keywords internal
+.num_str <- function(x) trimws(formatC(x, digits = 8, format = "g"))
 
 
 # Every family cogmod_priors() edits, for the message above.
@@ -445,6 +593,18 @@ cogmod_priors <- function(formula, data, ...) {
 # .POUTLIER_SCALE in core_shifted.R - so the location is a constant. The `nat`
 # entry is the same distribution written for the untransformed parameter.
 #
+# The SD is 0.5 on the log scale, i.e. 95% of the mass between 0.11 and
+# 0.80 s. A tighter 0.2 (0.20 to 0.44 s) was tried first and was tight enough
+# to hurt: on the warm-start benchmark's `shifted` target, whose non-decision
+# time is about 0.6 s - 3.5 SDs from the centre under that prior - the RDM
+# produced divergent transitions in every run, the reference included, and
+# widening the SD to 0.5 removed them (Rhat 1.06 and a minimum ESS of 67
+# became 1.01 and 392; benchmarks/rdm_brittleness_report.md). The prior's job
+# is to fence the `ndt -> 0` direction, where the likelihood goes flat and a
+# flat prior would make the posterior improper; at 0.5 it still does that
+# (log(0.01 s) is 6.8 SDs out) without telling the data where in 0.1 to 0.8 s
+# the non-decision time is.
+#
 # poutlier is deliberately NOT the same belief twice. Leaving it out of the
 # formula is itself information: the user either trimmed the data already or does
 # not expect outliers. So the `nat` form puts its mode at zero, which a
@@ -465,7 +625,7 @@ cogmod_priors <- function(formula, data, ...) {
 # `shape` at 0.
 #' @keywords internal
 .SHIFTED_BASE_PRIORS <- list(
-  ndt = c(link = "normal(-1.2, 0.2)", nat = "lognormal(-1.2, 0.2)"),
+  ndt = c(link = "normal(-1.2, 0.5)", nat = "lognormal(-1.2, 0.5)"),
   poutlier = c(link = "normal(-5, 1)", nat = "exponential(100)"),
   shape = c(link = "normal(0, 0.5)", nat = "normal(0, 0.5)")
 )

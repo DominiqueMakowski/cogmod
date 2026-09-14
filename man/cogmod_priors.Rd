@@ -4,7 +4,7 @@
 \alias{cogmod_priors}
 \title{Priors that make a cogmod posterior proper}
 \usage{
-cogmod_priors(formula, data, ...)
+cogmod_priors(formula, data, ..., warmstart = NULL, prior_scale = 3)
 }
 \arguments{
 \item{formula}{The model formula, as passed to \code{brms::brm()}. Must carry the
@@ -14,6 +14,17 @@ family, i.e. be built with \code{brms::bf(..., family = cogmod_lognormal())}.}
 
 \item{...}{Passed to \code{brms::get_prior()} and \code{brms::validate_prior()}, for
 arguments such as \code{data2} or \code{knots}.}
+
+\item{warmstart}{Optional. A previous fit to centre the priors on: a
+\code{brmsfit}, a \code{cogmod_warmstart} object, its data frame, or the path to a
+CSV of it, as \code{\link[=cogmod_warmstart]{cogmod_warmstart()}} takes. \code{NULL} (the default) leaves the
+priors where this function put them. \strong{Changes the posterior, and
+double-counts the source's data if the new model contains it} - see the
+section above.}
+
+\item{prior_scale}{The prior SD, as a multiple of the source's posterior
+SD. Only used with \code{warmstart}. Larger is weaker; 1 would use the
+source's posterior as the prior.}
 }
 \value{
 A \code{brmsprior} object, to pass to \code{brms::brm(prior = )}.
@@ -67,6 +78,60 @@ of these defaults, or omit it to add a prior for a different slot:
 }\if{html}{\out{</div>}}
 }
 
+\section{Centring the priors on a previous fit}{
+\code{warmstart} takes what \code{\link[=cogmod_warmstart]{cogmod_warmstart()}} takes - a \code{brmsfit}, the table
+\code{\link[=as.data.frame]{as.data.frame()}} makes of one, or the path to a CSV of it - and re-centres
+the priors on that fit's posterior: each prior becomes
+\code{normal(median, prior_scale * sd)}, the median and SD being the source's
+for that same parameter. It applies to the population-level intercepts and
+coefficients, the group-level SDs, and any dpar left out of the formula and
+so declared as a plain auxiliary parameter. The group-level correlations
+keep their LKJ, and the standardized effects have no stated prior to
+change.
+
+No transformation is involved, which is the reason this is safe to do
+automatically: the parameter a prior row is about \emph{is} the parameter the
+source sampled, matched by its \code{class}, \code{dpar}, \code{coef} and \code{group}. In
+particular the \code{Intercept} prior is stated on the centred intercept in both
+models, so that is what the median comes from.
+
+\strong{This changes the posterior.} It is not in the same category as
+\code{\link[=cogmod_inv_metric]{cogmod_inv_metric()}} and \code{\link[=cogmod_step_size]{cogmod_step_size()}}, which only change how the
+sampler moves: a prior is part of the model, and a fit with these priors is
+answering a different question from one with the defaults. Two consequences
+are worth stating plainly.
+
+First, \strong{if the source was fitted to data the new model also contains, this
+double-counts it.} A pilot on 5 of 10 participants, used to centre the
+priors for the fit on all 10, uses those 5 participants twice - once as a
+prior and once as data - and the intervals it produces are too narrow by an
+amount nothing in the output reveals. That is the standard warm-start
+setup, and it is exactly the setup in which this argument should not be
+used for anything you intend to report. It is legitimate when the source is
+an independent data set - last year's sample, another lab's, a different
+session of the same task - or when you are deliberately doing a sequential
+analysis and the priors \emph{are} the previous posterior.
+
+Second, \code{prior_scale} is what stands between the two extremes.
+\code{prior_scale = 1} uses the source's posterior as the prior, which is the
+maximally informative choice and the one that double-counts hardest;
+letting it grow widens the prior until it is only saying roughly where the
+parameter lives. The default of 3 gives a prior with nine times the
+variance of the source's posterior, so it carries something like a ninth of
+the information - enough to put the sampler in the right region and keep it
+out of the flat directions these likelihoods have, weak enough that data
+disagreeing with the pilot will win.
+
+A parameter the source never saw - a new predictor, a group-level term it
+did not have - keeps whatever prior the rest of this function gave it, and
+\code{\link[=cogmod_warmstart]{cogmod_warmstart()}}'s \code{print()} says how many of those there are.
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{# last year's sample as the prior for this year's
+priors <- cogmod_priors(f, df, warmstart = fit_2025)
+priors <- cogmod_priors(f, df, warmstart = fit_2025, prior_scale = 6)  # weaker
+}\if{html}{\out{</div>}}
+}
+
 \section{Supported families}{
 The family is read off \code{formula}, so build it with
 \code{brms::bf(..., family = cogmod_lognormal())}. Every family built on the direct
@@ -84,13 +149,16 @@ defaults, unchanged, so the call is always safe to leave in a script.
 What gets set, on the link scale (\code{log} for \code{ndt}, \code{logit} for \code{poutlier},
 \code{identity} for \code{shape}):\tabular{llll}{
    class \tab \code{ndt} \tab \code{poutlier} \tab \code{shape} \cr
-   \code{Intercept}, or \code{b} on a coefficient named \code{Intercept} \tab \code{normal(-1.2, 0.2)} \tab \code{normal(-5, 1)} \tab \code{normal(0, 0.5)} \cr
+   \code{Intercept}, or \code{b} on a coefficient named \code{Intercept} \tab \code{normal(-1.2, 0.5)} \tab \code{normal(-5, 1)} \tab \code{normal(0, 0.5)} \cr
    \code{b} (slopes) \tab \code{normal(0, 0.2)} \tab \code{normal(0, 0.2)} \tab \code{normal(0, 0.2)} \cr
    \code{sd}, \code{sds} \tab \code{exponential(1)} \tab \code{exponential(1)} \tab \code{exponential(1)} \cr
 }
 
 
-\code{normal(-1.2, 0.2)} puts \code{ndt} at roughly 170 to 300 ms. Like everything
+\code{normal(-1.2, 0.5)} centres \code{ndt} on 0.30 s, with 95\% of its mass between
+about 0.11 and 0.80 s: wide enough for the non-decision times of slower
+populations and more demanding responses, and still a fence against the
+\code{ndt -> 0} direction the likelihood cannot close on its own. Like everything
 else in these families it is stated in \strong{seconds}, which is the unit the
 package expects throughout. \code{poutlier} is a proportion and
 does not move: \code{normal(-5, 1)} is centred at about 0.7\% and puts roughly 95\%
@@ -164,6 +232,13 @@ it only through a survival term that has already saturated at 1; past about
 mirror-image plateau, but it is the response's own intercept and \code{brms}
 already gives it a proper \code{student_t} default, so it is left alone. Model a
 rarely-chosen option and it is worth mirroring the \code{nuone} prior onto it.
+\code{sigmabias}, the start-point range, has the flat direction
+\code{\link[=cogmod_lba1]{cogmod_lba1()}}'s has - the likelihood stops changing as it approaches
+zero - and gets the same treatment, rescaled to its unit, the threshold
+offset of 1. Fix it at zero unless the design speaks to start-point
+variability.
+\item \code{\link[=cogmod_lognormal]{cogmod_lognormal()}}: \code{sigmabias}, the same start-point range as the
+LNR's (the LNR races two of these accumulators), with the same rows.
 }
 
 All of them are the same failure as \code{ndt} and \code{poutlier}: an infinite flat
@@ -229,7 +304,7 @@ reported under \emph{Further Distributional Parameters}.
 Both forms are filled, with priors on whichever scale the parameter actually
 lives on:\tabular{lll}{
    dpar \tab in \code{bf()} (link scale) \tab omitted (natural scale) \cr
-   \code{ndt} \tab \code{normal(-1.2, 0.2)} \tab \code{lognormal(-1.2, 0.2)} \cr
+   \code{ndt} \tab \code{normal(-1.2, 0.5)} \tab \code{lognormal(-1.2, 0.5)} \cr
    \code{poutlier} \tab \code{normal(-5, 1)} \tab \code{exponential(100)} \cr
    \code{shape} \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \cr
    \code{sigmabias}, \code{boundary} (\code{\link[=cogmod_lba1]{cogmod_lba1()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}}, \code{\link[=cogmod_lba2]{cogmod_lba2()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
@@ -241,6 +316,7 @@ lives on:\tabular{lll}{
    \code{sigmadrift} (\code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
    \code{nuone} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}) \tab \code{normal(0.7, 1.5)} \tab \code{normal(0.7, 1.5)} \cr
    \code{sigmazero}, \code{sigmaone} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
+   \code{sigmabias} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}, \code{\link[=cogmod_lognormal]{cogmod_lognormal()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.35, 0.75)} \cr
    \code{dof} (\code{\link[=cogmod_logstudent]{cogmod_logstudent()}}) \tab \code{normal(1.8, 0.7)} \tab \code{lognormal(1.8, 0.7)} \cr
    \code{tau} (\code{\link[=cogmod_exwald]{cogmod_exwald()}}) \tab \code{normal(-1.5, 0.7)} \tab \code{lognormal(-1.5, 0.7)} \cr
    \code{mu} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(0.4, 0.25)} \tab - (always modelled) \cr
@@ -313,5 +389,5 @@ tasks. \emph{Behavior Research Methods}, \emph{56}(7), 7280-7306.
 }
 }
 \seealso{
-\code{\link[=cogmod_inits]{cogmod_inits()}}, \code{\link[=cogmod_stanvars]{cogmod_stanvars()}}
+\code{\link[=cogmod_inits]{cogmod_inits()}}, \code{\link[=cogmod_stanvars]{cogmod_stanvars()}}, \code{\link[=cogmod_warmstart]{cogmod_warmstart()}}
 }

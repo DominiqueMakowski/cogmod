@@ -178,6 +178,18 @@ trouble described next applies to it, and \code{\link[=cogmod_priors]{cogmod_pri
 it.
 }
 
+\section{The same accumulator with a LogNormal rate}{
+
+The other single-accumulator LBA in the package is \code{\link[=cogmod_lognormal]{cogmod_lognormal()}}:
+the same start point \code{Uniform(0, sigmabias)} and the same threshold offset,
+with a LogNormal rather than a truncated-Normal rate, so its \code{sigmabias = 0}
+limit is the shifted LogNormal where this family's is the recinormal. It
+lives under that name rather than here because a LogNormal rate's \code{sigma} is
+untouched by rescaling the evidence axis, so the threshold offset has to be
+the pin (it is fixed at 1 there) where here \code{sigma = 1} does the job. Two
+such accumulators raced against each other are \code{\link[=cogmod_lnr]{cogmod_lnr()}}.
+}
+
 \section{Estimating the start-point range}{
 
 Left free, \code{sigmabias} is estimable but treacherous, precisely because the

@@ -17,7 +17,12 @@ suppressPackageStartupMessages({
 # correct (0) vs error (1). `n_participants` are drawn at random (fixed seed)
 # and `n_trials` kept per participant, balanced across the two conditions.
 
-bench_data <- function(n_participants, n_trials, seed = 2026) {
+#
+# `exclude` leaves participants out of the draw (by id), for a second sample
+# that shares none with a first one: speed_acc has 17 participants, so a
+# 10-participant set can be drawn that avoids a 5-participant pilot.
+
+bench_data <- function(n_participants, n_trials, seed = 2026, exclude = integer(0)) {
   data(speed_acc, package = "rtdists")
   df_all <- data.frame(
     Participant = as.integer(as.character(speed_acc$id)),
@@ -27,8 +32,13 @@ bench_data <- function(n_participants, n_trials, seed = 2026) {
   )
   df_all <- df_all[df_all$RT <= 2, ]
 
+  pool <- setdiff(unique(df_all$Participant), as.integer(exclude))
+  if (length(pool) < n_participants) {
+    stop(sprintf("only %d participants left after excluding %d; asked for %d",
+                 length(pool), length(exclude), n_participants), call. = FALSE)
+  }
   set.seed(seed)
-  ids <- sort(sample(unique(df_all$Participant), n_participants))
+  ids <- sort(sample(pool, n_participants))
   df <- do.call(rbind, lapply(ids, function(id) {
     d <- df_all[df_all$Participant == id, ]
     do.call(rbind, lapply(split(d, d$Condition), function(dc) {

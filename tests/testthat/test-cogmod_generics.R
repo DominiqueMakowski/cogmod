@@ -71,8 +71,11 @@ test_that("cogmod_inits puts the targets on the right scale", {
   f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
                 family = cogmod_lognormal())
   vals <- cogmod_inits(f, d_ig, jitter = 0)(1)
-  # ndt starts at 0.1 s, a third of its prior median, on the log link
-  expect_equal(vals$Intercept_ndt, log(0.1))
+  # ndt starts below the data - half the first percentile of the responses -
+  # on the log link
+  ndt0 <- 0.5 * quantile(d_ig$RT, 0.01, names = FALSE)
+  expect_lt(ndt0, quantile(d_ig$RT, 0.01))
+  expect_equal(vals$Intercept_ndt, log(ndt0))
   expect_equal(vals$Intercept_poutlier, qlogis(0.02))
   # mu has an identity link here, sigma a softplus one
   expect_equal(vals$Intercept, -0.7)
@@ -85,7 +88,7 @@ test_that("cogmod_inits leaves an omitted dpar on the natural scale", {
   vals <- cogmod_inits(f, d_ig, jitter = 0)(1)
   # Omitted from the formula, so brms declares it as a plain auxiliary
   # parameter with no link applied.
-  expect_equal(vals$ndt, 0.1)
+  expect_equal(vals$ndt, 0.5 * quantile(d_ig$RT, 0.01, names = FALSE))
   expect_equal(vals$poutlier, 0.02)
 })
 
@@ -106,7 +109,7 @@ test_that("cogmod_inits gives the target to `Intercept` under 0 + Intercept", {
   # There is no Intercept_ndt to set: the coefficient named Intercept inside
   # b_ndt is the intercept, and the slope beside it is a slope.
   expect_null(vals$Intercept_ndt)
-  expect_equal(vals$b_ndt, c(log(0.1), 0))
+  expect_equal(vals$b_ndt, c(log(0.5 * quantile(d_ig$RT, 0.01, names = FALSE)), 0))
 })
 
 
@@ -494,7 +497,7 @@ test_that("the suite's shared Stan model stands in for *_lpdf_expose()", {
 
   shared <- stan_fun("cogmod_lognormal")
   own <- cogmod_lognormal_lpdf_expose()
-  args <- list(0.9, -0.7, 0.5, 0.3, 0.02)
+  args <- list(0.9, -0.7, 0.5, 0, 0.3, 0.02)  # Y, mu, sigma, sigmabias, ndt, poutlier
   expect_equal(do.call(shared, args), do.call(own, args), tolerance = 1e-12)
 
   # and every family the helper claims to carry is actually in there, so a new
@@ -819,7 +822,7 @@ test_that("cogmod_priors warns without disturbing the table it returns", {
 
   # And this is the failure the warning exists for, made concrete. The rows
   # cogmod sets are fixed statements in seconds, so they do not move when the
-  # data changes units - `ndt` stays at normal(-1.2, 0.2), meaning 170-300 ms,
+  # data changes units - `ndt` stays at normal(-1.2, 0.5), centred on 300 ms,
   # against responses now averaging 700. The rows brms fills in DO follow the
   # data, rescaling to student_t(3, 678, 215). Nothing errors, the two halves of
   # the prior simply stop describing the same quantity, and the fit that follows

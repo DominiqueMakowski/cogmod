@@ -75,24 +75,33 @@
 #' which is why `formula` and `data` are needed rather than just a count of
 #' participants: `brms` decides the layout from both.
 #'
-#' # Storing it, and the three helpers
+#' # Storing it, and the four helpers
 #'
 #' `as.data.frame()` gives a small table (one row per unconstrained parameter:
-#' label, group and level, variance, posterior mean, step size) that can be
-#' written with [utils::write.csv()], so that a pilot fitted on a laptop can
-#' warm-start an array job on a cluster with a file of a few kilobytes and no
-#' `brmsfit` in sight. On the other side, three helpers with the signature of
-#' [cogmod_priors()] and [cogmod_inits()] - the model's formula and data first,
-#' the source under `warmstart` - each give one argument of the `brm()` call:
+#' label, group and level, variance, posterior mean, median and SD, step size)
+#' that can be written with [utils::write.csv()], so that a pilot fitted on a
+#' laptop can warm-start an array job on a cluster with a file of a few
+#' kilobytes and no `brmsfit` in sight. On the other side, four functions with
+#' the same signature - the model's formula and data first, the source under
+#' `warmstart` - each give one argument of the `brm()` call:
 #'
 #' ```r
 #' tab <- read.csv("pilot_warmstart.csv")   # or the path, or the brmsfit itself
-#' m <- brm(formula, data = data, prior = ..., stanvars = ...,
+#' m <- brm(formula, data = data, stanvars = ...,
+#'          prior = cogmod_priors(formula, data, warmstart = tab),
 #'          init = cogmod_inits(formula, data, warmstart = tab),
 #'          inv_metric = cogmod_inv_metric(formula, data, warmstart = tab),
 #'          step_size = cogmod_step_size(formula, data, warmstart = tab),
 #'          warmup = 100, iter = 600, backend = "cmdstanr")
 #' ```
+#'
+#' The first of those is the odd one out and is **not** part of a warm start
+#' in the sense the rest of this page uses. [cogmod_priors()] re-centres the
+#' priors on the source's posterior median and SD, which changes the model
+#' rather than the path the sampler takes through it - and double-counts the
+#' source's data if the new model contains it. Its own documentation says when
+#' that is and is not legitimate; the other three change nothing about the
+#' posterior being sampled.
 #'
 #' Each maps the table onto the model `formula` and `data` describe, so it
 #' does not matter which model the table was written for: a table from a pilot
@@ -169,11 +178,17 @@
 #' # Keep it for a cluster
 #' write.csv(as.data.frame(ws), "pilot_warmstart.csv", row.names = FALSE)
 #' # ... and there, one helper per argument, all with the same signature
+#' tab <- "pilot_warmstart.csv"
 #' m <- brms::brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
-#'                init = cogmod_inits(f, df, warmstart = "pilot_warmstart.csv"),
-#'                inv_metric = cogmod_inv_metric(f, df, warmstart = "pilot_warmstart.csv"),
-#'                step_size = cogmod_step_size(f, df, warmstart = "pilot_warmstart.csv"),
+#'                init = cogmod_inits(f, df, warmstart = tab),
+#'                inv_metric = cogmod_inv_metric(f, df, warmstart = tab),
+#'                step_size = cogmod_step_size(f, df, warmstart = tab),
 #'                warmup = 100, iter = 600, backend = "cmdstanr")
+#'
+#' # The fourth helper is a different kind of thing: it moves the PRIORS onto
+#' # the pilot's posterior, which changes the model rather than the sampler.
+#' # Only where the pilot is independent of `df` - see ?cogmod_priors.
+#' cogmod_priors(f, df, warmstart = tab)
 #' }
 #'
 #' @export
@@ -204,11 +219,40 @@ cogmod_warmstart <- function(x, formula = NULL, data = NULL, jitter = 0.05, ...)
   missing <- unique(sub("\\[.*$", "", tab$parameter[tab$source == "default"]))
   tab$source <- NULL
 
+  prior <- .warmstart_prior_table(tab)
+  tab[c("pclass", "pdpar", "pcoef")] <- NULL
+
   structure(
     list(inv_metric = unname(tab$inv_metric), step_size = tab$step_size[1],
-         init = init, table = tab,
+         init = init, prior = prior, table = tab,
          counts = stats::setNames(as.integer(counts), names(counts)), missing = missing),
     class = "cogmod_warmstart"
+  )
+}
+
+
+# The posterior behind each prior slot the source can speak to: one row per
+# brms prior row that has a parameter with a posterior behind it, addressed
+# the way get_prior() addresses it. Everything else drops out - the `z_` and
+# `L_` entries, which have no stated prior; a parameter the source never saw,
+# which has no posterior; and a parameter whose posterior SD came out at zero
+# or missing, where `normal(m, 0)` would be a point mass rather than a prior.
+# Only the four classes a Normal is the right shape for are kept: a location
+# on its own scale (an intercept, an auxiliary dpar), a coefficient, or a
+# group-level SD, whose prior brms does not require to be positive-only.
+#' @keywords internal
+.warmstart_prior_table <- function(tab) {
+  keep <- !is.na(tab$pclass) & !is.na(tab$pcoef) &
+    is.finite(tab$median) & is.finite(tab$sd) & tab$sd > 0
+  # An auxiliary dpar's class is its own name, so the whitelist is on shape,
+  # not on a list of names: what is excluded is `cor`, `L` and `sds`, none of
+  # which a Normal describes.
+  keep <- keep & !tab$pclass %in% c("cor", "L", "sds", "z")
+  data.frame(
+    class = tab$pclass[keep], dpar = tab$pdpar[keep], coef = tab$pcoef[keep],
+    group = ifelse(is.na(tab$group[keep]), "", tab$group[keep]),
+    median = tab$median[keep], sd = tab$sd[keep],
+    stringsAsFactors = FALSE
   )
 }
 
@@ -244,7 +288,8 @@ cogmod_step_size <- function(formula = NULL, data = NULL, warmstart, ...) {
 #'   [as.data.frame()] generic.
 #' @export
 as.data.frame.cogmod_warmstart <- function(x, row.names = NULL, optional = FALSE, ...) {
-  x$table[, c("parameter", "group", "coef", "level", "inv_metric", "mean", "step_size")]
+  x$table[, c("parameter", "group", "coef", "level", "inv_metric", "mean",
+              "median", "sd", "step_size")]
 }
 
 
@@ -261,6 +306,10 @@ print.cogmod_warmstart <- function(x, ...) {
   if (dflt) cat(sprintf(", %d without a counterpart (variance 1, generic start)", dflt))
   cat("\n")
   if (dflt) cat("  without counterpart:", paste(x$missing, collapse = ", "), "\n")
+  if (nrow(x$prior)) {
+    cat(sprintf("  %d of them carry a posterior median and SD, for cogmod_priors(warmstart = )\n",
+                nrow(x$prior)))
+  }
   cat("  Use: brm(..., init = ws$init, inv_metric = ws$inv_metric, step_size = ws$step_size)\n")
   invisible(x)
 }
@@ -291,7 +340,11 @@ print.cogmod_warmstart <- function(x, ...) {
       x[[col]] <- as.character(x[[col]])
       x[[col]][!is.na(x[[col]]) & !nzchar(x[[col]])] <- NA_character_
     }
-    if (is.null(x$mean)) x$mean <- NA_real_
+    # `median` and `sd` came later than the rest, and only cogmod_priors()
+    # wants them, so a table written before they existed still reads.
+    for (col in c("mean", "median", "sd")) {
+      if (is.null(x[[col]])) x[[col]] <- NA_real_
+    }
     x$parameter <- as.character(x$parameter)
     return(x)
   }
@@ -327,7 +380,10 @@ print.cogmod_warmstart <- function(x, ...) {
          call. = FALSE)
   }
   tab$inv_metric <- inv_metric
-  tab$mean <- .warmstart_means(fit, decls, sdata, tab)
+  st <- .warmstart_stats(fit, decls, sdata, tab)
+  tab$mean <- st$mean
+  tab$median <- st$median
+  tab$sd <- st$sd
   tab$step_size <- step_size
   tab
 }
@@ -379,6 +435,34 @@ print.cogmod_warmstart <- function(x, ...) {
     if (!length(lab)) return(NULL)
     n_lab <- length(lab)
     group <- coef <- level <- rep(NA_character_, n_lab)
+    # The brms prior slot the entry belongs to, where it has one: the `class`,
+    # `dpar` and `coef` a get_prior() row would carry for it, with `group`
+    # above completing the address. This is what lets cogmod_priors(warmstart =)
+    # find the posterior of the parameter a prior row is about. Left NA for
+    # everything whose prior is fixed by the parameterization rather than
+    # stated - the standardized effects `z_` and the Cholesky factors `L_`.
+    pclass <- pdpar <- pcoef <- rep(NA_character_, n_lab)
+    if (identical(d$type, "real") && !length(d$dims)) {
+      # A bare real is a centred intercept or, for a dpar left out of the
+      # formula, the auxiliary parameter itself, whose prior class is its name.
+      if (identical(d$name, "Intercept")) {
+        pclass <- "Intercept"
+        pdpar <- ""
+      } else if (startsWith(d$name, "Intercept_")) {
+        pclass <- "Intercept"
+        pdpar <- sub("^Intercept_", "", d$name)
+      } else {
+        pclass <- d$name
+        pdpar <- ""
+      }
+      pcoef <- ""
+    } else if (identical(d$type, "vector") &&
+               (identical(d$name, "b") || grepl("^b_", d$name))) {
+      dp <- if (identical(d$name, "b")) "" else sub("^b_", "", d$name)
+      pclass <- "b"
+      pdpar <- dp
+      pcoef <- .b_coef_names(sdata, if (nzchar(dp)) dp else "mu", n_lab)
+    }
     # Group-level parameters carry the grouping factor, the coefficient and
     # (for a standardized effect) the level they stand for, so that they can
     # be matched on what they mean rather than on where brms happened to put
@@ -404,20 +488,48 @@ print.cogmod_warmstart <- function(x, ...) {
             n <- vapply(idx, `[`, integer(1), 2)
             if (!is.null(lv) && !anyNA(n) && max(n) <= length(lv)) level <- lv[n]
           }
+          # A group-level SD is the one of the three that has a prior of its
+          # own, addressed by the bare coefficient and the dpar separately
+          # rather than by the joined name `coef` carries.
+          if (startsWith(d$name, "sd_")) {
+            pclass <- "sd"
+            pdpar <- ifelse(nzchar(rows$dpar[m]), rows$dpar[m], rows$nlpar[m])
+            pcoef <- rows$coef[m]
+          }
         }
       }
     }
     data.frame(parameter = lab, group = group, coef = coef, level = level,
+               pclass = pclass, pdpar = pdpar, pcoef = pcoef,
                stringsAsFactors = FALSE)
   })
   rows <- rows[!vapply(rows, is.null, logical(1))]
   if (!length(rows)) {
     return(data.frame(parameter = character(0), group = character(0),
-                      coef = character(0), level = character(0)))
+                      coef = character(0), level = character(0),
+                      pclass = character(0), pdpar = character(0),
+                      pcoef = character(0)))
   }
   out <- do.call(rbind, rows)
   rownames(out) <- NULL
   out
+}
+
+
+# The names brms gives the `k` entries of a population-level design matrix,
+# which are both the `coef` of their prior rows and the tail of their
+# `b_<dpar>_<coef>` variable names. NA if the matrix cannot be found or does
+# not have `k` columns to spare - every caller then falls back rather than
+# guessing. brms drops the intercept column from `X` when it centres it, but
+# keeps its name, hence the second try.
+#' @keywords internal
+.b_coef_names <- function(sdata, dpar, k) {
+  X <- sdata[[if (identical(dpar, "mu")) "X" else paste0("X_", dpar)]]
+  cn <- colnames(X)
+  if (is.null(cn)) return(rep(NA_character_, k))
+  if (length(cn) != k) cn <- cn[cn != "Intercept"]
+  if (length(cn) != k) return(rep(NA_character_, k))
+  cn
 }
 
 
@@ -516,17 +628,23 @@ print.cogmod_warmstart <- function(x, ...) {
 }
 
 
-# Posterior means -------------------------------------------------------------
+# Posterior summaries ---------------------------------------------------------
 
-# The source posterior mean for each labelled entry, NA where none applies.
-# brms renames what it saves, and drops `z_` and `L_`, so the values are
-# looked up under the saved names and the dropped ones rebuilt: a standardized
-# effect from the saved group-level effects r = sd * (L z), a Cholesky factor
-# from the saved correlations. Every lookup is by name and returns NA when the
-# name is not there, so an unforeseen naming scheme degrades to the generic
-# starting value rather than to an error.
+# The source posterior mean, median and SD for each labelled entry, NA where
+# none applies. brms renames what it saves, and drops `z_` and `L_`, so the
+# values are looked up under the saved names and the dropped ones rebuilt: a
+# standardized effect from the saved group-level effects r = sd * (L z), a
+# Cholesky factor from the saved correlations. Every lookup is by name and
+# returns NA when the name is not there, so an unforeseen naming scheme
+# degrades to the generic starting value rather than to an error.
+#
+# Only the mean is rebuilt for `z_` and `L_`. Reconstructing them takes a
+# matrix solve and a Cholesky decomposition, which are not operations one can
+# apply to a median or an SD and get the median or SD of the result; the
+# starting values are all those two entries are wanted for, so their `median`
+# and `sd` stay NA rather than being filled with something that is not one.
 #' @keywords internal
-.warmstart_means <- function(fit, decls, sdata, tab) {
+.warmstart_stats <- function(fit, decls, sdata, tab) {
   vars <- brms::variables(fit)
   draws <- brms::as_draws_matrix(fit)
   pm <- colMeans(draws)
@@ -536,19 +654,26 @@ print.cogmod_warmstart <- function(x, ...) {
     out[ok] <- pm[nms[ok]]
     out
   }
+  # The three summaries at once, for the entries that are a saved variable and
+  # so can be summarized directly.
+  summaries <- rbind(
+    mean = pm,
+    median = apply(draws, 2, stats::median),
+    sd = apply(draws, 2, stats::sd)
+  )
+  get3 <- function(nms) {
+    out <- matrix(NA_real_, length(nms), 3,
+                  dimnames = list(NULL, c("mean", "median", "sd")))
+    ok <- !is.na(nms) & nms %in% vars
+    if (any(ok)) out[ok, ] <- t(summaries[, nms[ok], drop = FALSE])
+    out
+  }
   ranef <- fit$ranef
-  out <- rep(NA_real_, nrow(tab))
+  out <- matrix(NA_real_, nrow(tab), 3,
+                dimnames = list(NULL, c("mean", "median", "sd")))
   base <- sub("\\[.*$", "", tab$parameter)
 
-  # coefficient names of a design matrix, as brms names the `b` entries
-  coef_names <- function(dpar, k) {
-    X <- sdata[[if (identical(dpar, "mu")) "X" else paste0("X_", dpar)]]
-    cn <- colnames(X)
-    if (is.null(cn)) return(rep(NA_character_, k))
-    if (length(cn) != k) cn <- cn[cn != "Intercept"]
-    if (length(cn) != k) return(rep(NA_character_, k))
-    cn
-  }
+  coef_names <- function(dpar, k) .b_coef_names(sdata, dpar, k)
   re_coef <- .re_coef
   re_suffix <- function(rows) {
     pre <- ifelse(nzchar(rows$dpar), rows$dpar, rows$nlpar)
@@ -561,19 +686,21 @@ print.cogmod_warmstart <- function(x, ...) {
     if (!length(i)) next
     nm <- d$name
     if (identical(d$type, "real") && !length(d$dims)) {
-      out[i] <- get(nm)   # Intercept, Intercept_<dpar>, auxiliary dpars
+      out[i, ] <- get3(nm)   # Intercept, Intercept_<dpar>, auxiliary dpars
     } else if (identical(d$type, "vector") && (identical(nm, "b") || grepl("^b_", nm))) {
       dpar <- if (identical(nm, "b")) "mu" else sub("^b_", "", nm)
       cn <- coef_names(dpar, length(i))
-      out[i] <- get(paste0(if (identical(dpar, "mu")) "b_" else paste0("b_", dpar, "_"), cn))
+      out[i, ] <- get3(paste0(if (identical(dpar, "mu")) "b_" else paste0("b_", dpar, "_"), cn))
     } else if (grepl("^sd_[0-9]+$", nm)) {
       rows <- ranef[ranef$id == as.integer(sub("^sd_", "", nm)), , drop = FALSE]
-      if (nrow(rows) == length(i)) out[i] <- get(paste0("sd_", rows$group, "__", re_coef(rows)))
+      if (nrow(rows) == length(i)) {
+        out[i, ] <- get3(paste0("sd_", rows$group, "__", re_coef(rows)))
+      }
     } else if (grepl("^L_[0-9]+$", nm)) {
       L <- .warmstart_L(fit, ranef, as.integer(sub("^L_", "", nm)), get, re_coef)
       if (!is.null(L)) {
         ij <- do.call(rbind, lapply(strsplit(sub("^.*\\[(.*)\\]$", "\\1", tab$parameter[i]), ","), as.integer))
-        out[i] <- L[ij]
+        out[i, "mean"] <- L[ij]
       }
     } else if (grepl("^z_[0-9]+$", nm)) {
       k <- as.integer(sub("^z_", "", nm))
@@ -591,13 +718,13 @@ print.cogmod_warmstart <- function(x, ...) {
         if (!is.null(L) && !anyNA(R)) {
           Z <- solve(L, R)
           ij <- do.call(rbind, lapply(strsplit(sub("^.*\\[(.*)\\]$", "\\1", tab$parameter[i]), ","), as.integer))
-          out[i] <- Z[ij]
+          out[i, "mean"] <- Z[ij]
         }
       }
     }
     # anything else stays NA and gets the generic starting value
   }
-  out
+  as.data.frame(out)
 }
 
 
@@ -644,10 +771,10 @@ print.cogmod_warmstart <- function(x, ...) {
   hit <- !is.na(idx)
 
   out <- target
-  out$inv_metric <- rep(NA_real_, nrow(out))
-  out$mean <- rep(NA_real_, nrow(out))
-  out$inv_metric[hit] <- src$inv_metric[idx[hit]]
-  out$mean[hit] <- src$mean[idx[hit]]
+  for (col in c("inv_metric", "mean", "median", "sd")) {
+    out[[col]] <- rep(NA_real_, nrow(out))
+    out[[col]][hit] <- src[[col]][idx[hit]]
+  }
   out$source <- ifelse(hit, "pilot", "default")
 
   # A new level of an effect the source had: the average over the source's

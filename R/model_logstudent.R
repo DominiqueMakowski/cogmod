@@ -18,7 +18,10 @@
 #' `log(RT - ndt)` follows a **Student-t** distribution with location `mu`,
 #' scale `sigma` and `dof` degrees of freedom. As `dof` grows the Student-t
 #' becomes the Normal, so [cogmod_lognormal()] is the `dof -> Inf` limit: this
-#' family varies **kurtosis** where [cogmod_loggamma()] varies skew.
+#' family varies **kurtosis** where [cogmod_loggamma()] varies skew. It has no
+#' `sigmabias`: the start-point range of [cogmod_lognormal()] needs a partial
+#' first moment of the rate distribution, and `exp()` of a Student-t has no
+#' moments at all.
 #'
 #' `dof` is what `brms::student()` calls `nu`. It is renamed here because
 #' [cogmod_lnr()] already spends `nuzero` and `nuone` on drift rates, and

@@ -99,10 +99,27 @@ on the logit scale for a doubly bounded one - so a jittered value can never
 land outside its own bounds, and the chains still start dispersed enough for
 \code{Rhat} to mean something.
 
-\code{ndt} starts deliberately \strong{small} (0.1 s, a third of its prior median).
-The two errors are
-not symmetric: too small merely means the shift has to grow, which the
-gradient will do, whereas too large removes the gradient altogether.
+\code{ndt} starts deliberately \strong{below the data}: at half the first percentile
+of the observed response times (0.16 s for responses whose fastest
+hundredth sits at 0.32 s). The two errors are not symmetric: too small
+merely means the shift has to grow, which the gradient will do, whereas
+too large removes the gradient altogether. Half the first percentile keeps
+essentially every response above the start while following the scale of
+the data. A fixed 0.1 s did not: on responses whose non-decision time is
+0.6 s it sat half a second low, every decision time looked far too long, a
+driftless race then fit better than a fast one, and the first trajectory of
+a cold chain threw both drifts of a \code{\link[=cogmod_rdm]{cogmod_rdm()}} onto the flat region
+where the likelihood no longer depends on them, from which the chain did
+not return.
+
+The same asymmetry decides where \code{\link[=cogmod_rdm]{cogmod_rdm()}}'s error accumulator starts.
+A Wald density is thin on the fast side and flat on the slow side, so
+\code{driftone} starts at a third of \code{mu}'s drift rather than equal to it: too
+slow costs a few dozen log-density units, too fast costs hundreds, and a
+cold chain converts that difference into momentum along the flat
+\code{driftone} direction in its very first trajectory - far enough down it, on
+real data, for the step size to collapse and the chain to freeze for the
+rest of warmup.
 }
 
 \section{Supported families}{

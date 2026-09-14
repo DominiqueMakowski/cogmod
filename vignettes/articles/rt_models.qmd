@@ -442,6 +442,14 @@ estimated as their own parameters, and can be given their own predictors -
 something a transformation can never give you, since it still funnels every
 effect through a single location parameter.
 
+The family also has a `sigmabias` parameter, a start-point range that turns it
+into the single-accumulator LBA with a LogNormal drift rate (see the LBA
+below, and `?cogmod_lognormal`). It is fixed at zero here, which is the
+shifted LogNormal proper: on RT-only data a start-point range is identified
+through the shape of the distribution alone and adds a flat direction to the
+likelihood at zero, so it is worth estimating only with a specific hypothesis
+about start-point variability.
+
 ```{r}
 #| eval: false
 #| code-fold: false
@@ -449,6 +457,7 @@ effect through a single location parameter.
 f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
+  sigmabias = 0,
   ndt ~ Condition,
   family = cogmod_lognormal()
 )

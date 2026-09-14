@@ -212,6 +212,15 @@ accumulation process. `mu` (`nuzero`) and `nuone` are the (inverse
 log-space mean) processing speeds for the "Error" and "Correct"
 accumulators, and `sigmazero`/`sigmaone` their log-space SDs.
 
+The LNR also has a `sigmabias` parameter, a Uniform start-point range below a
+threshold pinned one unit above it, which turns it into the LBA with LogNormal
+drift rates ([Heathcote & Love, 2012](https://doi.org/10.3389/fpsyg.2012.00292)).
+It is fixed at zero here, which is the LNR proper: a start-point range is hard
+to identify from the shape of the RT distribution alone and adds a flat
+direction to the likelihood at zero, so it is worth estimating only with a lot
+of data or a specific hypothesis about start-point variability (see
+`?cogmod_lnr`).
+
 Like every family in this package, the LNR is fit with `ndt` and `poutlier`:
 `ndt` is estimated in seconds, with no upper bound tied to the fastest observed
 response, and `poutlier` is the proportion of trials attributed to a
@@ -229,6 +238,7 @@ f <- bf(
   nuone ~ Condition,
   sigmazero ~ 1,
   sigmaone ~ 1,
+  sigmabias = 0,
   ndt ~ Condition,
   family = cogmod_lnr()
 )

@@ -233,12 +233,6 @@ evidence scale where the correct accumulator's drift is \code{3}.
 the \emph{rarely} chosen option is the one on \code{mu}, mirror that prior onto \code{mu}
 by hand. Fixing both SDs (\verb{sigmazero = 1, sigmaone = 1}, a single \code{sv})
 removes the ray altogether and is common practice in the LBA literature.
-
-Versions before 0.3.1 used a different convention - the pair of drifts was
-conditioned on at least one being positive, with a negative loser allowed to
-run away - so LBA estimates from those versions are not comparable with
-these where a drift is small relative to its SD, and fits made with them
-cannot be post-processed with this version.
 }
 
 \section{The evidence scale is arbitrary}{

@@ -76,3 +76,18 @@ paper/reviewers.txt
 
 # Compiled Stan executables produced by benchmarks/*.R
 benchmarks/results/exe/
+
+# Warm-start ablation benchmark (benchmarks/warmstart_ablation.R): only the
+# per-fit results and the summary CSV are kept, and the figure lives in
+# man/figures/. The log, the pilot and reference warm-start tables (there so a
+# resumed session need not refit) and the per-fit posterior summaries (folded
+# into the summary's sd_ratio / z_shift) are regenerable.
+benchmarks/results/warmstart_ablation.log
+benchmarks/results/warmstart_ablation_*_pilot.csv
+benchmarks/results/warmstart_ablation_*_reference_seed*.csv
+benchmarks/results/warmstart_ablation_postsd.csv
+benchmarks/results/warmstart_ablation.png
+# Local launchers for the benchmarks
+benchmarks/*.bat
+# Superseded benchmark runs, kept locally for reference
+benchmarks/results/archive-*/

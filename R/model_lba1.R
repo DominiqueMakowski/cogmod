@@ -67,6 +67,16 @@
 #' trouble described next applies to it, and [cogmod_priors()] emits no row for
 #' it.
 #'
+#' @section The same accumulator with a LogNormal rate:
+#' The other single-accumulator LBA in the package is [cogmod_lognormal()]:
+#' the same start point `Uniform(0, sigmabias)` and the same threshold offset,
+#' with a LogNormal rather than a truncated-Normal rate, so its `sigmabias = 0`
+#' limit is the shifted LogNormal where this family's is the recinormal. It
+#' lives under that name rather than here because a LogNormal rate's `sigma` is
+#' untouched by rescaling the evidence axis, so the threshold offset has to be
+#' the pin (it is fixed at 1 there) where here `sigma = 1` does the job. Two
+#' such accumulators raced against each other are [cogmod_lnr()].
+#'
 #' @section Estimating the start-point range:
 #' Left free, `sigmabias` is estimable but treacherous, precisely because the
 #' recinormal limit above is reached *smoothly*: once the start-point range is

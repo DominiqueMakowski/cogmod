@@ -781,14 +781,14 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_ddm", {
                        poutlier ~ 1, family = cogmod_ddm())
   p <- cogmod_priors(modelled, d)
   expect_true(any(p$dpar == "ndt" & p$class == "Intercept" &
-                    p$prior == "normal(-1.2, 0.2)"))
+                    p$prior == "normal(-1.2, 0.5)"))
   expect_true(any(p$dpar == "poutlier" & p$class == "Intercept" &
                     p$prior == "normal(-5, 1)"))
 
   omitted <- brms::bf(RT | dec(Error) ~ 1, family = cogmod_ddm())
   p2 <- cogmod_priors(omitted, d)
   expect_false(any(grepl("uniform", p2$prior)))
-  expect_true(any(p2$class == "ndt" & p2$prior == "lognormal(-1.2, 0.2)"))
+  expect_true(any(p2$class == "ndt" & p2$prior == "lognormal(-1.2, 0.5)"))
   expect_true(any(p2$class == "poutlier" & p2$prior == "exponential(100)"))
 
   mixed <- brms::bf(RT | dec(Error) ~ Condition + (1 | id), ndt ~ Condition,

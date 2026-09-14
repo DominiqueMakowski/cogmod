@@ -332,7 +332,14 @@ non-negative for the accumulator to be a proper first passage time.
 Use \code{\link[=cogmod_inits]{cogmod_inits()}} rather than \code{init = 0}. \code{brms} initialises on the
 unconstrained scale, so \code{init = 0} puts \code{ndt} at \code{exp(0) = 1} second - above
 nearly every sub-second RT, which leaves every response attributed to the
-outlier component and the race parameters with no gradient at all.
+outlier component and the race parameters with no gradient at all. It also
+starts \code{driftone} at a third of \code{mu}'s drift rather than equal to it: a
+Wald density is thin on the fast side and flat on the slow side, so an
+error accumulator started too fast sits hundreds of log-density units above
+the posterior, and a cold chain's first trajectory can convert that into a
+run down the flat \code{driftone} direction from which it never returns. On the
+benchmark data of \code{vignette("performance")} that froze one chain in four;
+the slower start removed it.
 
 \code{\link[=cogmod_priors]{cogmod_priors()}} is not a convenience here either. Beyond \code{ndt} and
 \code{poutlier}, \code{sigmabias} and \code{boundary} are only weakly identified from each

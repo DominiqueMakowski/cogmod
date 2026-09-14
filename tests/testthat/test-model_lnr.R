@@ -31,6 +31,7 @@ make_prep <- function(y, dec, nuzero, nuone, sigmazero, sigmaone, ndt,
         nuone = rep(nuone, n_draws),
         sigmazero = rep(sigmazero, n_draws),
         sigmaone = rep(sigmaone, n_draws),
+        sigmabias = rep(0, n_draws),
         ndt = rep(ndt, n_draws),
         poutlier = rep(poutlier, n_draws)
       )
@@ -155,6 +156,8 @@ test_that("dcogmod_lnr returns 0 density for invalid parameters", {
   expect_warning(d <- do.call(dcogmod_lnr, modifyList(args, list(ndt = -0.1))))
   expect_equal(d, 0)
   expect_warning(d <- do.call(dcogmod_lnr, modifyList(args, list(poutlier = 1.5))))
+  expect_equal(d, 0)
+  expect_warning(d <- do.call(dcogmod_lnr, modifyList(args, list(sigmabias = -0.1))))
   expect_equal(d, 0)
   # `response` is checked against the K options the family declares
   expect_warning(d <- do.call(dcogmod_lnr, modifyList(args, list(response = 2))))
@@ -310,10 +313,11 @@ test_that("cogmod_lnr() builds a valid brms custom family", {
   fam <- cogmod_lnr()
   expect_s3_class(fam, "customfamily")
   expect_equal(fam$dpars,
-               c("mu", "nuone", "sigmazero", "sigmaone", "ndt", "poutlier"))
+               c("mu", "nuone", "sigmazero", "sigmaone", "sigmabias", "ndt",
+                 "poutlier"))
   expect_equal(unname(cogmod:::.family_links(fam)),
-               c("identity", "identity", "softplus", "softplus", "log",
-                 "logit"))
+               c("identity", "identity", "softplus", "softplus", "softplus",
+                 "log", "logit"))
   expect_equal(fam$vars, "dec[n]")
   expect_false(fam$predict_outliers)
   # no tau / minrt dpars survive the migration
@@ -382,16 +386,20 @@ test_that("Stan cogmod_lnr_lpdf matches dcogmod_lnr", {
     nuone = c(-0.2, 0.8),
     sigmazero = c(0.4, 1.1),
     sigmaone = c(0.6, 1.3),
+    # 0 takes the plain lognormal branch, 1e-6 the series, the rest the general
+    # kernel on both sides of a = 0
+    sigmabias = c(0, 1e-6, 0.3, 2),
     ndt = c(0, 0.15, 0.4),
     poutlier = c(0, 0.001, 0.4),
     dec = 0:1
   )
   for (i in seq_len(nrow(grid))) {
     g <- grid[i, ]
-    stan <- lpdf(g$Y, g$nuzero, g$nuone, g$sigmazero, g$sigmaone, g$ndt,
-                 g$poutlier, as.integer(g$dec))
+    stan <- lpdf(g$Y, g$nuzero, g$nuone, g$sigmazero, g$sigmaone, g$sigmabias,
+                 g$ndt, g$poutlier, as.integer(g$dec))
     r <- dcogmod_lnr(g$Y, g$nuzero, g$nuone, g$sigmazero, g$sigmaone, g$ndt,
-                     response = g$dec, poutlier = g$poutlier, log = TRUE)
+                     response = g$dec, poutlier = g$poutlier,
+                     sigmabias = g$sigmabias, log = TRUE)
     if (is.infinite(r)) {
       expect_equal(stan, r)
     } else {
@@ -402,11 +410,145 @@ test_that("Stan cogmod_lnr_lpdf matches dcogmod_lnr", {
   }
 
   # invalid arguments are rejected on both sides
-  expect_equal(lpdf(0.5, 0, 0, 0, 1, 0.2, 0.02, 0L), -Inf)
-  expect_equal(lpdf(0.5, 0, 0, 1, 1, 0.2, 1.5, 0L), -Inf)
-  expect_equal(lpdf(0.5, 0, 0, 1, 1, -0.1, 0.02, 0L), -Inf)
-  expect_equal(lpdf(0.5, 0, 0, 1, 1, 0.2, 0.02, 2L), -Inf)
-  expect_equal(lpdf(0, 0, 0, 1, 1, 0.2, 0.02, 0L), -Inf)
+  expect_equal(lpdf(0.5, 0, 0, 0, 1, 0, 0.2, 0.02, 0L), -Inf)
+  expect_equal(lpdf(0.5, 0, 0, 1, 1, 0, 0.2, 1.5, 0L), -Inf)
+  expect_equal(lpdf(0.5, 0, 0, 1, 1, 0, -0.1, 0.02, 0L), -Inf)
+  expect_equal(lpdf(0.5, 0, 0, 1, 1, 0, 0.2, 0.02, 2L), -Inf)
+  expect_equal(lpdf(0, 0, 0, 1, 1, 0, 0.2, 0.02, 0L), -Inf)
+  expect_equal(lpdf(0.5, 0, 0, 1, 1, -0.1, 0.2, 0.02, 0L), -Inf)
+})
+
+
+# the start-point range ---------------------------------------------------
+
+# For a fixed distance D the finishing time is D / v with v ~ LogNormal(nu,
+# sigma), i.e. LogNormal(log D - nu, sigma), so the winner's density and the
+# loser's survival are averages over D ~ Uniform(1, 1 + A) of the plain
+# lognormal density and survival. One-dimensional quadrature of those is the
+# reference for the closed-form kernels, series branches included.
+ref_acc <- function(t, nu, sigma, A, what = c("dens", "surv")) {
+  what <- match.arg(what)
+  g <- if (what == "dens") {
+    function(d) stats::dlnorm(t, log(d) - nu, sigma)
+  } else {
+    function(d) stats::plnorm(t, log(d) - nu, sigma, lower.tail = FALSE)
+  }
+  stats::integrate(g, 1, 1 + A, rel.tol = 1e-11, abs.tol = 0,
+                   subdivisions = 500)$value / A
+}
+
+test_that("sigmabias = 0 is the plain lognormal race, bit for bit", {
+  t <- c(0.05, 0.3, 1, 4)
+  expect_identical(cogmod:::.lognormal_acc_ldens(t, -0.7, 0.6, 0),
+                   stats::dlnorm(t, -0.7, 0.6, log = TRUE))
+  expect_identical(cogmod:::.lognormal_acc_lccdf(t, -0.7, 0.6, 0),
+                   stats::plnorm(t, -0.7, 0.6, lower.tail = FALSE,
+                                 log.p = TRUE))
+  # and the general kernel is continuous with it through the series branch
+  expect_equal(cogmod:::.lognormal_acc_ldens(t, -0.7, 0.6, 1e-9),
+               stats::dlnorm(t, -0.7, 0.6, log = TRUE), tolerance = 1e-8)
+  expect_equal(cogmod:::.lognormal_acc_lccdf(t, -0.7, 0.6, 1e-9),
+               stats::plnorm(t, -0.7, 0.6, lower.tail = FALSE, log.p = TRUE),
+               tolerance = 1e-8)
+  # the default argument is that zero
+  expect_identical(dcogmod_lnr(0.5, 0.5, 0.2, 0.8, 1, response = 0),
+                   dcogmod_lnr(0.5, 0.5, 0.2, 0.8, 1, response = 0,
+                               sigmabias = 0))
+})
+
+test_that("the start-point kernels agree with quadrature over the start point", {
+  grid <- covering_grid(
+    t = c(0.02, 0.1, 0.4, 1, 2.5, 8, 30),
+    nu = c(-1, 0.2, 1.5),
+    sigma = c(0.3, 0.8, 1.5),
+    # 1e-7 and 5e-5 take the series branch, the rest the general kernel
+    A = c(1e-7, 5e-5, 1e-3, 0.05, 0.5, 3, 20),
+    # both sides of the series switch, at the far ends of the time axis
+    always = function(g) {
+      (g$t == 30 & g$nu == -1 & g$sigma == 0.3 & g$A == 1e-7) |
+        (g$t == 0.02 & g$nu == 1.5 & g$sigma == 0.3 & g$A == 1e-3) |
+        (g$t == 30 & g$nu == -1 & g$sigma == 1.5 & g$A == 20)
+    }
+  )
+  for (i in seq_len(nrow(grid))) {
+    g <- grid[i, ]
+    info <- sprintf("t = %g, nu = %g, sigma = %g, A = %g", g$t, g$nu, g$sigma,
+                    g$A)
+    ld <- cogmod:::.lognormal_acc_ldens(g$t, -g$nu, g$sigma, g$A)
+    ls <- cogmod:::.lognormal_acc_lccdf(g$t, -g$nu, g$sigma, g$A)
+    expect_false(is.nan(ld), info = info)
+    expect_lte(ls, 0)
+    rd <- ref_acc(g$t, g$nu, g$sigma, g$A, "dens")
+    rs <- ref_acc(g$t, g$nu, g$sigma, g$A, "surv")
+    if (rd > 1e-250) expect_equal(exp(ld), rd, tolerance = 1e-7, info = info)
+    if (rs > 1e-250) expect_equal(exp(ls), rs, tolerance = 1e-7, info = info)
+  }
+})
+
+test_that("with a start-point range the density still sums and integrates to one", {
+  for (A in c(0.5, 3)) {
+    total <- sum(vapply(0:1, function(k) {
+      stats::integrate(
+        function(t) dcogmod_lnr(t, 0.5, 0.2, 0.8, 1.0, ndt = 0.2,
+                                response = k, sigmabias = A),
+        lower = 0, upper = Inf, subdivisions = 2000
+      )$value
+    }, numeric(1)))
+    expect_equal(total, 1, tolerance = 1e-5, info = paste("sigmabias", A))
+  }
+})
+
+test_that("rcogmod_lnr reproduces its own density with a start-point range", {
+  set.seed(11)
+  n <- 20000
+  pars <- list(nuzero = 0.5, nuone = 0.2, sigmazero = 0.8, sigmaone = 1.0,
+               ndt = 0.25, sigmabias = 1)
+  sim <- do.call(rcogmod_lnr, c(list(n = n), pars))
+  dens <- function(t, k) do.call(dcogmod_lnr, c(list(x = t), pars,
+                                                list(response = k)))
+  for (k in 0:1) {
+    p_k <- stats::integrate(function(t) dens(t, k), 0, Inf,
+                            subdivisions = 2000)$value
+    expect_equal(mean(sim$response == k), p_k, tolerance = 0.01)
+  }
+  for (q in c(0.1, 0.5, 0.9)) {
+    at <- stats::quantile(sim$rt, q)
+    cdf <- sum(vapply(0:1, function(k) {
+      stats::integrate(function(t) dens(t, k), 0, at,
+                       subdivisions = 2000)$value
+    }, numeric(1)))
+    expect_equal(unname(cdf), q, tolerance = 0.02)
+  }
+  # a negative range is rejected by the sampler too
+  expect_error(rcogmod_lnr(5, sigmabias = -0.1), "sigmabias")
+})
+
+test_that("cogmod_priors fences the start-point range for cogmod_lnr", {
+  set.seed(12)
+  sim <- rcogmod_lnr(150, ndt = 0.25, poutlier = 0.03)
+  d <- data.frame(RT = sim$rt, Error = sim$response,
+                  Condition = rep(c("a", "b"), length.out = 150))
+
+  modelled <- brms::bf(RT | dec(Error) ~ 1, sigmabias ~ Condition,
+                       family = cogmod_lnr())
+  p <- cogmod_priors(modelled, d)
+  expect_true(any(p$dpar == "sigmabias" & p$class == "Intercept" &
+                    p$prior == "normal(0, 1)"))
+  expect_true(any(p$dpar == "sigmabias" & p$class == "b" &
+                    p$prior == "normal(0, 0.5)"))
+
+  omitted <- brms::bf(RT | dec(Error) ~ 1, family = cogmod_lnr())
+  p2 <- cogmod_priors(omitted, d)
+  expect_true(any(p2$class == "sigmabias" &
+                    p2$prior == "lognormal(-0.35, 0.75)"))
+
+  # pinned in the formula it is not a parameter, so there is nothing to fence
+  pinned <- brms::bf(RT | dec(Error) ~ 1, sigmabias = 0, family = cogmod_lnr())
+  p3 <- cogmod_priors(pinned, d)
+  expect_false(any(p3$dpar == "sigmabias" | p3$class == "sigmabias"))
+  code <- brms::make_stancode(pinned, data = d, prior = p3,
+                              stanvars = cogmod_stanvars(pinned))
+  expect_true(grepl("real sigmabias = 0;", code, fixed = TRUE))
 })
 
 
@@ -437,7 +579,7 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_lnr", {
                        family = cogmod_lnr())
   p <- cogmod_priors(modelled, d)
   expect_true(any(p$dpar == "ndt" & p$class == "Intercept" &
-                    p$prior == "normal(-1.2, 0.2)"))
+                    p$prior == "normal(-1.2, 0.5)"))
   expect_true(any(p$dpar == "poutlier" & p$class == "Intercept" &
                     p$prior == "normal(-5, 1)"))
 
@@ -451,7 +593,7 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_lnr", {
                                         family = cogmod_lnr())$prior)))
   p2 <- cogmod_priors(omitted, d)
   expect_false(any(grepl("uniform", p2$prior)))
-  expect_true(any(p2$class == "ndt" & p2$prior == "lognormal(-1.2, 0.2)"))
+  expect_true(any(p2$class == "ndt" & p2$prior == "lognormal(-1.2, 0.5)"))
   expect_true(any(p2$class == "poutlier" & p2$prior == "exponential(100)"))
 
   # and a mixed formula with group-level terms still builds a Stan program

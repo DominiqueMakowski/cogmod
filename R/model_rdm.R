@@ -123,7 +123,14 @@
 #' Use [cogmod_inits()] rather than `init = 0`. `brms` initialises on the
 #' unconstrained scale, so `init = 0` puts `ndt` at `exp(0) = 1` second - above
 #' nearly every sub-second RT, which leaves every response attributed to the
-#' outlier component and the race parameters with no gradient at all.
+#' outlier component and the race parameters with no gradient at all. It also
+#' starts `driftone` at a third of `mu`'s drift rather than equal to it: a
+#' Wald density is thin on the fast side and flat on the slow side, so an
+#' error accumulator started too fast sits hundreds of log-density units above
+#' the posterior, and a cold chain's first trajectory can convert that into a
+#' run down the flat `driftone` direction from which it never returns. On the
+#' benchmark data of `vignette("performance")` that froze one chain in four;
+#' the slower start removed it.
 #'
 #' [cogmod_priors()] is not a convenience here either. Beyond `ndt` and
 #' `poutlier`, `sigmabias` and `boundary` are only weakly identified from each

@@ -311,28 +311,28 @@ test_that("log_lik() honours cens(): brms leaves that to the family", {
   mu <- matrix(stats::rnorm(nd * 4, -0.7, 0.05), nd)
   prep <- fake_prep(
     cogmod_lognormal(),
-    list(mu = mu, sigma = matrix(0.5, nd, 4), ndt = matrix(0.2, nd, 4),
-         poutlier = matrix(0.02, nd, 4)),
+    list(mu = mu, sigma = matrix(0.5, nd, 4), sigmabias = matrix(0, nd, 4),
+         ndt = matrix(0.2, nd, 4), poutlier = matrix(0.02, nd, 4)),
     Y, cens = c(0L, 1L, -1L, 2L), rcens = c(NA, NA, NA, 0.8)
   )
   # observed
   expect_equal(log_lik_cogmod_lognormal(1, prep),
-               dcogmod_lognormal(0.5, mu[, 1], 0.5, 0.2, 0.02, log = TRUE))
+               dcogmod_lognormal(0.5, mu[, 1], 0.5, 0.2, poutlier = 0.02, log = TRUE))
   # right-censored: the survival
   expect_equal(log_lik_cogmod_lognormal(2, prep),
-               pcogmod_lognormal(0.7, mu[, 2], 0.5, 0.2, 0.02, lower.tail = FALSE,
+               pcogmod_lognormal(0.7, mu[, 2], 0.5, 0.2, poutlier = 0.02, lower.tail = FALSE,
                                  log.p = TRUE))
   # left-censored: the CDF
   expect_equal(log_lik_cogmod_lognormal(3, prep),
-               pcogmod_lognormal(0.9, mu[, 3], 0.5, 0.2, 0.02, log.p = TRUE))
+               pcogmod_lognormal(0.9, mu[, 3], 0.5, 0.2, poutlier = 0.02, log.p = TRUE))
   # interval-censored between Y and rcens
   expect_equal(log_lik_cogmod_lognormal(4, prep),
-               log(pcogmod_lognormal(0.8, mu[, 4], 0.5, 0.2, 0.02) -
-                     pcogmod_lognormal(0.4, mu[, 4], 0.5, 0.2, 0.02)))
+               log(pcogmod_lognormal(0.8, mu[, 4], 0.5, 0.2, poutlier = 0.02) -
+                     pcogmod_lognormal(0.4, mu[, 4], 0.5, 0.2, poutlier = 0.02)))
   # No cens() on the formula: the density, as before.
   prep$data$cens <- NULL
   expect_equal(log_lik_cogmod_lognormal(2, prep),
-               dcogmod_lognormal(0.7, mu[, 2], 0.5, 0.2, 0.02, log = TRUE))
+               dcogmod_lognormal(0.7, mu[, 2], 0.5, 0.2, poutlier = 0.02, log = TRUE))
 
   # The two families outside the registry go through the same branch.
   ex <- fake_prep(

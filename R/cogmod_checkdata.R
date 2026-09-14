@@ -2,7 +2,7 @@
 # ==========================================
 #
 # Everything here is stated in SECONDS and none of it is unit-equivariant:
-# cogmod_priors() puts `ndt` at 170-300 ms, `.POUTLIER_SCALE` is 0.2 s, and
+# cogmod_priors() centres `ndt` on 0.30 s, `.POUTLIER_SCALE` is 0.2 s, and
 # every registry `init` is a number of seconds. Hand these families a column of
 # milliseconds and nothing complains - Stan compiles, the sampler runs, and what
 # comes back is a fit to a distribution a thousand times too wide. That is a

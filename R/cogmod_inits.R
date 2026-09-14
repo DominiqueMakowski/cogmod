@@ -64,10 +64,27 @@
 #' land outside its own bounds, and the chains still start dispersed enough for
 #' `Rhat` to mean something.
 #'
-#' `ndt` starts deliberately **small** (0.1 s, a third of its prior median).
-#' The two errors are
-#' not symmetric: too small merely means the shift has to grow, which the
-#' gradient will do, whereas too large removes the gradient altogether.
+#' `ndt` starts deliberately **below the data**: at half the first percentile
+#' of the observed response times (0.16 s for responses whose fastest
+#' hundredth sits at 0.32 s). The two errors are not symmetric: too small
+#' merely means the shift has to grow, which the gradient will do, whereas
+#' too large removes the gradient altogether. Half the first percentile keeps
+#' essentially every response above the start while following the scale of
+#' the data. A fixed 0.1 s did not: on responses whose non-decision time is
+#' 0.6 s it sat half a second low, every decision time looked far too long, a
+#' driftless race then fit better than a fast one, and the first trajectory of
+#' a cold chain threw both drifts of a [cogmod_rdm()] onto the flat region
+#' where the likelihood no longer depends on them, from which the chain did
+#' not return.
+#'
+#' The same asymmetry decides where [cogmod_rdm()]'s error accumulator starts.
+#' A Wald density is thin on the fast side and flat on the slow side, so
+#' `driftone` starts at a third of `mu`'s drift rather than equal to it: too
+#' slow costs a few dozen log-density units, too fast costs hundreds, and a
+#' cold chain converts that difference into momentum along the flat
+#' `driftone` direction in its very first trajectory - far enough down it, on
+#' real data, for the step size to collapse and the chain to freeze for the
+#' rest of warmup.
 #'
 #' # Supported families
 #'
@@ -169,8 +186,32 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
   sdata <- suppressWarnings(
     brms::make_standata(formula, data = data, family = family, ...)
   )
+  if (!is.null(targets$ndt)) targets$ndt <- .ndt_start(sdata$Y, targets$ndt)
   plan <- .init_plan(.stan_param_decls(code), as.list(sdata), targets, links)
   .init_fun(plan, jitter)
+}
+
+
+# Where `ndt` starts: half the first percentile of the observed responses, in
+# seconds. Below the data, so that essentially every response keeps its
+# gradient, but on the data's own scale. The fixed 0.1 s this replaces was a
+# third of the prior median, and the argument for it - too small is cheap, too
+# large removes the gradient - is still the argument here; what it missed is
+# that "cheap" is relative. A start half a second below the non-decision time
+# of a slow data set costs thousands of log-density units, which a cold
+# chain's first HMC trajectory turns into momentum, and for cogmod_rdm() that
+# momentum carried both drifts onto their flat regions in one transition
+# (benchmarks/rdm_brittleness_report.md, section 7). Half the first percentile
+# is a factor of about two below where the posterior usually ends up; the
+# posterior of a data set whose non-decision time is well below its fastest
+# responses (a simulated one, say) sits below the start instead, which is the
+# harmless direction. The jitter is on the log scale, so a jittered start stays
+# below the first percentile.
+#' @keywords internal
+.ndt_start <- function(y, fallback = 0.1) {
+  y <- y[is.finite(y) & y > 0]
+  if (!length(y)) return(fallback)
+  0.5 * stats::quantile(y, 0.01, names = FALSE)
 }
 
 
@@ -221,7 +262,9 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
         call. = FALSE
       )
     }
-    # In seconds, like the `ndt` prior: a third of its 0.30 s median.
+    # In seconds. The `ndt` entry is a fallback: cogmod_inits() replaces it
+    # with .ndt_start() of the response once it has the data, and only a
+    # response with no finite positive value leaves it in place.
     return(c(.mixture_spec(fam)$init, list(ndt = 0.1, poutlier = 0.02)))
   }
   switch(

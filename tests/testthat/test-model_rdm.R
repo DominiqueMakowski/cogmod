@@ -1049,7 +1049,7 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_rdm", {
                        family = cogmod_rdm())
   p <- cogmod_priors(modelled, d)
   expect_true(any(p$dpar == "ndt" & p$class == "Intercept" &
-                    p$prior == "normal(-1.2, 0.2)"))
+                    p$prior == "normal(-1.2, 0.5)"))
   expect_true(any(p$dpar == "poutlier" & p$class == "Intercept" &
                     p$prior == "normal(-5, 1)"))
 
@@ -1063,7 +1063,7 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_rdm", {
                                         family = cogmod_rdm())$prior)))
   p2 <- cogmod_priors(omitted, d)
   expect_false(any(grepl("uniform", p2$prior)))
-  expect_true(any(p2$class == "ndt" & p2$prior == "lognormal(-1.2, 0.2)"))
+  expect_true(any(p2$class == "ndt" & p2$prior == "lognormal(-1.2, 0.5)"))
   expect_true(any(p2$class == "poutlier" & p2$prior == "exponential(100)"))
 
   # and a mixed formula with group-level terms still builds a Stan program
@@ -1162,7 +1162,11 @@ test_that("cogmod_inits covers the declared parameters", {
   # and the race parameters start somewhere a race could plausibly be
   expect_equal(log1p(exp(v0$Intercept_sigmabias)), 0.3, tolerance = 1e-8)
   expect_equal(log1p(exp(v0$Intercept_boundary)), 0.5, tolerance = 1e-8)
-  expect_equal(log1p(exp(v0$Intercept_driftone)), 3, tolerance = 1e-8)
+  # the error accumulator starts slower than the correct one: a start that is
+  # too fast costs hundreds of log-density units and sent cold chains down the
+  # driftone plateau in the first transition (see the registry entry)
+  expect_equal(log1p(exp(v0$Intercept)), 3, tolerance = 1e-8)
+  expect_equal(log1p(exp(v0$Intercept_driftone)), 1, tolerance = 1e-8)
 })
 
 

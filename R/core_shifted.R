@@ -45,24 +45,55 @@
 #' @keywords internal
 .SHIFTED <- list(
   cogmod_lognormal = list(
-    dpars = c("mu", "sigma"),
-    links = c("identity", "softplus"),
-    lb = c(NA, 0), ub = c(NA, NA),
-    stan_check = "sigma <= 0",
-    stan_dens = "lognormal_lpdf(t_adj | mu, sigma)",
-    ldens = function(t, p) stats::dlnorm(t, p$mu, p$sigma, log = TRUE),
-    stan_lcdf = "lognormal_lcdf(t_adj | mu, sigma)",
-    stan_lccdf = "lognormal_lccdf(t_adj | mu, sigma)",
-    lcdf = function(t, p) stats::plnorm(t, p$mu, p$sigma, log.p = TRUE),
-    lccdf = function(t, p) {
-      stats::plnorm(t, p$mu, p$sigma, lower.tail = FALSE, log.p = TRUE)
+    # `sigmabias` is a start-point range: the decision time is a LogNormal
+    # multiplied by a Uniform(1, 1 + sigmabias) distance, which is the
+    # single-accumulator LBA with a LogNormal rate and its threshold offset
+    # pinned at 1 (sigma cannot pin the scale of a LogNormal rate). At
+    # sigmabias = 0 the family is the shifted LogNormal exactly as it was
+    # before the parameter existed, and cogmod_lnr() is a race of two of these
+    # accumulators. The derivation and the numerics live with the kernels
+    # below (.lognormal_acc_ldens() and friends).
+    dpars = c("mu", "sigma", "sigmabias"),
+    links = c("identity", "softplus", "softplus"),
+    lb = c(NA, 0, 0), ub = c(NA, NA, NA),
+    # A start-point range of exactly zero is a model, not an invalid parameter
+    # - the plain LogNormal - so its bound is closed, as in cogmod_lba1() and
+    # cogmod_lnr(). The kernels take the plain lognormal branch there, so the
+    # nested model is reached exactly and at its own cost.
+    lb_open = c(TRUE, TRUE, FALSE),
+    stan_check = "sigma <= 0 || sigmabias < 0",
+    stan_dens = "cogmod_lognormal_acc_ldens(t_adj, mu, sigma, sigmabias)",
+    ldens = function(t, p) .lognormal_acc_ldens(t, p$mu, p$sigma, p$sigmabias),
+    stan_lcdf = "cogmod_lognormal_acc_logcdf(t_adj, mu, sigma, sigmabias)",
+    stan_lccdf = "cogmod_lognormal_acc_logsurv(t_adj, mu, sigma, sigmabias)",
+    lcdf = function(t, p) .lognormal_acc_lcdf(t, p$mu, p$sigma, p$sigmabias),
+    lccdf = function(t, p) .lognormal_acc_lccdf(t, p$mu, p$sigma, p$sigmabias),
+    prelude = ".LOGNORMAL_STAN_PRELUDE",
+    # The LogNormal is drawn first, so at sigmabias = 0 the stream is exactly
+    # what rcogmod_lognormal() produced before the parameter existed.
+    rng = function(n, p) {
+      r <- stats::rlnorm(n, p$mu, p$sigma)
+      (1 + stats::runif(n, min = 0, max = p$sigmabias)) * r
     },
-    rng = function(n, p) stats::rlnorm(n, p$mu, p$sigma),
-    mean = function(p) exp(p$mu + p$sigma^2 / 2),
-    init = list(mu = -0.7, sigma = 0.5),
+    # E[D] E[exp(mu + sigma Z)], the distance and the rate being independent
+    mean = function(p) (1 + p$sigmabias / 2) * exp(p$mu + p$sigma^2 / 2),
+    init = list(mu = -0.7, sigma = 0.5, sigmabias = 0.5),
+    # `sigmabias` has the flat direction cogmod_lba1()'s has: as the range
+    # approaches zero the model converges to the LogNormal and the likelihood
+    # stops changing, while the softplus link reaches zero only at minus
+    # infinity. The rows are cogmod_lnr()'s verbatim - same unit (the threshold
+    # offset of 1), same job - so that a fitted LogNormal can warm-start one
+    # lane of the race. Fixing `sigmabias = 0` in bf() sidesteps all of it, and
+    # is the recommendation.
+    prior = list(
+      sigmabias = c(link = "normal(0, 1)", nat = "lognormal(-0.35, 0.75)",
+                    slope = "normal(0, 0.5)")
+    ),
     dpar_doc = c(
       "mu: mean of the decision time on the log scale (meanlog).",
-      "sigma: SD of the decision time on the log scale (> 0)."
+      "sigma: SD of the decision time on the log scale (> 0).",
+      paste("sigmabias: start-point range, in units of the threshold offset",
+            "(>= 0); 0 is the plain LogNormal.")
     ),
     label = "LogNormal"
   ),
@@ -2354,6 +2385,308 @@ real cogmod_lba1_decision_lpdf(real t, real drift, real sigma, real sigmabias, r
   real f = cogmod_lba_dens_over_A(drift, sigma, st, z1, sigmabias / st);
   if (f <= 0) return negative_infinity();
   return log(f) - log1m_exp(std_normal_lcdf(-drift / sigma));
+}
+"
+
+# LogNormal accumulator with a start-point range --------------------------
+
+# The single accumulator that cogmod_lognormal() is and that cogmod_lnr()
+# races two of. It runs from a start point z ~ Uniform(0, A) to the threshold
+# 1 + A at a rate v ~ LogNormal(-meanlog, sigma), so its finishing time is
+# (1 + A - z) / v, with the distance D = 1 + A - z ~ Uniform(1, 1 + A). The
+# threshold *offset* above the highest start point is pinned at 1 - the LBA's
+# `boundary` convention with boundary = 1 - because for a LogNormal rate the
+# scale cannot be pinned by sigma: rescaling the evidence axis shifts the rate's
+# location and scales A and the threshold, and leaves sigma alone. At A = 0 the
+# distance is 1, T = 1 / v, and log T ~ Normal(meanlog, sigma): the shifted
+# LogNormal as it always was, with `mu` and `sigma` meaning what they meant.
+# See ?rcogmod_lognormal and ?rcogmod_lnr.
+#
+# Write a = (meanlog - log t) / sigma, so that F = Phi(-a) and S = Phi(a) at
+# A = 0, and c = log1p(A) / sigma, the width of the start-point range on the
+# z-scale. Averaging over the Uniform distance turns the density into a partial
+# first moment of the rate distribution, which for a LogNormal is a difference
+# of two normal CDFs, and integrating the CDF by parts gives the survival:
+#
+#   f(t) = exp(-meanlog + sigma^2 / 2) * [Phi(a + c - sigma) - Phi(a - sigma)] / A
+#   S(t) = Phi(a + c) + [Phi(a + c) - Phi(a)] / A  -  t * f(t)
+#
+# Both differences vanish linearly in c, so dividing by A loses every digit as
+# A -> 0; below c = 1e-4 the series in c is used instead, at the same switch as
+# .lba_dens_over_A(). At A = 0 exactly the plain lognormal functions are
+# called, so a model that pins `sigmabias = 0` computes what the family
+# computed before the parameter existed, at the same cost.
+#
+# The survival's two middle terms are each of order |a| / sigma in the late tail
+# and cancel to something of order 1, so both tails are assembled in log space
+# from ratios of CDFs, on whichever side of a = 0 keeps the bracket well
+# behaved: S directly for a < 0, F directly for a >= 0 (where F <= 1/2), and the
+# other tail as log(1 - exp(.)) of it. `cens()` needs the CDF written that way
+# round rather than as 1 - S; see the registry notes on `stan_lcdf`.
+
+# log(Phi(y + c) - Phi(y)) for c > 0, from whichever tail keeps the two terms
+# from cancelling: the upper tail when y > 0, where both CDFs sit near 1, the
+# lower tail otherwise. Exact in the far tails, where the plain difference is
+# 0 - 0. Vectorised over both arguments.
+#' @keywords internal
+.lognormal_ldiff_pnorm <- function(y, c) {
+  n <- max(length(y), length(c))
+  y <- rep_len(y, n)
+  c <- rep_len(c, n)
+  out <- rep(-Inf, n)
+  up <- y > 0
+  if (any(up)) {
+    l1 <- stats::pnorm(y[up], lower.tail = FALSE, log.p = TRUE)
+    l2 <- stats::pnorm(y[up] + c[up], lower.tail = FALSE, log.p = TRUE)
+    ok <- l2 < l1
+    out[up][ok] <- l1[ok] + .log1m_exp(l2[ok] - l1[ok])
+  }
+  if (any(!up)) {
+    l1 <- stats::pnorm(y[!up] + c[!up], log.p = TRUE)
+    l2 <- stats::pnorm(y[!up], log.p = TRUE)
+    ok <- l2 < l1
+    out[!up][ok] <- l1[ok] + .log1m_exp(l2[ok] - l1[ok])
+  }
+  out
+}
+
+
+# Log density of the accumulator's finishing time at t > 0. `A` may be 0.
+#' @keywords internal
+.lognormal_acc_ldens <- function(t, meanlog, sigma, A) {
+  n <- max(length(t), length(meanlog), length(sigma), length(A))
+  t <- rep_len(t, n)
+  meanlog <- rep_len(meanlog, n)
+  sigma <- rep_len(sigma, n)
+  A <- rep_len(A, n)
+  out <- rep(-Inf, n)
+
+  zero <- A == 0
+  if (any(zero)) {
+    out[zero] <- stats::dlnorm(t[zero], meanlog[zero], sigma[zero], log = TRUE)
+  }
+  if (all(zero)) return(out)
+
+  i <- which(!zero)
+  ti <- t[i]
+  mi <- meanlog[i]
+  si <- sigma[i]
+  Ai <- A[i]
+  a <- (mi - log(ti)) / si
+  c <- log1p(Ai) / si
+  x <- a - si
+  val <- rep(-Inf, length(i))
+
+  small <- c < 1e-4
+  if (any(small)) {
+    # [Phi(x + c) - Phi(x)] / A = (c / A) phi(x) [1 - c x / 2 + c^2 (x^2 - 1) / 6]
+    # and exp(-meanlog + sigma^2 / 2) phi(x) = phi(a) / t, so the density is
+    # the LogNormal's times log1p(A) / A times the series.
+    j <- small
+    series <- 1 - c[j] * x[j] / 2 + c[j]^2 * (x[j]^2 - 1) / 6
+    ok <- series > 0
+    v <- rep(-Inf, sum(j))
+    v[ok] <- stats::dlnorm(ti[j][ok], mi[j][ok], si[j][ok], log = TRUE) +
+      log(log1p(Ai[j][ok]) / Ai[j][ok]) + log(series[ok])
+    val[j] <- v
+  }
+  if (any(!small)) {
+    j <- !small
+    val[j] <- -mi[j] + si[j]^2 / 2 + .lognormal_ldiff_pnorm(x[j], c[j]) -
+      log(Ai[j])
+  }
+  out[i] <- val
+  out
+}
+
+
+# Both tails of the accumulator's finishing time at t > 0, as a list of the
+# log-CDF and the log-survival, each computed directly on the side where it is
+# the small one. `A` may be 0.
+#' @keywords internal
+.lognormal_acc_ltails <- function(t, meanlog, sigma, A) {
+  n <- max(length(t), length(meanlog), length(sigma), length(A))
+  t <- rep_len(t, n)
+  meanlog <- rep_len(meanlog, n)
+  sigma <- rep_len(sigma, n)
+  A <- rep_len(A, n)
+  lF <- rep(-Inf, n)
+  lS <- rep(-Inf, n)
+
+  zero <- A == 0
+  if (any(zero)) {
+    lF[zero] <- stats::plnorm(t[zero], meanlog[zero], sigma[zero], log.p = TRUE)
+    lS[zero] <- stats::plnorm(t[zero], meanlog[zero], sigma[zero],
+                              lower.tail = FALSE, log.p = TRUE)
+  }
+  if (all(zero)) return(list(lcdf = lF, lccdf = lS))
+
+  i <- which(!zero)
+  ti <- t[i]
+  mi <- meanlog[i]
+  si <- sigma[i]
+  Ai <- A[i]
+  a <- (mi - log(ti)) / si
+  c <- log1p(Ai) / si
+  vF <- rep(-Inf, length(i))
+  vS <- rep(-Inf, length(i))
+
+  small <- c < 1e-4
+  if (any(small)) {
+    # Expanding (sigma / A) * integral_0^c Phi(a + u) exp(sigma u) du in u:
+    #   S = Phi(a) + c r phi(a) [1/2 + c (2 sigma - a) / 6],  r = log1p(A) / A,
+    # and F = Phi(-a) minus the same correction. phi / Phi is the inverse
+    # Mills ratio, bounded by about |a| + 1 on either side.
+    j <- small
+    r <- log1p(Ai[j]) / Ai[j]
+    corr <- c[j] * r * (0.5 + c[j] * (2 * si[j] - a[j]) / 6)
+    lPa <- stats::pnorm(a[j], log.p = TRUE)
+    lQa <- stats::pnorm(-a[j], log.p = TRUE)
+    lphi <- stats::dnorm(a[j], log = TRUE)
+    vS[j] <- lPa + log1p(corr * exp(lphi - lPa))
+    dF <- 1 - corr * exp(lphi - lQa)
+    w <- rep(-Inf, sum(j))
+    w[dF > 0] <- lQa[dF > 0] + log(dF[dF > 0])
+    vF[j] <- w
+  }
+  if (any(!small)) {
+    j <- which(!small)
+    aj <- a[j]
+    cj <- c[j]
+    sj <- si[j]
+    Aj <- Ai[j]
+    lA <- log(Aj)
+    # D1 = [Phi(a + c) - Phi(a)] / A and D2 = t f(t), both in log space
+    lD1 <- .lognormal_ldiff_pnorm(aj, cj) - lA
+    lD2 <- -mi[j] + sj^2 / 2 + log(ti[j]) +
+      .lognormal_ldiff_pnorm(aj - sj, cj) - lA
+    wF <- rep(-Inf, length(j))
+    wS <- rep(-Inf, length(j))
+    late <- aj < 0
+    if (any(late)) {
+      # S = Phi(a + c) [1 + D1 / Phi(a + c) - D2 / Phi(a + c)]
+      lP <- stats::pnorm(aj[late] + cj[late], log.p = TRUE)
+      br <- 1 + exp(lD1[late] - lP) - exp(lD2[late] - lP)
+      ok <- br > 0
+      w <- rep(-Inf, sum(late))
+      w[ok] <- pmin(lP[ok] + log(br[ok]), 0)
+      wS[late] <- w
+      wF[late] <- ifelse(w < 0, .log1m_exp(w), -Inf)
+    }
+    if (any(!late)) {
+      # F = Phi(-a) [R + (R - 1) / A + D2 / Phi(-a)], R = Phi(-a-c) / Phi(-a)
+      e <- !late
+      lQ <- stats::pnorm(-aj[e], log.p = TRUE)
+      R <- exp(stats::pnorm(-aj[e] - cj[e], log.p = TRUE) - lQ)
+      br <- R - (1 - R) / Aj[e] + exp(lD2[e] - lQ)
+      ok <- br > 0
+      w <- rep(-Inf, sum(e))
+      w[ok] <- pmin(lQ[ok] + log(br[ok]), 0)
+      wF[e] <- w
+      wS[e] <- ifelse(w < 0, .log1m_exp(w), -Inf)
+    }
+    vF[j] <- wF
+    vS[j] <- wS
+  }
+  lF[i] <- pmin(vF, 0)
+  lS[i] <- pmin(vS, 0)
+  list(lcdf = lF, lccdf = lS)
+}
+
+
+#' @keywords internal
+.lognormal_acc_lcdf <- function(t, meanlog, sigma, A) {
+  .lognormal_acc_ltails(t, meanlog, sigma, A)$lcdf
+}
+
+
+#' @keywords internal
+.lognormal_acc_lccdf <- function(t, meanlog, sigma, A) {
+  .lognormal_acc_ltails(t, meanlog, sigma, A)$lccdf
+}
+
+
+# The Stan side of the helpers above, line for line. cogmod_lnr() appends its
+# race to this (see .LNR_STAN_PRELUDE in model_lnr.R).
+#' @keywords internal
+.LOGNORMAL_STAN_PRELUDE <- "
+// log(Phi(y + c) - Phi(y)) for c > 0, from whichever tail keeps the two terms
+// from cancelling. See .lognormal_ldiff_pnorm(). The tails are
+// 0.5 * erfc(|y| / sqrt(2)) rather than std_normal_lccdf(): Stan's upper-tail
+// log-CDF is only accurate to about 1e-8 beyond y = 5 and is -Inf beyond
+// y = 8.25, and a fast response puts the standardized rate exactly there. erfc
+// of a positive argument is accurate to the last digit down to its underflow
+// near y = 38, where the density is below 1e-300 anyway.
+real cogmod_lognormal_ldiff_Phi(real y, real c) {
+  if (y > 0) {
+    real u1 = 0.5 * erfc(y * 0.7071067811865476);
+    real u2 = 0.5 * erfc((y + c) * 0.7071067811865476);
+    return u2 < u1 ? log(u1) + log1m(u2 / u1) : negative_infinity();
+  }
+  real p1 = 0.5 * erfc(-(y + c) * 0.7071067811865476);
+  real p2 = 0.5 * erfc(-y * 0.7071067811865476);
+  return p2 < p1 ? log(p1) + log1m(p2 / p1) : negative_infinity();
+}
+
+// Log density of the accumulator's finishing time with start-point range A.
+// At A = 0 this is the LogNormal itself, at the LogNormal's cost.
+real cogmod_lognormal_acc_ldens(real t, real meanlog, real sigma, real A) {
+  if (A == 0) return lognormal_lpdf(t | meanlog, sigma);
+  real a = (meanlog - log(t)) / sigma;
+  real c = log1p(A) / sigma;
+  real x = a - sigma;
+  if (c < 1e-4) {
+    real series = 1 - c * x / 2 + square(c) * (square(x) - 1) / 6;
+    if (series <= 0) return negative_infinity();
+    return lognormal_lpdf(t | meanlog, sigma) + log(log1p(A) / A) + log(series);
+  }
+  return -meanlog + square(sigma) / 2 + cogmod_lognormal_ldiff_Phi(x, c) - log(A);
+}
+
+// [log F, log S] of the accumulator's finishing time, each computed directly
+// on the side where it is the small one. See .lognormal_acc_ltails().
+vector cogmod_lognormal_acc_ltails(real t, real meanlog, real sigma, real A) {
+  if (A == 0) {
+    return [lognormal_lcdf(t | meanlog, sigma), lognormal_lccdf(t | meanlog, sigma)]';
+  }
+  real a = (meanlog - log(t)) / sigma;
+  real c = log1p(A) / sigma;
+  if (c < 1e-4) {
+    real r = log1p(A) / A;
+    real corr = c * r * (0.5 + c * (2 * sigma - a) / 6);
+    real lPa = std_normal_lcdf(a);
+    real lQa = std_normal_lcdf(-a);
+    real lphi = std_normal_lpdf(a);
+    real lS = fmin(lPa + log1p(corr * exp(lphi - lPa)), 0);
+    real dF = 1 - corr * exp(lphi - lQa);
+    real lF = dF > 0 ? fmin(lQa + log(dF), 0) : negative_infinity();
+    return [lF, lS]';
+  }
+  real lA = log(A);
+  real lD1 = cogmod_lognormal_ldiff_Phi(a, c) - lA;
+  real lD2 = -meanlog + square(sigma) / 2 + log(t)
+             + cogmod_lognormal_ldiff_Phi(a - sigma, c) - lA;
+  if (a < 0) {
+    real lP = std_normal_lcdf(a + c);
+    real br = 1 + exp(lD1 - lP) - exp(lD2 - lP);
+    if (br <= 0) return [0, negative_infinity()]';
+    real lS = fmin(lP + log(br), 0);
+    return [lS < 0 ? log1m_exp(lS) : negative_infinity(), lS]';
+  }
+  real lQ = std_normal_lcdf(-a);
+  real R = exp(std_normal_lcdf(-a - c) - lQ);
+  real br = R - (1 - R) / A + exp(lD2 - lQ);
+  if (br <= 0) return [negative_infinity(), 0]';
+  real lF = fmin(lQ + log(br), 0);
+  return [lF, lF < 0 ? log1m_exp(lF) : negative_infinity()]';
+}
+
+real cogmod_lognormal_acc_logcdf(real t, real meanlog, real sigma, real A) {
+  return cogmod_lognormal_acc_ltails(t, meanlog, sigma, A)[1];
+}
+
+real cogmod_lognormal_acc_logsurv(real t, real meanlog, real sigma, real A) {
+  return cogmod_lognormal_acc_ltails(t, meanlog, sigma, A)[2];
 }
 "
 

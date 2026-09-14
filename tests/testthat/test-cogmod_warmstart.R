@@ -17,9 +17,11 @@ make_data <- function(ids, n = 30) {
 }
 d_pilot <- make_data(c("p3", "p1"))            # deliberately out of order
 d_full <- make_data(c("a1", "p1", "p2", "p3"))  # two new participants, one at each end
+# `sigmabias = 0` pins the start-point range, as the LNR docs recommend; left
+# out it would be one more parameter in every count below.
 f <- brms::bf(RT | dec(choice) ~ x + (1 + x | id), nuone ~ 1 + (1 | id),
               ndt ~ 1, poutlier ~ 1, sigmazero ~ 1, sigmaone ~ 1,
-              family = cogmod_lnr())
+              sigmabias = 0, family = cogmod_lnr())
 
 # A stand-in for a fitted pilot: the labels its program declares, with
 # made-up variances and means that are easy to recognise afterwards.
@@ -28,6 +30,10 @@ fake_source <- function(formula, data, step_size = 0.1) {
   tab$inv_metric <- seq_len(nrow(tab)) / 10
   tab$mean <- seq_len(nrow(tab)) / 100
   tab$mean[grepl("^L_", tab$parameter)] <- -0.3   # a valid correlation
+  # the two cogmod_priors(warmstart = ) reads: a median that says which row it
+  # came from, and one SD for all of them so the prior scale is easy to read
+  tab$median <- seq_len(nrow(tab))
+  tab$sd <- rep(0.5, nrow(tab))
   tab$step_size <- step_size
   tab
 }
@@ -140,7 +146,7 @@ test_that("a changed formula falls back to defaults, with a note", {
   # an extra predictor, and the random slope dropped
   f2 <- brms::bf(RT | dec(choice) ~ x + y + (1 | id), nuone ~ 1 + (1 | id),
                  ndt ~ 1, poutlier ~ 1, sigmazero ~ 1, sigmaone ~ 1,
-                 family = cogmod_lnr())
+                 sigmabias = 0, family = cogmod_lnr())
   expect_message(ws <- cogmod_warmstart(src, f2, d2, jitter = 0), "no counterpart")
   tab <- ws$table
   expect_equal(ws$counts[["default"]], 1L)
@@ -176,7 +182,8 @@ test_that("the table round-trips through a data frame and a CSV file", {
   src <- fake_source(f, d_pilot)
   ws <- cogmod_warmstart(src, f, d_full, jitter = 0)
   df <- as.data.frame(ws)
-  expect_named(df, c("parameter", "group", "coef", "level", "inv_metric", "mean", "step_size"))
+  expect_named(df, c("parameter", "group", "coef", "level", "inv_metric", "mean",
+                     "median", "sd", "step_size"))
   again <- cogmod_warmstart(df, f, d_full, jitter = 0)
   expect_equal(again$inv_metric, ws$inv_metric)
   expect_equal(again$table$mean, ws$table$mean)
@@ -187,6 +194,100 @@ test_that("the table round-trips through a data frame and a CSV file", {
   expect_equal(from_file$inv_metric, ws$inv_metric)
   expect_equal(from_file$init(1), ws$init(1))
   expect_equal(from_file$step_size, 0.1)
+  expect_equal(from_file$prior, ws$prior)
+})
+
+
+# Prior slots ----------------------------------------------------------------
+
+test_that("each unconstrained parameter knows which prior row it belongs to", {
+  tab <- cogmod:::.warmstart_target(f, d_full)$table
+  slot <- function(p) unlist(tab[tab$parameter == p, c("pclass", "pdpar", "pcoef")],
+                             use.names = FALSE)
+  expect_equal(slot("Intercept"), c("Intercept", "", ""))
+  expect_equal(slot("Intercept_ndt"), c("Intercept", "ndt", ""))
+  expect_equal(slot("b[1]"), c("b", "", "x"))
+  # a group-level SD is addressed by the bare coefficient and the dpar apart,
+  # not by the joined name the metric's `coef` column carries
+  expect_equal(slot("sd_1[2]"), c("sd", "", "x"))
+  expect_equal(slot("sd_2[1]"), c("sd", "nuone", "Intercept"))
+  # the standardized effects and the Cholesky factor have no stated prior
+  expect_true(all(is.na(tab$pclass[grepl("^(z|L)_", tab$parameter)])))
+})
+
+
+test_that("the prior table drops what a Normal cannot describe", {
+  ws <- cogmod_warmstart(fake_source(f, d_pilot), f, d_full, jitter = 0)
+  expect_setequal(unique(ws$prior$class), c("Intercept", "b", "sd"))
+  # one row per intercept (six dpars), per coefficient and per group-level SD,
+  # and nothing for the z entries, the Cholesky factor or the new participants
+  expect_equal(nrow(ws$prior), 6 + 1 + 3)
+  expect_true(all(ws$prior$sd == 0.5))
+  # the address columns are working columns, not part of the stored table
+  expect_false(any(c("pclass", "pdpar", "pcoef") %in% names(ws$table)))
+})
+
+
+test_that("cogmod_priors() centres on the source and scales its SD", {
+  src <- fake_source(f, d_pilot)
+  base <- cogmod_priors(f, d_full)
+  p <- cogmod_priors(f, d_full, warmstart = src)
+  pick <- function(d, ...) {
+    keep <- rep(TRUE, nrow(d))
+    for (a in list(...)) keep <- keep & d[[names(a)]] == a[[1]]
+    d$prior[keep]
+  }
+  # the source's own row order gives the medians: Intercept is row 2 of the
+  # pilot's table, Intercept_ndt row 6, and the SD is 3 * 0.5 by default
+  med <- function(par) src$median[src$parameter == par]
+  expect_equal(pick(p, list(class = "Intercept"), list(dpar = "")),
+               sprintf("normal(%g, 1.5)", med("Intercept")))
+  expect_equal(pick(p, list(class = "Intercept"), list(dpar = "ndt")),
+               sprintf("normal(%g, 1.5)", med("Intercept_ndt")))
+  expect_equal(pick(p, list(class = "b"), list(coef = "x")),
+               sprintf("normal(%g, 1.5)", med("b[1]")))
+  expect_equal(pick(p, list(class = "sd"), list(coef = "Intercept"), list(dpar = "nuone")),
+               sprintf("normal(%g, 1.5)", med("sd_2[1]")))
+
+  # prior_scale multiplies the source's posterior SD, and only that
+  p1 <- cogmod_priors(f, d_full, warmstart = src, prior_scale = 1)
+  expect_equal(pick(p1, list(class = "Intercept"), list(dpar = "ndt")),
+               sprintf("normal(%g, 0.5)", med("Intercept_ndt")))
+  expect_error(cogmod_priors(f, d_full, warmstart = src, prior_scale = 0),
+               "single positive number")
+
+  # the correlation keeps its LKJ, and no prior row is left matching nothing
+  expect_equal(pick(p, list(class = "L")), pick(base, list(class = "L")))
+  expect_false(any(p$source == "user" & !nzchar(p$prior)))
+})
+
+
+test_that("the warm-started priors reach the Stan program, one per parameter", {
+  src <- fake_source(f, d_pilot)
+  code <- suppressWarnings(brms::make_stancode(
+    f, data = d_full, prior = cogmod_priors(f, d_full, warmstart = src)))
+  lines <- grep("lprior +=", strsplit(code, "
+")[[1]], fixed = TRUE, value = TRUE)
+  # every location is the source's median for that very parameter
+  expect_true(any(grepl("normal_lpdf(Intercept_ndt | 6, 1.5)", lines, fixed = TRUE)))
+  expect_true(any(grepl("normal_lpdf(b[1] | 1, 1.5)", lines, fixed = TRUE)))
+  # the vectorized `sd_1` statement is gone: both of its coefficients were set
+  # individually, so brms writes one statement each instead
+  expect_true(any(grepl("normal_lpdf(sd_1[1] | 8, 1.5)", lines, fixed = TRUE)))
+  expect_true(any(grepl("normal_lpdf(sd_1[2] | 9, 1.5)", lines, fixed = TRUE)))
+  # and the correlation is left to the LKJ
+  expect_true(any(grepl("lkj_corr_cholesky_lpdf(L_1 | 1)", lines, fixed = TRUE)))
+})
+
+
+test_that("a source without posterior summaries leaves the priors alone", {
+  src <- fake_source(f, d_pilot)
+  src$median <- NULL
+  src$sd <- NULL
+  base <- cogmod_priors(f, d_full)
+  expect_message(p <- cogmod_priors(f, d_full, warmstart = src),
+                 "no posterior median and SD")
+  expect_equal(p$prior, base$prior)
 })
 
 
