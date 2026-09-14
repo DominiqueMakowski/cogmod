@@ -31,7 +31,7 @@ cogmod_logstudent_stanvars(): Generates the stanvars to pass to brm().
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -226,7 +226,10 @@ has no finite mean, so it errors rather than report one - summarise
     <p><code>log(RT - ndt)</code> follows a <strong>Student-t</strong> distribution with location <code>mu</code>,
 scale <code>sigma</code> and <code>dof</code> degrees of freedom. As <code>dof</code> grows the Student-t
 becomes the Normal, so <code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code> is the <code>dof -&gt; Inf</code> limit: this
-family varies <strong>kurtosis</strong> where <code><a href="rcogmod_loggamma.html">cogmod_loggamma()</a></code> varies skew.</p>
+family varies <strong>kurtosis</strong> where <code><a href="rcogmod_loggamma.html">cogmod_loggamma()</a></code> varies skew. It has no
+<code>sigmabias</code>: the start-point range of <code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code> needs a partial
+first moment of the rate distribution, and <code><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp()</a></code> of a Student-t has no
+moments at all.</p>
 <p><code>dof</code> is what <code><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">brms::student()</a></code> calls <code>nu</code>. It is renamed here because
 <code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code> already spends <code>nuzero</code> and <code>nuone</code> on drift rates, and
 because <code>brms</code> recognises the name <code>nu</code> and supplies opinionated defaults for

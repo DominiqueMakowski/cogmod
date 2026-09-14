@@ -28,7 +28,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -294,11 +294,13 @@
 <p><strong>“Isn’t this the same as log-transforming my RTs?”</strong></p>
 </blockquote>
 <p>It is not, and the difference is precisely the one discussed above. Log-transforming the data and running a linear model on <code>log(RT)</code> estimates the mean of the <em>transformed</em> values, which then has to be interpreted on the log scale (or back-transformed into something that is no longer the mean RT). The LogNormal model leaves the data untouched and instead changes the <em>likelihood</em>: the RTs stay in seconds, and it is the model that is told they arise from a LogNormal process. In addition, the shift (<code>tau</code>) and the dispersion (<code>sigma</code>) are estimated as their own parameters, and can be given their own predictors - something a transformation can never give you, since it still funnels every effect through a single location parameter.</p>
+<p>The family also has a <code>sigmabias</code> parameter, a start-point range that turns it into the single-accumulator LBA with a LogNormal drift rate (see the LBA below, and <code><a href="../reference/rcogmod_lognormal.html">?cogmod_lognormal</a></code>). It is fixed at zero here, which is the shifted LogNormal proper: on RT-only data a start-point range is identified through the shape of the distribution alone and adds a flat direction to the likelihood at zero, so it is worth estimating only with a specific hypothesis about start-point variability.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
+<span>  sigmabias <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  <span class="va">ndt</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rcogmod_lognormal.html">cogmod_lognormal</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
@@ -706,50 +708,50 @@
 <tr class="odd">
 <td style="text-align: left;">(Intercept)</td>
 <td style="text-align: left;">conditional</td>
-<td style="text-align: right;">-1.04</td>
-<td style="text-align: left;">[-1.19, -0.88]</td>
+<td style="text-align: right;">-0.92</td>
+<td style="text-align: left;">[-1.15, -0.71]</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">ConditionSpeed</td>
 <td style="text-align: left;">conditional</td>
-<td style="text-align: right;">-0.22</td>
-<td style="text-align: left;">[-0.42, -0.05]</td>
+<td style="text-align: right;">-0.23</td>
+<td style="text-align: left;">[-0.41, -0.05]</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">(Intercept)</td>
 <td style="text-align: left;">ndt</td>
-<td style="text-align: right;">-1.38</td>
-<td style="text-align: left;">[-1.71, -1.17]</td>
+<td style="text-align: right;">-1.60</td>
+<td style="text-align: left;">[-2.33, -1.21]</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">ConditionSpeed</td>
 <td style="text-align: left;">ndt</td>
-<td style="text-align: right;">-0.16</td>
-<td style="text-align: left;">[-0.43, 0.17]</td>
+<td style="text-align: right;">-0.10</td>
+<td style="text-align: left;">[-0.46, 0.26]</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">(Intercept)</td>
 <td style="text-align: left;">shape</td>
-<td style="text-align: right;">-0.45</td>
-<td style="text-align: left;">[-0.68, -0.20]</td>
+<td style="text-align: right;">-0.60</td>
+<td style="text-align: left;">[-0.85, -0.29]</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">ConditionSpeed</td>
 <td style="text-align: left;">shape</td>
-<td style="text-align: right;">-0.09</td>
-<td style="text-align: left;">[-0.33, 0.17]</td>
+<td style="text-align: right;">-0.03</td>
+<td style="text-align: left;">[-0.28, 0.17]</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">(Intercept)</td>
 <td style="text-align: left;">sigma</td>
-<td style="text-align: right;">-0.63</td>
-<td style="text-align: left;">[-0.88, -0.36]</td>
+<td style="text-align: right;">-0.82</td>
+<td style="text-align: left;">[-1.13, -0.43]</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">ConditionSpeed</td>
 <td style="text-align: left;">sigma</td>
-<td style="text-align: right;">-0.33</td>
-<td style="text-align: left;">[-0.62, -0.02]</td>
+<td style="text-align: right;">-0.28</td>
+<td style="text-align: left;">[-0.56, -0.04]</td>
 </tr>
 </tbody>
 </table>
@@ -770,28 +772,26 @@
 <span>                 <span class="va">m_gamma</span>, <span class="va">m_invgamma</span>, <span class="va">m_loggamma</span></span>
 <span>                 <span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">parameters</span><span class="op">(</span>include_ENP <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: Difference in performance potentially due to chance. See McLatchie and</span></span>
-<span><span class="co">#&gt; Vehtari (2023) for details.</span></span>
 <span><span class="co">#&gt; # Fixed Effects</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Name         |   LOOIC |   ENP |    ELPD | Difference | Difference_SE |      p</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; m_logstudent | -4801.1 |  7.75 | 2400.53 |       0.00 |          0.00 |       </span></span>
-<span><span class="co">#&gt; m_wald4      | -4795.4 |  7.82 | 2397.70 |      -2.83 |          1.61 | 0.078 </span></span>
-<span><span class="co">#&gt; m_loggamma   | -4795.0 |  7.37 | 2397.50 |      -3.03 |          2.70 | 0.262 </span></span>
-<span><span class="co">#&gt; m_invgamma   | -4792.0 |  6.84 | 2396.01 |      -4.52 |          3.29 | 0.168 </span></span>
-<span><span class="co">#&gt; m_lba        | -4789.7 |  8.07 | 2394.85 |      -5.68 |          2.89 | 0.050 </span></span>
-<span><span class="co">#&gt; m_recinormal | -4783.4 |  6.07 | 2391.72 |      -8.81 |          2.64 | &lt; .001</span></span>
-<span><span class="co">#&gt; m_logweibull | -4772.7 |  5.41 | 2386.35 |     -14.18 |          6.04 | 0.019 </span></span>
-<span><span class="co">#&gt; m_invweibull | -4772.5 |  5.24 | 2386.25 |     -14.28 |          6.08 | 0.019 </span></span>
-<span><span class="co">#&gt; m_lognormal  | -4763.3 |  8.42 | 2381.64 |     -18.89 |          6.71 | 0.005 </span></span>
-<span><span class="co">#&gt; m_exwald     | -4744.8 |  9.69 | 2372.41 |     -28.12 |          8.60 | 0.001 </span></span>
-<span><span class="co">#&gt; m_wald       | -4723.0 |  9.64 | 2361.51 |     -39.02 |          9.99 | &lt; .001</span></span>
-<span><span class="co">#&gt; m_bisa       | -4703.4 | 10.22 | 2351.68 |     -48.85 |         11.31 | &lt; .001</span></span>
-<span><span class="co">#&gt; m_exgauss    | -4607.9 | 13.45 | 2303.96 |     -96.57 |         31.58 | 0.002 </span></span>
-<span><span class="co">#&gt; m_gamma      | -4569.6 | 11.85 | 2284.78 |    -115.75 |         18.62 | &lt; .001</span></span>
-<span><span class="co">#&gt; m_weibull    | -4292.3 | 25.96 | 2146.15 |    -254.38 |         27.69 | &lt; .001</span></span>
-<span><span class="co">#&gt; m_normal     | -1888.8 |  7.18 |  944.40 |   -1456.13 |         73.83 | &lt; .001</span></span></code></pre></div>
+<span><span class="co">#&gt; m_logstudent | -4801.1 |  7.72 | 2400.56 |       0.00 |          0.00 |       </span></span>
+<span><span class="co">#&gt; m_loggamma   | -4796.2 |  7.23 | 2398.09 |      -2.47 |          2.30 | 0.283 </span></span>
+<span><span class="co">#&gt; m_wald4      | -4795.8 |  7.45 | 2397.92 |      -2.64 |          1.45 | 0.068 </span></span>
+<span><span class="co">#&gt; m_invgamma   | -4791.8 |  6.93 | 2395.92 |      -4.63 |          3.23 | 0.152 </span></span>
+<span><span class="co">#&gt; m_logweibull | -4790.3 |  5.31 | 2395.14 |      -5.41 |          4.10 | 0.187 </span></span>
+<span><span class="co">#&gt; m_invweibull | -4789.6 |  5.47 | 2394.79 |      -5.77 |          4.17 | 0.167 </span></span>
+<span><span class="co">#&gt; m_recinormal | -4789.2 |  5.83 | 2394.59 |      -5.96 |          1.93 | 0.002 </span></span>
+<span><span class="co">#&gt; m_lba        | -4788.8 |  8.29 | 2394.39 |      -6.16 |          2.39 | 0.010 </span></span>
+<span><span class="co">#&gt; m_lognormal  | -4763.2 |  8.42 | 2381.62 |     -18.94 |          6.66 | 0.004 </span></span>
+<span><span class="co">#&gt; m_exwald     | -4744.4 |  9.90 | 2372.19 |     -28.37 |          8.57 | &lt; .001</span></span>
+<span><span class="co">#&gt; m_wald       | -4723.5 |  9.51 | 2361.73 |     -38.82 |          9.96 | &lt; .001</span></span>
+<span><span class="co">#&gt; m_bisa       | -4703.5 | 10.13 | 2351.77 |     -48.79 |         11.26 | &lt; .001</span></span>
+<span><span class="co">#&gt; m_exgauss    | -4607.9 | 13.45 | 2303.96 |     -96.59 |         31.50 | 0.002 </span></span>
+<span><span class="co">#&gt; m_gamma      | -4567.6 | 13.19 | 2283.81 |    -116.75 |         18.69 | &lt; .001</span></span>
+<span><span class="co">#&gt; m_weibull    | -4283.0 | 34.96 | 2141.52 |    -259.04 |         28.24 | &lt; .001</span></span>
+<span><span class="co">#&gt; m_normal     | -1888.8 |  7.18 |  944.40 |   -1456.16 |         73.81 | &lt; .001</span></span></code></pre></div>
 </div>
 <p>Note that you can also use <code><a href="https://easystats.github.io/report/reference/report.html" class="external-link">report::report()</a></code> on the output of <code><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare()</a></code> to get a textual summary.</p>
 </section><section class="level3"><h3 id="sampling-duration">Sampling Duration<a class="anchor" aria-label="anchor" href="#sampling-duration"></a>

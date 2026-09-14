@@ -35,7 +35,7 @@ alone is not enough."><meta property="og:image" content="https://dominiquemakows
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -90,7 +90,7 @@ alone is not enough.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">cogmod_priors</span><span class="op">(</span><span class="va">formula</span>, <span class="va">data</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">cogmod_priors</span><span class="op">(</span><span class="va">formula</span>, <span class="va">data</span>, <span class="va">...</span>, warmstart <span class="op">=</span> <span class="cn">NULL</span>, prior_scale <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -109,6 +109,21 @@ family, i.e. be built with <code>brms::bf(..., family = cogmod_lognormal())</cod
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Passed to <code><a href="https://paulbuerkner.com/brms/reference/default_prior.html" class="external-link">brms::get_prior()</a></code> and <code><a href="https://paulbuerkner.com/brms/reference/validate_prior.html" class="external-link">brms::validate_prior()</a></code>, for
 arguments such as <code>data2</code> or <code>knots</code>.</p></dd>
+
+
+<dt id="arg-warmstart">warmstart<a class="anchor" aria-label="anchor" href="#arg-warmstart"></a></dt>
+<dd><p>Optional. A previous fit to centre the priors on: a
+<code>brmsfit</code>, a <code>cogmod_warmstart</code> object, its data frame, or the path to a
+CSV of it, as <code><a href="cogmod_warmstart.html">cogmod_warmstart()</a></code> takes. <code>NULL</code> (the default) leaves the
+priors where this function put them. <strong>Changes the posterior, and
+double-counts the source's data if the new model contains it</strong> - see the
+section above.</p></dd>
+
+
+<dt id="arg-prior-scale">prior_scale<a class="anchor" aria-label="anchor" href="#arg-prior-scale"></a></dt>
+<dd><p>The prior SD, as a multiple of the source's posterior
+SD. Only used with <code>warmstart</code>. Larger is weaker; 1 would use the
+source's posterior as the prior.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -142,6 +157,53 @@ of these defaults, or omit it to add a prior for a different slot:</p>
 <span><span class="op">)</span></span></code></pre><p></p></div>
     </div>
     <div class="section level2">
+    <h2 id="centring-the-priors-on-a-previous-fit">Centring the priors on a previous fit<a class="anchor" aria-label="anchor" href="#centring-the-priors-on-a-previous-fit"></a></h2>
+    <p><code>warmstart</code> takes what <code><a href="cogmod_warmstart.html">cogmod_warmstart()</a></code> takes - a <code>brmsfit</code>, the table
+<code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code> makes of one, or the path to a CSV of it - and re-centres
+the priors on that fit's posterior: each prior becomes
+<code>normal(median, prior_scale * sd)</code>, the median and SD being the source's
+for that same parameter. It applies to the population-level intercepts and
+coefficients, the group-level SDs, and any dpar left out of the formula and
+so declared as a plain auxiliary parameter. The group-level correlations
+keep their LKJ, and the standardized effects have no stated prior to
+change.</p>
+<p>No transformation is involved, which is the reason this is safe to do
+automatically: the parameter a prior row is about <em>is</em> the parameter the
+source sampled, matched by its <code>class</code>, <code>dpar</code>, <code>coef</code> and <code>group</code>. In
+particular the <code>Intercept</code> prior is stated on the centred intercept in both
+models, so that is what the median comes from.</p>
+<p><strong>This changes the posterior.</strong> It is not in the same category as
+<code><a href="cogmod_warmstart.html">cogmod_inv_metric()</a></code> and <code><a href="cogmod_warmstart.html">cogmod_step_size()</a></code>, which only change how the
+sampler moves: a prior is part of the model, and a fit with these priors is
+answering a different question from one with the defaults. Two consequences
+are worth stating plainly.</p>
+<p>First, <strong>if the source was fitted to data the new model also contains, this
+double-counts it.</strong> A pilot on 5 of 10 participants, used to centre the
+priors for the fit on all 10, uses those 5 participants twice - once as a
+prior and once as data - and the intervals it produces are too narrow by an
+amount nothing in the output reveals. That is the standard warm-start
+setup, and it is exactly the setup in which this argument should not be
+used for anything you intend to report. It is legitimate when the source is
+an independent data set - last year's sample, another lab's, a different
+session of the same task - or when you are deliberately doing a sequential
+analysis and the priors <em>are</em> the previous posterior.</p>
+<p>Second, <code>prior_scale</code> is what stands between the two extremes.
+<code>prior_scale = 1</code> uses the source's posterior as the prior, which is the
+maximally informative choice and the one that double-counts hardest;
+letting it grow widens the prior until it is only saying roughly where the
+parameter lives. The default of 3 gives a prior with nine times the
+variance of the source's posterior, so it carries something like a ninth of
+the information - enough to put the sampler in the right region and keep it
+out of the flat directions these likelihoods have, weak enough that data
+disagreeing with the pilot will win.</p>
+<p>A parameter the source never saw - a new predictor, a group-level term it
+did not have - keeps whatever prior the rest of this function gave it, and
+<code><a href="cogmod_warmstart.html">cogmod_warmstart()</a></code>'s <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> says how many of those there are.</p>
+<p></p><div class="sourceCode r"><pre><code><span><span class="co"># last year's sample as the prior for this year's</span></span>
+<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="va">fit_2025</span><span class="op">)</span></span>
+<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="va">fit_2025</span>, prior_scale <span class="op">=</span> <span class="fl">6</span><span class="op">)</span>  <span class="co"># weaker</span></span></code></pre><p></p></div>
+    </div>
+    <div class="section level2">
     <h2 id="supported-families">Supported families<a class="anchor" aria-label="anchor" href="#supported-families"></a></h2>
     <p>The family is read off <code>formula</code>, so build it with
 <code>brms::bf(..., family = cogmod_lognormal())</code>. Every family built on the direct
@@ -156,7 +218,10 @@ on that parameterization - see its own section below. Any other family, or
 a formula carrying none, is passed through: you get a message and <code>brms</code>'s own
 defaults, unchanged, so the call is always safe to leave in a script.</p>
 <p>What gets set, on the link scale (<code>log</code> for <code>ndt</code>, <code>logit</code> for <code>poutlier</code>,
-<code>identity</code> for <code>shape</code>):</p><table class="table table"><tr><td>class</td><td><code>ndt</code></td><td><code>poutlier</code></td><td><code>shape</code></td></tr><tr><td><code>Intercept</code>, or <code>b</code> on a coefficient named <code>Intercept</code></td><td><code>normal(-1.2, 0.2)</code></td><td><code>normal(-5, 1)</code></td><td><code>normal(0, 0.5)</code></td></tr><tr><td><code>b</code> (slopes)</td><td><code>normal(0, 0.2)</code></td><td><code>normal(0, 0.2)</code></td><td><code>normal(0, 0.2)</code></td></tr><tr><td><code>sd</code>, <code>sds</code></td><td><code>exponential(1)</code></td><td><code>exponential(1)</code></td><td><code>exponential(1)</code></td></tr></table><p><code>normal(-1.2, 0.2)</code> puts <code>ndt</code> at roughly 170 to 300 ms. Like everything
+<code>identity</code> for <code>shape</code>):</p><table class="table table"><tr><td>class</td><td><code>ndt</code></td><td><code>poutlier</code></td><td><code>shape</code></td></tr><tr><td><code>Intercept</code>, or <code>b</code> on a coefficient named <code>Intercept</code></td><td><code>normal(-1.2, 0.5)</code></td><td><code>normal(-5, 1)</code></td><td><code>normal(0, 0.5)</code></td></tr><tr><td><code>b</code> (slopes)</td><td><code>normal(0, 0.2)</code></td><td><code>normal(0, 0.2)</code></td><td><code>normal(0, 0.2)</code></td></tr><tr><td><code>sd</code>, <code>sds</code></td><td><code>exponential(1)</code></td><td><code>exponential(1)</code></td><td><code>exponential(1)</code></td></tr></table><p><code>normal(-1.2, 0.5)</code> centres <code>ndt</code> on 0.30 s, with 95% of its mass between
+about 0.11 and 0.80 s: wide enough for the non-decision times of slower
+populations and more demanding responses, and still a fence against the
+<code>ndt -&gt; 0</code> direction the likelihood cannot close on its own. Like everything
 else in these families it is stated in <strong>seconds</strong>, which is the unit the
 package expects throughout. <code>poutlier</code> is a proportion and
 does not move: <code>normal(-5, 1)</code> is centred at about 0.7% and puts roughly 95%
@@ -225,7 +290,14 @@ it only through a survival term that has already saturated at 1; past about
 <code>sigma</code> is unidentified along with it. <code>mu</code> - which is <code>nuzero</code> - has the
 mirror-image plateau, but it is the response's own intercept and <code>brms</code>
 already gives it a proper <code>student_t</code> default, so it is left alone. Model a
-rarely-chosen option and it is worth mirroring the <code>nuone</code> prior onto it.</p></li>
+rarely-chosen option and it is worth mirroring the <code>nuone</code> prior onto it.
+<code>sigmabias</code>, the start-point range, has the flat direction
+<code><a href="rcogmod_lba1.html">cogmod_lba1()</a></code>'s has - the likelihood stops changing as it approaches
+zero - and gets the same treatment, rescaled to its unit, the threshold
+offset of 1. Fix it at zero unless the design speaks to start-point
+variability.</p></li>
+<li><p><code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code>: <code>sigmabias</code>, the same start-point range as the
+LNR's (the LNR races two of these accumulators), with the same rows.</p></li>
 </ul><p>All of them are the same failure as <code>ndt</code> and <code>poutlier</code>: an infinite flat
 region under a flat prior. See <code><a href="rcogmod_lba1.html">cogmod_lba1()</a></code>, <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>,
 <code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>, <code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code> and <code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>.</p>
@@ -275,7 +347,7 @@ out is declared as a plain auxiliary parameter instead, the same mechanism as
 <code>sigma</code> for <code><a href="https://rdrr.io/r/stats/family.html" class="external-link">gaussian()</a></code>, estimated on the <strong>natural</strong> scale with no link and
 reported under <em>Further Distributional Parameters</em>.</p>
 <p>Both forms are filled, with priors on whichever scale the parameter actually
-lives on:</p><table class="table table"><tr><td>dpar</td><td>in <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf()</a></code> (link scale)</td><td>omitted (natural scale)</td></tr><tr><td><code>ndt</code></td><td><code>normal(-1.2, 0.2)</code></td><td><code>lognormal(-1.2, 0.2)</code></td></tr><tr><td><code>poutlier</code></td><td><code>normal(-5, 1)</code></td><td><code>exponential(100)</code></td></tr><tr><td><code>shape</code></td><td><code>normal(0, 0.5)</code></td><td><code>normal(0, 0.5)</code></td></tr><tr><td><code>sigmabias</code>, <code>boundary</code> (<code><a href="rcogmod_lba1.html">cogmod_lba1()</a></code>, <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>, <code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>sigmazero</code>, <code>sigmaone</code> (<code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>driftone</code> (<code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(1, 2)</code></td><td><code>normal(1, 2)</code></td></tr><tr><td><code>sigmadrift</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-1, 0.75)</code></td></tr><tr><td><code>sigmabias</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>)</td><td><code>normal(-2, 1)</code></td><td><code>beta(1, 5)</code></td></tr><tr><td><code>sigmandt</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>, <code><a href="rcogmod_invgaussian.html">cogmod_invgaussian()</a></code>)</td><td><code>normal(-3, 1)</code></td><td><code>lognormal(-3, 1)</code></td></tr><tr><td><code>sigmadrift</code> (<code><a href="rcogmod_invgaussian.html">cogmod_invgaussian()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>nuone</code> (<code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>)</td><td><code>normal(0.7, 1.5)</code></td><td><code>normal(0.7, 1.5)</code></td></tr><tr><td><code>sigmazero</code>, <code>sigmaone</code> (<code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>dof</code> (<code><a href="rcogmod_logstudent.html">cogmod_logstudent()</a></code>)</td><td><code>normal(1.8, 0.7)</code></td><td><code>lognormal(1.8, 0.7)</code></td></tr><tr><td><code>tau</code> (<code><a href="rcogmod_exwald.html">cogmod_exwald()</a></code>)</td><td><code>normal(-1.5, 0.7)</code></td><td><code>lognormal(-1.5, 0.7)</code></td></tr><tr><td><code>mu</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(0.4, 0.25)</code></td><td>- (always modelled)</td></tr><tr><td><code>sigma</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(-2.3, 0.7)</code></td><td><code>lognormal(-2.3, 0.7)</code></td></tr><tr><td><code>tau</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(-1.5, 0.7)</code></td><td><code>lognormal(-1.5, 0.7)</code></td></tr></table><p>The <code>ndt</code> pair describes the same belief twice: <code>lognormal</code> is just <code>normal</code>
+lives on:</p><table class="table table"><tr><td>dpar</td><td>in <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf()</a></code> (link scale)</td><td>omitted (natural scale)</td></tr><tr><td><code>ndt</code></td><td><code>normal(-1.2, 0.5)</code></td><td><code>lognormal(-1.2, 0.5)</code></td></tr><tr><td><code>poutlier</code></td><td><code>normal(-5, 1)</code></td><td><code>exponential(100)</code></td></tr><tr><td><code>shape</code></td><td><code>normal(0, 0.5)</code></td><td><code>normal(0, 0.5)</code></td></tr><tr><td><code>sigmabias</code>, <code>boundary</code> (<code><a href="rcogmod_lba1.html">cogmod_lba1()</a></code>, <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>, <code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>sigmazero</code>, <code>sigmaone</code> (<code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>driftone</code> (<code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(1, 2)</code></td><td><code>normal(1, 2)</code></td></tr><tr><td><code>sigmadrift</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-1, 0.75)</code></td></tr><tr><td><code>sigmabias</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>)</td><td><code>normal(-2, 1)</code></td><td><code>beta(1, 5)</code></td></tr><tr><td><code>sigmandt</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>, <code><a href="rcogmod_invgaussian.html">cogmod_invgaussian()</a></code>)</td><td><code>normal(-3, 1)</code></td><td><code>lognormal(-3, 1)</code></td></tr><tr><td><code>sigmadrift</code> (<code><a href="rcogmod_invgaussian.html">cogmod_invgaussian()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>nuone</code> (<code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>)</td><td><code>normal(0.7, 1.5)</code></td><td><code>normal(0.7, 1.5)</code></td></tr><tr><td><code>sigmazero</code>, <code>sigmaone</code> (<code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>sigmabias</code> (<code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>, <code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.35, 0.75)</code></td></tr><tr><td><code>dof</code> (<code><a href="rcogmod_logstudent.html">cogmod_logstudent()</a></code>)</td><td><code>normal(1.8, 0.7)</code></td><td><code>lognormal(1.8, 0.7)</code></td></tr><tr><td><code>tau</code> (<code><a href="rcogmod_exwald.html">cogmod_exwald()</a></code>)</td><td><code>normal(-1.5, 0.7)</code></td><td><code>lognormal(-1.5, 0.7)</code></td></tr><tr><td><code>mu</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(0.4, 0.25)</code></td><td>- (always modelled)</td></tr><tr><td><code>sigma</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(-2.3, 0.7)</code></td><td><code>lognormal(-2.3, 0.7)</code></td></tr><tr><td><code>tau</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(-1.5, 0.7)</code></td><td><code>lognormal(-1.5, 0.7)</code></td></tr></table><p>The <code>ndt</code> pair describes the same belief twice: <code>lognormal</code> is just <code>normal</code>
 on the log scale, written for the untransformed parameter. The
 <code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code> pairs do the same to within a rounding error, because
 <code>softplus(x)</code> and <code>exp(x)</code> agree to three figures for the <code>x</code> below <code>-2</code> that
@@ -320,7 +392,7 @@ tasks. <em>Behavior Research Methods</em>, <em>56</em>(7), 7280-7306.
 </ul></div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="cogmod_inits.html">cogmod_inits()</a></code>, <code><a href="cogmod_stanvars.html">cogmod_stanvars()</a></code></p></div>
+    <div class="dont-index"><p><code><a href="cogmod_inits.html">cogmod_inits()</a></code>, <code><a href="cogmod_stanvars.html">cogmod_stanvars()</a></code>, <code><a href="cogmod_warmstart.html">cogmod_warmstart()</a></code></p></div>
     </div>
 
     <div class="section level2">
@@ -332,10 +404,12 @@ tasks. <em>Behavior Research Methods</em>, <em>56</em>(7), 7280-7306.
 <span class="r-in"><span><span class="fu">cogmod_priors</span><span class="op">(</span><span class="va">f</span>, <span class="va">d</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                   prior     class coef group resp     dpar nlpar lb ub tag</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  student_t(3, 0.8, 2.5) Intercept                                         </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       normal(-1.2, 0.2) Intercept                      ndt                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       normal(-1.2, 0.5) Intercept                      ndt                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>           normal(-5, 1) Intercept                 poutlier                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    student_t(3, 0, 2.5) Intercept                    sigma                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  lognormal(-0.35, 0.75) sigmabias                                 0       </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   source</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  default</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  default</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  default</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  default</span>

@@ -213,6 +213,16 @@ distribution instead of a ballistic accumulation process. `mu`
 speeds for the “Error” and “Correct” accumulators, and
 `sigmazero`/`sigmaone` their log-space SDs.
 
+The LNR also has a `sigmabias` parameter, a Uniform start-point range
+below a threshold pinned one unit above it, which turns it into the LBA
+with LogNormal drift rates ([Heathcote & Love,
+2012](https://doi.org/10.3389/fpsyg.2012.00292)). It is fixed at zero
+here, which is the LNR proper: a start-point range is hard to identify
+from the shape of the RT distribution alone and adds a flat direction to
+the likelihood at zero, so it is worth estimating only with a lot of
+data or a specific hypothesis about start-point variability (see
+[`?cogmod_lnr`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)).
+
 Like every family in this package, the LNR is fit with `ndt` and
 `poutlier`: `ndt` is estimated in seconds, with no upper bound tied to
 the fastest observed response, and `poutlier` is the proportion of
@@ -232,6 +242,7 @@ f <- bf(
   nuone ~ Condition,
   sigmazero ~ 1,
   sigmaone ~ 1,
+  sigmabias = 0,
   ndt ~ Condition,
   family = cogmod_lnr()
 )
@@ -428,11 +439,11 @@ loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
 #> 
 #> Name   |   LOOIC |   ENP |    ELPD | Difference | Difference_SE |      p
 #> ------------------------------------------------------------------------
-#> m_lba  | -2653.1 |  7.49 | 1326.56 |       0.00 |          0.00 |       
-#> m_lnr  | -2633.0 |  9.86 | 1316.52 |     -10.04 |         11.08 | 0.365 
-#> m_ddm5 | -2507.3 | 10.74 | 1253.66 |     -72.90 |         18.91 | < .001
-#> m_ddm  | -2436.3 | 10.70 | 1218.16 |    -108.40 |         21.54 | < .001
-#> m_rdm  | -2419.4 |  6.96 | 1209.69 |    -116.87 |         18.15 | < .001
+#> m_lba  | -2657.6 |  7.38 | 1328.82 |       0.00 |          0.00 |       
+#> m_lnr  | -2632.2 | 10.41 | 1316.08 |     -12.74 |         10.90 | 0.242 
+#> m_ddm5 | -2506.6 | 11.06 | 1253.31 |     -75.52 |         18.84 | < .001
+#> m_ddm  | -2436.2 | 10.66 | 1218.08 |    -110.75 |         21.43 | < .001
+#> m_rdm  | -2419.6 |  6.92 | 1209.82 |    -119.00 |         18.14 | < .001
 ```
 
 ### Sampling Duration

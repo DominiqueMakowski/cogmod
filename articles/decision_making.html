@@ -28,7 +28,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -211,6 +211,7 @@
 </section><section class="level3"><h3 id="lognormal-race-lnr">LogNormal Race (LNR)<a class="anchor" aria-label="anchor" href="#lognormal-race-lnr"></a>
 </h3>
 <p>The LNR is a somewhat simpler model. It is similar to the LBA, but each accumulator’s finishing time is drawn directly from a LogNormal distribution instead of a ballistic accumulation process. <code>mu</code> (<code>nuzero</code>) and <code>nuone</code> are the (inverse log-space mean) processing speeds for the “Error” and “Correct” accumulators, and <code>sigmazero</code>/<code>sigmaone</code> their log-space SDs.</p>
+<p>The LNR also has a <code>sigmabias</code> parameter, a Uniform start-point range below a threshold pinned one unit above it, which turns it into the LBA with LogNormal drift rates (<a href="https://doi.org/10.3389/fpsyg.2012.00292" class="external-link">Heathcote &amp; Love, 2012</a>). It is fixed at zero here, which is the LNR proper: a start-point range is hard to identify from the shape of the RT distribution alone and adds a flat direction to the likelihood at zero, so it is worth estimating only with a lot of data or a specific hypothesis about start-point variability (see <code><a href="../reference/rcogmod_lnr.html">?cogmod_lnr</a></code>).</p>
 <p>Like every family in this package, the LNR is fit with <code>ndt</code> and <code>poutlier</code>: <code>ndt</code> is estimated in seconds, with no upper bound tied to the fastest observed response, and <code>poutlier</code> is the proportion of trials attributed to a contaminant guessing process (see <code>vignette("outliers")</code>). <code><a href="../reference/cogmod_priors.html">cogmod_priors()</a></code> and <code><a href="../reference/cogmod_inits.html">cogmod_inits()</a></code> both read the family off <code>f</code>, so they need no family-specific setup - and <code>init = 0</code> is actively harmful here: on the log link it starts <code>ndt</code> at <code>exp(0) = 1</code> second, above nearly every observed RT.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
@@ -219,6 +220,7 @@
 <span>  <span class="va">nuone</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  <span class="va">sigmazero</span> <span class="op">~</span> <span class="fl">1</span>,</span>
 <span>  <span class="va">sigmaone</span> <span class="op">~</span> <span class="fl">1</span>,</span>
+<span>  sigmabias <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  <span class="va">ndt</span> <span class="op">~</span> <span class="va">Condition</span>,</span>
 <span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rcogmod_lnr.html">cogmod_lnr</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
@@ -307,11 +309,11 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Name   |   LOOIC |   ENP |    ELPD | Difference | Difference_SE |      p</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; m_lba  | -2653.1 |  7.49 | 1326.56 |       0.00 |          0.00 |       </span></span>
-<span><span class="co">#&gt; m_lnr  | -2633.0 |  9.86 | 1316.52 |     -10.04 |         11.08 | 0.365 </span></span>
-<span><span class="co">#&gt; m_ddm5 | -2507.3 | 10.74 | 1253.66 |     -72.90 |         18.91 | &lt; .001</span></span>
-<span><span class="co">#&gt; m_ddm  | -2436.3 | 10.70 | 1218.16 |    -108.40 |         21.54 | &lt; .001</span></span>
-<span><span class="co">#&gt; m_rdm  | -2419.4 |  6.96 | 1209.69 |    -116.87 |         18.15 | &lt; .001</span></span></code></pre></div>
+<span><span class="co">#&gt; m_lba  | -2657.6 |  7.38 | 1328.82 |       0.00 |          0.00 |       </span></span>
+<span><span class="co">#&gt; m_lnr  | -2632.2 | 10.41 | 1316.08 |     -12.74 |         10.90 | 0.242 </span></span>
+<span><span class="co">#&gt; m_ddm5 | -2506.6 | 11.06 | 1253.31 |     -75.52 |         18.84 | &lt; .001</span></span>
+<span><span class="co">#&gt; m_ddm  | -2436.2 | 10.66 | 1218.08 |    -110.75 |         21.43 | &lt; .001</span></span>
+<span><span class="co">#&gt; m_rdm  | -2419.6 |  6.92 | 1209.82 |    -119.00 |         18.14 | &lt; .001</span></span></code></pre></div>
 </div>
 </section><section class="level3"><h3 id="sampling-duration">Sampling Duration<a class="anchor" aria-label="anchor" href="#sampling-duration"></a>
 </h3>

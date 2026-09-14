@@ -180,7 +180,11 @@ becomes the Normal, so
 [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
 is the `dof -> Inf` limit: this family varies **kurtosis** where
 [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
-varies skew.
+varies skew. It has no `sigmabias`: the start-point range of
+[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+needs a partial first moment of the rate distribution, and
+[`exp()`](https://rdrr.io/r/base/Log.html) of a Student-t has no moments
+at all.
 
 `dof` is what
 [`brms::student()`](https://paulbuerkner.com/brms/reference/brmsfamily.html)

@@ -39,7 +39,7 @@ changes the posterior being sampled."><meta property="og:image" content="https:/
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -228,20 +228,28 @@ which is why <code>formula</code> and <code>data</code> are needed rather than j
 participants: <code>brms</code> decides the layout from both.</p>
     </div>
     <div class="section level2">
-    <h2 id="storing-it-and-the-three-helpers">Storing it, and the three helpers<a class="anchor" aria-label="anchor" href="#storing-it-and-the-three-helpers"></a></h2>
+    <h2 id="storing-it-and-the-four-helpers">Storing it, and the four helpers<a class="anchor" aria-label="anchor" href="#storing-it-and-the-four-helpers"></a></h2>
     <p><code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code> gives a small table (one row per unconstrained parameter:
-label, group and level, variance, posterior mean, step size) that can be
-written with <code><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">utils::write.csv()</a></code>, so that a pilot fitted on a laptop can
-warm-start an array job on a cluster with a file of a few kilobytes and no
-<code>brmsfit</code> in sight. On the other side, three helpers with the signature of
-<code><a href="cogmod_priors.html">cogmod_priors()</a></code> and <code><a href="cogmod_inits.html">cogmod_inits()</a></code> - the model's formula and data first,
-the source under <code>warmstart</code> - each give one argument of the <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code> call:</p>
+label, group and level, variance, posterior mean, median and SD, step size)
+that can be written with <code><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">utils::write.csv()</a></code>, so that a pilot fitted on a
+laptop can warm-start an array job on a cluster with a file of a few
+kilobytes and no <code>brmsfit</code> in sight. On the other side, four functions with
+the same signature - the model's formula and data first, the source under
+<code>warmstart</code> - each give one argument of the <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code> call:</p>
 <p></p><div class="sourceCode r"><pre><code><span><span class="va">tab</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv</a></span><span class="op">(</span><span class="st">"pilot_warmstart.csv"</span><span class="op">)</span>   <span class="co"># or the path, or the brmsfit itself</span></span>
-<span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">formula</span>, data <span class="op">=</span> <span class="va">data</span>, prior <span class="op">=</span> <span class="va">...</span>, stanvars <span class="op">=</span> <span class="va">...</span>,</span>
+<span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">formula</span>, data <span class="op">=</span> <span class="va">data</span>, stanvars <span class="op">=</span> <span class="va">...</span>,</span>
+<span>         prior <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">formula</span>, <span class="va">data</span>, warmstart <span class="op">=</span> <span class="va">tab</span><span class="op">)</span>,</span>
 <span>         init <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">formula</span>, <span class="va">data</span>, warmstart <span class="op">=</span> <span class="va">tab</span><span class="op">)</span>,</span>
 <span>         inv_metric <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_warmstart.html">cogmod_inv_metric</a></span><span class="op">(</span><span class="va">formula</span>, <span class="va">data</span>, warmstart <span class="op">=</span> <span class="va">tab</span><span class="op">)</span>,</span>
 <span>         step_size <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_warmstart.html">cogmod_step_size</a></span><span class="op">(</span><span class="va">formula</span>, <span class="va">data</span>, warmstart <span class="op">=</span> <span class="va">tab</span><span class="op">)</span>,</span>
 <span>         warmup <span class="op">=</span> <span class="fl">100</span>, iter <span class="op">=</span> <span class="fl">600</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span><span class="op">)</span></span></code></pre><p></p></div>
+<p>The first of those is the odd one out and is <strong>not</strong> part of a warm start
+in the sense the rest of this page uses. <code><a href="cogmod_priors.html">cogmod_priors()</a></code> re-centres the
+priors on the source's posterior median and SD, which changes the model
+rather than the path the sampler takes through it - and double-counts the
+source's data if the new model contains it. Its own documentation says when
+that is and is not legitimate; the other three change nothing about the
+posterior being sampled.</p>
 <p>Each maps the table onto the model <code>formula</code> and <code>data</code> describe, so it
 does not matter which model the table was written for: a table from a pilot
 on fewer participants is extended, one written for another formula falls
@@ -285,11 +293,17 @@ the source has none, and <code>vignette("performance")</code>.</p></div>
 <span class="r-in"><span><span class="co"># Keep it for a cluster</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">ws</span><span class="op">)</span>, <span class="st">"pilot_warmstart.csv"</span>, row.names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="co"># ... and there, one helper per argument, all with the same signature</span></span></span>
+<span class="r-in"><span><span class="va">tab</span> <span class="op">&lt;-</span> <span class="st">"pilot_warmstart.csv"</span></span></span>
 <span class="r-in"><span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span>, prior <span class="op">=</span> <span class="fu"><a href="cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>, stanvars <span class="op">=</span> <span class="fu"><a href="cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>               init <span class="op">=</span> <span class="fu"><a href="cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="st">"pilot_warmstart.csv"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>               inv_metric <span class="op">=</span> <span class="fu">cogmod_inv_metric</span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="st">"pilot_warmstart.csv"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>               step_size <span class="op">=</span> <span class="fu">cogmod_step_size</span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="st">"pilot_warmstart.csv"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>               init <span class="op">=</span> <span class="fu"><a href="cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="va">tab</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>               inv_metric <span class="op">=</span> <span class="fu">cogmod_inv_metric</span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="va">tab</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>               step_size <span class="op">=</span> <span class="fu">cogmod_step_size</span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="va">tab</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>               warmup <span class="op">=</span> <span class="fl">100</span>, iter <span class="op">=</span> <span class="fl">600</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># The fourth helper is a different kind of thing: it moves the PRIORS onto</span></span></span>
+<span class="r-in"><span><span class="co"># the pilot's posterior, which changes the model rather than the sampler.</span></span></span>
+<span class="r-in"><span><span class="co"># Only where the pilot is independent of `df` - see ?cogmod_priors.</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span>, warmstart <span class="op">=</span> <span class="va">tab</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

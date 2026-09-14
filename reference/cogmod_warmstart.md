@@ -177,28 +177,35 @@ labels are in `ws$table`. The metric must match the target program
 exactly, which is why `formula` and `data` are needed rather than just a
 count of participants: `brms` decides the layout from both.
 
-## Storing it, and the three helpers
+## Storing it, and the four helpers
 
 [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) gives a
 small table (one row per unconstrained parameter: label, group and
-level, variance, posterior mean, step size) that can be written with
+level, variance, posterior mean, median and SD, step size) that can be
+written with
 [`utils::write.csv()`](https://rdrr.io/r/utils/write.table.html), so
 that a pilot fitted on a laptop can warm-start an array job on a cluster
 with a file of a few kilobytes and no `brmsfit` in sight. On the other
-side, three helpers with the signature of
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
-and
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md) -
-the model's formula and data first, the source under `warmstart` - each
-give one argument of the
+side, four functions with the same signature - the model's formula and
+data first, the source under `warmstart` - each give one argument of the
 [`brm()`](https://paulbuerkner.com/brms/reference/brm.html) call:
 
     tab <- read.csv("pilot_warmstart.csv")   # or the path, or the brmsfit itself
-    m <- brm(formula, data = data, prior = ..., stanvars = ...,
+    m <- brm(formula, data = data, stanvars = ...,
+             prior = cogmod_priors(formula, data, warmstart = tab),
              init = cogmod_inits(formula, data, warmstart = tab),
              inv_metric = cogmod_inv_metric(formula, data, warmstart = tab),
              step_size = cogmod_step_size(formula, data, warmstart = tab),
              warmup = 100, iter = 600, backend = "cmdstanr")
+
+The first of those is the odd one out and is **not** part of a warm
+start in the sense the rest of this page uses.
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+re-centres the priors on the source's posterior median and SD, which
+changes the model rather than the path the sampler takes through it -
+and double-counts the source's data if the new model contains it. Its
+own documentation says when that is and is not legitimate; the other
+three change nothing about the posterior being sampled.
 
 Each maps the table onto the model `formula` and `data` describe, so it
 does not matter which model the table was written for: a table from a
@@ -243,10 +250,16 @@ m <- brms::brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_sta
 # Keep it for a cluster
 write.csv(as.data.frame(ws), "pilot_warmstart.csv", row.names = FALSE)
 # ... and there, one helper per argument, all with the same signature
+tab <- "pilot_warmstart.csv"
 m <- brms::brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
-               init = cogmod_inits(f, df, warmstart = "pilot_warmstart.csv"),
-               inv_metric = cogmod_inv_metric(f, df, warmstart = "pilot_warmstart.csv"),
-               step_size = cogmod_step_size(f, df, warmstart = "pilot_warmstart.csv"),
+               init = cogmod_inits(f, df, warmstart = tab),
+               inv_metric = cogmod_inv_metric(f, df, warmstart = tab),
+               step_size = cogmod_step_size(f, df, warmstart = tab),
                warmup = 100, iter = 600, backend = "cmdstanr")
+
+# The fourth helper is a different kind of thing: it moves the PRIORS onto
+# the pilot's posterior, which changes the model rather than the sampler.
+# Only where the pilot is independent of `df` - see ?cogmod_priors.
+cogmod_priors(f, df, warmstart = tab)
 } # }
 ```

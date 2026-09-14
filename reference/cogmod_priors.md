@@ -23,7 +23,7 @@ to putting a positive shift on a log link, which is why a prior on
 ## Usage
 
 ``` r
-cogmod_priors(formula, data, ...)
+cogmod_priors(formula, data, ..., warmstart = NULL, prior_scale = 3)
 ```
 
 ## Arguments
@@ -47,6 +47,22 @@ cogmod_priors(formula, data, ...)
   and
   [`brms::validate_prior()`](https://paulbuerkner.com/brms/reference/validate_prior.html),
   for arguments such as `data2` or `knots`.
+
+- warmstart:
+
+  Optional. A previous fit to centre the priors on: a `brmsfit`, a
+  `cogmod_warmstart` object, its data frame, or the path to a CSV of it,
+  as
+  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  takes. `NULL` (the default) leaves the priors where this function put
+  them. **Changes the posterior, and double-counts the source's data if
+  the new model contains it** - see the section above.
+
+- prior_scale:
+
+  The prior SD, as a multiple of the source's posterior SD. Only used
+  with `warmstart`. Larger is weaker; 1 would use the source's posterior
+  as the prior.
 
 ## Value
 
@@ -93,6 +109,67 @@ it to add a prior for a different slot:
       replace = TRUE
     )
 
+## Centring the priors on a previous fit
+
+`warmstart` takes what
+[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+takes - a `brmsfit`, the table
+[`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) makes of
+one, or the path to a CSV of it - and re-centres the priors on that
+fit's posterior: each prior becomes `normal(median, prior_scale * sd)`,
+the median and SD being the source's for that same parameter. It applies
+to the population-level intercepts and coefficients, the group-level
+SDs, and any dpar left out of the formula and so declared as a plain
+auxiliary parameter. The group-level correlations keep their LKJ, and
+the standardized effects have no stated prior to change.
+
+No transformation is involved, which is the reason this is safe to do
+automatically: the parameter a prior row is about *is* the parameter the
+source sampled, matched by its `class`, `dpar`, `coef` and `group`. In
+particular the `Intercept` prior is stated on the centred intercept in
+both models, so that is what the median comes from.
+
+**This changes the posterior.** It is not in the same category as
+[`cogmod_inv_metric()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+and
+[`cogmod_step_size()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md),
+which only change how the sampler moves: a prior is part of the model,
+and a fit with these priors is answering a different question from one
+with the defaults. Two consequences are worth stating plainly.
+
+First, **if the source was fitted to data the new model also contains,
+this double-counts it.** A pilot on 5 of 10 participants, used to centre
+the priors for the fit on all 10, uses those 5 participants twice - once
+as a prior and once as data - and the intervals it produces are too
+narrow by an amount nothing in the output reveals. That is the standard
+warm-start setup, and it is exactly the setup in which this argument
+should not be used for anything you intend to report. It is legitimate
+when the source is an independent data set - last year's sample, another
+lab's, a different session of the same task - or when you are
+deliberately doing a sequential analysis and the priors *are* the
+previous posterior.
+
+Second, `prior_scale` is what stands between the two extremes.
+`prior_scale = 1` uses the source's posterior as the prior, which is the
+maximally informative choice and the one that double-counts hardest;
+letting it grow widens the prior until it is only saying roughly where
+the parameter lives. The default of 3 gives a prior with nine times the
+variance of the source's posterior, so it carries something like a ninth
+of the information - enough to put the sampler in the right region and
+keep it out of the flat directions these likelihoods have, weak enough
+that data disagreeing with the pilot will win.
+
+A parameter the source never saw - a new predictor, a group-level term
+it did not have - keeps whatever prior the rest of this function gave
+it, and
+[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)'s
+[`print()`](https://rdrr.io/r/base/print.html) says how many of those
+there are.
+
+    # last year's sample as the prior for this year's
+    priors <- cogmod_priors(f, df, warmstart = fit_2025)
+    priors <- cogmod_priors(f, df, warmstart = fit_2025, prior_scale = 6)  # weaker
+
 ## Supported families
 
 The family is read off `formula`, so build it with
@@ -127,18 +204,22 @@ What gets set, on the link scale (`log` for `ndt`, `logit` for
 |  |  |  |  |
 |----|----|----|----|
 | class | `ndt` | `poutlier` | `shape` |
-| `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2, 0.2)` | `normal(-5, 1)` | `normal(0, 0.5)` |
+| `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2, 0.5)` | `normal(-5, 1)` | `normal(0, 0.5)` |
 | `b` (slopes) | `normal(0, 0.2)` | `normal(0, 0.2)` | `normal(0, 0.2)` |
 | `sd`, `sds` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
 
-`normal(-1.2, 0.2)` puts `ndt` at roughly 170 to 300 ms. Like everything
-else in these families it is stated in **seconds**, which is the unit
-the package expects throughout. `poutlier` is a proportion and does not
-move: `normal(-5, 1)` is centred at about 0.7% and puts roughly 95% of
-its mass between 0.1% and 5%. That is where the empirical estimates
-sit - pooling across four lexical-decision megastudies, Miller (2024)
-puts the outlier proportion below 0.5% and argues that the 5-10% assumed
-in most simulation work is unrealistically large.
+`normal(-1.2, 0.5)` centres `ndt` on 0.30 s, with 95% of its mass
+between about 0.11 and 0.80 s: wide enough for the non-decision times of
+slower populations and more demanding responses, and still a fence
+against the `ndt -> 0` direction the likelihood cannot close on its own.
+Like everything else in these families it is stated in **seconds**,
+which is the unit the package expects throughout. `poutlier` is a
+proportion and does not move: `normal(-5, 1)` is centred at about 0.7%
+and puts roughly 95% of its mass between 0.1% and 5%. That is where the
+empirical estimates sit - pooling across four lexical-decision
+megastudies, Miller (2024) puts the outlier proportion below 0.5% and
+argues that the 5-10% assumed in most simulation work is unrealistically
+large.
 
 `shape` exists only for
 [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md).
@@ -230,7 +311,16 @@ direction that `brms` would leave improper. Seven do:
   `nuzero` - has the mirror-image plateau, but it is the response's own
   intercept and `brms` already gives it a proper `student_t` default, so
   it is left alone. Model a rarely-chosen option and it is worth
-  mirroring the `nuone` prior onto it.
+  mirroring the `nuone` prior onto it. `sigmabias`, the start-point
+  range, has the flat direction
+  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)'s
+  has - the likelihood stops changing as it approaches zero - and gets
+  the same treatment, rescaled to its unit, the threshold offset of 1.
+  Fix it at zero unless the design speaks to start-point variability.
+
+- [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md):
+  `sigmabias`, the same start-point range as the LNR's (the LNR races
+  two of these accumulators), with the same rows.
 
 All of them are the same failure as `ndt` and `poutlier`: an infinite
 flat region under a flat prior. See
@@ -315,7 +405,7 @@ actually lives on:
 |  |  |  |
 |----|----|----|
 | dpar | in [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) (link scale) | omitted (natural scale) |
-| `ndt` | `normal(-1.2, 0.2)` | `lognormal(-1.2, 0.2)` |
+| `ndt` | `normal(-1.2, 0.5)` | `lognormal(-1.2, 0.5)` |
 | `poutlier` | `normal(-5, 1)` | `exponential(100)` |
 | `shape` | `normal(0, 0.5)` | `normal(0, 0.5)` |
 | `sigmabias`, `boundary` ([`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md), [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md), [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
@@ -327,6 +417,7 @@ actually lives on:
 | `sigmadrift` ([`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 | `nuone` ([`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` |
 | `sigmazero`, `sigmaone` ([`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
+| `sigmabias` ([`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md), [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)) | `normal(0, 1)` | `lognormal(-0.35, 0.75)` |
 | `dof` ([`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)) | `normal(1.8, 0.7)` | `lognormal(1.8, 0.7)` |
 | `tau` ([`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md)) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
 | `mu` ([`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)) | `normal(0.4, 0.25)` | \- (always modelled) |
@@ -389,7 +480,8 @@ well behaved.
 ## See also
 
 [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md),
-[`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md)
+[`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md),
+[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
 
 ## Examples
 
@@ -401,10 +493,12 @@ f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
 cogmod_priors(f, d)
 #>                   prior     class coef group resp     dpar nlpar lb ub tag
 #>  student_t(3, 0.8, 2.5) Intercept                                         
-#>       normal(-1.2, 0.2) Intercept                      ndt                
+#>       normal(-1.2, 0.5) Intercept                      ndt                
 #>           normal(-5, 1) Intercept                 poutlier                
 #>    student_t(3, 0, 2.5) Intercept                    sigma                
+#>  lognormal(-0.35, 0.75) sigmabias                                 0       
 #>   source
+#>  default
 #>  default
 #>  default
 #>  default

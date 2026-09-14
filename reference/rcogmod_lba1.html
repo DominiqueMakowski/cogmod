@@ -37,7 +37,7 @@ cogmod_lba1_stanvars(): Generates the stanvars to pass to brm().
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -261,6 +261,19 @@ the scale ray rather than pinning it:</p>
 <p>Because <code>sigmabias</code> is then a constant rather than a parameter, none of the
 trouble described next applies to it, and <code><a href="cogmod_priors.html">cogmod_priors()</a></code> emits no row for
 it.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="the-same-accumulator-with-a-lognormal-rate">The same accumulator with a LogNormal rate<a class="anchor" aria-label="anchor" href="#the-same-accumulator-with-a-lognormal-rate"></a></h2>
+
+
+<p>The other single-accumulator LBA in the package is <code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code>:
+the same start point <code>Uniform(0, sigmabias)</code> and the same threshold offset,
+with a LogNormal rather than a truncated-Normal rate, so its <code>sigmabias = 0</code>
+limit is the shifted LogNormal where this family's is the recinormal. It
+lives under that name rather than here because a LogNormal rate's <code>sigma</code> is
+untouched by rescaling the evidence axis, so the threshold offset has to be
+the pin (it is fixed at 1 there) where here <code>sigma = 1</code> does the job. Two
+such accumulators raced against each other are <code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>.</p>
     </div>
     <div class="section level2">
     <h2 id="estimating-the-start-point-range">Estimating the start-point range<a class="anchor" aria-label="anchor" href="#estimating-the-start-point-range"></a></h2>

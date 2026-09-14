@@ -28,7 +28,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -266,6 +266,7 @@
 <code class="sourceCode R"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span></span>
 <span>  <span class="va">RT</span> <span class="op">~</span> <span class="va">Condition</span> <span class="op">+</span> <span class="op">(</span><span class="va">Condition</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
 <span>  <span class="va">sigma</span> <span class="op">~</span> <span class="va">Condition</span> <span class="op">+</span> <span class="op">(</span><span class="va">Condition</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
+<span>  sigmabias <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  <span class="va">ndt</span> <span class="op">~</span> <span class="va">Condition</span> <span class="op">+</span> <span class="op">(</span><span class="va">Condition</span> <span class="op">|</span> <span class="va">Participant</span><span class="op">)</span>,</span>
 <span>  family <span class="op">=</span> <span class="fu"><a href="../reference/rcogmod_lognormal.html">cogmod_lognormal</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
@@ -288,25 +289,25 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)</span></span>
 <span><span class="co">#&gt; -------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept) |  -0.47 | [-0.57, -0.38] |   100% | 1.014 |        649</span></span>
-<span><span class="co">#&gt; ConditionB  |   0.10 | [ 0.04,  0.17] | 99.80% | 1.004 |       1113</span></span>
-<span><span class="co">#&gt; ConditionC  |  -0.02 | [-0.15,  0.10] | 62.90% | 1.003 |       1163</span></span>
+<span><span class="co">#&gt; (Intercept) |  -0.43 | [-0.54, -0.33] |   100% | 1.015 |        460</span></span>
+<span><span class="co">#&gt; ConditionB  |   0.10 | [ 0.03,  0.16] | 99.70% | 1.003 |       1248</span></span>
+<span><span class="co">#&gt; ConditionC  |  -0.03 | [-0.15,  0.10] | 65.15% | 1.009 |        807</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; # ndt Parameters</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Parameter   |   Median |         95% CI |     pd |  Rhat | ESS (tail)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept) |    -1.72 | [-1.95, -1.53] |   100% | 1.001 |       1037</span></span>
-<span><span class="co">#&gt; ConditionB  |     0.01 | [-0.24,  0.24] | 53.75% | 1.003 |        958</span></span>
-<span><span class="co">#&gt; ConditionC  | 6.98e-03 | [-0.28,  0.29] | 51.90% | 1.001 |       1355</span></span>
+<span><span class="co">#&gt; (Intercept) |    -1.88 | [-2.21, -1.61] |   100% | 1.005 |       1221</span></span>
+<span><span class="co">#&gt; ConditionB  | 6.35e-03 | [-0.28,  0.28] | 51.70% | 1.001 |       1325</span></span>
+<span><span class="co">#&gt; ConditionC  |     0.02 | [-0.29,  0.33] | 55.30% | 1.005 |       1337</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; # sigma Parameters</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)</span></span>
 <span><span class="co">#&gt; -------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept) |  -1.35 | [-1.43, -1.27] |   100% | 1.001 |       1134</span></span>
-<span><span class="co">#&gt; ConditionB  |   0.04 | [-0.05,  0.12] | 80.00% | 1.002 |       1047</span></span>
-<span><span class="co">#&gt; ConditionC  |   0.02 | [-0.08,  0.13] | 65.00% | 1.002 |       1285</span></span>
+<span><span class="co">#&gt; (Intercept) |  -1.40 | [-1.48, -1.30] |   100% | 1.004 |       1207</span></span>
+<span><span class="co">#&gt; ConditionB  |   0.04 | [-0.05,  0.13] | 83.70% | 1.001 |       1169</span></span>
+<span><span class="co">#&gt; ConditionC  |   0.02 | [-0.08,  0.13] | 69.30% | 1.005 |       1039</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Uncertainty intervals (equal-tailed) computed using a MCMC distribution</span></span>
 <span><span class="co">#&gt;   approximation.</span></span></code></pre></div>
@@ -320,34 +321,34 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Parameter               | Median |        95% CI |     pd |  Rhat | ESS (tail)</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept)             |   0.21 | [ 0.16, 0.28] |   100% | 1.013 |        732</span></span>
-<span><span class="co">#&gt; ConditionB              |   0.01 | [ 0.00, 0.03] |   100% | 1.012 |        860</span></span>
-<span><span class="co">#&gt; ConditionC              |   0.27 | [ 0.21, 0.37] |   100% | 1.011 |        955</span></span>
-<span><span class="co">#&gt; Intercept ~ ConditionB  |  -0.13 | [-0.87, 0.79] | 58.90% | 1.001 |       1516</span></span>
-<span><span class="co">#&gt; Intercept ~ ConditionC  |  -0.22 | [-0.53, 0.15] | 88.55% | 1.005 |       1258</span></span>
-<span><span class="co">#&gt; ConditionB ~ ConditionC |   0.28 | [-0.74, 0.92] | 69.15% | 1.041 |        130</span></span>
+<span><span class="co">#&gt; (Intercept)             |   0.21 | [ 0.16, 0.28] |   100% | 1.005 |        815</span></span>
+<span><span class="co">#&gt; ConditionB              |   0.01 | [ 0.00, 0.03] |   100% | 1.003 |       1072</span></span>
+<span><span class="co">#&gt; ConditionC              |   0.26 | [ 0.20, 0.36] |   100% | 1.008 |        998</span></span>
+<span><span class="co">#&gt; Intercept ~ ConditionB  |  -0.07 | [-0.86, 0.85] | 54.95% | 1.001 |       1158</span></span>
+<span><span class="co">#&gt; Intercept ~ ConditionC  |  -0.21 | [-0.52, 0.15] | 86.50% | 1.002 |        943</span></span>
+<span><span class="co">#&gt; ConditionB ~ ConditionC |   0.36 | [-0.75, 0.92] | 75.25% | 1.031 |        102</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; # sigma Parameters (Participant)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Parameter               | Median |        95% CI |     pd |  Rhat | ESS (tail)</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept)             |   0.02 | [ 0.00, 0.06] |   100% | 1.004 |        640</span></span>
-<span><span class="co">#&gt; ConditionB              |   0.03 | [ 0.00, 0.08] |   100% | 1.007 |        712</span></span>
-<span><span class="co">#&gt; ConditionC              |   0.04 | [ 0.00, 0.11] |   100% | 1.014 |        733</span></span>
-<span><span class="co">#&gt; Intercept ~ ConditionB  |  -0.10 | [-0.90, 0.84] | 56.65% | 1.001 |       1195</span></span>
-<span><span class="co">#&gt; Intercept ~ ConditionC  |  -0.07 | [-0.89, 0.85] | 54.20% | 1.000 |        803</span></span>
-<span><span class="co">#&gt; ConditionB ~ ConditionC |   0.01 | [-0.88, 0.88] | 51.00% | 1.005 |       1042</span></span>
+<span><span class="co">#&gt; (Intercept)             |   0.03 | [ 0.00, 0.06] |   100% | 1.004 |        879</span></span>
+<span><span class="co">#&gt; ConditionB              |   0.03 | [ 0.00, 0.08] |   100% | 1.006 |        779</span></span>
+<span><span class="co">#&gt; ConditionC              |   0.04 | [ 0.00, 0.10] |   100% | 1.003 |        861</span></span>
+<span><span class="co">#&gt; Intercept ~ ConditionB  |  -0.11 | [-0.90, 0.87] | 57.05% | 1.002 |       1135</span></span>
+<span><span class="co">#&gt; Intercept ~ ConditionC  |  -0.07 | [-0.87, 0.88] | 54.15% | 1.007 |       1413</span></span>
+<span><span class="co">#&gt; ConditionB ~ ConditionC |   0.01 | [-0.85, 0.87] | 50.75% | 1.001 |       1443</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; # ndt Parameters (Participant)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Parameter                       | Median |        95% CI |     pd |  Rhat | ESS (tail)</span></span>
 <span><span class="co">#&gt; --------------------------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; (Intercept)                     |   0.06 | [ 0.00, 0.16] |   100% | 1.006 |       1123</span></span>
-<span><span class="co">#&gt; ndt_ConditionB                  |   0.04 | [ 0.00, 0.13] |   100% | 1.003 |        900</span></span>
-<span><span class="co">#&gt; ndt_ConditionC                  |   0.11 | [ 0.01, 0.26] |   100% | 1.011 |        737</span></span>
-<span><span class="co">#&gt; ndt_Intercept ~ ndt_ConditionB  |   0.02 | [-0.85, 0.84] | 51.20% | 0.999 |       1148</span></span>
-<span><span class="co">#&gt; ndt_Intercept ~ ndt_ConditionC  |   0.06 | [-0.82, 0.86] | 53.90% | 1.001 |       1101</span></span>
-<span><span class="co">#&gt; ndt_ConditionB ~ ndt_ConditionC |   0.14 | [-0.82, 0.90] | 58.50% | 1.005 |       1221</span></span>
+<span><span class="co">#&gt; (Intercept)                     |   0.07 | [ 0.00, 0.19] |   100% | 1.006 |        922</span></span>
+<span><span class="co">#&gt; ndt_ConditionB                  |   0.05 | [ 0.00, 0.15] |   100% | 1.001 |       1056</span></span>
+<span><span class="co">#&gt; ndt_ConditionC                  |   0.10 | [ 0.01, 0.28] |   100% | 1.002 |       1053</span></span>
+<span><span class="co">#&gt; ndt_Intercept ~ ndt_ConditionB  |   0.04 | [-0.89, 0.88] | 51.90% | 1.004 |       1289</span></span>
+<span><span class="co">#&gt; ndt_Intercept ~ ndt_ConditionC  |  -0.03 | [-0.87, 0.85] | 51.70% | 1.000 |       1134</span></span>
+<span><span class="co">#&gt; ndt_ConditionB ~ ndt_ConditionC |   0.04 | [-0.87, 0.87] | 53.75% | 1.005 |       1384</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Uncertainty intervals (equal-tailed) computed using a MCMC distribution</span></span>
 <span><span class="co">#&gt;   approximation.</span></span></code></pre></div>
@@ -364,12 +365,12 @@
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">random</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Component   | Group       | Level | Parameter  |    Median |      MAD |         95% CI</span></span>
 <span><span class="co">#&gt; --------------------------------------------------------------------------------------</span></span>
-<span><span class="co">#&gt; conditional | Participant | S01   | ConditionB | -4.34e-04 | 9.00e-03 | [-0.03,  0.03]</span></span>
-<span><span class="co">#&gt; conditional | Participant | S01   | ConditionC |     -0.07 |     0.07 | [-0.22,  0.07]</span></span>
-<span><span class="co">#&gt; conditional | Participant | S01   | Intercept  |     -0.24 |     0.05 | [-0.33, -0.14]</span></span>
-<span><span class="co">#&gt; conditional | Participant | S02   | ConditionB | -2.95e-03 |     0.01 | [-0.04,  0.02]</span></span>
-<span><span class="co">#&gt; conditional | Participant | S02   | ConditionC |     -0.25 |     0.07 | [-0.39, -0.11]</span></span>
-<span><span class="co">#&gt; conditional | Participant | S02   | Intercept  |      0.27 |     0.05 | [ 0.18,  0.37]</span></span></code></pre></div>
+<span><span class="co">#&gt; conditional | Participant | S01   | ConditionB | -9.66e-04 | 8.87e-03 | [-0.03,  0.02]</span></span>
+<span><span class="co">#&gt; conditional | Participant | S01   | ConditionC |     -0.07 |     0.07 | [-0.21,  0.07]</span></span>
+<span><span class="co">#&gt; conditional | Participant | S01   | Intercept  |     -0.23 |     0.05 | [-0.32, -0.15]</span></span>
+<span><span class="co">#&gt; conditional | Participant | S02   | ConditionB | -2.87e-03 | 9.59e-03 | [-0.04,  0.02]</span></span>
+<span><span class="co">#&gt; conditional | Participant | S02   | ConditionC |     -0.24 |     0.06 | [-0.37, -0.11]</span></span>
+<span><span class="co">#&gt; conditional | Participant | S02   | Intercept  |      0.26 |     0.04 | [ 0.18,  0.35]</span></span></code></pre></div>
 </div>
 <p>Each row is one participant’s deviation from the population-level (fixed) effect, together with its uncertainty. We can visualize all of them at once - <code>plot(random)</code> gives a quick default version, but building the forest plot by hand lets us give each parameter its own color:</p>
 <div class="cell">
@@ -420,15 +421,15 @@ D_{\text{vour}} = \frac{\sigma_{\text{between}}^2}{\sigma_{\text{between}}^2 + \
 <div class="sourceCode cell-code" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">performance_dvour</span><span class="op">(</span><span class="va">random</span><span class="op">)</span></span>
 <span><span class="co">#&gt;     Component       Group  Parameter     D_vour</span></span>
-<span><span class="co">#&gt; 1 conditional Participant ConditionB 0.07140210</span></span>
-<span><span class="co">#&gt; 2 conditional Participant ConditionC 0.93032310</span></span>
-<span><span class="co">#&gt; 3 conditional Participant  Intercept 0.94483827</span></span>
-<span><span class="co">#&gt; 4         ndt Participant ConditionB 0.05964280</span></span>
-<span><span class="co">#&gt; 5         ndt Participant ConditionC 0.09908817</span></span>
-<span><span class="co">#&gt; 6         ndt Participant  Intercept 0.08155732</span></span>
-<span><span class="co">#&gt; 7       sigma Participant ConditionB 0.02604177</span></span>
-<span><span class="co">#&gt; 8       sigma Participant ConditionC 0.07793225</span></span>
-<span><span class="co">#&gt; 9       sigma Participant  Intercept 0.05532574</span></span></code></pre></div>
+<span><span class="co">#&gt; 1 conditional Participant ConditionB 0.09517616</span></span>
+<span><span class="co">#&gt; 2 conditional Participant ConditionC 0.93411131</span></span>
+<span><span class="co">#&gt; 3 conditional Participant  Intercept 0.94529999</span></span>
+<span><span class="co">#&gt; 4         ndt Participant ConditionB 0.05628742</span></span>
+<span><span class="co">#&gt; 5         ndt Participant ConditionC 0.05292623</span></span>
+<span><span class="co">#&gt; 6         ndt Participant  Intercept 0.04842094</span></span>
+<span><span class="co">#&gt; 7       sigma Participant ConditionB 0.03356705</span></span>
+<span><span class="co">#&gt; 8       sigma Participant ConditionC 0.07840002</span></span>
+<span><span class="co">#&gt; 9       sigma Participant  Intercept 0.08164517</span></span></code></pre></div>
 </div>
 <p>The ordering is the one we expected - <code>ConditionC</code> at 0.92 is highly reliable, <code>ConditionB</code> is not - but the model is far more severe than our by-hand version: B falls from 0.59 to <strong>0.07</strong>. The disagreement is instructive. The empirical scores still contain the trial noise that the model has reassigned to the residual term, and that noise inflates their apparent between-participant spread. Taken at face value, the empirical 0.59 would have suggested that B was borderline usable; the model says it carries essentially no individual-level information at all.</p>
 <p>Notice also the <code>Intercept</code>, at 0.94. The most reliable individual measure this task produces is simply <strong>how fast each participant is overall</strong> - the very quantity the experimental design treats as a nuisance to be subtracted away. This is the usual situation rather than an accident of our simulation, and it is worth keeping in mind before building a clinical index out of a difference score.</p>

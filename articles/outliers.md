@@ -553,7 +553,8 @@ the model you are actually fitting:
 
 ``` r
 
-f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1 + (1 | Participant),
+f <- brms::bf(RT ~ 1, sigma ~ 1, sigmabias = 0, ndt ~ 1,
+              poutlier ~ 1 + (1 | Participant),
               family = cogmod_lognormal())
 
 brms::brm(f, data = df,
@@ -619,7 +620,7 @@ implied <- function(parameter, mean, sd, inv, scale) {
 knitr::kable(rbind(
   implied("mu",       -1,   1,   exp,      "median decision time (s)"),
   implied("sigma",     0,   1,   softplus, "SD of log decision time"),
-  implied("ndt",      -1.2, 0.2, exp,     "non-decision time (s)"),
+  implied("ndt",      -1.2, 0.5, exp,     "non-decision time (s)"),
   implied("poutlier", -5,   1, plogis,      "proportion of trials")
 ), digits = 3)
 ```
@@ -628,7 +629,7 @@ knitr::kable(rbind(
 |:----------|:------------------|------:|-------:|------:|:-------------------------|
 | mu        | normal(-1.0, 1.0) | 0.052 |  0.368 | 2.612 | median decision time (s) |
 | sigma     | normal(0.0, 1.0)  | 0.132 |  0.693 | 2.092 | SD of log decision time  |
-| ndt       | normal(-1.2, 0.2) | 0.204 |  0.301 | 0.446 | non-decision time (s)    |
+| ndt       | normal(-1.2, 0.5) | 0.113 |  0.301 | 0.803 | non-decision time (s)    |
 | poutlier  | normal(-5.0, 1.0) | 0.001 |  0.007 | 0.046 | proportion of trials     |
 
 **`poutlier`.** `normal(-5, 1)` is centred at about 0.7%, in line with
@@ -638,8 +639,9 @@ spread observed earlier (a logit-scale SD of about 1.1) while still
 pooling hard toward a common rate when a dataset gives no evidence of
 heterogeneity.
 
-**`ndt`.** `normal(-1.2, 0.2)` puts the non-decision time between about
-165 and 550 ms, concentrating prior mass on the usual range for keypress
+**`ndt`.** `normal(-1.2, 0.5)` centres the non-decision time on 300 ms,
+with 95% of its mass between about 110 and 800 ms - the usual range for
+keypress responses, with room for slower populations and more demanding
 responses. This is a convention informed by the RT literature rather
 than something demonstrated here, and it is the prior most worth
 revisiting: a task with an unusual motor requirement, or reaction times
@@ -744,7 +746,7 @@ set.seed(7)
 
 nll_rec <- function(p, x) {
   mu <- p[1]; sigma <- exp(p[2]); ndt <- exp(p[3]); poutlier <- plogis(p[4])
-  d <- -sum(dcogmod_lognormal(x, mu, sigma, ndt, poutlier, log = TRUE))
+  d <- -sum(dcogmod_lognormal(x, mu, sigma, ndt, poutlier = poutlier, log = TRUE))
   if (is.finite(d)) d else 1e10
 }
 
@@ -787,7 +789,7 @@ outlier component, returned by
 
 ``` r
 
-f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
+f <- brms::bf(RT ~ 1, sigma ~ 1, sigmabias = 0, ndt ~ 1, poutlier ~ 1,
               family = cogmod_lognormal())
 
 m <- brms::brm(f, data = df, 

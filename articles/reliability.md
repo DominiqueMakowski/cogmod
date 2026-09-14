@@ -287,6 +287,7 @@ to be used as scores.
 f <- bf(
   RT ~ Condition + (Condition | Participant),
   sigma ~ Condition + (Condition | Participant),
+  sigmabias = 0,
   ndt ~ Condition + (Condition | Participant),
   family = cogmod_lognormal()
 )
@@ -319,25 +320,25 @@ parameters(m, effects = "fixed")
 #> 
 #> Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)
 #> -------------------------------------------------------------------
-#> (Intercept) |  -0.47 | [-0.57, -0.38] |   100% | 1.014 |        649
-#> ConditionB  |   0.10 | [ 0.04,  0.17] | 99.80% | 1.004 |       1113
-#> ConditionC  |  -0.02 | [-0.15,  0.10] | 62.90% | 1.003 |       1163
+#> (Intercept) |  -0.43 | [-0.54, -0.33] |   100% | 1.015 |        460
+#> ConditionB  |   0.10 | [ 0.03,  0.16] | 99.70% | 1.003 |       1248
+#> ConditionC  |  -0.03 | [-0.15,  0.10] | 65.15% | 1.009 |        807
 #> 
 #> # ndt Parameters
 #> 
 #> Parameter   |   Median |         95% CI |     pd |  Rhat | ESS (tail)
 #> ---------------------------------------------------------------------
-#> (Intercept) |    -1.72 | [-1.95, -1.53] |   100% | 1.001 |       1037
-#> ConditionB  |     0.01 | [-0.24,  0.24] | 53.75% | 1.003 |        958
-#> ConditionC  | 6.98e-03 | [-0.28,  0.29] | 51.90% | 1.001 |       1355
+#> (Intercept) |    -1.88 | [-2.21, -1.61] |   100% | 1.005 |       1221
+#> ConditionB  | 6.35e-03 | [-0.28,  0.28] | 51.70% | 1.001 |       1325
+#> ConditionC  |     0.02 | [-0.29,  0.33] | 55.30% | 1.005 |       1337
 #> 
 #> # sigma Parameters
 #> 
 #> Parameter   | Median |         95% CI |     pd |  Rhat | ESS (tail)
 #> -------------------------------------------------------------------
-#> (Intercept) |  -1.35 | [-1.43, -1.27] |   100% | 1.001 |       1134
-#> ConditionB  |   0.04 | [-0.05,  0.12] | 80.00% | 1.002 |       1047
-#> ConditionC  |   0.02 | [-0.08,  0.13] | 65.00% | 1.002 |       1285
+#> (Intercept) |  -1.40 | [-1.48, -1.30] |   100% | 1.004 |       1207
+#> ConditionB  |   0.04 | [-0.05,  0.13] | 83.70% | 1.001 |       1169
+#> ConditionC  |   0.02 | [-0.08,  0.13] | 69.30% | 1.005 |       1039
 #> 
 #> Uncertainty intervals (equal-tailed) computed using a MCMC distribution
 #>   approximation.
@@ -362,34 +363,34 @@ parameters(m, effects = "random_variance")
 #> 
 #> Parameter               | Median |        95% CI |     pd |  Rhat | ESS (tail)
 #> ------------------------------------------------------------------------------
-#> (Intercept)             |   0.21 | [ 0.16, 0.28] |   100% | 1.013 |        732
-#> ConditionB              |   0.01 | [ 0.00, 0.03] |   100% | 1.012 |        860
-#> ConditionC              |   0.27 | [ 0.21, 0.37] |   100% | 1.011 |        955
-#> Intercept ~ ConditionB  |  -0.13 | [-0.87, 0.79] | 58.90% | 1.001 |       1516
-#> Intercept ~ ConditionC  |  -0.22 | [-0.53, 0.15] | 88.55% | 1.005 |       1258
-#> ConditionB ~ ConditionC |   0.28 | [-0.74, 0.92] | 69.15% | 1.041 |        130
+#> (Intercept)             |   0.21 | [ 0.16, 0.28] |   100% | 1.005 |        815
+#> ConditionB              |   0.01 | [ 0.00, 0.03] |   100% | 1.003 |       1072
+#> ConditionC              |   0.26 | [ 0.20, 0.36] |   100% | 1.008 |        998
+#> Intercept ~ ConditionB  |  -0.07 | [-0.86, 0.85] | 54.95% | 1.001 |       1158
+#> Intercept ~ ConditionC  |  -0.21 | [-0.52, 0.15] | 86.50% | 1.002 |        943
+#> ConditionB ~ ConditionC |   0.36 | [-0.75, 0.92] | 75.25% | 1.031 |        102
 #> 
 #> # sigma Parameters (Participant)
 #> 
 #> Parameter               | Median |        95% CI |     pd |  Rhat | ESS (tail)
 #> ------------------------------------------------------------------------------
-#> (Intercept)             |   0.02 | [ 0.00, 0.06] |   100% | 1.004 |        640
-#> ConditionB              |   0.03 | [ 0.00, 0.08] |   100% | 1.007 |        712
-#> ConditionC              |   0.04 | [ 0.00, 0.11] |   100% | 1.014 |        733
-#> Intercept ~ ConditionB  |  -0.10 | [-0.90, 0.84] | 56.65% | 1.001 |       1195
-#> Intercept ~ ConditionC  |  -0.07 | [-0.89, 0.85] | 54.20% | 1.000 |        803
-#> ConditionB ~ ConditionC |   0.01 | [-0.88, 0.88] | 51.00% | 1.005 |       1042
+#> (Intercept)             |   0.03 | [ 0.00, 0.06] |   100% | 1.004 |        879
+#> ConditionB              |   0.03 | [ 0.00, 0.08] |   100% | 1.006 |        779
+#> ConditionC              |   0.04 | [ 0.00, 0.10] |   100% | 1.003 |        861
+#> Intercept ~ ConditionB  |  -0.11 | [-0.90, 0.87] | 57.05% | 1.002 |       1135
+#> Intercept ~ ConditionC  |  -0.07 | [-0.87, 0.88] | 54.15% | 1.007 |       1413
+#> ConditionB ~ ConditionC |   0.01 | [-0.85, 0.87] | 50.75% | 1.001 |       1443
 #> 
 #> # ndt Parameters (Participant)
 #> 
 #> Parameter                       | Median |        95% CI |     pd |  Rhat | ESS (tail)
 #> --------------------------------------------------------------------------------------
-#> (Intercept)                     |   0.06 | [ 0.00, 0.16] |   100% | 1.006 |       1123
-#> ndt_ConditionB                  |   0.04 | [ 0.00, 0.13] |   100% | 1.003 |        900
-#> ndt_ConditionC                  |   0.11 | [ 0.01, 0.26] |   100% | 1.011 |        737
-#> ndt_Intercept ~ ndt_ConditionB  |   0.02 | [-0.85, 0.84] | 51.20% | 0.999 |       1148
-#> ndt_Intercept ~ ndt_ConditionC  |   0.06 | [-0.82, 0.86] | 53.90% | 1.001 |       1101
-#> ndt_ConditionB ~ ndt_ConditionC |   0.14 | [-0.82, 0.90] | 58.50% | 1.005 |       1221
+#> (Intercept)                     |   0.07 | [ 0.00, 0.19] |   100% | 1.006 |        922
+#> ndt_ConditionB                  |   0.05 | [ 0.00, 0.15] |   100% | 1.001 |       1056
+#> ndt_ConditionC                  |   0.10 | [ 0.01, 0.28] |   100% | 1.002 |       1053
+#> ndt_Intercept ~ ndt_ConditionB  |   0.04 | [-0.89, 0.88] | 51.90% | 1.004 |       1289
+#> ndt_Intercept ~ ndt_ConditionC  |  -0.03 | [-0.87, 0.85] | 51.70% | 1.000 |       1134
+#> ndt_ConditionB ~ ndt_ConditionC |   0.04 | [-0.87, 0.87] | 53.75% | 1.005 |       1384
 #> 
 #> Uncertainty intervals (equal-tailed) computed using a MCMC distribution
 #>   approximation.
@@ -431,12 +432,12 @@ random <- estimate_grouplevel(m)
 head(random)
 #> Component   | Group       | Level | Parameter  |    Median |      MAD |         95% CI
 #> --------------------------------------------------------------------------------------
-#> conditional | Participant | S01   | ConditionB | -4.34e-04 | 9.00e-03 | [-0.03,  0.03]
-#> conditional | Participant | S01   | ConditionC |     -0.07 |     0.07 | [-0.22,  0.07]
-#> conditional | Participant | S01   | Intercept  |     -0.24 |     0.05 | [-0.33, -0.14]
-#> conditional | Participant | S02   | ConditionB | -2.95e-03 |     0.01 | [-0.04,  0.02]
-#> conditional | Participant | S02   | ConditionC |     -0.25 |     0.07 | [-0.39, -0.11]
-#> conditional | Participant | S02   | Intercept  |      0.27 |     0.05 | [ 0.18,  0.37]
+#> conditional | Participant | S01   | ConditionB | -9.66e-04 | 8.87e-03 | [-0.03,  0.02]
+#> conditional | Participant | S01   | ConditionC |     -0.07 |     0.07 | [-0.21,  0.07]
+#> conditional | Participant | S01   | Intercept  |     -0.23 |     0.05 | [-0.32, -0.15]
+#> conditional | Participant | S02   | ConditionB | -2.87e-03 | 9.59e-03 | [-0.04,  0.02]
+#> conditional | Participant | S02   | ConditionC |     -0.24 |     0.06 | [-0.37, -0.11]
+#> conditional | Participant | S02   | Intercept  |      0.26 |     0.04 | [ 0.18,  0.35]
 ```
 
 Each row is one participant’s deviation from the population-level
@@ -542,15 +543,15 @@ output of `estimate_grouplevel()` (or the model itself) to
 
 performance_dvour(random)
 #>     Component       Group  Parameter     D_vour
-#> 1 conditional Participant ConditionB 0.07140210
-#> 2 conditional Participant ConditionC 0.93032310
-#> 3 conditional Participant  Intercept 0.94483827
-#> 4         ndt Participant ConditionB 0.05964280
-#> 5         ndt Participant ConditionC 0.09908817
-#> 6         ndt Participant  Intercept 0.08155732
-#> 7       sigma Participant ConditionB 0.02604177
-#> 8       sigma Participant ConditionC 0.07793225
-#> 9       sigma Participant  Intercept 0.05532574
+#> 1 conditional Participant ConditionB 0.09517616
+#> 2 conditional Participant ConditionC 0.93411131
+#> 3 conditional Participant  Intercept 0.94529999
+#> 4         ndt Participant ConditionB 0.05628742
+#> 5         ndt Participant ConditionC 0.05292623
+#> 6         ndt Participant  Intercept 0.04842094
+#> 7       sigma Participant ConditionB 0.03356705
+#> 8       sigma Participant ConditionC 0.07840002
+#> 9       sigma Participant  Intercept 0.08164517
 ```
 
 The ordering is the one we expected - `ConditionC` at 0.92 is highly

@@ -29,7 +29,7 @@ cogmod_loggamma_stanvars(): Generates the stanvars to pass to brm().
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -247,6 +247,10 @@ does not give a usable RT model.</p>
     <p><code>shape</code> sets the skewness of the log-gamma on the log-RT scale; the Gamma it
 is the log of has its own shape <code>k = 1 / shape^2</code>. Throughout the docs below,
 "shape" unqualified means this parameter, never <code>k</code>.</p>
+<p>The family has no <code>sigmabias</code>: the start-point range of <code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code>
+needs a partial first moment of the rate distribution, which for a log-Gamma
+exists only on part of the <code>shape</code> range and needs incomplete gamma
+functions, so it is left to the LogNormal (and to <code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>).</p>
 <p>It is unconstrained, with <code>shape = 0</code> in the <em>interior</em> rather than at a
 boundary, which is what makes it usable as a free parameter:</p><table class="table table"><tr><td><code>shape</code></td><td>Distribution</td><td>right tail</td></tr><tr><td><code>&lt; -1</code></td><td>heavier still than the inverse Weibull</td><td>power law</td></tr><tr><td><code>= -1</code></td><td><strong>inverse Weibull</strong> (Frechet)</td><td>power law</td></tr><tr><td><code>-1 to 0</code></td><td>between the LogNormal and the inverse Weibull</td><td>power law</td></tr><tr><td><code>= 0</code></td><td><strong>LogNormal</strong> - exactly <code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code></td><td>lognormal</td></tr><tr><td><code>0 to 1</code></td><td>between the LogNormal and the Weibull; <strong>Gamma</strong> (shape <code>1 / sigma^2</code>) at <code>shape = sigma</code></td><td>lighter than lognormal</td></tr><tr><td><code>= 1</code></td><td><strong>Weibull</strong>, shape <code>1 / sigma</code></td><td>lighter than lognormal</td></tr><tr><td><code>&gt; 1</code></td><td>lighter still than the Weibull</td><td>lightest</td></tr></table><p>The right tail decays like <code>exp(-c * t^(shape / sigma))</code> for <code>shape &gt; 0</code>, so
 it thins monotonically as <code>shape</code> rises, and becomes a power law for

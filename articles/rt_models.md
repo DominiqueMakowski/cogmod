@@ -477,11 +477,22 @@ own parameters, and can be given their own predictors - something a
 transformation can never give you, since it still funnels every effect
 through a single location parameter.
 
+The family also has a `sigmabias` parameter, a start-point range that
+turns it into the single-accumulator LBA with a LogNormal drift rate
+(see the LBA below, and
+[`?cogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)).
+It is fixed at zero here, which is the shifted LogNormal proper: on
+RT-only data a start-point range is identified through the shape of the
+distribution alone and adds a flat direction to the likelihood at zero,
+so it is worth estimating only with a specific hypothesis about
+start-point variability.
+
 ``` r
 
 f <- bf(
   RT ~ Condition,
   sigma ~ Condition,
+  sigmabias = 0,
   ndt ~ Condition,
   family = cogmod_lognormal()
 )
@@ -1185,14 +1196,14 @@ parameters::parameters(m_loggamma, test = NULL, diagnostic = NULL) |>
 
 | Parameter      | Component   | Median | 95% CI           |
 |:---------------|:------------|-------:|:-----------------|
-| (Intercept)    | conditional |  -1.04 | \[-1.19, -0.88\] |
-| ConditionSpeed | conditional |  -0.22 | \[-0.42, -0.05\] |
-| (Intercept)    | ndt         |  -1.38 | \[-1.71, -1.17\] |
-| ConditionSpeed | ndt         |  -0.16 | \[-0.43, 0.17\]  |
-| (Intercept)    | shape       |  -0.45 | \[-0.68, -0.20\] |
-| ConditionSpeed | shape       |  -0.09 | \[-0.33, 0.17\]  |
-| (Intercept)    | sigma       |  -0.63 | \[-0.88, -0.36\] |
-| ConditionSpeed | sigma       |  -0.33 | \[-0.62, -0.02\] |
+| (Intercept)    | conditional |  -0.92 | \[-1.15, -0.71\] |
+| ConditionSpeed | conditional |  -0.23 | \[-0.41, -0.05\] |
+| (Intercept)    | ndt         |  -1.60 | \[-2.33, -1.21\] |
+| ConditionSpeed | ndt         |  -0.10 | \[-0.46, 0.26\]  |
+| (Intercept)    | shape       |  -0.60 | \[-0.85, -0.29\] |
+| ConditionSpeed | shape       |  -0.03 | \[-0.28, 0.17\]  |
+| (Intercept)    | sigma       |  -0.82 | \[-1.13, -0.43\] |
+| ConditionSpeed | sigma       |  -0.28 | \[-0.56, -0.04\] |
 
 As we can see from the table above, the `shape`’s intercept is
 approximately between -0.68 and -0.20, which suggest that the best fit
@@ -1215,28 +1226,26 @@ loo::loo_compare(m_normal, m_exgauss, m_lognormal, m_wald,
                  m_gamma, m_invgamma, m_loggamma
                  ) |>
   parameters(include_ENP = TRUE)
-#> Warning: Difference in performance potentially due to chance. See McLatchie and
-#> Vehtari (2023) for details.
 #> # Fixed Effects
 #> 
 #> Name         |   LOOIC |   ENP |    ELPD | Difference | Difference_SE |      p
 #> ------------------------------------------------------------------------------
-#> m_logstudent | -4801.1 |  7.75 | 2400.53 |       0.00 |          0.00 |       
-#> m_wald4      | -4795.4 |  7.82 | 2397.70 |      -2.83 |          1.61 | 0.078 
-#> m_loggamma   | -4795.0 |  7.37 | 2397.50 |      -3.03 |          2.70 | 0.262 
-#> m_invgamma   | -4792.0 |  6.84 | 2396.01 |      -4.52 |          3.29 | 0.168 
-#> m_lba        | -4789.7 |  8.07 | 2394.85 |      -5.68 |          2.89 | 0.050 
-#> m_recinormal | -4783.4 |  6.07 | 2391.72 |      -8.81 |          2.64 | < .001
-#> m_logweibull | -4772.7 |  5.41 | 2386.35 |     -14.18 |          6.04 | 0.019 
-#> m_invweibull | -4772.5 |  5.24 | 2386.25 |     -14.28 |          6.08 | 0.019 
-#> m_lognormal  | -4763.3 |  8.42 | 2381.64 |     -18.89 |          6.71 | 0.005 
-#> m_exwald     | -4744.8 |  9.69 | 2372.41 |     -28.12 |          8.60 | 0.001 
-#> m_wald       | -4723.0 |  9.64 | 2361.51 |     -39.02 |          9.99 | < .001
-#> m_bisa       | -4703.4 | 10.22 | 2351.68 |     -48.85 |         11.31 | < .001
-#> m_exgauss    | -4607.9 | 13.45 | 2303.96 |     -96.57 |         31.58 | 0.002 
-#> m_gamma      | -4569.6 | 11.85 | 2284.78 |    -115.75 |         18.62 | < .001
-#> m_weibull    | -4292.3 | 25.96 | 2146.15 |    -254.38 |         27.69 | < .001
-#> m_normal     | -1888.8 |  7.18 |  944.40 |   -1456.13 |         73.83 | < .001
+#> m_logstudent | -4801.1 |  7.72 | 2400.56 |       0.00 |          0.00 |       
+#> m_loggamma   | -4796.2 |  7.23 | 2398.09 |      -2.47 |          2.30 | 0.283 
+#> m_wald4      | -4795.8 |  7.45 | 2397.92 |      -2.64 |          1.45 | 0.068 
+#> m_invgamma   | -4791.8 |  6.93 | 2395.92 |      -4.63 |          3.23 | 0.152 
+#> m_logweibull | -4790.3 |  5.31 | 2395.14 |      -5.41 |          4.10 | 0.187 
+#> m_invweibull | -4789.6 |  5.47 | 2394.79 |      -5.77 |          4.17 | 0.167 
+#> m_recinormal | -4789.2 |  5.83 | 2394.59 |      -5.96 |          1.93 | 0.002 
+#> m_lba        | -4788.8 |  8.29 | 2394.39 |      -6.16 |          2.39 | 0.010 
+#> m_lognormal  | -4763.2 |  8.42 | 2381.62 |     -18.94 |          6.66 | 0.004 
+#> m_exwald     | -4744.4 |  9.90 | 2372.19 |     -28.37 |          8.57 | < .001
+#> m_wald       | -4723.5 |  9.51 | 2361.73 |     -38.82 |          9.96 | < .001
+#> m_bisa       | -4703.5 | 10.13 | 2351.77 |     -48.79 |         11.26 | < .001
+#> m_exgauss    | -4607.9 | 13.45 | 2303.96 |     -96.59 |         31.50 | 0.002 
+#> m_gamma      | -4567.6 | 13.19 | 2283.81 |    -116.75 |         18.69 | < .001
+#> m_weibull    | -4283.0 | 34.96 | 2141.52 |    -259.04 |         28.24 | < .001
+#> m_normal     | -1888.8 |  7.18 |  944.40 |   -1456.16 |         73.81 | < .001
 ```
 
 Note that you can also use

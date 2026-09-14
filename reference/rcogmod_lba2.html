@@ -33,7 +33,7 @@ p_outlier(): Per-trial posterior probability of being an outlier.
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -327,11 +327,6 @@ evidence scale where the correct accumulator's drift is <code>3</code>.
 the <em>rarely</em> chosen option is the one on <code>mu</code>, mirror that prior onto <code>mu</code>
 by hand. Fixing both SDs (<code>sigmazero = 1, sigmaone = 1</code>, a single <code>sv</code>)
 removes the ray altogether and is common practice in the LBA literature.</p>
-<p>Versions before 0.3.1 used a different convention - the pair of drifts was
-conditioned on at least one being positive, with a negative loser allowed to
-run away - so LBA estimates from those versions are not comparable with
-these where a drift is small relative to its SD, and fits made with them
-cannot be post-processed with this version.</p>
     </div>
     <div class="section level2">
     <h2 id="the-evidence-scale-is-arbitrary">The evidence scale is arbitrary<a class="anchor" aria-label="anchor" href="#the-evidence-scale-is-arbitrary"></a></h2>
