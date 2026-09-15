@@ -7,7 +7,7 @@ starts with one), so it is only ever pulled into its parent.
 `density` is `dcogmod_invgaussian()` written out in JavaScript - a Wiener
 process with unit diffusion noise reaching `boundary`, shifted by `ndt` - and
 `trials` simulates the same process it is the first-passage time of. Keep the
-two in step. Two assumptions choose between three families, and each of them
+two in step. Three assumptions choose between five families, and each of them
 changes what the same process is:
 
 - one boundary, one accumulator: the shifted Wald, `dcogmod_invgaussian()`;
@@ -21,18 +21,32 @@ changes what the same process is:
   boundary of its own below the axis would have made the second accumulator
   look like a second *direction*, which is the drift diffusion's idea and not
   this one. It is drawn with the family's `sigmabias` at zero, so every trial
-  starts from the same place.
+  starts from the same place;
+- no within-trial noise, one or two accumulators: the two ballistic families,
+  `dcogmod_lba1()` and `dcogmod_lba2()`. The path is a straight line, so every
+  ounce of variability has to sit between trials rather than within one: the
+  rate is drawn per trial from a Normal truncated at zero and the start point
+  from `Uniform(0, sigmabias)`. That is what the toggle trades - turning the
+  noise off does not make the model deterministic, it moves the randomness to
+  the other side of the trial - and it is why `sigmabias` and the rate's own
+  SD arrive with it. Those two are the whole of the variability there, so both
+  are sliders even though a fit pins the SD to fix the arbitrary evidence
+  scale.
 
-The two assumptions can make a fourth combination that is not a model, so
-whichever of them the model on show cannot vary is greyed out and put back to
-1 - see `constrain`.
+Two boundaries have no second accumulator to give and no ballistic form in the
+package, so three of the eight combinations are not models; whichever
+assumption the model on show cannot vary is greyed out and put back to its
+first segment - see `constrain`.
 
 The `boundary` slider carries each family's own parameter, so it means one
 thing under each combination - `edge` below owns that switch and says what it
 is, and everything geometric reads `edge` rather than the slider. `bias` is
 the drift diffusion's exactly: the start point as a proportion of the gap,
 measured from the lower boundary. The dimension arrow at the right edge
-measures whichever of the three the assumptions make it.
+measures whichever of the three the assumptions make it - and under the
+ballistic families it is joined by a second arrow below it, because there the
+threshold is written as an offset above the start-point range,
+`b = sigmabias + boundary`, and one arrow cannot say a sum.
 `Plot`, `d3` and `Inputs` come bundled in the
 quarto-ojs runtime; anything else would be fetched from a CDN at page load, so
 do not reach for one.
@@ -45,9 +59,12 @@ without pinning the boundary in place. It does key off the *number* of
 boundaries, which is a change of model rather than a drag: nothing is moving
 smoothly there, so there is nothing for a rescale to spoil. A second
 accumulator does not move it at all - the race shares the Wald's frame, and
-only fills it with two of everything. The plot geometry lives in `cfg` and
-`frame` rather than in the call, because `driftArcs` has to measure the same
-frame in pixels. -->
+only fills it with two of everything - and neither does turning the noise off,
+which is why the ballistic `boundary` range stops where it does: stacked on
+the tallest `sigmabias` it reaches the same 0.8 the Wald tops out at, so the
+one frame holds all four of the single-boundary models. The plot geometry
+lives in `cfg` and `frame` rather than in the call, because `driftArcs` has to
+measure the same frame in pixels. -->
 
 <!-- One colour per parameter, carried all the way through: the name, the
 slider, the line it moves and the double arrow that measures it. And one per
@@ -75,7 +92,7 @@ on each rule. -->
 <style>
 /* The palette, and the only place it is written down: `cfg` below reads these
    back with getComputedStyle, so nothing here is repeated in the JavaScript.
-   Four parameter colours, three model ones, and the two the annotations take -
+   Four parameter colours, four model ones, and the two the annotations take -
    black and grey belong to no parameter and are never used by a rule in this
    block, but they live here so that the whole palette is one list.
 
@@ -96,6 +113,7 @@ on each rule. -->
   --cogmod-red: #D32F2F;      /* the second response */
   --cogmod-blue: #3F51B5;     /* the Wald and the race, on the toggles */
   --cogmod-azure: #0277BD;    /* the drift diffusion, on the toggles */
+  --cogmod-violet: #5E35B1;   /* the two ballistic models, on the toggles */
   --cogmod-grey: #90A4AE;     /* annotation belonging to no parameter */
   --cogmod-black: #000000;    /* the time axis */
 }
@@ -106,7 +124,46 @@ on each rule. -->
 .cogmod-layout { display: flex; flex-wrap: wrap; gap: 1.75rem;
   align-items: flex-start; margin-bottom: 0.5rem; }
 .cogmod-layout > * { min-width: 0; }
-.cogmod-controls { flex: 0 0 200px; }
+/* The parameters column, which is two columns when it has to be. Everything in
+   it takes the full width by default; the two drift rates are the one pair
+   that belongs side by side, because they are the same parameter of two
+   accumulators and reading them against each other is the whole of what a race
+   is. It also keeps the column from growing past the figure every time a model
+   arrives with another rate. The sliders need no help following: Inputs.range
+   lays a block-level form out to whatever width it is given, so each one is as
+   wide as the cell it lands in. `model` puts the class on, as it does for the
+   name the first rate goes by.
+
+   The tracks are minmax(0, 1fr) and not 1fr, which is the same thing only if
+   nothing in the column has a mind of its own about its width. Inputs.range
+   does - it carries a 190px `--input-width` - and a plain `1fr` floors a track
+   at its content's min-content size, so the two would come out 190px each and
+   hand the column a 400px grid to overflow its 200px box with, straight over
+   the figure. The zero minimum is what lets a slider be half a column wide. */
+.cogmod-controls { flex: 0 0 200px; display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 0.55rem;
+  align-items: start; }
+.cogmod-controls > * { grid-column: 1 / -1; }
+/* Which parameters pair off, and it is the rates and their spreads that do -
+   nothing else. With two accumulators the pairing is by accumulator: the two
+   rates on one row and the two spreads on the next, first on the left and
+   second on the right, so a column is one racer. With one ballistic
+   accumulator there is no second racer to fill the right-hand side, and the
+   pair is that rate and its own spread instead. Everything below them keeps
+   the full width: the threshold, the start-point range, the start point and
+   the non-decision time are each one number about the trial rather than one
+   of a matched pair, and a row of two of them would only look like a pair
+   that is not there. The racing rules come last so that `sigmazero` goes back
+   to the left when there is a `sigmaone` to stand beside it.
+
+   The order here is the DOM order, which is what grid auto-placement follows,
+   so each pair is adjacent in the markup above and lands on one row. */
+.cogmod-racing .cogmod-par-drift,
+.cogmod-ballistic .cogmod-par-drift { grid-column: 1; }
+.cogmod-ballistic .cogmod-par-sigmazero { grid-column: 2; }
+.cogmod-racing .cogmod-par-driftone { grid-column: 2; }
+.cogmod-racing .cogmod-par-sigmazero { grid-column: 1; }
+.cogmod-racing .cogmod-par-sigmaone { grid-column: 2; }
 /* The heading over each of the two lists the reader can touch - the sliders in
    the left column and the toggles in the bar below. They are the same small
    grey capitals, because what they label is the same kind of thing: not the
@@ -123,26 +180,86 @@ on each rule. -->
    line with it every time the reader chose a longer-named model. Out here it
    has the width of both columns and stays on one line. */
 .cogmod-title { display: block; font-size: 1.15rem; font-weight: 700;
-  margin: 0 0 0.9rem; }
+  margin: 0 0 0.5rem; }
+/* The model tabs, under the title. They are shortcuts and not a control of
+   their own: every one of them is a position of the toggles in the bar at the
+   bottom - and for two of them a position of a slider as well - so the strip
+   says which of the six models the figure is on and offers the other five in
+   one click. Tabs rather than another segmented control, because what they
+   choose is a destination where the toggles choose a dimension: the bar below
+   is the anatomy of a model and this one is the list of names. They are also
+   the answer to a fair complaint about the toggles, which is that a reader who
+   wants to see the drift diffusion should not have to work out that it is the
+   second boundary.
+
+   `--seg` is the model's own colour, set by `model` here as it is on the
+   assumptions bar, so the tab that is on and the segments that are on light up
+   together. The negative bottom margin lands the tab's own underline on the
+   strip's, which is what makes it read as a tab rather than a button. */
+.cogmod-tabs { display: flex; flex-wrap: wrap; gap: 0 0.25rem;
+  margin: 0 0 1.1rem; border-bottom: 1px solid #e6e9ec;
+  --seg: var(--cogmod-blue); }
+.cogmod-tab { appearance: none; margin: 0 0 -1px; padding: 3px 9px;
+  border: none; border-bottom: 2px solid transparent; background: none;
+  color: #78858c; font-size: 12px; font-weight: 600; line-height: 1.5;
+  cursor: pointer; transition: color 0.12s; }
+.cogmod-tab:hover { color: #37474F; }
+/* A toggle button that is pressed, which is what these are - the figure is one
+   panel and not six, so `role="tab"` would promise arrow-key navigation
+   between panels that do not exist. */
+.cogmod-tab[aria-pressed="true"] { color: var(--seg);
+  border-bottom-color: var(--seg); }
+.cogmod-tab:focus-visible { outline: 2px solid var(--cogmod-grey);
+  outline-offset: -2px; }
 .cogmod-par-drift { --par: var(--cogmod-green); }
 .cogmod-par-driftone { --par: var(--cogmod-red); }
+/* A rate and the spread it is drawn from on each trial belong to one
+   accumulator, so they wear that accumulator's colour rather than colours of
+   their own: the first's green and the second's red, as its density and its
+   traces already do. The column is then read down as well as across - the left
+   side is the first accumulator and the right the second, once there are
+   two. */
+.cogmod-par-sigmazero { --par: var(--cogmod-green); }
+.cogmod-par-sigmaone { --par: var(--cogmod-red); }
 .cogmod-par-boundary { --par: var(--cogmod-orange); }
 .cogmod-par-bias { --par: var(--cogmod-teal); }
+/* The two start-point parameters share the teal, and can, because no model has
+   both: `bias` places the start point between two boundaries and is the drift
+   diffusion's, `sigmabias` is the range the ballistic families draw theirs
+   from. One colour for "where the evidence starts", whichever of the two the
+   assumptions make it - the same argument `edge` makes for the boundary. */
+.cogmod-par-sigmabias { --par: var(--cogmod-teal); }
 .cogmod-par-ndt { --par: var(--cogmod-purple); }
 /* The first rate is `drift` in the models that have one and `driftzero` in the
    race, which is what the family calls it once there is a `driftone` to tell
-   it from. Both names are written in the markup and one of them is shown, so
-   that the file says what the two are and nothing has to reach into the DOM to
-   retype a label. `model` puts the class on. */
+   it from, and its SD is `sigma` and `sigmazero` for exactly the same reason.
+   Both names are written in the markup and one of them is shown, so that the
+   file says what the two are and nothing has to reach into the DOM to retype a
+   label. `model` puts the class on. */
 .cogmod-duo { display: none; }
 .cogmod-racing .cogmod-solo { display: none; }
 .cogmod-racing .cogmod-duo { display: inline; }
 .cogmod-par code:not(.sourceCode) { color: var(--par); font-weight: 600;
   background: none; padding: 0; }
 /* 11px is the size of the labels inside the figure, so a parameter reads the
-   same weight on either side of it. */
+   same weight on either side of it. Each of these is short enough to hold one
+   line in half a column, which is where the rates and their spreads sit once
+   a model pairs them off - "second rate" rather than "second accumulator" for
+   that reason. A wrapped one would push its own slider a line below its
+   partner's, and none of those four is worth two lines: the name above it is
+   the parameter, and the pair says which accumulator it belongs to by
+   standing next to the other one. */
 .cogmod-full { display: block; font-size: 11px; line-height: 1.35;
   color: #6c757d; }
+/* The same switch as `.cogmod-solo` / `.cogmod-duo` above, on the other
+   assumption: `boundary` is the whole climb to the threshold in the models
+   that diffuse and only the offset above the start-point range in the two
+   that do not, so what the two need described is not the same quantity.
+   Written after `.cogmod-full` so that the one that is away loses the tie and
+   stays away. */
+.cogmod-ball { display: none; }
+.cogmod-ballistic .cogmod-notball { display: none; }
+.cogmod-ballistic .cogmod-ball { display: block; }
 /* The number box is the only thing here that states a value at rest, and it
    takes up more room than the value is worth. Hidden, with the value put in a
    bubble over the thumb for as long as the pointer is on the slider. */
@@ -179,16 +296,23 @@ on each rule. -->
 /* The assumptions bar. What it holds are not parameters of a model but
    choices of model, so it sits under the figure rather than in the column of
    sliders, behind a rule of its own, and nothing in it wears a parameter
-   colour. It is a row that wraps, because more assumptions are meant to end
-   up in it. `--seg` is the colour the chosen segment of every toggle in the
-   bar takes; it is declared here so that `model` can set it in one place, and
-   given the Wald's blue so that the bar is never briefly colourless. */
+   colour. It is one row, and meant to stay one row: what the bar is for is the
+   reader seeing at a glance which assumptions are on the table, and a toggle
+   that has fallen to a second line is a toggle they have to go looking for.
+   Three of them do not fit the width of the article at the size the sliders
+   are set in, so everything in here is set smaller instead - the names at the
+   11px the figure labels its own marks at, the segments with them - and the
+   gaps are pulled in to match. It still wraps rather than overflowing, because
+   a phone is narrower than any amount of tightening can answer. `--seg` is the
+   colour the chosen segment of every toggle in the bar takes; it is declared
+   here so that `model` can set it in one place, and given the Wald's blue so
+   that the bar is never briefly colourless. */
 .cogmod-assumptions { display: flex; flex-wrap: wrap; align-items: center;
-  gap: 0.5rem 1.4rem; margin: 0.9rem 0 0.4rem; padding-top: 0.75rem;
+  gap: 0.5rem 1rem; margin: 0.9rem 0 0.4rem; padding-top: 0.75rem;
   border-top: 1px solid #e6e9ec; --seg: var(--cogmod-blue); }
 .cogmod-assumptions > p { margin: 0; }
 .cogmod-assumption { display: flex; flex-wrap: wrap; align-items: center;
-  gap: 0.5rem; }
+  gap: 0.4rem; }
 /* An assumption the current model cannot vary stays in the bar and greys out
    rather than leaving it: the three models are three of the four combinations
    the two toggles can make, and a reader who cannot see the toggle that is
@@ -199,7 +323,7 @@ on each rule. -->
 .cogmod-assumption > p, .cogmod-assumption .cell,
 .cogmod-assumption .cell-output { margin: 0; }
 .cogmod-assumption code:not(.sourceCode) { color: #37474F; font-weight: 600;
-  background: none; padding: 0; }
+  background: none; padding: 0; font-size: 11px; }
 /* A segmented control: the radios themselves are taken out of the flow and
    their labels become the buttons, sharing a border - hence the negative
    margin, with the selected one lifted over its neighbour so that its own
@@ -211,9 +335,9 @@ on each rule. -->
    the figure reads. Position here says only where the rounded corners go. */
 .cogmod-seg form { min-height: 0; margin: 0; }
 .cogmod-seg form > div { display: flex; }
-.cogmod-seg label { position: relative; margin: 0; padding: 1px 11px;
+.cogmod-seg label { position: relative; margin: 0; padding: 1px 8px;
   border: 1px solid #d7dce1; background: #fff; color: #546E7A;
-  font-size: 11.5px; line-height: 1.6; cursor: pointer; user-select: none;
+  font-size: 11px; line-height: 1.6; cursor: pointer; user-select: none;
   transition: background 0.12s, color 0.12s; }
 .cogmod-seg label + label { margin-left: -1px; }
 .cogmod-seg label:first-child { border-radius: 3px 0 0 3px; }
@@ -230,6 +354,18 @@ on each rule. -->
 ```
 
 [Wald Model]{.cogmod-title}
+
+```{=html}
+<div class="cogmod-tabs">
+<button type="button" class="cogmod-tab" data-model="wald">Wald</button>
+<button type="button" class="cogmod-tab"
+        data-model="recinormal">Recinormal</button>
+<button type="button" class="cogmod-tab" data-model="ddm">DDM</button>
+<button type="button" class="cogmod-tab" data-model="rdm">RDM</button>
+<button type="button" class="cogmod-tab" data-model="lba1">LBA-1</button>
+<button type="button" class="cogmod-tab" data-model="lba2">LBA-2</button>
+</div>
+```
 
 ::::: {.cogmod-layout}
 
@@ -258,7 +394,7 @@ viewof drift = Inputs.range(nbounds === 1 ? [1.5, 6] : [1.2, 4],
 :::
 
 ::: {.cogmod-par .cogmod-par-driftone hidden="hidden"}
-`driftone` [second accumulator]{.cogmod-full}
+`driftone` [second rate]{.cogmod-full}
 
 ```{ojs}
 //| echo: false
@@ -274,17 +410,61 @@ viewof driftone = Inputs.range([1.5, 6], {value: 2, step: 0.1, width: 190})
 ```
 :::
 
-::: {.cogmod-par .cogmod-par-boundary}
-`boundary` [decision threshold]{.cogmod-full}
+::: {.cogmod-par .cogmod-par-sigmazero hidden="hidden"}
+[`sigma`]{.cogmod-solo}[`sigmazero`]{.cogmod-duo} [rate SD]{.cogmod-full}
 
 ```{ojs}
 //| echo: false
-// The range doubles with the boundary count, because what `boundary` measures
-// does (see `edge`), while the figure stays exactly as it was: a boundary of 1
-// with two of them draws the same two lines as 0.5 did as a threshold.
-viewof boundary = Inputs.range(nbounds === 1 ? [0.3, 0.8] : [0.6, 1.6],
-                               {value: nbounds === 1 ? 0.5 : 1,
-                                step: nbounds === 1 ? 0.05 : 0.1, width: 190})
+// How far that rate scatters from one trial to the next, which is where a
+// ballistic accumulator's variability lives: it has none within a trial, so
+// this and `sigmabias` are between them the whole of what spreads the
+// finishing times out. The package calls it `sigma` with one accumulator and
+// `sigmazero` with two, and in a fit it is conventionally FIXED at 1, because
+// the evidence scale of an LBA is arbitrary - multiply the rates, their SDs,
+// the start-point range and the threshold by any constant and every finishing
+// time is unchanged, so only ratios are identified and one parameter has to
+// pin the scale (see ?rcogmod_lba2). Nothing is being estimated here and every
+// other parameter is held by its own slider, so moving this one alone is a
+// real change of shape rather than a walk along that ray - which is what makes
+// it worth a slider in a figure and not in a formula. The floor is well clear
+// of zero: at a tenth of this the density is a spike a couple of grid points
+// wide, and what it would be showing is a model with no variability left in
+// it at all. This cell depends on nothing, so it keeps its value while it is
+// away.
+viewof sigmazero = Inputs.range([0.4, 2], {value: 1, step: 0.1, width: 190})
+```
+:::
+
+::: {.cogmod-par .cogmod-par-sigmaone hidden="hidden"}
+`sigmaone` [second SD]{.cogmod-full}
+
+```{ojs}
+//| echo: false
+// The second accumulator's, which starts level with the first: unequal rates
+// are already enough to make a race worth watching, and the two SDs are the
+// one pair here whose *ratio* is the real quantity - the other half of why the
+// convention pins `sigmazero` rather than both.
+viewof sigmaone = Inputs.range([0.4, 2], {value: 1, step: 0.1, width: 190})
+```
+:::
+
+::: {.cogmod-par .cogmod-par-boundary}
+`boundary` [decision threshold]{.cogmod-full .cogmod-notball}
+[threshold offset]{.cogmod-full .cogmod-ball}
+
+```{ojs}
+//| echo: false
+// The range moves with what `boundary` measures (see `edge`), while the figure
+// stays exactly as it was: a boundary of 1 with two of them draws the same two
+// lines as 0.5 did as a threshold. The ballistic ceiling is the lowest of the
+// three because there the slider is an offset that stands on top of the
+// start-point range rather than on the axis: 0.45 under a `sigmabias` of 0.35
+// puts the threshold at the same 0.8 the Wald tops out at, which is what the
+// frame has room for.
+viewof boundary = Inputs.range(
+  nbounds === 2 ? [0.6, 1.6] : ballistic ? [0.2, 0.45] : [0.3, 0.8],
+  {value: nbounds === 2 ? 1 : ballistic ? 0.4 : 0.5,
+   step: nbounds === 2 ? 0.1 : 0.05, width: 190})
 ```
 :::
 
@@ -301,6 +481,28 @@ viewof boundary = Inputs.range(nbounds === 1 ? [0.3, 0.8] : [0.6, 1.6],
 // lower boundary, which is as lopsided as the figure can draw and still
 // measure it.
 viewof bias = Inputs.range([0.2, 0.8], {value: 0.5, step: 0.05, width: 190})
+```
+:::
+
+::: {.cogmod-par .cogmod-par-sigmabias hidden="hidden"}
+`sigmabias` [start-point range]{.cogmod-full}
+
+```{ojs}
+//| echo: false
+// The ballistic families draw a start point from Uniform(0, sigmabias) on
+// every trial, and write the threshold as an offset above that range, so this
+// one slider both fans the paths out at the left and carries the boundary line
+// up and down with it - which is what `b = sigmabias + boundary` means, and
+// what the two stacked dimension arrows at the right edge show. Zero is a
+// model rather than the end of the range: the accumulators all leave from the
+// same place, and with one of them that is the recinormal, or LATER, model, in
+// which 1 / (RT - ndt) is normally distributed - which is why the title over
+// the figure changes there, and the only place in this figure where a slider
+// does that. Like `bias` and `driftone`
+// this cell depends on nothing, so it is never rebuilt - `model` below only
+// shows and hides it, and it keeps its value while it is away.
+viewof sigmabias = Inputs.range([0, 0.35], {value: 0.3, step: 0.05,
+                                            width: 190})
 ```
 :::
 
@@ -413,6 +615,17 @@ dragHandles(fireTrials(Plot.plot({
     Plot.arrow(boundarySpan, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
                               stroke: cfg.orange, strokeWidth: 1.8,
                               headLength: 8}),
+    // The start-point range, standing on the axis directly under that arrow in
+    // the ballistic families and empty everywhere else. The two are a
+    // dimension chain, head to head: what they add up to is the threshold, and
+    // that sum is the whole of what the offset parameterization says.
+    Plot.arrow(sigmabiasSpan, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                               stroke: cfg.teal, strokeWidth: 1.8,
+                               headLength: 8}),
+    Plot.text(sigmabiasSpan.slice(0, 1),
+              {x: "x1", y: "y1", text: ["sigmabias"], dx: -5,
+               textAnchor: "end", fill: cfg.teal, fontSize: 11,
+               stroke: "white", strokeWidth: 3, paintOrder: "stroke"}),
     // The mean drift path of each accumulator, from the start point: its slope
     // is that accumulator's drift rate, and where it lands is the time a
     // noiseless accumulation would get there. One arrow, or two out of the same
@@ -440,7 +653,8 @@ dragHandles(fireTrials(Plot.plot({
                {y1: edge, y2: frame.ytop, stroke: cfg.grey,
                 strokeDasharray: "4,3"}),
     Plot.text([{t: ndt + meanDT}],
-              {x: "t", text: ["mean RT " + d3.format(".2f")(ndt + meanDT) + " s"],
+              {x: "t",
+               text: [dtName + " RT " + d3.format(".2f")(ndt + meanDT) + " s"],
                frameAnchor: "top", textAnchor: "start", dx: 4, dy: 8,
                fill: cfg.grey, fontSize: 11})
   ]
@@ -468,11 +682,26 @@ viewof nbounds = Inputs.radio([1, 2], {value: 1})
 
 ```{ojs}
 //| echo: false
-// Each of these two is only asked about while the other one is at 1 - see
-// `constrain`, which is what greys out whichever of them the model on show
-// cannot vary, and puts it back to 1 so that a toggle nobody can turn is not
-// left stating something that is not true.
+// This one and the boundary count are each only asked about while the other is
+// at 1 - see `constrain`, which is what greys out whichever toggle the model on
+// show cannot vary, and puts it back to its first segment so that a toggle
+// nobody can turn is not left stating something that is not true.
 viewof naccum = Inputs.radio([1, 2], {value: 1})
+```
+::::
+
+:::: {.cogmod-assumption .cogmod-seg .cogmod-assumption-noise}
+`within-trial variability`
+
+```{ojs}
+//| echo: false
+// Whether the evidence wobbles on its way up. Turning it off does not make the
+// model deterministic: it moves every source of variability between trials -
+// a rate drawn once per trial and a start point drawn from a range - which is
+// the ballistic families' trade and what `trials` and `density` switch on. The
+// package has no two-boundary ballistic model, so `constrain` greys this out
+// under two.
+viewof wnoise = Inputs.radio(["yes", "no"], {value: "yes"})
 ```
 ::::
 :::
@@ -514,24 +743,40 @@ cfg = {
     return v;
   };
   return {tmax: 1.2, dt: 0.005, npaths: 30, nrace: 15, ybot: -0.5, ytop: 1.4,
-          dheight: 0.55, driftcap: 0.1, mleft: 46, mright: 18, mtop: 18,
-          mbottom: 16, blue: hex("blue"), red: hex("red"),
-          azure: hex("azure"), orange: hex("orange"), green: hex("green"),
-          teal: hex("teal"), purple: hex("purple"), grey: hex("grey"),
-          black: hex("black")};
+          dheight: 0.55, driftcap: 0.1, mleft: 46, mright: 18,
+          mtop: 18, mbottom: 16, blue: hex("blue"), red: hex("red"),
+          azure: hex("azure"), violet: hex("violet"), orange: hex("orange"),
+          green: hex("green"), teal: hex("teal"), purple: hex("purple"),
+          grey: hex("grey"), black: hex("black")};
 }
 ```
 
 ```{ojs}
 //| echo: false
-// The two assumptions, put together into the one thing the rest of the figure
-// asks about. Two accumulators under a single boundary is a race rather than a
-// drift: two Walds, each with its own rate, both climbing to the one boundary,
-// the first to arrive taking the trial. Two boundaries is already the drift
-// diffusion and has no second accumulator to give, so `constrain` holds
-// `naccum` at 1 there - this still reads both, because the pass in which the
-// second boundary arrives is one in which it has not been put back yet.
+// Two accumulators under a single boundary is a race rather than a drift: two
+// of the first process, each with its own rate, both climbing to the one
+// boundary, the first to arrive taking the trial. It says how many of
+// everything the figure draws and not what kind, so it covers the racing
+// diffusion and the two-accumulator LBA alike - `ballistic` below is what
+// separates those. Two boundaries is already the drift diffusion and has no
+// second accumulator to give, so `constrain` holds `naccum` at 1 there - this
+// still reads both, because the pass in which the second boundary arrives is
+// one in which it has not been put back yet.
 race = nbounds === 1 && naccum === 2
+```
+
+```{ojs}
+//| echo: false
+// Whether the evidence rises in a straight line. The third assumption on its
+// own, and the one that swaps which process the figure is drawing rather than
+// how many of it: no within-trial noise means the variability moves between
+// trials instead, into a rate drawn once per trial and a start point drawn
+// from `sigmabias`. The package has no two-boundary ballistic family, so
+// `constrain` holds the toggle at "yes" there, and this reads the boundary
+// count for the same reason `race` does - the pass in which the second
+// boundary arrives is one in which the toggle has not been put back yet, and
+// `edge` must not be left measuring a model that is already gone.
+ballistic = nbounds === 1 && wnoise === "no"
 ```
 
 ```{ojs}
@@ -541,11 +786,16 @@ race = nbounds === 1 && naccum === 2
 // sits at half of it. Otherwise it is the distance an accumulation has to
 // cover, and the line sits at it - which is as true of the race, where both
 // accumulators cover that same distance to the same line, as of the lone
-// Wald. Everything geometric reads this rather than the slider - the lines,
-// the ticks, the paths' stopping points, the drift arrows' targets - while the
-// drift diffusion's density, which takes the separation as such, reads
-// `boundary`.
-edge = nbounds === 2 ? boundary / 2 : boundary
+// Wald. The ballistic families are the third case: their `boundary` is the
+// distance from the *highest* possible start point to the threshold, so the
+// line sits at that offset stacked on the start-point range, which is the
+// `b = sigmabias + boundary` the package writes and the reason dragging
+// `sigmabias` carries the boundary line with it. Everything geometric reads
+// this rather than the slider - the lines, the ticks, the paths' stopping
+// points, the drift arrows' targets - while the drift diffusion's density,
+// which takes the separation as such, reads `boundary`.
+edge = nbounds === 2 ? boundary / 2
+                     : ballistic ? sigmabias + boundary : boundary
 ```
 
 ```{ojs}
@@ -560,6 +810,18 @@ edge = nbounds === 2 ? boundary / 2 : boundary
 // reads it: the time arrow, the ndt dimension line that now sits on that
 // arrow, the feet of the drift arrows, and the paths.
 start = nbounds === 2 ? edge * (2 * bias - 1) : 0
+```
+
+```{ojs}
+//| echo: false
+// The height the mean drift arrows leave from, which is the start point in
+// every model that has one place to start. The ballistic families have a
+// range instead - each trial draws its own start point from it - so the arrow
+// that stands for the average trial leaves from the middle of that range,
+// while the traces leave from all of it. Only the arrows, their arcs and the
+// drag that turns them read this; the time axis stays on the zero of the
+// evidence scale, which is the floor of the range and not a point inside it.
+foot = ballistic ? sigmabias / 2 : start
 ```
 
 ```{ojs}
@@ -602,57 +864,106 @@ model = {
   // `colour` is the model's own. The figure no longer draws anything in it -
   // the densities and the traces go by response, which is green and red in
   // every model - so it is left with the one job of marking the chosen segment
-  // of the toggles, and the drift diffusion is the only one it tells apart.
+  // of the toggles, and what it tells apart there is the kind of process
+  // rather than the individual model: blue for the one-boundary diffusions,
+  // azure for the two-boundary one, violet for the pair that does not diffuse
+  // at all. The three are never on screen together, one bar wearing one of
+  // them, so they only have to be told from the parameter colours beside them.
+  //
+  // One name comes off a slider rather than off the toggles, which is the one
+  // place in this figure where a slider changes the model and not just its
+  // shape. A single ballistic accumulator with `sigmabias` at zero leaves the
+  // same place on every trial, so its decision time is a fixed distance over a
+  // normal rate and 1 / (RT - ndt) is normally distributed: that is the
+  // recinormal, better known in the oculomotor literature as LATER (Carpenter
+  // & Williams, 1995). Not a limit approached as the range shrinks - at zero
+  // the family evaluates to that density exactly, to machine precision, in
+  // cogmod_lba1() as here - so the title says so rather than going on calling
+  // it the model it has stopped being. The race keeps its own name at zero:
+  // two accumulators leaving the same place is still a race.
   const it = nbounds === 2
-    ? {name: "Drift Diffusion Model (DDM)", colour: cfg.azure}
-    : race ? {name: "Racing Diffusion Model (RDM)", colour: cfg.blue}
-           : {name: "Wald Model", colour: cfg.blue};
+    ? {id: "ddm", name: "Drift Diffusion Model (DDM)", colour: cfg.azure}
+    : ballistic
+      ? race ? {id: "lba2", name: "Linear Ballistic Accumulator (LBA)",
+                colour: cfg.violet}
+             : sigmabias === 0
+               ? {id: "recinormal", name: "Recinormal Model",
+                  colour: cfg.violet}
+               : {id: "lba1", name: "Single-Accumulator LBA",
+                  colour: cfg.violet}
+      : race ? {id: "rdm", name: "Racing Diffusion Model (RDM)",
+                colour: cfg.blue}
+             : {id: "wald", name: "Wald Model", colour: cfg.blue};
   const find = (sel) => document.querySelector(sel);
   const title = find(".cogmod-title");
   if (title) title.textContent = it.name;
-  // What the first rate is called, and what colour the second one's slider
-  // is, both follow the race; see the stylesheet above for the two rules the
-  // class switches.
+  // Two classes on the row, one per assumption that changes what a parameter
+  // *is* rather than whether it is there: the race renames the first rate and
+  // its SD and pairs the sliders off by accumulator, and the ballistic form
+  // renames what `boundary` measures and pairs the threshold with the
+  // start-point range. See the stylesheet above for every rule they switch.
   const layout = find(".cogmod-layout");
-  if (layout) layout.classList.toggle("cogmod-racing", race);
+  if (layout) {
+    layout.classList.toggle("cogmod-racing", race);
+    layout.classList.toggle("cogmod-ballistic", ballistic);
+  }
   // A slider the model on show has no use for leaves the column, keeping its
-  // value while it is away: `bias` has nothing to say about a single boundary
-  // and the second drift rate nothing to say about a single accumulator. The
-  // assumptions themselves are handled the other way round - see `constrain`.
+  // value while it is away: `bias` has nothing to say about a single boundary,
+  // a second rate or a second rate SD nothing to say about a single
+  // accumulator, and neither a start-point range nor a between-trial spread of
+  // the rate has anything to say about a process whose own noise is already
+  // spreading the paths out. The assumptions themselves are handled the other
+  // way round - see `constrain`.
   const show = (sel, on) => {
     const el = find(sel);
     if (el) el.hidden = !on;
   };
   show(".cogmod-par-bias", nbounds === 2);
   show(".cogmod-par-driftone", race);
-  // No segment can name a model by its position once there are two toggles, so
-  // the colour is handed to the whole bar and the checked segments read it off.
-  const bar = find(".cogmod-assumptions");
-  if (bar) bar.style.setProperty("--seg", it.colour);
+  show(".cogmod-par-sigmazero", ballistic);
+  show(".cogmod-par-sigmaone", ballistic && race);
+  show(".cogmod-par-sigmabias", ballistic);
+  // No segment can name a model by its position once there are three toggles,
+  // so the colour is handed to the whole bar and the checked segments read it
+  // off. The tab strip takes it the same way, which is what keeps the tab that
+  // is on and the segments that are on the one colour.
+  for (const sel of [".cogmod-assumptions", ".cogmod-tabs"]) {
+    const bar = find(sel);
+    if (bar) bar.style.setProperty("--seg", it.colour);
+  }
+  // Which tab is lit is read off the model rather than remembered from the
+  // click, so the strip is right however the reader got here - by a tab, by a
+  // toggle, or by dragging `sigmabias` to zero.
+  for (const tab of document.querySelectorAll(".cogmod-tab")) {
+    tab.setAttribute("aria-pressed", tab.dataset.model === it.id);
+  }
   return it;
 }
 ```
 
 ```{ojs}
 //| echo: false
-// The two toggles can make four combinations and only three of them are
-// models: a race between two accumulators has no second boundary to give, and
-// a drift diffusion is already a process between two boundaries and has no
-// second accumulator. So whichever toggle the model on show cannot vary is
-// greyed out and taken out of reach - both of them only in the Wald, where
-// either choice leads somewhere.
+// The three toggles can make eight combinations and five of them are models.
+// Everything the second boundary rules out is ruled out by the same fact: a
+// drift diffusion is already a process between two boundaries, so it has no
+// second accumulator to give, and the package has no ballistic family that
+// runs between two of them either. Read the other way round, two accumulators
+// have no second boundary to give and neither does a ballistic process. So
+// whichever toggle the model on show cannot vary is greyed out and taken out
+// of reach - all three are open only in the Wald, where every choice leads
+// somewhere.
 //
-// It is also put back to 1. A toggle nobody can turn is still a toggle
-// stating something, and leaving it holding a 2 that is not in effect would
-// have the drift diffusion claim two accumulators - and would spring the race
-// on a reader who only asked for one boundary back. Resetting it costs the
-// value it was holding, which is the right trade: the reader leaves a model by
-// the toggle they arrived on, and lands on the Wald, which is where both
-// choices are open again.
+// It is also put back to its first segment. A toggle nobody can turn is still
+// a toggle stating something, and leaving it holding a value that is not in
+// effect would have the drift diffusion claim two accumulators, or claim to be
+// ballistic - and would spring a model the reader did not ask for on them when
+// they came back. Resetting it costs the value it was holding, which is the
+// right trade: the reader leaves a model by the toggle they arrived on, and
+// lands on the Wald, which is where every choice is open again.
 //
 // Writing to an input and letting ojs come round again is how the drag handles
 // work too. It settles after one extra pass: by then the radio already reads
-// 1, so nothing is dispatched and nothing re-runs.
+// its first segment, so nothing is dispatched and nothing re-runs.
 constrain = {
   const lock = (sel, shut) => {
     const el = document.querySelector(sel);
@@ -661,12 +972,82 @@ constrain = {
     const radios = [...el.querySelectorAll('input[type="radio"]')];
     for (const r of radios) r.disabled = shut;
     if (shut && radios.length && !radios[0].checked) {
-      radios[0].checked = true;       // the first segment is the 1
+      radios[0].checked = true;       // the 1, or the "yes"
       radios[0].dispatchEvent(new Event("input", {bubbles: true}));
     }
   };
-  lock(".cogmod-assumption-bounds", naccum === 2);
+  lock(".cogmod-assumption-bounds", naccum === 2 || ballistic);
   lock(".cogmod-assumption-accum", nbounds === 2);
+  lock(".cogmod-assumption-noise", nbounds === 2);
+}
+```
+
+```{ojs}
+//| echo: false
+// The tab strip under the title, wired up. A tab holds no state of its own: it
+// writes the toggles - and, for the two models that differ by a slider rather
+// than by an assumption, that slider - and lets ojs come round again, exactly
+// as `constrain` and the drag handles do. So the model on show still has one
+// definition, and the strip is a third way in rather than a second opinion.
+// `model` is what lights the tab, off that one definition.
+//
+// It runs once. The four views it reaches for depend on nothing, so ojs never
+// rebuilds them and the listener it hangs on the bar is never stranded on a
+// detached element; the flag is there in case that ever stops being true.
+//
+// Each recipe is the three toggles as segment positions, and what to do about
+// `sigmabias`. The recinormal is the single-accumulator LBA at a start-point
+// range of zero - the same family, exactly and not in the limit - so those two
+// tabs differ in that and nothing else: one pins the range at zero and the
+// other lifts it off zero, and only when it is at zero, so that arriving from
+// the recinormal shows a range again without overwriting one the reader set.
+//
+// All three toggles are written in one go, and `disabled` is lifted first.
+// A locked toggle is out of the pointer's reach because the model on show
+// cannot vary it, which is a statement about that model and not about this
+// one: the combination being left is invalid only until the rest of it
+// arrives, and `constrain` locks whatever the new model cannot vary on the
+// next pass anyway.
+tabs = {
+  const bar = document.querySelector(".cogmod-tabs");
+  if (!bar || bar.dataset.wired) return bar;
+  bar.dataset.wired = "1";
+  const segment = (view, i) => {
+    const radios = [...view.querySelectorAll('input[type="radio"]')];
+    for (const r of radios) r.disabled = false;
+    const pick = radios[i];
+    if (!pick || pick.checked) return;
+    pick.checked = true;
+    pick.dispatchEvent(new Event("input", {bubbles: true}));
+  };
+  const slide = (view, v) => {
+    const el = view.querySelector('input[type="range"]');
+    if (!el || Number(el.value) === v) return;
+    el.value = v;
+    el.dispatchEvent(new Event("input", {bubbles: true}));
+  };
+  const recipe = {
+    wald:       {seg: [0, 0, 0]},
+    recinormal: {seg: [0, 0, 1], range: 0},
+    ddm:        {seg: [1, 0, 0]},
+    rdm:        {seg: [0, 1, 0]},
+    lba1:       {seg: [0, 0, 1], ifZero: 0.3},
+    lba2:       {seg: [0, 1, 1], ifZero: 0.3}
+  };
+  bar.addEventListener("click", (event) => {
+    const tab = event.target.closest(".cogmod-tab");
+    const it = tab && recipe[tab.dataset.model];
+    if (!it) return;
+    segment(viewof nbounds, it.seg[0]);
+    segment(viewof naccum, it.seg[1]);
+    segment(viewof wnoise, it.seg[2]);
+    const range = (viewof sigmabias).querySelector('input[type="range"]');
+    if (it.range !== undefined) slide(viewof sigmabias, it.range);
+    else if (it.ifZero !== undefined && Number(range.value) === 0) {
+      slide(viewof sigmabias, it.ifZero);
+    }
+  });
+  return bar;
 }
 ```
 
@@ -701,14 +1082,17 @@ dragHandles = function(plot) {
     driftone: (viewof driftone).querySelector('input[type="range"]'),
     boundary: (viewof boundary).querySelector('input[type="range"]'),
     bias: (viewof bias).querySelector('input[type="range"]'),
+    sigmabias: (viewof sigmabias).querySelector('input[type="range"]'),
     ndt: (viewof ndt).querySelector('input[type="range"]')
   };
   const at = (key) => Number(slider[key].value);
   // Where the lines are and where the evidence starts, read off the sliders
-  // rather than taken from `edge` and `start`, for the same reason every other
-  // handle reads its own value live.
-  const edgeAt = () => nbounds === 2 ? at("boundary") / 2 : at("boundary");
+  // rather than taken from `edge`, `start` and `foot`, for the same reason
+  // every other handle reads its own value live.
+  const edgeAt = () => nbounds === 2 ? at("boundary") / 2
+    : ballistic ? at("sigmabias") + at("boundary") : at("boundary");
   const origin = () => nbounds === 2 ? edgeAt() * (2 * at("bias") - 1) : 0;
+  const footAt = () => ballistic ? at("sigmabias") / 2 : origin();
   const box = plot.viewBox.baseVal;
   const perPixel = (rect) => box.height / rect.height;
   // Where a value sits on screen, and the value at a point on screen: the same
@@ -746,9 +1130,12 @@ dragHandles = function(plot) {
       // Once there are two, the line dragged is one side of a gap that is
       // symmetric about the middle, so the value it asks for is twice its
       // distance from there - and a line dragged through the middle comes out
-      // the other side rather than sticking at the bottom of the slider.
-      read: (p, rect) => nbounds === 1 ? Y.from(p.y, rect)
-                                       : 2 * Math.abs(Y.from(p.y, rect))
+      // the other side rather than sticking at the bottom of the slider. In
+      // the ballistic families the slider is the offset above the start-point
+      // range, so what the line asks for is its height less that range.
+      read: (p, rect) => nbounds === 2 ? 2 * Math.abs(Y.from(p.y, rect))
+        : ballistic ? Y.from(p.y, rect) - at("sigmabias")
+                    : Y.from(p.y, rect)
     },
     ndt: {
       cursor: "ew-resize",
@@ -768,14 +1155,14 @@ dragHandles = function(plot) {
       // the slope of the line from the foot out to it - evidence over time,
       // which is what a drift rate is.
       away: (p, rect) => {
-        const o = origin();
+        const o = footAt();
         const tip = driftTip(at("ndt"), edgeAt(), o, at("drift"));
         return toSegment(p,
           {x: X.to(at("ndt"), rect), y: Y.to(o, rect)},
           {x: X.to(tip, rect),
            y: Y.to(o + at("drift") * (tip - at("ndt")), rect)});
       },
-      read: (p, rect) => (Y.from(p.y, rect) - origin()) /
+      read: (p, rect) => (Y.from(p.y, rect) - footAt()) /
                          (X.from(p.x, rect) - at("ndt"))
     },
     driftone: {
@@ -787,13 +1174,14 @@ dragHandles = function(plot) {
       // the pointer is actually on.
       away: (p, rect) => {
         if (!race) return Infinity;
+        const o = footAt();
         const v = at("driftone");
-        const tip = driftTip(at("ndt"), edgeAt(), 0, v);
+        const tip = driftTip(at("ndt"), edgeAt(), o, v);
         return toSegment(p,
-          {x: X.to(at("ndt"), rect), y: Y.to(0, rect)},
-          {x: X.to(tip, rect), y: Y.to(v * (tip - at("ndt")), rect)});
+          {x: X.to(at("ndt"), rect), y: Y.to(o, rect)},
+          {x: X.to(tip, rect), y: Y.to(o + v * (tip - at("ndt")), rect)});
       },
-      read: (p, rect) => Y.from(p.y, rect) /
+      read: (p, rect) => (Y.from(p.y, rect) - footAt()) /
                          (X.from(p.x, rect) - at("ndt"))
     },
     bias: {
@@ -806,6 +1194,25 @@ dragHandles = function(plot) {
                          p.x < X.to(at("ndt"), rect) + GRAB
         ? Infinity : Math.abs(p.y - Y.to(origin(), rect)),
       read: (p, rect) => (Y.from(p.y, rect) + edgeAt()) / (2 * edgeAt())
+    },
+    sigmabias: {
+      cursor: "ns-resize",
+      // The lower of the two dimension arrows at the right edge, standing from
+      // the axis to the top of the start-point range. Nothing else marks that
+      // height - there is no line across the figure at `sigmabias`, because a
+      // second horizontal rule would read as a second threshold - so the arrow
+      // is the handle. Dragging it takes the boundary line with it: the
+      // threshold is written above the range, so raising the range raises it,
+      // and the arrow above keeps its length while the pair slides. At a range
+      // of zero the segment is a point, which is still somewhere to grab and
+      // drag back up.
+      away: (p, rect) => {
+        if (!ballistic) return Infinity;
+        const bx = X.to(cfg.tmax - 0.02, rect);
+        return toSegment(p, {x: bx, y: Y.to(0, rect)},
+                            {x: bx, y: Y.to(at("sigmabias"), rect)});
+      },
+      read: (p, rect) => Y.from(p.y, rect)
     }
   };
 
@@ -976,7 +1383,7 @@ fireTrials = function(plot) {
 ```{ojs}
 //| echo: false
 // The value bubble each slider shows while the pointer is on it. This runs
-// once per input rather than on every move: it names the five `viewof`
+// once per input rather than on every move: it names the eight `viewof`
 // elements, not their values, so ojs does not re-run it when a slider moves -
 // the listener takes over from there. Showing and hiding is left to CSS.
 //
@@ -984,8 +1391,9 @@ fireTrials = function(plot) {
 // centre travels the width of the input less one thumb - which is the offset
 // the bubble has to follow to sit over it.
 bubbles = {
-  for (const form of [viewof drift, viewof driftone, viewof boundary,
-                      viewof bias, viewof ndt]) {
+  for (const form of [viewof drift, viewof driftone, viewof sigmazero,
+                      viewof sigmaone, viewof boundary, viewof bias,
+                      viewof sigmabias, viewof ndt]) {
     // This runs again whenever the boundary count rebuilds one of these. The
     // ones it did not rebuild are the same elements as before, bubble and
     // listeners and all, so they are left alone: replacing the bubble there
@@ -1049,15 +1457,38 @@ biasSpan = {
 // common, which is what a shared threshold is. Neither span moves
 // with `bias` - the first is measured at a start point that cannot move, and
 // the second is between the boundaries, which the start point slides between
-// without changing. No dropout guard, because the shortest boundary the slider
-// allows is still 40-odd pixels tall. bx is a hair in from tmax so the strokes
-// clear the edge.
+// without changing. The ballistic families are the third case: their slider is
+// the offset from the top of the start-point range to the threshold, so the
+// span starts there rather than on the axis, and `sigmabiasSpan` measures the
+// rest of the way down. No dropout guard, because the shortest boundary any of
+// the three ranges allows is still 28 pixels tall. bx is a hair in from tmax so
+// the strokes clear the edge.
 boundarySpan = {
   const bx = cfg.tmax - 0.02;
-  const [lo, hi] = nbounds === 2 ? [-edge, edge] : [0, edge];
+  const [lo, hi] = nbounds === 2 ? [-edge, edge]
+                                 : [ballistic ? sigmabias : 0, edge];
   const mid = (lo + hi) / 2;
   return [{x1: bx, y1: mid, x2: bx, y2: lo},
           {x1: bx, y1: mid, x2: bx, y2: hi}];
+}
+```
+
+```{ojs}
+//| echo: false
+// The start-point range, on the same line as the boundary span and directly
+// under it, so the two arrows meet head to head and read as a dimension chain:
+// what they add up to is the threshold, which is exactly what
+// `b = sigmabias + boundary` says and the one thing about the ballistic
+// families a single arrow cannot. Empty in every other model. It drops out
+// below the sixth of an evidence unit `biasSpan` gives up at, for the same
+// reason - two arrowheads longer than the span between them - which is a
+// moment before a reader dragging the range down to the recinormal limit loses
+// the range itself.
+sigmabiasSpan = {
+  const bx = cfg.tmax - 0.02;
+  return !ballistic || sigmabias < 0.16 ? []
+    : [{x1: bx, y1: sigmabias / 2, x2: bx, y2: 0},
+       {x1: bx, y1: sigmabias / 2, x2: bx, y2: sigmabias}];
 }
 ```
 
@@ -1078,16 +1509,20 @@ driftTip = function(ndt, edge, start, drift) {
 
 ```{ojs}
 //| echo: false
-// The mean drift paths: out of the start point at each accumulator's rate, as
-// far as `driftTip` allows. The race's two leave the same corner for the same
+// The mean drift paths: out of `foot` at each accumulator's mean rate, as far
+// as `driftTip` allows. The race's two leave the same corner for the same
 // boundary and differ only in how steeply they climb, which is the whole of
 // what separates two racers - so the slower one arrives further to the right,
-// and the wedge between the arrows is the head start the faster one has.
+// and the wedge between the arrows is the head start the faster one has. In
+// the ballistic families it is a mean over trials rather than a mean path
+// through one, since no trial wanders off it: every trace is a straight line
+// of its own, and this is the line the middle of the start-point range and the
+// middle of the rate distribution make between them.
 driftPaths = {
   const one = (v, name, colour) => {
-    const x2 = driftTip(ndt, edge, start, v);
-    return {name: name, colour: colour, x1: ndt, y1: start, x2: x2,
-            y2: start + v * (x2 - ndt)};
+    const x2 = driftTip(ndt, edge, foot, v);
+    return {name: name, colour: colour, x1: ndt, y1: foot, x2: x2,
+            y2: foot + v * (x2 - ndt)};
   };
   // `driftzero` is what the family calls the first rate once there is a
   // `driftone` to tell it from, which is only under the race.
@@ -1146,15 +1581,15 @@ driftArcs = {
     // rising arrow points up and to the left.
     const label = side === 0
       ? {x: ndt + (r + 14) * Math.cos(half) / pxPerSec,
-         y: start + (r + 14) * Math.sin(half) / pxPerEv}
+         y: foot + (r + 14) * Math.sin(half) / pxPerEv}
       : {x: (path.x1 + path.x2) / 2 - side * 13 * (dy / len) / pxPerSec,
          y: (path.y1 + path.y2) / 2 + side * 13 * (dx / len) / pxPerEv};
     return {
       name: path.name,
       colour: path.colour,
-      data: [{x1: ndt + r / pxPerSec, y1: start,
+      data: [{x1: ndt + r / pxPerSec, y1: foot,
               x2: ndt + (r * dx / len) / pxPerSec,
-              y2: start + (r * dy / len) / pxPerEv}],
+              y2: foot + (r * dy / len) / pxPerEv}],
       bend: -half * 180 / Math.PI,
       label: label,
       // A label above its arrow runs further left and one below runs further
@@ -1186,7 +1621,30 @@ driftArcs = {
 // no closed form for it, so it is integrated - Simpson over four seconds,
 // which is eight times the longest mean the sliders can ask for and far enough
 // out that the product of the two tails there is a millionth of nothing.
+// With no within-trial noise there is no mean to mark at all. The rate is a
+// Normal truncated at zero, the decision time is a distance divided by it, and
+// E[1 / v] diverges - so the ballistic families have no first moment, which is
+// why cogmod_lba1() has no posterior_epred(). The median does exist, and the
+// dashed line stands there instead; `dtName` is what the label calls it, so
+// the figure never says "mean" of a quantity that has none.
+//
+// It is the time at which the trial is still running with probability a half,
+// found by bisection on the log survivors - one accumulator's with one of
+// them, the sum of both with two, since a race ends when the first arrives.
+// Survival is monotone, so forty halvings of [0, 8] land inside a microsecond,
+// and 8 s is past anything the sliders can ask for.
 meanDT = {
+  if (ballistic) {
+    const lsurv = (d) => lbaLsurv(d, drift, sigmazero, edge, sigmabias) +
+                         (race ? lbaLsurv(d, driftone, sigmaone, edge,
+                                          sigmabias) : 0);
+    let lo = 0, hi = 8;
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      if (lsurv(mid) > -Math.LN2) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
   if (race) {
     const n = 400, hi = 4, h = hi / n;
     let s = 0;
@@ -1202,6 +1660,15 @@ meanDT = {
   return (boundary / drift) * (1 - Math.exp(-2 * drift * z)) /
                               (1 - Math.exp(-2 * drift * boundary)) - z / drift;
 }
+```
+
+```{ojs}
+//| echo: false
+// What the label over the dashed line calls the place it stands - see `meanDT`
+// for why the ballistic families get the other word. A cell of its own rather
+// than a ternary in the mark, so that the reason lives next to the number it
+// belongs to.
+dtName = ballistic ? "median" : "mean"
 ```
 
 ```{ojs}
@@ -1232,6 +1699,18 @@ meanDT = {
 // over the other in their two colours, because a race has one threshold and
 // two runners rather than two thresholds.
 //
+// With no within-trial noise it is dcogmod_lba1(t, drift, 1, sigmabias,
+// boundary, ndt) with one accumulator, and dcogmod_lba2() with two - the same
+// defective pair the race draws, one accumulator's density times the other's
+// survivor, over a different accumulator. The difference is where the spread
+// comes from. A diffusing accumulator at a fixed rate is spread by its own
+// noise; a ballistic one has none, so the density is an average over the two
+// things drawn per trial instead - a rate from a Normal truncated at zero and
+// a start point from Uniform(0, sigmabias). That average is closed-form, which
+// is the LBA's whole selling point, and `lbaLdens` below is it. Drag
+// `sigmabias` to zero and the average over start points goes with it, leaving
+// a fixed distance divided by a normal rate: the recinormal.
+//
 // A pair is pinned by its common maximum, so the taller curve always reaches
 // `dheight` and the shorter one keeps its share. The vertical scale of a
 // density means nothing on an evidence axis, and at drift 6, boundary 0.5 the
@@ -1244,7 +1723,15 @@ meanDT = {
 // diffusion needs that the others do not: its second curve hangs under the
 // lower boundary rather than standing on it.
 density = {
-  const n = 500;
+  // A thousand points over 1.2 s. The fast corner of the ballistic families -
+  // a high rate against the lowest threshold and the smallest spread either
+  // slider allows - is a needle a few milliseconds wide, and five hundred
+  // points sampled it about once. It is still only three pixels wide when it
+  // is drawn, so what this buys is a needle that holds its shape while a
+  // slider moves rather than one that flickers; the cost is a thousand
+  // closed-form evaluations, which is nothing next to the rebuild they are
+  // part of.
+  const n = 1000;
   const first = [], second = [], ts = [];
   let fmax = 0;
   for (let i = 0; i <= n; i++) {
@@ -1252,7 +1739,19 @@ density = {
     const d = t - ndt;
     let a = 0, b = 0;
     if (d > 0) {
-      if (race) {
+      if (ballistic) {
+        // Written on the log scale and exponentiated, as the family is: at a
+        // drift of 6 a loser's survival underflows to exactly zero well inside
+        // this figure's second of clock, and multiplying by it would zero the
+        // winner's curve rather than make it small.
+        a = Math.exp(lbaLdens(d, drift, sigmazero, edge, sigmabias) +
+                     (race ? lbaLsurv(d, driftone, sigmaone, edge, sigmabias)
+                           : 0));
+        if (race) {
+          b = Math.exp(lbaLdens(d, driftone, sigmaone, edge, sigmabias) +
+                       lbaLsurv(d, drift, sigmazero, edge, sigmabias));
+        }
+      } else if (race) {
         a = waldPdf(d, drift, edge) * waldSurv(d, driftone, edge);
         b = waldPdf(d, driftone, edge) * waldSurv(d, drift, edge);
       } else if (nbounds === 1) {
@@ -1281,9 +1780,8 @@ density = {
                                  y: base + sign * v * scale}))
   });
   const up = curve(first, edge, 1, cfg.green);
-  if (race) return [up, curve(second, edge, 1, cfg.red)];
-  if (nbounds === 1) return [up];
-  return [up, curve(second, -edge, -1, cfg.red)];
+  if (nbounds === 2) return [up, curve(second, -edge, -1, cfg.red)];
+  return race ? [up, curve(second, edge, 1, cfg.red)] : [up];
 }
 ```
 
@@ -1339,6 +1837,163 @@ erfc = function(x) {
 
 ```{ojs}
 //| echo: false
+// The standard normal, which the ballistic families' rate distribution is and
+// the diffusing ones have no use for. Both tails go through `erfc` rather than
+// one of them through one minus the other, because the kernels below take
+// differences of them at arguments a hair apart and far out, where one minus a
+// number near one has nothing left.
+normPdf = function(z) { return Math.exp(-z * z / 2) / Math.sqrt(2 * Math.PI); }
+```
+
+```{ojs}
+//| echo: false
+normCdf = function(z) { return erfc(-z / Math.SQRT2) / 2; }
+```
+
+```{ojs}
+//| echo: false
+normCdfUpper = function(z) { return erfc(z / Math.SQRT2) / 2; }
+```
+
+```{ojs}
+//| echo: false
+// The LBA's defective density divided by the start-point range A, which is
+// R's `.lba_dens_over_A()` term for term:
+//
+//   [ drift * (Phi(z2) - Phi(z1)) + sigma * (phi(z1) - phi(z2)) ] / A
+//
+// with z2 = z1 + delta and delta = A / (sigma * t). It is an average of one
+// rate's finishing time over every start point the range allows, and the whole
+// of what a closed-form LBA likelihood is.
+//
+// Both differences vanish linearly in delta, so taking them directly and then
+// dividing by A throws away every digit once the range is small - and the
+// slider takes it to zero. Below delta = 1e-4 the Taylor expansion in delta is
+// used instead, whose truncation error there is a thousandth of what the
+// direct form has already lost; above it the two differences are taken
+// tail-aware, upper tail against upper tail when both arguments are positive
+// and phi(z1) times -expm1 for the other. All exactly as in the package, and
+// for the same reasons.
+lbaDensOverA = function(drift, sigma, st, z1, delta) {
+  const phi1 = normPdf(z1);
+  if (delta < 1e-4) {
+    const series = (drift + sigma * z1) -
+      (delta / 2) * (drift * z1 + sigma * (z1 * z1 - 1)) +
+      (delta * delta / 6) * (drift * (z1 * z1 - 1) +
+                             sigma * (z1 * z1 * z1 - 3 * z1));
+    return phi1 * series / st;
+  }
+  const z2 = z1 + delta;
+  const dPhi = z1 > 0 ? normCdfUpper(z1) - normCdfUpper(z2)
+                      : normCdf(z2) - normCdf(z1);
+  const dphi = phi1 * -Math.expm1(-delta * (z1 + z2) / 2);
+  return (drift * dPhi + sigma * dphi) / (delta * st);
+}
+```
+
+```{ojs}
+//| echo: false
+// One ballistic accumulator's log-density at decision time `d`: the LBA
+// counterpart of `waldPdf`, and `.dlba1_raw()` without the outlier mixture.
+// `b` is the threshold and `a` the start-point range below it, so the kernel's
+// z1 is measured from the *highest* start point and delta spans the range.
+//
+// The rate is a Normal truncated at zero - without the truncation an
+// accumulator could draw a negative rate and never finish, and the density
+// would integrate to the probability that it does rather than to one - so the
+// density is divided by P(v > 0). That is the convention of rtdists, DMC and
+// EMC2 as well as of the package.
+lbaLdens = function(d, v, s, b, a) {
+  if (!(d > 0)) return -Infinity;
+  const st = Math.max(s * d, 1e-10);
+  const n2 = lbaDensOverA(v, s, st, (b - a - v * d) / st, a / st);
+  return n2 > 0 ? Math.log(n2) - Math.log(normCdf(v / s)) : -Infinity;
+}
+```
+
+```{ojs}
+//| echo: false
+// The same accumulator's log-survival, given its rate is positive: `waldSurv`
+// for the ballistic families, and what makes their race a race exactly as it
+// does the diffusing one. The median the dashed line stands at is solved on it
+// too.
+//
+// The untruncated survival is (g(z2) - g(z1)) / delta with
+// g(z) = z Phi(z) + phi(z), and since a finished accumulator always had a
+// positive rate, what is wanted is (S - q) / (1 - q) with q = Phi(-v / sigma).
+// The quotient cancels as delta goes to zero, so it takes the same Taylor
+// branch the density does. This is `.lba_lsurv_trunc()`'s positive-rate branch
+// alone - the package also carries an upper-tail branch for a negative mean
+// rate, which a rarely chosen accumulator in a fit can have and neither drift
+// slider here can reach.
+lbaLsurv = function(d, v, s, b, a) {
+  if (!(d > 0)) return 0;
+  const st = Math.max(s * d, 1e-10);
+  const z1 = (b - a - v * d) / st;
+  const delta = a / st;
+  let surv;
+  if (delta < 1e-4) {
+    const phi1 = normPdf(z1);
+    surv = normCdf(z1) + (delta / 2) * phi1 -
+           (delta * delta / 6) * z1 * phi1;
+  } else {
+    const g = (z) => z * normCdf(z) + normPdf(z);
+    surv = (g(z1 + delta) - g(z1)) / delta;
+  }
+  const q = normCdf(-v / s);
+  const num = surv - q;
+  return num > 0 ? Math.min(Math.log(num) - Math.log(1 - q), 0) : -Infinity;
+}
+```
+
+```{ojs}
+//| echo: false
+// The standard normal quantile, which the ballistic traces need and nothing
+// else does: a rate is a held uniform read off the truncated Normal as a
+// quantile, rather than a draw that is thrown away and taken again if it comes
+// out negative. Rejection would hand a trial a different rate every time the
+// drift slider moved it past the point where its first draw was rejected, and
+// the point of holding the sample is that the traces on screen are the same
+// trials throughout.
+//
+// `inverfc` is the inverse complementary error function of Numerical Recipes -
+// a rational first guess refined by two Halley steps - and the quantile is that
+// inverse read off the relation `normCdf` is written on. The refinement is on
+// this file's own `erfc`, so it converges to that function's 1.2e-7 and not
+// past it, which is several digits more than a picture of thirty traces needs.
+normQuantile = function(p) {
+  const inverfc = (y) => {
+    if (y >= 2) return -100;
+    if (y <= 0) return 100;
+    const pp = y < 1 ? y : 2 - y;
+    const t = Math.sqrt(-2 * Math.log(pp / 2));
+    let x = -0.70711 * ((2.30753 + t * 0.27061) /
+                        (1 + t * (0.99229 + t * 0.04481)) - t);
+    for (let j = 0; j < 2; j++) {
+      const err = erfc(x) - pp;
+      x += err / (1.12837916709551257 * Math.exp(-x * x) - x * err);
+    }
+    return y < 1 ? x : -x;
+  };
+  return -Math.SQRT2 * inverfc(2 * p);
+}
+```
+
+```{ojs}
+//| echo: false
+// One trial's ballistic rate: the held uniform `u` read off a Normal with mean
+// `v` and SD `s`, truncated at zero. A `u` of nearly zero gives a rate
+// of nearly zero, which is an accumulator that is still climbing when the
+// figure runs out of clock - that tail is real, and it is why the ballistic
+// families have no mean decision time for the dashed line to stand at.
+ballisticRate = function(u, v, s) {
+  const lo = normCdf(-v / s);
+  return v + s * normQuantile(lo + u * (1 - lo));
+}
+```
+
+```{ojs}
+//| echo: false
 // First-passage density at the lower boundary of the standardised Wiener
 // process - no drift, unit separation, started at `w` - at time `u`. Every
 // other diffusion's density is this one rescaled, which is the rescaling
@@ -1369,13 +2024,22 @@ fpt0 = function(u, w) {
 
 ```{ojs}
 //| echo: false
-// The Brownian increments the paths are built from, drawn once per volley and
-// held while the sliders move. Two things follow from holding them. The same
-// thirty trials are re-integrated under the new parameters rather than redrawn
-// from fresh noise, so dragging `drift` shows this sample getting faster
-// instead of a new sample that happens to be faster - which is the point of
-// standing paths next to a density. And the expensive half of the work leaves
-// the drag: a pointermove integrates a matrix that is already there.
+// Everything random the paths are built from, drawn once per volley and held
+// while the sliders move. Two things follow from holding it. The same thirty
+// trials are re-drawn under the new parameters rather than replaced by fresh
+// ones, so dragging `drift` shows this sample getting faster instead of a new
+// sample that happens to be faster - which is the point of standing paths next
+// to a density. And the expensive half of the work leaves the drag: a
+// pointermove integrates a matrix that is already there.
+//
+// `dw` are the Brownian increments the diffusing models integrate. `z` and `q`
+// are what the ballistic ones need in their place, one pair per accumulator
+// per trial: `z` places the start point in the range and `q` is the quantile
+// its rate is read off at. They are uniforms rather than finished values for
+// the same reason the increments are increments - a trial keeps its place in
+// the distribution while the sliders move the distribution under it, which is
+// what makes the two sides of the toggle the same thirty trials drawn two
+// ways.
 //
 // A row is as long as the longest run the sliders allow. The count below is
 // `(tmax - ndt) / dt` and the ndt slider starts at 0, so the longest run is
@@ -1385,29 +2049,41 @@ fpt0 = function(u, w) {
 // NaN. The sqrt(dt) is in here rather than in the loop: these are increments
 // of the process, not standard normals.
 //
-// Two rows per trial, drawn whether or not the race is on: the second half is
-// the second accumulator's, and the two accumulators are independent, so it
-// has to be a draw of its own rather than the first half reused. Drawing it
-// unconditionally is what keeps the first half the same sample on either side
-// of the accumulator toggle, so switching models re-runs these trials rather
-// than replacing them.
-noise = {
+// Two of everything per trial, drawn whether or not the race is on: the second
+// half is the second accumulator's, and the two accumulators are independent,
+// so it has to be a draw of its own rather than the first half reused. Drawing
+// it unconditionally is what keeps the first half the same sample on either
+// side of the accumulator toggle, so switching models re-runs these trials
+// rather than replacing them - and the same holds across the noise toggle,
+// where all three arrays are drawn and only two of them are read.
+draws = {
   volley;                                       // a fresh draw with each volley
   const rnorm = d3.randomNormal(0, 1);
+  const runif = d3.randomUniform();
   const sd = Math.sqrt(cfg.dt);
   const nsteps = Math.ceil(cfg.tmax / cfg.dt);
   const step = () => sd * rnorm();
-  return Array.from({length: 2 * cfg.npaths},
-                    () => Float64Array.from({length: nsteps}, step));
+  const n = 2 * cfg.npaths;
+  return {
+    dw: Array.from({length: n},
+                   () => Float64Array.from({length: nsteps}, step)),
+    z: Float64Array.from({length: n}, runif),
+    q: Float64Array.from({length: n}, runif)
+  };
 }
 ```
 
 ```{ojs}
 //| echo: false
-// Euler-Maruyama paths for the same process, re-integrated whenever a slider
-// moves. They set off from the start point, and a trial ends at whichever
-// boundary is touched first, carrying the height it ended at so that the dot
-// which closes it knows which one to sit on.
+// The traces, redrawn whenever a slider moves. For the diffusing models they
+// are Euler-Maruyama paths over the held increments, setting off from the
+// start point, a trial ending at whichever boundary is touched first and
+// carrying the height it ended at so that the dot which closes it knows which
+// one to sit on. For the ballistic ones there is nothing to integrate: the
+// path is a straight line and its arrival is read off. Which is the whole of
+// what the third toggle does to this cell, and the whole of what it means -
+// the wobble goes, and the spread that was in it moves into a rate and a start
+// point drawn once per trial.
 //
 // `id` is the trace, and it is also the position of that trace among the paths
 // Plot draws, which is what lets a dot in `fireTrials` find the trace it
@@ -1421,18 +2097,63 @@ trials = {
   const rows = [];
   const hits = [];
   const slot = [];
-  const trace = (id, colour, pts) => {
-    rows.push({id: id, colour: colour, t: 0, x: start},
-              {id: id, colour: colour, t: ndt, x: start});
+  // A trace is the flat stretch before ndt, at whatever height this
+  // accumulator starts from, and then the points it makes of the clock. The
+  // height is an argument because the ballistic families draw theirs from a
+  // range - so their traces are already fanned out at the left edge, which is
+  // what a start point drawn before the trial begins looks like - where every
+  // diffusing model leaves from the one start point.
+  const trace = (id, colour, x0, pts) => {
+    rows.push({id: id, colour: colour, t: 0, x: x0},
+              {id: id, colour: colour, t: ndt, x: x0});
     for (const p of pts) rows.push({id: id, colour: colour, t: p.t, x: p.x});
   };
+  if (ballistic) {
+    // One accumulator's straight line: where it starts, how fast it climbs and
+    // when it would arrive, all three fixed before the trial begins. A rate
+    // slow enough to be still climbing at `tmax` simply never arrives, which
+    // is a real corner of this model and not a failure of the figure.
+    const leg = (j, v, s) => {
+      const z = draws.z[j] * sigmabias;
+      const rate = ballisticRate(draws.q[j], v, s);
+      return {z: z, rate: rate,
+              hit: rate > 0 ? ndt + (edge - z) / rate : Infinity};
+    };
+    for (let k = 0; k < (race ? cfg.nrace : cfg.npaths); k++) {
+      const legs = race
+        ? [leg(k, drift, sigmazero), leg(k + cfg.npaths, driftone, sigmaone)]
+        : [leg(k, drift, sigmazero)];
+      // The trial is over at the first arrival, so the loser's trace stops
+      // where the winner's does - nothing about the loser has happened there -
+      // and with nobody home by the right edge both simply run out of clock.
+      const stop = Math.min(cfg.tmax, ...legs.map((a) => a.hit));
+      legs.forEach((a, i) => {
+        const id = race ? 2 * k + i : k;
+        // Two points are a line. The min only keeps the winner's last point on
+        // the boundary rather than a rounding above it.
+        // A lone accumulator still going when the clock runs out has produced
+        // no response to be coloured by and takes the grey, exactly as the
+        // lone diffusing one does; the same test decides its dot below.
+        trace(id,
+              race ? (i === 0 ? cfg.green : cfg.red)
+                   : (a.hit < cfg.tmax ? cfg.green : cfg.grey),
+              a.z,
+              [{t: stop, x: Math.min(edge, a.z + a.rate * (stop - ndt))}]);
+        if (a.hit === stop && stop < cfg.tmax) {
+          hits.push({id: id, t: stop, x: edge});
+        }
+        slot.push(k);
+      });
+    }
+    return {rows: rows, hits: hits, slot: slot};
+  }
   if (race) {
     // Two accumulators, each on noise of its own, both climbing the same axis
     // to the same boundary. The loser's trace stops where the winner's does:
     // nothing about the loser has happened there, it is simply that the race
     // is over and the trial with it. Only the winner gets a dot.
     for (let k = 0; k < cfg.nrace; k++) {
-      const dw0 = noise[k], dw1 = noise[k + cfg.npaths];
+      const dw0 = draws.dw[k], dw1 = draws.dw[k + cfg.npaths];
       const one = [], two = [];
       let x0 = start, x1 = start;
       for (let i = 1; i <= nsteps; i++) {
@@ -1449,8 +2170,8 @@ trials = {
         one.push({t: t, x: x0});
         two.push({t: t, x: x1});
       }
-      trace(2 * k, cfg.green, one);
-      trace(2 * k + 1, cfg.red, two);
+      trace(2 * k, cfg.green, start, one);
+      trace(2 * k + 1, cfg.red, start, two);
       slot.push(k, k);
     }
     return {rows: rows, hits: hits, slot: slot};
@@ -1463,7 +2184,7 @@ trials = {
   // coloured by, and takes the grey; it is the one trace with no dot on it.
   const floor = nbounds === 1 ? -Infinity : -edge;
   for (let k = 0; k < cfg.npaths; k++) {
-    const dw = noise[k];
+    const dw = draws.dw[k];
     const pts = [];
     let x = start;
     let end = null;
@@ -1479,7 +2200,7 @@ trials = {
       pts.push({t: t, x: x});
     }
     trace(k, end === null ? cfg.grey : (end === edge ? cfg.green : cfg.red),
-          pts);
+          start, pts);
     slot.push(k);
   }
   return {rows: rows, hits: hits, slot: slot};
