@@ -21,16 +21,8 @@ touch](https://github.com/DominiqueMakowski/cogmod/issues)!
 
 ## Features
 
-[**Models for Subjective Ratings Data (Likert/Slider
-Scales)**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
-
-Choice-Confidence (CHOCO) models (Bi-modal Beta)
-
-Beta-gate (Ordered Beta, [Kubinec,
-2023](https://doi.org/10.1017/pan.2022.20))
-
-Discrete-Beta ([Sciandra,
-2024](https://link.springer.com/article/10.1007/s10651-023-00592-5))
+[![interactive visualization of evidence accumulation models of
+cogmod](reference/figures/anim_widget.gif)](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
 
 [**Models for Reaction
 Times**](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html)
@@ -69,6 +61,17 @@ it the LBA with LogNormal drift rates
 
 Racing Diffusion Model (RDM, [Tillman et al.,
 2020](https://doi.org/10.3758/s13423-020-01719-6))
+
+[**Models for Subjective Ratings Data (Likert/Slider
+Scales)**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
+
+Choice-Confidence (CHOCO) models (Bi-modal Beta)
+
+Beta-gate (Ordered Beta, [Kubinec,
+2023](https://doi.org/10.1017/pan.2022.20))
+
+Discrete-Beta ([Sciandra,
+2024](https://link.springer.com/article/10.1007/s10651-023-00592-5))
 
 ![Response formats covered by cogmod, and the main families available
 for each. Every family comes with a \_stanvars() function supplying its
@@ -159,15 +162,6 @@ call: they provide adapted chain-initialization values and weakly
 informative priors on the sensitive parameters to limit convergence
 issues and other sampling pathologies.
 
-Note that `brms` *estimates* every parameter of the family that the
-formula does not mention, so the parameters that are hard to identify
-are best pinned explicitly: `sigmabias = 0` below (the start-point
-range, which turns the shifted LogNormal into a single-accumulator LBA),
-and likewise `sigmadrift = 0` and `sigmandt = 0` for
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
-unless the design and the amount of data speak to that source of
-between-trial variability.
-
 ``` r
 
 library(cogmod)
@@ -201,34 +195,6 @@ Models](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
 and [Decision Making
 Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
 vignettes for more detailed examples.
-
-These models are slow to sample, and refits are common - the same model
-on more data, or a pilot on a few participants followed by the full
-sample.
-[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
-carries over what a previous fit’s warmup learned (its adapted metric,
-step size and location), so that the new run needs only a short warmup:
-
-``` r
-
-ws <- cogmod_warmstart(m_pilot, data = df)  # map the pilot onto the full model
-
-m <- brm(
-  f,
-  data = df,
-  prior = cogmod_priors(f, df),
-  stanvars = cogmod_stanvars(f),
-  init = ws$init,
-  inv_metric = ws$inv_metric,
-  step_size = ws$step_size,
-  warmup = 100, iter = 600,
-  backend = "cmdstanr"
-)
-```
-
-See the
-[Performance](https://dominiquemakowski.github.io/cogmod/articles/performance.html)
-vignette for what this buys and when it is safe.
 
 ![](reference/figures/decision_making1.png)![](reference/figures/rt_models1.png)
 
@@ -273,10 +239,9 @@ Go/No-go models:
 <https://ampl-psych.github.io/EMC2/reference/DDMGNG.html>
 
 **LBA with other drift-rate distributions** ([Terry et al.,
-2015](https://doi.org/10.1016/j.jmp.2015.09.002)). The LBA’s likelihood
-only needs, for each accumulator, the CDF and PDF of the drift and the
-mean of the drift truncated to an interval; the Uniform start point does
-the rest. The **LogNormal** variant is done: it is
+2015](https://doi.org/10.1016/j.jmp.2015.09.002)).
+
+The **LogNormal** variant is done: it is
 [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
 and
 [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
@@ -288,21 +253,22 @@ the drift *scale* (`sigmazero = 1`, the LBA convention) pins the Normal
 and the Gamma, but a LogNormal rate’s `sigma` is untouched by rescaling,
 so the *threshold* has to be pinned instead, which is why the LNR’s
 offset is fixed at 1 - and Stan’s upper-tail normal log-CDF is not
-accurate enough for the fast tail (use `erfc`). Still to do: **Gamma**
-and **Fréchet** drifts as families of their own, since there is no
-existing race to nest them into. Gamma variance grows with the mean,
-matching neural firing-rate variability and the recurring finding that
-the matching accumulator needs the larger drift SD (and it won the one
-published head-to-head, on lexical decision); its density is two
-regularised incomplete gammas per accumulator, and the cost is Stan’s
-gradient with respect to the shape, which is a slow series. Fréchet with
-`sigmabias = 0` yields Luce / multinomial-logit choice probabilities,
-bridging RT models and random-utility choice models, but its heavy drift
-tail produces too many very fast responses and its mean is undefined for
-shape ≤ 1. The four predicted CDFs are nearly indistinguishable and
-differ only in the tails, so the drift distribution is a modelling
-*choice* to justify theoretically and to compare by LOO or Bayes factor,
-not by raw likelihood. Validate against
+accurate enough for the fast tail (use `erfc`).
+
+Still to do: **Gamma** and **Fréchet** drifts as families of their own,
+since there is no existing race to nest them into. Gamma variance grows
+with the mean, matching neural firing-rate variability and the recurring
+finding that the matching accumulator needs the larger drift SD (and it
+won the one published head-to-head, on lexical decision); its density is
+two regularised incomplete gammas per accumulator, and the cost is
+Stan’s gradient with respect to the shape, which is a slow series.
+Fréchet with `sigmabias = 0` yields Luce / multinomial-logit choice
+probabilities, bridging RT models and random-utility choice models, but
+its heavy drift tail produces too many very fast responses and its mean
+is undefined for shape ≤ 1. The four predicted CDFs are nearly
+indistinguishable and differ only in the tails, so the drift
+distribution is a modelling *choice* to justify theoretically and to
+compare by LOO or Bayes factor, not by raw likelihood. Validate against
 [`rtdists::dLBA()`](https://rdrr.io/pkg/rtdists/man/LBA.html), check the
 `sigmabias = 0` limits reduce to the named distributions (inverse-Gamma
 and Weibull), and run a cross-fitting matrix at realistic
@@ -386,3 +352,12 @@ probabilities exactly, the second with fixed `w` reproduces the
 collapsing-threshold LBA.
 
 Kumaraswamy model for easy bounded 0-1 data
+
+Generative Models of Ratings:
+<https://doi.org/10.1007/s11336-023-09902-z>;
+<https://arxiv.org/abs/2604.26055>;
+<https://osf.io/preprints/psyarxiv/mhj6v>;
+<https://osf.io/preprints/psyarxiv/5c8w2_v1>
+
+Censored models: see
+<https://link.springer.com/article/10.3758/s13428-025-02822-z>

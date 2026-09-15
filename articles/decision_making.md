@@ -15,6 +15,8 @@ Wald
 
 Recinormal
 
+LogNormal
+
 DDM
 
 RDM
@@ -23,25 +25,34 @@ LBA-1
 
 LBA-2
 
+LNR
+
 ``` js
-// The six tabs written as positions of the three toggles, plus what each of
-// them does about `sigmabias` - the one slider that is part of a model's
-// identity rather than of its shape, since the recinormal is the
-// single-accumulator LBA at a start-point range of zero. Two cells read this:
-// `tabs` below, which applies a recipe when a tab is clicked, and `opening`,
-// which applies one before anything is drawn.
+// The eight tabs written as positions of the four toggles - boundaries,
+// accumulators, within-trial noise, between-trial distribution - plus what
+// each of them does about `sigmabias`, the one slider that is part of a
+// model's identity rather than of its shape: the recinormal is the
+// single-accumulator LBA at a start-point range of zero, and the shifted
+// LogNormal and the LNR are what the package fits by default and what their
+// articles call the models "proper", their `sigmabias` fixed at zero. Both
+// families carry the range all the same, so dragging it back up leaves the
+// name alone where it takes the recinormal's away. Two cells read this: `tabs`
+// below, which applies a recipe when a tab is clicked, and `opening`, which
+// applies one before anything is drawn.
 recipe = ({
-  wald:       {seg: [0, 0, 0]},
-  recinormal: {seg: [0, 0, 1], range: 0},
-  ddm:        {seg: [1, 0, 0]},
-  rdm:        {seg: [0, 1, 0]},
-  lba1:       {seg: [0, 0, 1], ifZero: 0.3},
-  lba2:       {seg: [0, 1, 1], ifZero: 0.3}
+  wald:       {seg: [0, 0, 0, 0]},
+  recinormal: {seg: [0, 0, 1, 1], range: 0},
+  ddm:        {seg: [1, 0, 0, 0]},
+  rdm:        {seg: [0, 1, 0, 0]},
+  lba1:       {seg: [0, 0, 1, 1], ifZero: 0.3},
+  lba2:       {seg: [0, 1, 1, 1], ifZero: 0.3},
+  lognormal:  {seg: [0, 0, 1, 2], range: 0},
+  lnr:        {seg: [0, 1, 1, 2], range: 0}
 })
 ```
 
 ``` js
-// Which of the six the figure opens on: the parent article's `cogmod-start`,
+// Which of the eight the figure opens on: the parent article's `cogmod-start`,
 // carried onto the strip above by quarto's `meta` shortcode. It is spent here
 // and never read again - the toggles below take it as their initial positions,
 // and from the first click the reader owns them.
@@ -75,6 +86,13 @@ Parameters
 // range moves down to where both distributions can be seen (0.18 of them at
 // the far boundary at the default) and stops at 1.2, which is where the mean
 // path still lands inside the frame in that same slowest corner.
+//
+// What the number is the rate *of* moves with the fourth toggle and the range
+// does not: under a Normal it is the mean rate and under a LogNormal the
+// median, `exp(nu)` in the package's terms, because a LogNormal has no
+// symmetric centre and the median is the one that keeps the arrow at the
+// slope half the trials climb faster than. Either way it is the slope of the
+// arrow and the same range covers the same frame.
 viewof drift = Inputs.range(nbounds === 1 ? [1.5, 6] : [1.2, 4],
                             {value: nbounds === 1 ? 3 : 1.5, step: 0.1,
                              width: 190})
@@ -94,26 +112,41 @@ viewof drift = Inputs.range(nbounds === 1 ? [1.5, 6] : [1.2, 4],
 viewof driftone = Inputs.range([1.5, 6], {value: 2, step: 0.1, width: 190})
 ```
 
-`sigma``sigmazero` rate SD
+`sigma``sigmazero``sigmadrift` rate SD log-rate SD
 
 ``` js
 // How far that rate scatters from one trial to the next, which is where a
 // ballistic accumulator's variability lives: it has none within a trial, so
 // this and `sigmabias` are between them the whole of what spreads the
 // finishing times out. The package calls it `sigma` with one accumulator and
-// `sigmazero` with two, and in a fit it is conventionally FIXED at 1, because
-// the evidence scale of an LBA is arbitrary - multiply the rates, their SDs,
-// the start-point range and the threshold by any constant and every finishing
-// time is unchanged, so only ratios are identified and one parameter has to
-// pin the scale (see ?rcogmod_lba2). Nothing is being estimated here and every
-// other parameter is held by its own slider, so moving this one alone is a
-// real change of shape rather than a walk along that ray - which is what makes
-// it worth a slider in a figure and not in a formula. The floor is well clear
-// of zero: at a tenth of this the density is a spike a couple of grid points
-// wide, and what it would be showing is a model with no variability left in
-// it at all. This cell depends on nothing, so it keeps its value while it is
-// away.
-viewof sigmazero = Inputs.range([0.4, 2], {value: 1, step: 0.1, width: 190})
+// `sigmazero` with two - and `sigmadrift` in the Wald and the drift
+// diffusion, where the same slider is the same quantity laid over a process
+// that has noise of its own, and the range and default serve as they are. In
+// the LBA a fit conventionally FIXES it
+// at 1, because the evidence scale of an LBA is arbitrary - multiply the
+// rates, their SDs, the start-point range and the threshold by any constant
+// and every finishing time is unchanged, so only ratios are identified and one
+// parameter has to pin the scale (see ?rcogmod_lba2). Nothing is being
+// estimated here and every other parameter is held by its own slider, so
+// moving this one alone is a real change of shape rather than a walk along
+// that ray - which is what makes it worth a slider in a figure and not in a
+// formula. The floor is well clear of zero: at a tenth of this the density is
+// a spike a couple of grid points wide, and what it would be showing is a
+// model with no variability left in it at all.
+//
+// Under a LogNormal rate it is the SD of the rate's *logarithm*, which is a
+// different quantity in different units - a ratio rather than a distance, and
+// the one the rescaling above leaves untouched, which is why the package pins
+// the threshold there instead and estimates `sigma`. So the range is a
+// different range: 0.3 puts about a third of the trials outside a factor of
+// 1.35 of the median rate, which is the same spread the Normal's default of 1
+// gives around a rate of 3, and 0.6 doubles the fan. The cell therefore
+// depends on the distribution toggle and is rebuilt when it turns, taking its
+// default again - a value in one unit has nothing to say in the other - while
+// every other toggle leaves it alone and it keeps its value while it is away.
+viewof sigmazero = Inputs.range(lognormal ? [0.1, 0.6] : [0.4, 2],
+                                {value: lognormal ? 0.3 : 1,
+                                 step: lognormal ? 0.05 : 0.1, width: 190})
 ```
 
 `sigmaone` second SD
@@ -122,8 +155,11 @@ viewof sigmazero = Inputs.range([0.4, 2], {value: 1, step: 0.1, width: 190})
 // The second accumulator's, which starts level with the first: unequal rates
 // are already enough to make a race worth watching, and the two SDs are the
 // one pair here whose *ratio* is the real quantity - the other half of why the
-// convention pins `sigmazero` rather than both.
-viewof sigmaone = Inputs.range([0.4, 2], {value: 1, step: 0.1, width: 190})
+// Normal convention pins `sigmazero` rather than both. Rebuilt with the first
+// when the distribution turns, for the same reason and to the same range.
+viewof sigmaone = Inputs.range(lognormal ? [0.1, 0.6] : [0.4, 2],
+                               {value: lognormal ? 0.3 : 1,
+                                step: lognormal ? 0.05 : 0.1, width: 190})
 ```
 
 `boundary` decision threshold threshold offset
@@ -241,7 +277,7 @@ dragHandles(fireTrials(Plot.plot({
     // at is chosen. Empty in every model whose evidence wobbles, which has no
     // such draw to make. Area marks rather than lines, because what is wanted
     // is the whole outline: the straight left edge is the instant, and the
-    // flat bottom is the truncation at a rate of zero.
+    // flat bottom, where there is one, is the truncation at a rate of zero.
     //
     // Knocked out of the traces rather than laid over them. This is the
     // busiest corner of the figure - thirty paths in the same two colours run
@@ -325,11 +361,13 @@ dragHandles(fireTrials(Plot.plot({
                {x1: "x1", y1: "y1", x2: "x2", y2: "y2", stroke: "colour",
                 strokeWidth: 3, headLength: 11}),
     // The arc at each arrow's foot marks that slope as an angle, and the label
-    // names which rate it is - where it goes is `driftArcs`' business, since
-    // one arrow and two want it in different places. A mark apiece rather than
-    // one of each over both: `bend` is an option and not a channel, so two arcs
-    // of different sweeps cannot share a mark. The white stroke is a halo:
-    // these labels sit over the arrows and the path tangle alike.
+    // names which rate it is - where either goes is `driftArcs`' business,
+    // since one arrow and two want them in different places, and so is the arc
+    // going away in the ballistic families, where the rate's own distribution
+    // has the corner. A mark apiece rather than one of each over both: `bend`
+    // is an option and not a channel, so two arcs of different sweeps cannot
+    // share a mark. The white stroke is a halo: these labels sit over the
+    // arrows and the path tangle alike.
     ...driftArcs.flatMap((arc) => [
       Plot.arrow(arc.data, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
                             stroke: arc.colour, strokeWidth: 1.8,
@@ -357,7 +395,7 @@ Assumptions
 `boundaries`
 
 ``` js
-// All three toggles open where `opening` puts them, which is how the two
+// All four toggles open where `opening` puts them, which is how the two
 // articles show two different models without holding two figures. The segment
 // index is the recipe's, so `[1, 2][i]` and `["yes", "no"][i]` turn it back
 // into the value that segment carries.
@@ -385,6 +423,31 @@ viewof naccum = Inputs.radio([1, 2], {value: [1, 2][opening.seg[1]]})
 // under two.
 viewof wnoise = Inputs.radio(["yes", "no"],
                              {value: ["yes", "no"][opening.seg[2]]})
+```
+
+`between-trial variability`
+
+``` js
+// What the rate is drawn from on each trial, which is the other half of the
+// toggle above and the one assumption that is asked on both of its sides. A
+// ballistic accumulator has no noise, so it has to draw its rate from
+// something and "none" is the one segment it cannot take. A diffusing one may
+// draw it from a Normal on top of its own noise - the `sigmadrift` of the Wald
+// and the drift diffusion, drawn at zero until this is turned - or not at all;
+// no family of the package's puts a LogNormal rate on a noisy accumulator, so
+// that segment is out of its reach. The racing diffusion has no rate
+// variability in the package and stands at "none", greyed. `constrain` does
+// all of it. Under a ballistic accumulator the two distributions are two pairs
+// of the package's families and not two shapes of one: a Normal truncated at
+// zero is the LBA's, and a LogNormal makes the finishing time - a distance
+// over the rate - LogNormal too, which with the start-point range at zero is
+// the shifted LogNormal with one accumulator and the LNR with two, and with
+// the range above zero the same two families' own `sigmabias`. Sits under the
+// within-trial toggle rather than beside it because it is the same question
+// asked of the other side of the trial.
+viewof ratedist = Inputs.radio(["none", "Normal", "LogNormal"],
+                               {value: ["none", "Normal", "LogNormal"]
+                                       [opening.seg[3]]})
 ```
 
 ``` js
@@ -455,6 +518,43 @@ race = nbounds === 1 && naccum === 2
 // boundary arrives is one in which the toggle has not been put back yet, and
 // `edge` must not be left measuring a model that is already gone.
 ballistic = nbounds === 1 && wnoise === "no"
+```
+
+``` js
+// Whether the rate a ballistic accumulator draws once per trial is LogNormal
+// rather than Normal. The fourth assumption, and the only one that changes
+// nothing about the geometry: the same straight paths leave the same
+// start-point range for the same threshold, and what turns is the
+// distribution the slopes are drawn from - so the kernels (`rateLdens`,
+// `rateLsurv`), the traces' rates (`trialRate`), the curve across the
+// arrow (`rateDensity`) and the dashed line (`meanDT`) read this, and nothing
+// that draws a line or an arrow does. It reads `ballistic` for the reason
+// `race` and `ballistic` read the boundary count: the pass in which the noise
+// comes back on is one in which `constrain` has not yet put this toggle back
+// to "none", and a diffusing model must not be drawn with a LogNormal anything.
+lognormal = ballistic && ratedist === "LogNormal"
+```
+
+``` js
+// Whether a *diffusing* accumulator draws its rate from a Normal on each trial
+// as well: the Wald and the drift diffusion with their `sigmadrift` above
+// zero. Never the race, which has no such parameter in the package and whose
+// toggle `constrain` holds at "none" - read here too, for the pass in which
+// the second accumulator arrives before the toggle has been put back. A
+// Normal and not a LogNormal, because no noisy family takes one. It changes
+// no geometry either: the same paths leave the same start point for the same
+// boundary, and what turns is that each now wobbles about a mean line of its
+// own slope, drawn once - so the density (`density`), the traces (`trials`),
+// the curve across the arrow (`rateDensity`) and the dashed line (`meanDT`)
+// read this, and nothing that draws a line or an arrow does.
+driftvar = !ballistic && !race && ratedist === "Normal"
+```
+
+``` js
+// Whether the rate varies between trials at all, whichever side of the noise
+// toggle it varies on - which is what shows the rate's SD slider and the curve
+// across the arrow, and takes the angle arc away from under it.
+varrate = ballistic || driftvar
 ```
 
 ``` js
@@ -553,50 +653,72 @@ model = {
   // the family evaluates to that density exactly, to machine precision, in
   // cogmod_lba1() as here - so the title says so rather than going on calling
   // it the model it has stopped being. The race keeps its own name at zero:
-  // two accumulators leaving the same place is still a race.
+  // two accumulators leaving the same place is still a race. So do the two
+  // LogNormal families, the other way round: the shifted LogNormal and the
+  // LNR are named for the range at zero, and the package's `sigmabias` is a
+  // parameter of each rather than a different family, so lifting the range
+  // changes the shape and not the name. A Normal rate laid over the noise is
+  // the same family again, cogmod_invgaussian() or cogmod_ddm() with
+  // `sigmadrift` above zero, and the name says so as a suffix rather than by
+  // changing: the reader has turned a toggle, and should see the model they
+  // had gain a clause rather than become another one. The tab lit stays the
+  // family's.
+  const vd = driftvar ? " with drift variability" : "";
   const it = nbounds === 2
-    ? {id: "ddm", name: "Drift Diffusion Model (DDM)", colour: cfg.azure}
+    ? {id: "ddm", name: "Drift Diffusion Model" + (vd || " (DDM)"),
+       colour: cfg.azure}
     : ballistic
-      ? race ? {id: "lba2", name: "Linear Ballistic Accumulator (LBA)",
-                colour: cfg.violet}
-             : sigmabias === 0
-               ? {id: "recinormal", name: "Recinormal Model",
+      ? lognormal
+        ? race ? {id: "lnr", name: "Log-Normal Race (LNR)",
                   colour: cfg.violet}
-               : {id: "lba1", name: "Single-Accumulator LBA",
+               : {id: "lognormal", name: "Shifted LogNormal Model",
                   colour: cfg.violet}
+        : race ? {id: "lba2", name: "Linear Ballistic Accumulator (LBA)",
+                  colour: cfg.violet}
+               : sigmabias === 0
+                 ? {id: "recinormal", name: "Recinormal Model",
+                    colour: cfg.violet}
+                 : {id: "lba1", name: "Single-Accumulator LBA",
+                    colour: cfg.violet}
       : race ? {id: "rdm", name: "Racing Diffusion Model (RDM)",
                 colour: cfg.blue}
-             : {id: "wald", name: "Wald Model", colour: cfg.blue};
+             : {id: "wald", name: "Wald Model" + vd, colour: cfg.blue};
   const find = (sel) => document.querySelector(sel);
   const title = find(".cogmod-title");
   if (title) title.textContent = it.name;
-  // Two classes on the row, one per assumption that changes what a parameter
-  // *is* rather than whether it is there: the race renames the first rate and
-  // its SD and pairs the sliders off by accumulator, and the ballistic form
-  // renames what `boundary` measures and pairs the threshold with the
-  // start-point range. See the stylesheet above for every rule they switch.
+  // Five classes on the row, one per assumption that changes what a
+  // parameter *is* rather than whether it is there: the race renames the first
+  // rate and its SD and pairs the sliders off by accumulator, the ballistic
+  // form renames what `boundary` measures and pairs the threshold with the
+  // start-point range, a rate that varies at all pairs it with its SD, the
+  // LogNormal rate makes `sigma` an SD of a logarithm, and a Normal rate over
+  // the noise makes it `sigmadrift`. See the stylesheet above for every rule
+  // they switch.
   const layout = find(".cogmod-layout");
   if (layout) {
     layout.classList.toggle("cogmod-racing", race);
     layout.classList.toggle("cogmod-ballistic", ballistic);
+    layout.classList.toggle("cogmod-varrate", varrate);
+    layout.classList.toggle("cogmod-lognormal", lognormal);
+    layout.classList.toggle("cogmod-driftvar", driftvar);
   }
   // A slider the model on show has no use for leaves the column, keeping its
   // value while it is away: `bias` has nothing to say about a single boundary,
   // a second rate or a second rate SD nothing to say about a single
-  // accumulator, and neither a start-point range nor a between-trial spread of
-  // the rate has anything to say about a process whose own noise is already
-  // spreading the paths out. The assumptions themselves are handled the other
-  // way round - see `constrain`.
+  // accumulator, a start-point range nothing to say about a process whose own
+  // noise is already spreading the paths out, and a rate SD nothing to say
+  // where the rate is the same on every trial. The assumptions themselves are
+  // handled the other way round - see `constrain`.
   const show = (sel, on) => {
     const el = find(sel);
     if (el) el.hidden = !on;
   };
   show(".cogmod-par-bias", nbounds === 2);
   show(".cogmod-par-driftone", race);
-  show(".cogmod-par-sigmazero", ballistic);
+  show(".cogmod-par-sigmazero", varrate);
   show(".cogmod-par-sigmaone", ballistic && race);
   show(".cogmod-par-sigmabias", ballistic);
-  // No segment can name a model by its position once there are three toggles,
+  // No segment can name a model by its position once there are four toggles,
   // so the colour is handed to the whole bar and the checked segments read it
   // off. The tab strip takes it the same way, which is what keeps the tab that
   // is on and the segments that are on the one colour.
@@ -615,42 +737,77 @@ model = {
 ```
 
 ``` js
-// The three toggles can make eight combinations and five of them are models.
-// Everything the second boundary rules out is ruled out by the same fact: a
-// drift diffusion is already a process between two boundaries, so it has no
-// second accumulator to give, and the package has no ballistic family that
-// runs between two of them either. Read the other way round, two accumulators
-// have no second boundary to give and neither does a ballistic process. So
-// whichever toggle the model on show cannot vary is greyed out and taken out
-// of reach - all three are open only in the Wald, where every choice leads
-// somewhere.
+// The four toggles can take twenty-four positions and nine of them are
+// models. Everything the second boundary rules out is ruled out by the same
+// fact: a drift diffusion is already a process between two boundaries, so it
+// has no second accumulator to give, and the package has no ballistic family
+// that runs between two of them either. Read the other way round, two
+// accumulators have no second boundary to give and neither does a ballistic
+// process. The between-trial toggle is ruled by the other three, one segment
+// at a time: a ballistic accumulator has no noise and must draw its rate from
+// something, so "none" is out of its reach; a diffusing one may lay a Normal
+// over its noise - the Wald's and the drift diffusion's `sigmadrift` - or
+// nothing, the package having no family with a LogNormal rate on a noisy
+// accumulator, so "LogNormal" is out of its reach; and the racing diffusion
+// has no rate variability at all in the package, so the whole toggle is held
+// at "none" there. So whichever toggle, or segment, the model on show cannot
+// vary is greyed out and taken out of reach - the first three toggles are all
+// open only in the Wald, where every choice leads somewhere.
 //
-// It is also put back to its first segment. A toggle nobody can turn is still
-// a toggle stating something, and leaving it holding a value that is not in
-// effect would have the drift diffusion claim two accumulators, or claim to be
-// ballistic - and would spring a model the reader did not ask for on them when
-// they came back. Resetting it costs the value it was holding, which is the
-// right trade: the reader leaves a model by the toggle they arrived on, and
-// lands on the Wald, which is where every choice is open again.
+// A toggle taken out of reach is also put back to its first segment. A toggle
+// nobody can turn is still a toggle stating something, and leaving it holding
+// a value that is not in effect would have the drift diffusion claim two
+// accumulators, or claim to be ballistic, or the race claim a Normal rate -
+// and would spring a model the reader did not ask for on them when they came
+// back. Resetting it costs the value it was holding, which is the right trade:
+// the reader leaves a model by the toggle they arrived on, and lands on the
+// Wald, which is where every choice is open again. A segment taken out of
+// reach while it is the one chosen is moved off the same way: a ballistic
+// model found standing on "none" - which is where the noise toggle finds it
+// whenever it is turned off from a plain Wald - goes to the Normal, the LBA
+// being the ballistic model the toggle above promised, and a diffusing model
+// found on the LogNormal goes to "none". A Normal survives the noise toggle
+// in both directions, which is the one crossing that is a model on both sides:
+// the LBA with the noise turned on is the Wald with drift variability, the
+// same Normal rate now over a wobbling path.
 //
 // Writing to an input and letting ojs come round again is how the drag handles
 // work too. It settles after one extra pass: by then the radio already reads
-// its first segment, so nothing is dispatched and nothing re-runs.
+// the segment it was put on, so nothing is dispatched and nothing re-runs.
 constrain = {
-  const lock = (sel, shut) => {
+  const radiosOf = (sel) => {
     const el = document.querySelector(sel);
-    if (!el) return;
+    return el ? [el, [...el.querySelectorAll('input[type="radio"]')]] : null;
+  };
+  const pick = (radio) => {
+    if (radio.checked) return;
+    radio.checked = true;
+    radio.dispatchEvent(new Event("input", {bubbles: true}));
+  };
+  const lock = (sel, shut) => {
+    const found = radiosOf(sel);
+    if (!found) return;
+    const [el, radios] = found;
     el.classList.toggle("cogmod-locked", shut);
-    const radios = [...el.querySelectorAll('input[type="radio"]')];
     for (const r of radios) r.disabled = shut;
-    if (shut && radios.length && !radios[0].checked) {
-      radios[0].checked = true;       // the 1, or the "yes"
-      radios[0].dispatchEvent(new Event("input", {bubbles: true}));
-    }
+    if (shut && radios.length) pick(radios[0]);   // the 1, the "yes", "none"
   };
   lock(".cogmod-assumption-bounds", naccum === 2 || ballistic);
   lock(".cogmod-assumption-accum", nbounds === 2);
   lock(".cogmod-assumption-noise", nbounds === 2);
+  const rdm = race && !ballistic;
+  lock(".cogmod-assumption-ratedist", rdm);
+  // Live, with one segment out of reach: `lock` has just lifted `disabled`
+  // from all three, so this only has to put it back on one - "none" under a
+  // ballistic accumulator, "LogNormal" under a diffusing one.
+  const dist = radiosOf(".cogmod-assumption-ratedist");
+  if (dist && !rdm && dist[1].length === 3) {
+    const [none, normal, lnorm] = dist[1];
+    none.disabled = ballistic;
+    lnorm.disabled = !ballistic;
+    if (ballistic && none.checked) pick(normal);
+    if (!ballistic && lnorm.checked) pick(none);
+  }
 }
 ```
 
@@ -670,10 +827,10 @@ constrain = {
 // What a recipe holds is written out where `recipe` is. Its `sigmabias` half
 // is a click's business rather than a start's: `range` pins the slider, and
 // `ifZero` lifts it off zero only when it is already at zero, so that arriving
-// from the recinormal shows a range again without overwriting one the reader
-// set.
+// from the recinormal or one of the LogNormal pair shows a range again without
+// overwriting one the reader set.
 //
-// All three toggles are written in one go, and `disabled` is lifted first.
+// All four toggles are written in one go, and `disabled` is lifted first.
 // A locked toggle is out of the pointer's reach because the model on show
 // cannot vary it, which is a statement about that model and not about this
 // one: the combination being left is invalid only until the rest of it
@@ -704,6 +861,7 @@ tabs = {
     segment(viewof nbounds, it.seg[0]);
     segment(viewof naccum, it.seg[1]);
     segment(viewof wnoise, it.seg[2]);
+    segment(viewof ratedist, it.seg[3]);
     const range = (viewof sigmabias).querySelector('input[type="range"]');
     if (it.range !== undefined) slide(viewof sigmabias, it.range);
     else if (it.ifZero !== undefined && Number(range.value) === 0) {
@@ -1168,7 +1326,9 @@ driftTip = function(ndt, edge, start, drift) {
 // the ballistic families it is a mean over trials rather than a mean path
 // through one, since no trial wanders off it: every trace is a straight line
 // of its own, and this is the line the middle of the start-point range and the
-// middle of the rate distribution make between them.
+// middle of the rate distribution make between them. With drift variability
+// over the noise it is both at once - the mean over trials of each trial's
+// own mean line.
 driftPaths = {
   const one = (v, name, colour) => {
     const x2 = driftTip(ndt, edge, foot, v);
@@ -1237,9 +1397,16 @@ driftArcs = {
     return {
       name: path.name,
       colour: path.colour,
-      data: [{x1: ndt + r / pxPerSec, y1: foot,
-              x2: ndt + (r * dx / len) / pxPerSec,
-              y2: foot + (r * dy / len) / pxPerEv}],
+      // No arc wherever the rate varies between trials. There the whole
+      // distribution the rate is drawn from already crosses the arrow a little
+      // further along (see `rateDensity`), and an arc beneath it would be a
+      // second mark saying the same slope in the same corner - the one corner
+      // every arrow, every trace and both annotations leave from. The name
+      // stays: it says which rate the arrow is, which the curve does not.
+      data: varrate ? []
+        : [{x1: ndt + r / pxPerSec, y1: foot,
+            x2: ndt + (r * dx / len) / pxPerSec,
+            y2: foot + (r * dy / len) / pxPerEv}],
       bend: -half * 180 / Math.PI,
       label: label,
       // A label above its arrow runs further left and one below runs further
@@ -1252,12 +1419,13 @@ driftArcs = {
 ```
 
 ``` js
-// The distribution each trial draws its rate from, which only the ballistic
-// families have. It is the one thing they carry that had no geometry until
-// now: `sigmabias` has its dimension arrow, `boundary` its line and `ndt` its
-// span, while the spread of the rate showed only in how widely the traces fan
-// - which is also what `sigmabias` does to them, so neither of the two could
-// be read off the fan alone.
+// The distribution each trial draws its rate from, which the ballistic
+// families have and the Wald and drift diffusion gain with `sigmadrift`. It is
+// the one thing they carry that had no geometry until now: `sigmabias` has its
+// dimension arrow, `boundary` its line and `ndt` its span, while the spread of
+// the rate showed only in how widely the traces fan - which is also what
+// `sigmabias` does to them, and what the noise does in the diffusing models,
+// so it could not be read off the fan alone anywhere.
 //
 // It is drawn where the literature draws it, across the arrow whose slope it
 // is the spread of, and that placement is exact rather than decorative. A rate
@@ -1266,18 +1434,43 @@ driftArcs = {
 // rate times the time since ndt, which is the rate scaled by a constant. So a
 // cross-section of the arrow at a fixed instant *is* the rate distribution,
 // standing on the evidence axis, in the figure's own coordinates and needing
-// no second axis of its own. Its mean sits on the arrow because the arrow is
-// the mean rate, and the whole curve rides up and down with it.
+// no second axis of its own. Its centre sits on the arrow because the arrow
+// is the central rate - the mean of a Normal, the median of a LogNormal - and
+// the whole curve rides up and down with it. Where the paths also carry noise
+// of their own, the same slice is the cross-section of each trial's *mean*
+// line rather than of its evidence: the evidence at the instant is that plus
+// the wobble, and the wobble is the fan's to show, not this curve's.
+//
+// Textbook figures tilt this curve to lie across the arrow at right angles,
+// as a way of saying that it is the slope that varies and not the height. It
+// is a fair icon and not a drawing: along any line that is not vertical the
+// crossing point is a nonlinear function of the rate, so a Normal in the rate
+// is not a Normal along the line, and the angle it would be a distribution of
+// depends on how the two axes happen to be scaled against each other. The
+// vertical slice is the one cross-section in which the curve is exactly the
+// distribution the family draws from, at every aspect ratio, which is why it
+// is drawn this way here.
 //
 // Everything it is drawn from follows from that instant:
 //
-// - The flat bottom is the truncation at a rate of zero. The Normal is
-//   truncated there, and drawn as the family's own - divided by P(v > 0),
-//   exactly as `lbaLdens` divides by it - because a negative rate is an
-//   accumulator that never arrives. A rate of zero has reached the start point
-//   and nothing more, so the cut lands on the height the arrows leave from,
-//   and it is a visible edge only where the truncation is doing something: a
-//   low mean against a wide SD, which is when it is worth seeing.
+// - The flat bottom, under a Normal rate, is the truncation at a rate of
+//   zero. The Normal is truncated there, and drawn as the family's own -
+//   divided by P(v > 0), exactly as `lbaLdens` divides by it - because a
+//   negative rate is an accumulator that never arrives. A rate of zero has
+//   reached the start point and nothing more, so the cut lands on the height
+//   the arrows leave from, and it is a visible edge only where the truncation
+//   is doing something: a low mean against a wide SD, which is when it is
+//   worth seeing. A LogNormal rate is positive by construction and has
+//   nothing to cut off: its curve leaves the same height on its own, rises to
+//   a mode short of the arrow and trails away above it, the long tail on the
+//   fast side because a rate drawn high has climbed further by the instant.
+//   That asymmetry is the whole visible difference between the two
+//   distributions, and it is what the toggle is for. Between two boundaries
+//   there is no truncation either, and for the opposite reason: the package's
+//   drift diffusion draws its rate from the whole Normal, a negative rate
+//   being a trial that leaves by the lower boundary rather than one that never
+//   arrives, so the curve there runs on below the start point and is the one
+//   in the figure that does.
 // - The straight left edge is the instant itself, and the curve bulges
 //   forward from it in time units, as every density is drawn against a scale
 //   of its own choosing.
@@ -1289,12 +1482,17 @@ driftArcs = {
 //
 // The instant is as far along the arrow as the figure can afford: 0.45 of the
 // shorter arrow's run, so that it is taken while both accumulators are still
-// going, and pulled back from there whenever three SD would not fit under the
-// boundary. Late is better than early because the spread grows with the time
-// it has had - at ndt itself every trial is in the same place and there would
-// be nothing to draw - and the cap is what keeps the widest setting either
-// slider allows from climbing through the boundary line. Between them the two
-// hold the curve inside the band at every setting.
+// going, and pulled back from there whenever the curve's reach above the
+// arrow would not fit under the boundary - or, for the one curve that reaches
+// below its arrow, above the lower one. Late is better than early because
+// the spread grows with the time it has had - at ndt itself every trial is in
+// the same place and there would be nothing to draw - and the cap is what
+// keeps the widest setting either slider allows from climbing through the
+// boundary line. Between them the two hold the curve inside the band at every
+// setting. The reach is three SD of a Normal and the rate three log-SD above
+// the median of a LogNormal, which is where the same fraction of its upper
+// tail lies - and is a long way up at the widest setting, so the LogNormal is
+// cut earlier and stands squatter, as its own tail requires.
 //
 // Both rates of a race are cross-sectioned at the one instant and share one
 // width scale, so the narrower of them bulges further, as the two response
@@ -1303,32 +1501,53 @@ driftArcs = {
 // which is the head start the faster accumulator has at that moment; where
 // they overlap is the trials in which the slower one is nonetheless ahead.
 rateDensity = {
-  if (!ballistic) return {curves: []};
+  if (!varrate) return {curves: []};
   const legs = race
     ? [{v: drift, s: sigmazero, colour: cfg.green},
        {v: driftone, s: sigmaone, colour: cfg.red}]
     : [{v: drift, s: sigmazero, colour: cfg.green}];
+  // Whether the Normal is cut at a rate of zero: it is wherever a negative
+  // rate would be an accumulator that never arrives, which is every
+  // one-boundary model, and is not between two boundaries.
+  const trunc = !lognormal && nbounds === 1;
   const run = Math.min(...legs.map((l) => driftTip(ndt, edge, foot, l.v))) -
               ndt;
-  // Three SD of the widest curve inside 0.42 of the band, which with a mean at
-  // most 0.45 of the way up it leaves the tail clear of the boundary line.
+  // How far above its centre a curve reaches, in evidence per second of
+  // accumulation, at `k` SD - of the rate, or of its logarithm.
+  const reach = (l, k) => lognormal ? l.v * (Math.exp(k * l.s) - 1) : k * l.s;
+  // Three SD of the widest curve inside 0.42 of the band, which with a centre
+  // at most 0.45 of the way up it leaves the tail clear of the boundary line;
+  // and the same three SD below inside 0.42 of the way down to the lower
+  // boundary, where there is one and the curve runs on below its arrow.
   const dt = Math.min(0.45 * run,
                       0.42 * (edge - foot) /
-                      (3 * Math.max(...legs.map((l) => l.s))));
+                      Math.max(...legs.map((l) => reach(l, 3))),
+                      trunc || lognormal ? Infinity
+                        : 0.42 * (foot + edge) /
+                          (3 * Math.max(...legs.map((l) => l.s))));
   const t1 = ndt + dt;
   const wide = 0.1;              // how far the widest curve bulges, in seconds
   const n = 120;
-  // From the cut at a rate of zero up to where the curve has died. The grid is
+  // From the height the arrows leave from - or as far below it as the
+  // untruncated curve reaches - up to where the curve has died. The grid is
   // shared, so the two of a race are drawn against the same heights and their
-  // overlap is read off the picture rather than computed twice.
-  const spread = legs.map((l) => ({m: foot + l.v * dt, sd: l.s * dt,
-                                   q: normCdf(l.v / l.s)}));
-  const top = Math.max(...spread.map((g) => g.m + 3.2 * g.sd));
-  const raw = spread.map((g) => {
+  // overlap is read off the picture rather than computed twice. A height `y`
+  // at the instant is the rate `(y - foot) / dt`, and the curve is that
+  // rate's density over `dt` - the Normal truncated and renormalised where
+  // the family has it so, the LogNormal as it is.
+  const top = foot + dt * Math.max(...legs.map((l) => l.v + reach(l, 3.2)));
+  const bottom = trunc || lognormal ? foot
+    : foot + dt * Math.min(...legs.map((l) => l.v - 3.2 * l.s));
+  const raw = legs.map((l) => {
     const f = [];
     for (let i = 0; i <= n; i++) {
-      const y = foot + (top - foot) * i / n;
-      f.push(normPdf((y - g.m) / g.sd) / (g.sd * g.q));
+      const v = (bottom - foot + (top - bottom) * i / n) / dt;
+      f.push(lognormal
+        ? (v > 0 ? normPdf((Math.log(v) - Math.log(l.v)) / l.s) /
+                   (l.s * v * dt)
+                 : 0)
+        : normPdf((v - l.v) / l.s) /
+          (l.s * dt * (trunc ? normCdf(l.v / l.s) : 1)));
     }
     return f;
   });
@@ -1336,7 +1555,7 @@ rateDensity = {
   const scale = fmax > 0 ? wide / fmax : 0;
   const curves = legs.map((l, i) => ({
     colour: l.colour,
-    rows: raw[i].map((v, j) => ({y: foot + (top - foot) * j / n, base: t1,
+    rows: raw[i].map((v, j) => ({y: bottom + (top - bottom) * j / n, base: t1,
                                  x: t1 + v * scale}))
   }));
   return {curves: curves};
@@ -1362,20 +1581,70 @@ rateDensity = {
 // no closed form for it, so it is integrated - Simpson over four seconds,
 // which is eight times the longest mean the sliders can ask for and far enough
 // out that the product of the two tails there is a millionth of nothing.
-// With no within-trial noise there is no mean to mark at all. The rate is a
-// Normal truncated at zero, the decision time is a distance divided by it, and
-// E[1 / v] diverges - so the ballistic families have no first moment, which is
-// why cogmod_lba1() has no posterior_epred(). The median does exist, and the
-// dashed line stands there instead; `dtName` is what the label calls it, so
-// the figure never says "mean" of a quantity that has none.
+// With no within-trial noise and a Normal rate there is no mean to mark at
+// all. The rate is a Normal truncated at zero, the decision time is a distance
+// divided by it, and E[1 / v] diverges - so the LBA has no first moment, which
+// is why cogmod_lba1() has no posterior_epred(). The median does exist, and
+// the dashed line stands there instead; `dtName` is what the label calls it,
+// so the figure never says "mean" of a quantity that has none.
 //
 // It is the time at which the trial is still running with probability a half,
 // found by bisection on the log survivors - one accumulator's with one of
 // them, the sum of both with two, since a race ends when the first arrives.
 // Survival is monotone, so forty halvings of [0, 8] land inside a microsecond,
 // and 8 s is past anything the sliders can ask for.
+//
+// A LogNormal rate gives the mean back: 1 / v is LogNormal too and has every
+// moment, which is why cogmod_lognormal() does have a posterior_epred(). With
+// one accumulator it is closed-form - the mean distance, `boundary` plus half
+// the range, times E[1 / v] = exp(sigma^2 / 2) / v at a median rate v, the
+// factor `1 + sigmabias / 2` the package's own mean carries, in this figure's
+// units. With two it is the race's integral of both survivors again, on a
+// finer grid than the RDM's: at the fastest corner the LNR's survivor falls
+// from one to nothing inside a hundredth of a second, and Simpson has to have
+// several points in the drop.
+//
+// Drift variability over the noise splits the same way. The Wald's Normal is
+// truncated at zero and E[1 / v] diverges again - the density falls as t^-2,
+// which is the registry's `mean` returning Inf - so the dashed line stands at
+// the median, found here by running the cumulative density out along the
+// clock in 2 ms steps until it passes a half, since the family's CDF is not
+// closed form. The drift diffusion keeps its mean: every rate's mean time is
+// finite and bounded, so the average over the Normal is too, and it is taken
+// as that average - the closed-form mean at each of five hundred rates spread
+// over five SD either side, weighted by the Normal. At a rate of zero the
+// closed form is 0 / 0 and its limit, start point times distance to the other
+// boundary, stands in.
 meanDT = {
-  if (ballistic) {
+  if (driftvar && nbounds === 1) {
+    const h = 0.002;
+    let cum = 0, prev = 0;
+    for (let i = 1; i < 4000; i++) {
+      const f = waldPdfVar(i * h, drift, sigmazero, boundary);
+      const next = cum + h * (prev + f) / 2;
+      if (next >= 0.5) return h * (i - 1 + (0.5 - cum) / (next - cum));
+      cum = next;
+      prev = f;
+    }
+    return 8;
+  }
+  if (driftvar) {
+    const ddmMean = (v) => {
+      const z = boundary * bias;
+      if (Math.abs(v) < 1e-6) return z * (boundary - z);
+      return (boundary / v) * (1 - Math.exp(-2 * v * z)) /
+                              (1 - Math.exp(-2 * v * boundary)) - z / v;
+    };
+    let s = 0, w = 0;
+    for (let i = 0; i <= 500; i++) {
+      const zed = -5 + 10 * i / 500;
+      const p = normPdf(zed);
+      s += p * ddmMean(drift + sigmazero * zed);
+      w += p;
+    }
+    return s / w;
+  }
+  if (ballistic && !lognormal) {
     const lsurv = (d) => lbaLsurv(d, drift, sigmazero, edge, sigmabias) +
                          (race ? lbaLsurv(d, driftone, sigmaone, edge,
                                           sigmabias) : 0);
@@ -1385,6 +1654,21 @@ meanDT = {
       if (lsurv(mid) > -Math.LN2) lo = mid; else hi = mid;
     }
     return (lo + hi) / 2;
+  }
+  if (lognormal) {
+    if (!race) {
+      return Math.exp(sigmazero * sigmazero / 2) * (edge - sigmabias / 2) /
+             drift;
+    }
+    const n = 2000, hi = 4, h = hi / n;
+    let s = 0;
+    for (let i = 0; i <= n; i++) {
+      const d = i * h;
+      const w = i === 0 || i === n ? 1 : (i % 2 ? 4 : 2);
+      s += w * Math.exp(lnAccLsurv(d, drift, sigmazero, edge, sigmabias) +
+                        lnAccLsurv(d, driftone, sigmaone, edge, sigmabias));
+    }
+    return s * h / 3;
   }
   if (race) {
     const n = 400, hi = 4, h = hi / n;
@@ -1405,10 +1689,12 @@ meanDT = {
 
 ``` js
 // What the label over the dashed line calls the place it stands - see `meanDT`
-// for why the ballistic families get the other word. A cell of its own rather
-// than a ternary in the mark, so that the reason lives next to the number it
-// belongs to.
-dtName = ballistic ? "median" : "mean"
+// for why a Normal rate truncated at zero, ballistic or over the Wald's noise,
+// gets the other word, and why the LogNormal-rate families and the drift
+// diffusion keep the mean. A cell of its own rather than a ternary in the
+// mark, so that the reason lives next to the number it belongs to.
+dtName = (ballistic && !lognormal) || (driftvar && nbounds === 1)
+  ? "median" : "mean"
 ```
 
 ``` js
@@ -1450,6 +1736,24 @@ dtName = ballistic ? "median" : "mean"
 // `sigmabias` to zero and the average over start points goes with it, leaving
 // a fixed distance divided by a normal rate: the recinormal.
 //
+// With a LogNormal rate the same average is dcogmod_lognormal(t, mu, sigma,
+// ndt, sigmabias / boundary) with mu = log(boundary / drift) - the package
+// pins its threshold offset at 1 where this figure has a `boundary` slider, so
+// its `mu` is the log of the median finishing time this geometry gives and
+// its `sigmabias` is the range in units of the offset - and dcogmod_lnr() with
+// two, by the same map. `lnAccLdens` and `lnAccLsurv` below are the package's
+// kernels in this figure's units, and `rateLdens` and `rateLsurv` are
+// whichever pair the toggle has picked.
+//
+// With the noise on and a Normal rate over it, the Wald is
+// dcogmod_invgaussian(t, drift, boundary, ndt, sigmadrift = sigma) - the
+// Normal truncated at zero, marginalised in closed form, which is `waldPdfVar`
+// - and the drift diffusion is dcogmod_ddm() with the same `sigmadrift`: the
+// drift enters the Wiener density only through one factor, and integrating
+// that factor against an untruncated Normal is closed form too, so it costs
+// a square root. Both are the package's own expressions, checked against the
+// R to 1e-6.
+//
 // A pair is pinned by its common maximum, so the taller curve always reaches
 // `dheight` and the shorter one keeps its share. The vertical scale of a
 // density means nothing on an evidence axis, and at drift 6, boundary 0.5 the
@@ -1483,28 +1787,38 @@ density = {
         // drift of 6 a loser's survival underflows to exactly zero well inside
         // this figure's second of clock, and multiplying by it would zero the
         // winner's curve rather than make it small.
-        a = Math.exp(lbaLdens(d, drift, sigmazero, edge, sigmabias) +
-                     (race ? lbaLsurv(d, driftone, sigmaone, edge, sigmabias)
+        a = Math.exp(rateLdens(d, drift, sigmazero, edge, sigmabias) +
+                     (race ? rateLsurv(d, driftone, sigmaone, edge, sigmabias)
                            : 0));
         if (race) {
-          b = Math.exp(lbaLdens(d, driftone, sigmaone, edge, sigmabias) +
-                       lbaLsurv(d, drift, sigmazero, edge, sigmabias));
+          b = Math.exp(rateLdens(d, driftone, sigmaone, edge, sigmabias) +
+                       rateLsurv(d, drift, sigmazero, edge, sigmabias));
         }
       } else if (race) {
         a = waldPdf(d, drift, edge) * waldSurv(d, driftone, edge);
         b = waldPdf(d, driftone, edge) * waldSurv(d, drift, edge);
       } else if (nbounds === 1) {
-        a = waldPdf(d, drift, boundary);
+        a = driftvar ? waldPdfVar(d, drift, sigmazero, boundary)
+                     : waldPdf(d, drift, boundary);
       } else {
         // `boundary` is the separation here, which is the scale the whole
         // density is written in: what the two share is the standardised
         // density rescaled to it, with the drift's own factor. The upper
         // boundary is the lower boundary of the reflected process, which is
-        // what flips the drift and the start point.
-        const k = Math.exp(-drift * drift * d / 2) / (boundary * boundary);
+        // what flips the drift and the start point. The factor is
+        // `.ddm_lfpt()`'s, with the between-trial SD in it where the toggle
+        // has one and zero otherwise, at which it is the familiar
+        // exp(-v a w - v^2 t / 2).
+        const sv = driftvar ? sigmazero : 0;
+        const s2t = 1 + sv * sv * d;
+        const factor = (v, w) => Math.exp(
+          (-v * v * d - 2 * v * boundary * w +
+           sv * sv * boundary * boundary * w * w) / (2 * s2t)) /
+          Math.sqrt(s2t);
         const u = d / (boundary * boundary);
-        a = k * Math.exp(drift * boundary * (1 - bias)) * fpt0(u, 1 - bias);
-        b = k * Math.exp(-drift * boundary * bias) * fpt0(u, bias);
+        a = factor(-drift, 1 - bias) * fpt0(u, 1 - bias) /
+            (boundary * boundary);
+        b = factor(drift, bias) * fpt0(u, bias) / (boundary * boundary);
       }
     }
     fmax = Math.max(fmax, a, b);
@@ -1528,12 +1842,37 @@ density = {
 // One accumulator's first-passage density: a diffusion with unit noise and
 // drift `v`, started at zero, reaching `a` at decision time `d`. This is the
 // inverse Gaussian, and it is the same kernel three times over - the Wald
-// model is one of these, and each racer in the RDM is another.
+// model is one of these, and each racer in the RDM is another. It is the
+// general one below at a drift SD of zero, so that there is one Wald in this
+// file.
 waldPdf = function(d, v, a) {
-  return d > 0
-    ? a / Math.sqrt(2 * Math.PI * d * d * d) *
-      Math.exp(-Math.pow(a - v * d, 2) / (2 * d))
-    : 0;
+  return waldPdfVar(d, v, 0, a);
+}
+```
+
+``` js
+// The same first-passage density with the drift drawn once per trial from a
+// Normal(v, s) truncated at zero, which is `.dwald_raw()` at a positive
+// `sigmadrift` and the Wald at zero:
+//
+//   f(t) = a / sqrt(2 pi t^3 D) exp(-(a - v t)^2 / (2 t D))
+//            * Phi((a s^2 + v) / (s sqrt(D))) / Phi(v / s),    D = 1 + s^2 t
+//
+// The first two factors are the Wald integrated over an untruncated Normal
+// drift - a Gaussian integral, hence elementary - and the ratio of CDFs is
+// what the truncation contributes: the mass above zero after seeing t over
+// the mass above zero before. At s = 0 the two CDFs are 0 / 0 rather than
+// infinite, so it is a branch, and the branch is the plain Wald exactly. The
+// tail falls as t^-2 whenever s is positive, which is why this density has
+// no mean and `meanDT` finds its median instead.
+waldPdfVar = function(d, v, s, a) {
+  if (!(d > 0)) return 0;
+  const D = 1 + s * s * d;
+  const dens = a / Math.sqrt(2 * Math.PI * d * d * d * D) *
+               Math.exp(-Math.pow(a - v * d, 2) / (2 * d * D));
+  return s > 0
+    ? dens * normCdf((a * s * s + v) / (s * Math.sqrt(D))) / normCdf(v / s)
+    : dens;
 }
 ```
 
@@ -1677,13 +2016,137 @@ lbaLsurv = function(d, v, s, b, a) {
 ```
 
 ``` js
+// log(Phi(y + c) - Phi(y)) for c > 0, from whichever tail keeps the two terms
+// from cancelling: the upper tail when y > 0, where both CDFs sit near one,
+// the lower tail otherwise. This is the package's `.lognormal_ldiff_pnorm()`,
+// and the LogNormal kernels below are built on it exactly as the R ones are;
+// on this file's `erfc` it is good to the same 1e-7 as everything else here.
+ldiffPhi = function(y, c) {
+  if (y > 0) {
+    const u1 = normCdfUpper(y), u2 = normCdfUpper(y + c);
+    return u2 < u1 ? Math.log(u1) + Math.log1p(-u2 / u1) : -Infinity;
+  }
+  const p1 = normCdf(y + c), p2 = normCdf(y);
+  return p2 < p1 ? Math.log(p1) + Math.log1p(-p2 / p1) : -Infinity;
+}
+```
+
+``` js
+// One LogNormal-rate accumulator's log-density at decision time `d`, the
+// counterpart of `lbaLdens`: a rate v ~ LogNormal(log(vmed), s) climbing from
+// a start point in Uniform(0, a) to the threshold `b`. This is the package's
+// `.lognormal_acc_ldens()` term for term, in this figure's units: the package
+// pins its threshold offset at 1, so its `meanlog` is log(b / vmed) - the log
+// of the median finishing time this geometry gives - and its range `A` is
+// a / b. At a range of zero it is the LogNormal density itself, and the
+// finishing time is the shifted LogNormal exactly.
+//
+// Averaging a distance over the rate turns the density into a partial first
+// moment of the rate distribution, which for a LogNormal is a difference of
+// two normal CDFs a distance c = log1p(A) / s apart on the z-scale. As in the
+// LBA kernel, that difference vanishes linearly in c and dividing by A would
+// throw away every digit as the range closed; below c = 1e-4 the series in c
+// is used instead, at the same switch as the package. No setting of these
+// sliders reaches it - the smallest positive range is a quarter of the
+// smallest offset - but the branch is the package's and is kept so that the
+// two stay term for term.
+lnAccLdens = function(d, v, s, b, a) {
+  if (!(d > 0)) return -Infinity;
+  const m = Math.log(b / v);
+  const A = a / b;
+  const lnormLpdf = (t) => {
+    const z = (Math.log(t) - m) / s;
+    return -Math.log(t) - Math.log(s) - 0.5 * Math.log(2 * Math.PI) -
+           z * z / 2;
+  };
+  if (A === 0) return lnormLpdf(d);
+  const al = (m - Math.log(d)) / s;
+  const c = Math.log1p(A) / s;
+  const x = al - s;
+  if (c < 1e-4) {
+    const series = 1 - c * x / 2 + c * c * (x * x - 1) / 6;
+    return series > 0
+      ? lnormLpdf(d) + Math.log(Math.log1p(A) / A) + Math.log(series)
+      : -Infinity;
+  }
+  return -m + s * s / 2 + ldiffPhi(x, c) - Math.log(A);
+}
+```
+
+``` js
+// The same accumulator's log-survival, `lbaLsurv`'s counterpart and the
+// survival half of the package's `.lognormal_acc_ltails()`. Integrating the
+// density by parts gives
+//
+//   S(d) = Phi(a + c) + [Phi(a + c) - Phi(a)] / A - d f(d)
+//
+// with a = (meanlog - log d) / s, whose two middle terms are each of order
+// |a| / s in the late tail and cancel to something of order one. So it is
+// assembled in log space from ratios of CDFs on whichever side of a = 0 keeps
+// the bracket well behaved: the survival directly while a < 0, and for a >= 0
+// the CDF directly - which is at most a half there - and the survival as
+// log(1 - exp(.)) of it. Two guards the R has no need of, because R's pnorm
+// takes a log.p argument and this file's `normCdf` does not: where the CDF
+// underflows to zero its log is -Infinity and the ratios would come out NaN,
+// so a vanished lower tail is read as a survival of one, and a vanished upper
+// tail as a survival of zero. Checked against the package's R on a grid over
+// every slider range: the two agree to 1e-6 wherever either is above 1e-300.
+lnAccLsurv = function(d, v, s, b, a) {
+  if (!(d > 0)) return 0;
+  const m = Math.log(b / v);
+  const A = a / b;
+  const al = (m - Math.log(d)) / s;
+  if (A === 0) return Math.min(Math.log(normCdf(al)), 0);
+  const c = Math.log1p(A) / s;
+  if (c < 1e-4) {
+    const r = Math.log1p(A) / A;
+    const corr = c * r * (0.5 + c * (2 * s - al) / 6);
+    const lPa = Math.log(normCdf(al));
+    const lphi = Math.log(normPdf(al));
+    return Math.min(lPa + Math.log1p(corr * Math.exp(lphi - lPa)), 0);
+  }
+  const lA = Math.log(A);
+  const lD1 = ldiffPhi(al, c) - lA;
+  const lD2 = -m + s * s / 2 + Math.log(d) + ldiffPhi(al - s, c) - lA;
+  if (al < 0) {
+    const lP = Math.log(normCdf(al + c));
+    if (!(lP > -Infinity)) return -Infinity;
+    const br = 1 + Math.exp(lD1 - lP) - Math.exp(lD2 - lP);
+    return br > 0 ? Math.min(lP + Math.log(br), 0) : -Infinity;
+  }
+  const lQ = Math.log(normCdf(-al));
+  if (!(lQ > -Infinity)) return 0;
+  const R = Math.exp(Math.log(normCdf(-al - c)) - lQ);
+  const br = R - (1 - R) / A + Math.exp(lD2 - lQ);
+  if (br <= 0) return 0;
+  const lF = Math.min(lQ + Math.log(br), 0);
+  if (!(lF < 0)) return -Infinity;
+  return lF > -Math.LN2 ? Math.log(-Math.expm1(lF)) : Math.log1p(-Math.exp(lF));
+}
+```
+
+``` js
+// The kernels the ballistic densities are built from, by the fourth toggle:
+// `density` and `meanDT` call these and never the Normal or LogNormal pair by
+// name, so a family is a choice of kernel and nothing else in those cells
+// knows which was chosen. Both pairs take the same five arguments in the same
+// units - decision time, central rate, its spread, threshold, start-point
+// range - which is what makes the swap a swap.
+rateLdens = lognormal ? lnAccLdens : lbaLdens
+```
+
+``` js
+rateLsurv = lognormal ? lnAccLsurv : lbaLsurv
+```
+
+``` js
 // The standard normal quantile, which the ballistic traces need and nothing
-// else does: a rate is a held uniform read off the truncated Normal as a
-// quantile, rather than a draw that is thrown away and taken again if it comes
-// out negative. Rejection would hand a trial a different rate every time the
-// drift slider moved it past the point where its first draw was rejected, and
-// the point of holding the sample is that the traces on screen are the same
-// trials throughout.
+// else does: a rate is a held uniform read off the truncated Normal - or the
+// LogNormal - as a quantile, rather than a draw that is thrown away and taken
+// again if it comes out negative. Rejection would hand a trial a different
+// rate every time the drift slider moved it past the point where its first
+// draw was rejected, and the point of holding the sample is that the traces
+// on screen are the same trials throughout.
 //
 // `inverfc` is the inverse complementary error function of Numerical Recipes -
 // a rational first guess refined by two Halley steps - and the quantile is that
@@ -1709,13 +2172,24 @@ normQuantile = function(p) {
 ```
 
 ``` js
-// One trial's ballistic rate: the held uniform `u` read off a Normal with mean
-// `v` and SD `s`, truncated at zero. A `u` of nearly zero gives a rate
-// of nearly zero, which is an accumulator that is still climbing when the
-// figure runs out of clock - that tail is real, and it is why the ballistic
-// families have no mean decision time for the dashed line to stand at.
-ballisticRate = function(u, v, s) {
-  const lo = normCdf(-v / s);
+// One trial's rate, wherever the rate is drawn per trial: the held uniform `u`
+// read off a Normal with mean `v` and SD `s` - truncated at zero under one
+// boundary, where a negative rate is an accumulator that never arrives, and
+// whole between two, where it is a trial that leaves by the lower one, which
+// is the package's own distinction between cogmod_invgaussian() and
+// cogmod_ddm() - or, with the fourth toggle on the LogNormal, off a LogNormal
+// with median `v` and log-SD `s`, which is `v` times the exponential of the
+// same standard normal quantile and needs no truncation. A `u` of nearly zero
+// gives a rate of nearly zero under either one-boundary Normal, which is an
+// accumulator that is still climbing when the figure runs out of clock - that
+// tail is real, and it is why neither the LBA nor the Wald with drift
+// variability has a mean decision time for the dashed line to stand at. The
+// same `u` is read off every distribution, so turning a toggle re-draws the
+// same thirty trials under the other one rather than replacing them, which is
+// how the traces are held everywhere else.
+trialRate = function(u, v, s) {
+  if (lognormal) return v * Math.exp(s * normQuantile(u));
+  const lo = nbounds === 1 ? normCdf(-v / s) : 0;
   return v + s * normQuantile(lo + u * (1 - lo));
 }
 ```
@@ -1808,7 +2282,11 @@ draws = {
 // path is a straight line and its arrival is read off. Which is the whole of
 // what the third toggle does to this cell, and the whole of what it means -
 // the wobble goes, and the spread that was in it moves into a rate and a start
-// point drawn once per trial.
+// point drawn once per trial. The fourth toggle reaches this cell through
+// `trialRate` alone: it says what a trial's rate is drawn from, and nothing
+// about how the path is drawn - which is also how a Normal rate reaches the
+// noisy paths of the Wald and the drift diffusion, each of which then climbs
+// at a rate of its own about the same wobble.
 //
 // `id` is the trace, and it is also the position of that trace among the paths
 // Plot draws, which is what lets a dot in `fireTrials` find the trace it
@@ -1840,7 +2318,7 @@ trials = {
     // is a real corner of this model and not a failure of the figure.
     const leg = (j, v, s) => {
       const z = draws.z[j] * sigmabias;
-      const rate = ballisticRate(draws.q[j], v, s);
+      const rate = trialRate(draws.q[j], v, s);
       return {z: z, rate: rate,
               hit: rate > 0 ? ndt + (edge - z) / rate : Infinity};
     };
@@ -1907,14 +2385,21 @@ trials = {
   // colours in it are the two the densities above and below are drawn in. A
   // path still going when the clock runs out has produced no response to be
   // coloured by, and takes the grey; it is the one trace with no dot on it.
+  //
+  // With drift variability the rate is the trial's own, read off the same
+  // held quantile the ballistic trace of this trial would use, so the two
+  // sides of the noise toggle are still the same thirty trials: turn the
+  // noise off and each straight line has the slope its wobbling path climbed
+  // at on average.
   const floor = nbounds === 1 ? -Infinity : -edge;
   for (let k = 0; k < cfg.npaths; k++) {
     const dw = draws.dw[k];
+    const v = driftvar ? trialRate(draws.q[k], drift, sigmazero) : drift;
     const pts = [];
     let x = start;
     let end = null;
     for (let i = 1; i <= nsteps; i++) {
-      x += drift * cfg.dt + dw[i - 1];
+      x += v * cfg.dt + dw[i - 1];
       const t = ndt + i * cfg.dt;
       if (x >= edge || x <= floor) {
         end = x >= edge ? edge : floor;
@@ -2010,7 +2495,7 @@ ggplot(df, aes(x = RT, fill = Condition)) +
   theme_minimal()
 ```
 
-![](decision_making_files/figure-html/unnamed-chunk-57-1.png)
+![](decision_making_files/figure-html/unnamed-chunk-67-1.png)
 
 Errors are much rarer than correct responses (especially in the
 `Accuracy` condition), which can be problematic for accurate
@@ -2432,7 +2917,7 @@ fit_summary |>
   theme_minimal()
 ```
 
-![](decision_making_files/figure-html/unnamed-chunk-70-1.png)
+![](decision_making_files/figure-html/unnamed-chunk-80-1.png)
 
 ### Posterior Predictive Check
 
