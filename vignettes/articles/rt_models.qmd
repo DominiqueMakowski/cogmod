@@ -1,5 +1,6 @@
 ---
 title: "How to Properly Analyze Reaction Times Data"
+cogmod-start: wald
 knitr:
   opts_chunk:
     collapse: true
@@ -490,6 +491,10 @@ that accumulates over time until it reaches a
 decision threshold: the distribution of the times at which that threshold is
 first crossed *is* the Wald distribution. Its skewed shape is not a modelling
 choice, it is a consequence of the assumed mechanism.
+
+
+{{< include _widget.qmd >}}
+
 
 The Shifted Wald model (also known as the Inverse Gaussian distribution) is actually equivalent to a one-response version of the Drift Diffusion Model (DDM) 
 with no between-trial variability in drift rate (which is what `sigmadrift = 0` does), starting point, or non-decision time (`sigmandt = 0`). 

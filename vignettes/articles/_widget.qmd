@@ -1,8 +1,20 @@
-<!-- Pulled into decision_making.qmd by quarto's `include` shortcode:
-the interactive shifted-Wald / Wiener figure that opens the article. The
-leading underscore keeps it out of both quarto's project render targets and
-pkgdown's article list (`pkgdown:::package_vignettes()` drops files whose name
-starts with one), so it is only ever pulled into its parent.
+<!-- Pulled into decision_making.qmd and rt_models.qmd by quarto's `include`
+shortcode: the interactive shifted-Wald / Wiener figure. The leading underscore
+keeps it out of both quarto's project render targets and pkgdown's article
+list (`pkgdown:::package_vignettes()` drops files whose name starts with one),
+so it is only ever pulled into a parent.
+
+The two articles arrive at this figure from opposite sides, so each opens it on
+the family it is about - the drift diffusion where the subject is choices, the
+Wald where it is the timing of one response - by naming that family in its own
+front matter under `cogmod-start`. Quarto's `meta` shortcode writes the name
+onto the tab strip below, where `opening` reads it back and hands it to the
+toggles as their initial positions. It is a starting position and nothing else:
+every tab is still on the strip, and from the first click the figure is the
+same figure in both articles. A parent that names nothing still gets a working
+figure, on the Wald - rendering this file on its own is the way to preview it,
+and that is what it shows - at the price of a quarto warning about the unset
+key, which is the only thing the warning means.
 
 `density` is `dcogmod_invgaussian()` written out in JavaScript - a Wiener
 process with unit diffusion noise reaching `boundary`, shifted by `ndt` - and
@@ -178,7 +190,13 @@ on each rule. -->
    parameters column, which is 200px wide and would break a name like "Racing
    Diffusion Model (RDM)" over two lines - and would move the sliders down a
    line with it every time the reader chose a longer-named model. Out here it
-   has the width of both columns and stays on one line. */
+   has the width of both columns and stays on one line.
+
+   The markdown holds a non-breaking space rather than a name. `model` writes
+   the name in on its first pass, and which name that is now depends on the
+   article the figure was pulled into, so any name written here would be the
+   wrong one in the other article for as long as ojs takes to boot. The space
+   is what keeps the line's height, so nothing below moves when it arrives. */
 .cogmod-title { display: block; font-size: 1.15rem; font-weight: 700;
   margin: 0 0 0.5rem; }
 /* The model tabs, under the title. They are shortcuts and not a control of
@@ -353,10 +371,10 @@ on each rule. -->
 </style>
 ```
 
-[Wald Model]{.cogmod-title}
+[&nbsp;]{.cogmod-title}
 
 ```{=html}
-<div class="cogmod-tabs">
+<div class="cogmod-tabs" data-start="{{< meta cogmod-start >}}">
 <button type="button" class="cogmod-tab" data-model="wald">Wald</button>
 <button type="button" class="cogmod-tab"
         data-model="recinormal">Recinormal</button>
@@ -365,6 +383,46 @@ on each rule. -->
 <button type="button" class="cogmod-tab" data-model="lba1">LBA-1</button>
 <button type="button" class="cogmod-tab" data-model="lba2">LBA-2</button>
 </div>
+```
+
+```{ojs}
+//| echo: false
+// The six tabs written as positions of the three toggles, plus what each of
+// them does about `sigmabias` - the one slider that is part of a model's
+// identity rather than of its shape, since the recinormal is the
+// single-accumulator LBA at a start-point range of zero. Two cells read this:
+// `tabs` below, which applies a recipe when a tab is clicked, and `opening`,
+// which applies one before anything is drawn.
+recipe = ({
+  wald:       {seg: [0, 0, 0]},
+  recinormal: {seg: [0, 0, 1], range: 0},
+  ddm:        {seg: [1, 0, 0]},
+  rdm:        {seg: [0, 1, 0]},
+  lba1:       {seg: [0, 0, 1], ifZero: 0.3},
+  lba2:       {seg: [0, 1, 1], ifZero: 0.3}
+})
+```
+
+```{ojs}
+//| echo: false
+// Which of the six the figure opens on: the parent article's `cogmod-start`,
+// carried onto the strip above by quarto's `meta` shortcode. It is spent here
+// and never read again - the toggles below take it as their initial positions,
+// and from the first click the reader owns them.
+//
+// It has to arrive as defaults rather than as a click on the tab after the
+// fact. A click is a change, and everything in this figure answers changes:
+// opening on the drift diffusion that way would draw the Wald first and then
+// swap it out, rebuilding the drift and boundary sliders in front of the
+// reader. This way that pass never happens.
+//
+// An article that names nothing gets the Wald, which is where the toggles
+// start anyway. An unset key renders as neither a name nor an empty string, so
+// the test is membership in `recipe` rather than anything about the text.
+opening = {
+  const bar = document.querySelector(".cogmod-tabs");
+  return (bar && recipe[bar.dataset.start]) || recipe.wald;
+}
 ```
 
 ::::: {.cogmod-layout}
@@ -498,11 +556,15 @@ viewof bias = Inputs.range([0.2, 0.8], {value: 0.5, step: 0.05, width: 190})
 // same place, and with one of them that is the recinormal, or LATER, model, in
 // which 1 / (RT - ndt) is normally distributed - which is why the title over
 // the figure changes there, and the only place in this figure where a slider
-// does that. Like `bias` and `driftone`
-// this cell depends on nothing, so it is never rebuilt - `model` below only
+// does that. Which is why the opening value comes off the recipe wherever the
+// recipe has one: a figure asked to open on the recinormal has to open with
+// the range already at zero, or it opens on the LBA instead. Like `bias` and
+// `driftone` nothing under this cell ever re-runs - `opening` is spent before
+// the figure is drawn - so it is never rebuilt either: `model` below only
 // shows and hides it, and it keeps its value while it is away.
-viewof sigmabias = Inputs.range([0, 0.35], {value: 0.3, step: 0.05,
-                                            width: 190})
+viewof sigmabias = Inputs.range(
+  [0, 0.35], {value: opening.range !== undefined ? opening.range : 0.3,
+              step: 0.05, width: 190})
 ```
 :::
 
@@ -673,7 +735,11 @@ dragHandles(fireTrials(Plot.plot({
 
 ```{ojs}
 //| echo: false
-viewof nbounds = Inputs.radio([1, 2], {value: 1})
+// All three toggles open where `opening` puts them, which is how the two
+// articles show two different models without holding two figures. The segment
+// index is the recipe's, so `[1, 2][i]` and `["yes", "no"][i]` turn it back
+// into the value that segment carries.
+viewof nbounds = Inputs.radio([1, 2], {value: [1, 2][opening.seg[0]]})
 ```
 ::::
 
@@ -686,7 +752,7 @@ viewof nbounds = Inputs.radio([1, 2], {value: 1})
 // at 1 - see `constrain`, which is what greys out whichever toggle the model on
 // show cannot vary, and puts it back to its first segment so that a toggle
 // nobody can turn is not left stating something that is not true.
-viewof naccum = Inputs.radio([1, 2], {value: 1})
+viewof naccum = Inputs.radio([1, 2], {value: [1, 2][opening.seg[1]]})
 ```
 ::::
 
@@ -701,7 +767,8 @@ viewof naccum = Inputs.radio([1, 2], {value: 1})
 // the ballistic families' trade and what `trials` and `density` switch on. The
 // package has no two-boundary ballistic model, so `constrain` greys this out
 // under two.
-viewof wnoise = Inputs.radio(["yes", "no"], {value: "yes"})
+viewof wnoise = Inputs.radio(["yes", "no"],
+                             {value: ["yes", "no"][opening.seg[2]]})
 ```
 ::::
 :::
@@ -991,16 +1058,16 @@ constrain = {
 // definition, and the strip is a third way in rather than a second opinion.
 // `model` is what lights the tab, off that one definition.
 //
-// It runs once. The four views it reaches for depend on nothing, so ojs never
-// rebuilds them and the listener it hangs on the bar is never stranded on a
-// detached element; the flag is there in case that ever stops being true.
+// It runs once. The four views it reaches for sit under `opening` and nothing
+// else, and `opening` is a constant, so ojs never rebuilds them and the
+// listener it hangs on the bar is never stranded on a detached element; the
+// flag is there in case that ever stops being true.
 //
-// Each recipe is the three toggles as segment positions, and what to do about
-// `sigmabias`. The recinormal is the single-accumulator LBA at a start-point
-// range of zero - the same family, exactly and not in the limit - so those two
-// tabs differ in that and nothing else: one pins the range at zero and the
-// other lifts it off zero, and only when it is at zero, so that arriving from
-// the recinormal shows a range again without overwriting one the reader set.
+// What a recipe holds is written out where `recipe` is. Its `sigmabias` half
+// is a click's business rather than a start's: `range` pins the slider, and
+// `ifZero` lifts it off zero only when it is already at zero, so that arriving
+// from the recinormal shows a range again without overwriting one the reader
+// set.
 //
 // All three toggles are written in one go, and `disabled` is lifted first.
 // A locked toggle is out of the pointer's reach because the model on show
@@ -1025,14 +1092,6 @@ tabs = {
     if (!el || Number(el.value) === v) return;
     el.value = v;
     el.dispatchEvent(new Event("input", {bubbles: true}));
-  };
-  const recipe = {
-    wald:       {seg: [0, 0, 0]},
-    recinormal: {seg: [0, 0, 1], range: 0},
-    ddm:        {seg: [1, 0, 0]},
-    rdm:        {seg: [0, 1, 0]},
-    lba1:       {seg: [0, 0, 1], ifZero: 0.3},
-    lba2:       {seg: [0, 1, 1], ifZero: 0.3}
   };
   bar.addEventListener("click", (event) => {
     const tab = event.target.closest(".cogmod-tab");

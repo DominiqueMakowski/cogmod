@@ -1,5 +1,6 @@
 ---
 title: "Decision Making Models"
+cogmod-start: ddm
 knitr:
   opts_chunk:
     collapse: true
