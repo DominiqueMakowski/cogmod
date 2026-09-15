@@ -9,7 +9,7 @@ is the observed response time (RT). Many “variants” of such models
 exist, differing in the assumptions they make about the accumulation
 process.
 
-Wald Model
+ 
 
 Wald
 
@@ -22,6 +22,44 @@ RDM
 LBA-1
 
 LBA-2
+
+``` js
+// The six tabs written as positions of the three toggles, plus what each of
+// them does about `sigmabias` - the one slider that is part of a model's
+// identity rather than of its shape, since the recinormal is the
+// single-accumulator LBA at a start-point range of zero. Two cells read this:
+// `tabs` below, which applies a recipe when a tab is clicked, and `opening`,
+// which applies one before anything is drawn.
+recipe = ({
+  wald:       {seg: [0, 0, 0]},
+  recinormal: {seg: [0, 0, 1], range: 0},
+  ddm:        {seg: [1, 0, 0]},
+  rdm:        {seg: [0, 1, 0]},
+  lba1:       {seg: [0, 0, 1], ifZero: 0.3},
+  lba2:       {seg: [0, 1, 1], ifZero: 0.3}
+})
+```
+
+``` js
+// Which of the six the figure opens on: the parent article's `cogmod-start`,
+// carried onto the strip above by quarto's `meta` shortcode. It is spent here
+// and never read again - the toggles below take it as their initial positions,
+// and from the first click the reader owns them.
+//
+// It has to arrive as defaults rather than as a click on the tab after the
+// fact. A click is a change, and everything in this figure answers changes:
+// opening on the drift diffusion that way would draw the Wald first and then
+// swap it out, rebuilding the drift and boundary sliders in front of the
+// reader. This way that pass never happens.
+//
+// An article that names nothing gets the Wald, which is where the toggles
+// start anyway. An unset key renders as neither a name nor an empty string, so
+// the test is membership in `recipe` rather than anything about the text.
+opening = {
+  const bar = document.querySelector(".cogmod-tabs");
+  return (bar && recipe[bar.dataset.start]) || recipe.wald;
+}
+```
 
 Parameters
 
@@ -129,11 +167,15 @@ viewof bias = Inputs.range([0.2, 0.8], {value: 0.5, step: 0.05, width: 190})
 // same place, and with one of them that is the recinormal, or LATER, model, in
 // which 1 / (RT - ndt) is normally distributed - which is why the title over
 // the figure changes there, and the only place in this figure where a slider
-// does that. Like `bias` and `driftone`
-// this cell depends on nothing, so it is never rebuilt - `model` below only
+// does that. Which is why the opening value comes off the recipe wherever the
+// recipe has one: a figure asked to open on the recinormal has to open with
+// the range already at zero, or it opens on the LBA instead. Like `bias` and
+// `driftone` nothing under this cell ever re-runs - `opening` is spent before
+// the figure is drawn - so it is never rebuilt either: `model` below only
 // shows and hides it, and it keeps its value while it is away.
-viewof sigmabias = Inputs.range([0, 0.35], {value: 0.3, step: 0.05,
-                                            width: 190})
+viewof sigmabias = Inputs.range(
+  [0, 0.35], {value: opening.range !== undefined ? opening.range : 0.3,
+              step: 0.05, width: 190})
 ```
 
 `ndt` non-decision time
@@ -194,6 +236,33 @@ dragHandles(fireTrials(Plot.plot({
     // traces by being the only line mark drawing more than one path.
     Plot.line(trials.rows, {x: "t", y: "x", z: "id", stroke: "colour",
                             strokeOpacity: 0.42, strokeWidth: 0.9, clip: true}),
+    // The rate the ballistic families draw from, straddling the arrow it is
+    // the spread of - see `rateDensity`, which is where the instant it is cut
+    // at is chosen. Empty in every model whose evidence wobbles, which has no
+    // such draw to make. Area marks rather than lines, because what is wanted
+    // is the whole outline: the straight left edge is the instant, and the
+    // flat bottom is the truncation at a rate of zero.
+    //
+    // Knocked out of the traces rather than laid over them. This is the
+    // busiest corner of the figure - thirty paths in the same two colours run
+    // through it - and a curve tinted in the accumulator's own colour was
+    // simply lost in them. White most of the way dims what is behind instead
+    // of erasing it, and every fill is laid down before any outline so that
+    // the two of a race each keep a whole one. Over the traces, then, and
+    // under the arrows, which are the thing the curves are about.
+    //
+    // Nothing is named. No density in this figure is - not the response
+    // densities on the boundaries, not the traces - because each is told apart
+    // by the colour of the accumulator it belongs to, which is the colour that
+    // accumulator's sliders wear in the column alongside. A name here would
+    // also have to be thrown clear of the ones the arrows are already
+    // carrying, over the one corner every one of them leaves from.
+    ...rateDensity.curves.map((curve) =>
+      Plot.areaX(curve.rows, {y: "y", x1: "base", x2: "x", fill: "white",
+                              fillOpacity: 0.82})),
+    ...rateDensity.curves.map((curve) =>
+      Plot.areaX(curve.rows, {y: "y", x1: "base", x2: "x", fill: "none",
+                              stroke: curve.colour, strokeWidth: 1.5})),
     // Time runs along the start point, and rides up and down with it. Black,
     // because it is the one line here that is an axis rather than an
     // annotation.
@@ -288,7 +357,11 @@ Assumptions
 `boundaries`
 
 ``` js
-viewof nbounds = Inputs.radio([1, 2], {value: 1})
+// All three toggles open where `opening` puts them, which is how the two
+// articles show two different models without holding two figures. The segment
+// index is the recipe's, so `[1, 2][i]` and `["yes", "no"][i]` turn it back
+// into the value that segment carries.
+viewof nbounds = Inputs.radio([1, 2], {value: [1, 2][opening.seg[0]]})
 ```
 
 `accumulators`
@@ -298,7 +371,7 @@ viewof nbounds = Inputs.radio([1, 2], {value: 1})
 // at 1 - see `constrain`, which is what greys out whichever toggle the model on
 // show cannot vary, and puts it back to its first segment so that a toggle
 // nobody can turn is not left stating something that is not true.
-viewof naccum = Inputs.radio([1, 2], {value: 1})
+viewof naccum = Inputs.radio([1, 2], {value: [1, 2][opening.seg[1]]})
 ```
 
 `within-trial variability`
@@ -310,7 +383,8 @@ viewof naccum = Inputs.radio([1, 2], {value: 1})
 // the ballistic families' trade and what `trials` and `density` switch on. The
 // package has no two-boundary ballistic model, so `constrain` greys this out
 // under two.
-viewof wnoise = Inputs.radio(["yes", "no"], {value: "yes"})
+viewof wnoise = Inputs.radio(["yes", "no"],
+                             {value: ["yes", "no"][opening.seg[2]]})
 ```
 
 ``` js
@@ -588,16 +662,16 @@ constrain = {
 // definition, and the strip is a third way in rather than a second opinion.
 // `model` is what lights the tab, off that one definition.
 //
-// It runs once. The four views it reaches for depend on nothing, so ojs never
-// rebuilds them and the listener it hangs on the bar is never stranded on a
-// detached element; the flag is there in case that ever stops being true.
+// It runs once. The four views it reaches for sit under `opening` and nothing
+// else, and `opening` is a constant, so ojs never rebuilds them and the
+// listener it hangs on the bar is never stranded on a detached element; the
+// flag is there in case that ever stops being true.
 //
-// Each recipe is the three toggles as segment positions, and what to do about
-// `sigmabias`. The recinormal is the single-accumulator LBA at a start-point
-// range of zero - the same family, exactly and not in the limit - so those two
-// tabs differ in that and nothing else: one pins the range at zero and the
-// other lifts it off zero, and only when it is at zero, so that arriving from
-// the recinormal shows a range again without overwriting one the reader set.
+// What a recipe holds is written out where `recipe` is. Its `sigmabias` half
+// is a click's business rather than a start's: `range` pins the slider, and
+// `ifZero` lifts it off zero only when it is already at zero, so that arriving
+// from the recinormal shows a range again without overwriting one the reader
+// set.
 //
 // All three toggles are written in one go, and `disabled` is lifted first.
 // A locked toggle is out of the pointer's reach because the model on show
@@ -622,14 +696,6 @@ tabs = {
     if (!el || Number(el.value) === v) return;
     el.value = v;
     el.dispatchEvent(new Event("input", {bubbles: true}));
-  };
-  const recipe = {
-    wald:       {seg: [0, 0, 0]},
-    recinormal: {seg: [0, 0, 1], range: 0},
-    ddm:        {seg: [1, 0, 0]},
-    rdm:        {seg: [0, 1, 0]},
-    lba1:       {seg: [0, 0, 1], ifZero: 0.3},
-    lba2:       {seg: [0, 1, 1], ifZero: 0.3}
   };
   bar.addEventListener("click", (event) => {
     const tab = event.target.closest(".cogmod-tab");
@@ -1182,6 +1248,98 @@ driftArcs = {
       dx: side > 0 ? -3 : 2
     };
   });
+}
+```
+
+``` js
+// The distribution each trial draws its rate from, which only the ballistic
+// families have. It is the one thing they carry that had no geometry until
+// now: `sigmabias` has its dimension arrow, `boundary` its line and `ndt` its
+// span, while the spread of the rate showed only in how widely the traces fan
+// - which is also what `sigmabias` does to them, so neither of the two could
+// be read off the fan alone.
+//
+// It is drawn where the literature draws it, across the arrow whose slope it
+// is the spread of, and that placement is exact rather than decorative. A rate
+// is a slope and belongs to neither axis of this figure - but at any one
+// instant the evidence an accumulator has reached is its start point plus its
+// rate times the time since ndt, which is the rate scaled by a constant. So a
+// cross-section of the arrow at a fixed instant *is* the rate distribution,
+// standing on the evidence axis, in the figure's own coordinates and needing
+// no second axis of its own. Its mean sits on the arrow because the arrow is
+// the mean rate, and the whole curve rides up and down with it.
+//
+// Everything it is drawn from follows from that instant:
+//
+// - The flat bottom is the truncation at a rate of zero. The Normal is
+//   truncated there, and drawn as the family's own - divided by P(v > 0),
+//   exactly as `lbaLdens` divides by it - because a negative rate is an
+//   accumulator that never arrives. A rate of zero has reached the start point
+//   and nothing more, so the cut lands on the height the arrows leave from,
+//   and it is a visible edge only where the truncation is doing something: a
+//   low mean against a wide SD, which is when it is worth seeing.
+// - The straight left edge is the instant itself, and the curve bulges
+//   forward from it in time units, as every density is drawn against a scale
+//   of its own choosing.
+// - It is the rate's own spread and not the trace fan's: the start point is
+//   held at the middle of its range, so what widens the curve is `sigma`
+//   alone, where the fan carries `sigmabias` as well. That is the whole reason
+//   for drawing it - the two spreads are separable here and nowhere else in
+//   the figure.
+//
+// The instant is as far along the arrow as the figure can afford: 0.45 of the
+// shorter arrow's run, so that it is taken while both accumulators are still
+// going, and pulled back from there whenever three SD would not fit under the
+// boundary. Late is better than early because the spread grows with the time
+// it has had - at ndt itself every trial is in the same place and there would
+// be nothing to draw - and the cap is what keeps the widest setting either
+// slider allows from climbing through the boundary line. Between them the two
+// hold the curve inside the band at every setting.
+//
+// Both rates of a race are cross-sectioned at the one instant and share one
+// width scale, so the narrower of them bulges further, as the two response
+// densities above are drawn to a single scale for the same reason. They are
+// centred on their own arrows and so sit at different heights on the one edge,
+// which is the head start the faster accumulator has at that moment; where
+// they overlap is the trials in which the slower one is nonetheless ahead.
+rateDensity = {
+  if (!ballistic) return {curves: []};
+  const legs = race
+    ? [{v: drift, s: sigmazero, colour: cfg.green},
+       {v: driftone, s: sigmaone, colour: cfg.red}]
+    : [{v: drift, s: sigmazero, colour: cfg.green}];
+  const run = Math.min(...legs.map((l) => driftTip(ndt, edge, foot, l.v))) -
+              ndt;
+  // Three SD of the widest curve inside 0.42 of the band, which with a mean at
+  // most 0.45 of the way up it leaves the tail clear of the boundary line.
+  const dt = Math.min(0.45 * run,
+                      0.42 * (edge - foot) /
+                      (3 * Math.max(...legs.map((l) => l.s))));
+  const t1 = ndt + dt;
+  const wide = 0.1;              // how far the widest curve bulges, in seconds
+  const n = 120;
+  // From the cut at a rate of zero up to where the curve has died. The grid is
+  // shared, so the two of a race are drawn against the same heights and their
+  // overlap is read off the picture rather than computed twice.
+  const spread = legs.map((l) => ({m: foot + l.v * dt, sd: l.s * dt,
+                                   q: normCdf(l.v / l.s)}));
+  const top = Math.max(...spread.map((g) => g.m + 3.2 * g.sd));
+  const raw = spread.map((g) => {
+    const f = [];
+    for (let i = 0; i <= n; i++) {
+      const y = foot + (top - foot) * i / n;
+      f.push(normPdf((y - g.m) / g.sd) / (g.sd * g.q));
+    }
+    return f;
+  });
+  const fmax = Math.max(...raw.map((f) => Math.max(...f)));
+  const scale = fmax > 0 ? wide / fmax : 0;
+  const curves = legs.map((l, i) => ({
+    colour: l.colour,
+    rows: raw[i].map((v, j) => ({y: foot + (top - foot) * j / n, base: t1,
+                                 x: t1 + v * scale}))
+  }));
+  return {curves: curves};
 }
 ```
 
@@ -1852,7 +2010,7 @@ ggplot(df, aes(x = RT, fill = Condition)) +
   theme_minimal()
 ```
 
-![](decision_making_files/figure-html/unnamed-chunk-54-1.png)
+![](decision_making_files/figure-html/unnamed-chunk-57-1.png)
 
 Errors are much rarer than correct responses (especially in the
 `Accuracy` condition), which can be problematic for accurate
@@ -2274,7 +2432,7 @@ fit_summary |>
   theme_minimal()
 ```
 
-![](decision_making_files/figure-html/unnamed-chunk-67-1.png)
+![](decision_making_files/figure-html/unnamed-chunk-70-1.png)
 
 ### Posterior Predictive Check
 
