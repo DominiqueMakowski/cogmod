@@ -95,3 +95,6 @@ benchmarks/results/warmstart_ablation.png
 benchmarks/*.bat
 # Superseded benchmark runs, kept locally for reference
 benchmarks/results/archive-*/
+
+# The animation scripts import a shared module, which leaves one of these.
+__pycache__/
