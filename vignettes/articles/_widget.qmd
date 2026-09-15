@@ -14,7 +14,8 @@ every tab is still on the strip, and from the first click the figure is the
 same figure in both articles. A parent that names nothing still gets a working
 figure, on the Wald - rendering this file on its own is the way to preview it,
 and that is what it shows - at the price of a quarto warning about the unset
-key, which is the only thing the warning means.
+key, which is the only thing the warning means. A throwaway parent of two
+lines, front matter and the include, previews any of the other five.
 
 `density` is `dcogmod_invgaussian()` written out in JavaScript - a Wiener
 process with unit diffusion noise reaching `boundary`, shifted by `ndt` - and
@@ -43,7 +44,11 @@ changes what the same process is:
   the other side of the trial - and it is why `sigmabias` and the rate's own
   SD arrive with it. Those two are the whole of the variability there, so both
   are sliders even though a fit pins the SD to fix the arbitrary evidence
-  scale.
+  scale, and both are drawn: the start-point range as the lower of the two
+  dimension arrows at the right edge and as the fan the traces already leave
+  from, the rate distribution as the small curve straddling the drift arrow,
+  where the literature puts it - see `rateDensity`, which is a cross-section
+  of the accumulation at one instant and so that distribution to scale.
 
 Two boundaries have no second accumulator to give and no ballistic form in the
 package, so three of the eight combinations are not models; whichever
@@ -634,6 +639,33 @@ dragHandles(fireTrials(Plot.plot({
     // traces by being the only line mark drawing more than one path.
     Plot.line(trials.rows, {x: "t", y: "x", z: "id", stroke: "colour",
                             strokeOpacity: 0.42, strokeWidth: 0.9, clip: true}),
+    // The rate the ballistic families draw from, straddling the arrow it is
+    // the spread of - see `rateDensity`, which is where the instant it is cut
+    // at is chosen. Empty in every model whose evidence wobbles, which has no
+    // such draw to make. Area marks rather than lines, because what is wanted
+    // is the whole outline: the straight left edge is the instant, and the
+    // flat bottom is the truncation at a rate of zero.
+    //
+    // Knocked out of the traces rather than laid over them. This is the
+    // busiest corner of the figure - thirty paths in the same two colours run
+    // through it - and a curve tinted in the accumulator's own colour was
+    // simply lost in them. White most of the way dims what is behind instead
+    // of erasing it, and every fill is laid down before any outline so that
+    // the two of a race each keep a whole one. Over the traces, then, and
+    // under the arrows, which are the thing the curves are about.
+    //
+    // Nothing is named. No density in this figure is - not the response
+    // densities on the boundaries, not the traces - because each is told apart
+    // by the colour of the accumulator it belongs to, which is the colour that
+    // accumulator's sliders wear in the column alongside. A name here would
+    // also have to be thrown clear of the ones the arrows are already
+    // carrying, over the one corner every one of them leaves from.
+    ...rateDensity.curves.map((curve) =>
+      Plot.areaX(curve.rows, {y: "y", x1: "base", x2: "x", fill: "white",
+                              fillOpacity: 0.82})),
+    ...rateDensity.curves.map((curve) =>
+      Plot.areaX(curve.rows, {y: "y", x1: "base", x2: "x", fill: "none",
+                              stroke: curve.colour, strokeWidth: 1.5})),
     // Time runs along the start point, and rides up and down with it. Black,
     // because it is the one line here that is an axis rather than an
     // annotation.
@@ -1657,6 +1689,99 @@ driftArcs = {
       dx: side > 0 ? -3 : 2
     };
   });
+}
+```
+
+```{ojs}
+//| echo: false
+// The distribution each trial draws its rate from, which only the ballistic
+// families have. It is the one thing they carry that had no geometry until
+// now: `sigmabias` has its dimension arrow, `boundary` its line and `ndt` its
+// span, while the spread of the rate showed only in how widely the traces fan
+// - which is also what `sigmabias` does to them, so neither of the two could
+// be read off the fan alone.
+//
+// It is drawn where the literature draws it, across the arrow whose slope it
+// is the spread of, and that placement is exact rather than decorative. A rate
+// is a slope and belongs to neither axis of this figure - but at any one
+// instant the evidence an accumulator has reached is its start point plus its
+// rate times the time since ndt, which is the rate scaled by a constant. So a
+// cross-section of the arrow at a fixed instant *is* the rate distribution,
+// standing on the evidence axis, in the figure's own coordinates and needing
+// no second axis of its own. Its mean sits on the arrow because the arrow is
+// the mean rate, and the whole curve rides up and down with it.
+//
+// Everything it is drawn from follows from that instant:
+//
+// - The flat bottom is the truncation at a rate of zero. The Normal is
+//   truncated there, and drawn as the family's own - divided by P(v > 0),
+//   exactly as `lbaLdens` divides by it - because a negative rate is an
+//   accumulator that never arrives. A rate of zero has reached the start point
+//   and nothing more, so the cut lands on the height the arrows leave from,
+//   and it is a visible edge only where the truncation is doing something: a
+//   low mean against a wide SD, which is when it is worth seeing.
+// - The straight left edge is the instant itself, and the curve bulges
+//   forward from it in time units, as every density is drawn against a scale
+//   of its own choosing.
+// - It is the rate's own spread and not the trace fan's: the start point is
+//   held at the middle of its range, so what widens the curve is `sigma`
+//   alone, where the fan carries `sigmabias` as well. That is the whole reason
+//   for drawing it - the two spreads are separable here and nowhere else in
+//   the figure.
+//
+// The instant is as far along the arrow as the figure can afford: 0.45 of the
+// shorter arrow's run, so that it is taken while both accumulators are still
+// going, and pulled back from there whenever three SD would not fit under the
+// boundary. Late is better than early because the spread grows with the time
+// it has had - at ndt itself every trial is in the same place and there would
+// be nothing to draw - and the cap is what keeps the widest setting either
+// slider allows from climbing through the boundary line. Between them the two
+// hold the curve inside the band at every setting.
+//
+// Both rates of a race are cross-sectioned at the one instant and share one
+// width scale, so the narrower of them bulges further, as the two response
+// densities above are drawn to a single scale for the same reason. They are
+// centred on their own arrows and so sit at different heights on the one edge,
+// which is the head start the faster accumulator has at that moment; where
+// they overlap is the trials in which the slower one is nonetheless ahead.
+rateDensity = {
+  if (!ballistic) return {curves: []};
+  const legs = race
+    ? [{v: drift, s: sigmazero, colour: cfg.green},
+       {v: driftone, s: sigmaone, colour: cfg.red}]
+    : [{v: drift, s: sigmazero, colour: cfg.green}];
+  const run = Math.min(...legs.map((l) => driftTip(ndt, edge, foot, l.v))) -
+              ndt;
+  // Three SD of the widest curve inside 0.42 of the band, which with a mean at
+  // most 0.45 of the way up it leaves the tail clear of the boundary line.
+  const dt = Math.min(0.45 * run,
+                      0.42 * (edge - foot) /
+                      (3 * Math.max(...legs.map((l) => l.s))));
+  const t1 = ndt + dt;
+  const wide = 0.1;              // how far the widest curve bulges, in seconds
+  const n = 120;
+  // From the cut at a rate of zero up to where the curve has died. The grid is
+  // shared, so the two of a race are drawn against the same heights and their
+  // overlap is read off the picture rather than computed twice.
+  const spread = legs.map((l) => ({m: foot + l.v * dt, sd: l.s * dt,
+                                   q: normCdf(l.v / l.s)}));
+  const top = Math.max(...spread.map((g) => g.m + 3.2 * g.sd));
+  const raw = spread.map((g) => {
+    const f = [];
+    for (let i = 0; i <= n; i++) {
+      const y = foot + (top - foot) * i / n;
+      f.push(normPdf((y - g.m) / g.sd) / (g.sd * g.q));
+    }
+    return f;
+  });
+  const fmax = Math.max(...raw.map((f) => Math.max(...f)));
+  const scale = fmax > 0 ? wide / fmax : 0;
+  const curves = legs.map((l, i) => ({
+    colour: l.colour,
+    rows: raw[i].map((v, j) => ({y: foot + (top - foot) * j / n, base: t1,
+                                 x: t1 + v * scale}))
+  }));
+  return {curves: curves};
 }
 ```
 
