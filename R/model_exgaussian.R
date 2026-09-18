@@ -182,7 +182,7 @@ pcogmod_exgaussian <- function(q, mu = 0.5, sigma = 0.1, tau = 0.2,
 # rather than log(1 - F). The counterpart of .lcdf_exgaussian() (model_geg.R),
 # which takes the left tail through the same two terms subtracted; each one is
 # written in the tail where its terms do not cancel. Mirrors the Stan
-# cogmod_exgaussian_lccdf().
+# cogmod_exgaussian_logsurv() (.EXGAUSSIAN_STAN_PRELUDE below).
 #' @keywords internal
 .lsurv_exgaussian <- function(x, mu, sigma, tau) {
     z <- (x - mu) / sigma
@@ -262,9 +262,87 @@ cogmod_exgaussian <- function(
     )
 }
 
+# The ex-Gaussian's density and its two tails in Stan, the counterparts of
+# dcogmod_exgaussian() and .lsurv_exgaussian() above and of .lcdf_exgaussian()
+# (model_geg.R), line for line. Its own object because cogmod_geg() needs the
+# CDF inside its *density* - the alpha-power construction is shape * log F -
+# and so pastes this in front of its own functions too (see
+# .cogmod_geg_lpdf()); helper-stan.R strips the second copy when it
+# concatenates every family into one test program.
+#
+# All of it goes through cogmod_log_Phi() rather than Stan's
+# exp_mod_normal_lcdf(). The built-in's value is fine - it agreed with the R
+# side to 1e-8 over the grid test-model_geg.R walks - but its partials are not,
+# and the GEG differentiates its log-likelihood through them. Measured
+# 2026-09-18 at sigma / tau = 9.3, where the two terms of F cancel hardest:
+# Stan's own central differences put d/d sigma at 28.5 and its autodiff at
+# 77.5, with d/d tau 113.6 against 53.0. Subtracting the two terms ourselves,
+# in log space, is both the accurate value and the right derivative, and it is
+# the formula the R side has always used.
+#
+# The three are separate `real` functions rather than one returning the pair
+# the GEG wants. That was tried: a Stan function returning `vector[2]`
+# allocates one on the autodiff stack per call, and at one call per observation
+# that outweighed everything the sharing saved - half again the cost of writing
+# the pair out inline, measured against the built-ins at 1.47 with the vector
+# and 1.20 without over the same seven blocks. cogmod_geg_lpdf() therefore
+# writes the shared arithmetic out itself.
+#' @keywords internal
+.EXGAUSSIAN_STAN_PRELUDE <- paste0(.LOG_PHI_STAN_PRELUDE, "
+// log f(y) for the ex-Gaussian. With z = (y - mu) / sigma this is
+//
+//   lb - log(tau),   lb = sigma^2 / (2 tau^2) - (y - mu) / tau
+//                           + log Phi(z - sigma / tau),
+//
+// the same expression dcogmod_exgaussian() evaluates in R and the same one
+// Stan's exp_mod_normal_lpdf() does, over cogmod_log_Phi() rather than the
+// built-in's bare erfc: identical in the body of the distribution, and still
+// finite about 38 standardized units into the left tail, where erfc is not.
+real cogmod_exgaussian_ldens(real y, real mu, real sigma, real tau) {
+  return square(sigma) / (2 * square(tau)) - (y - mu) / tau - log(tau)
+           + cogmod_log_Phi((y - mu) / sigma - sigma / tau);
+}
+
+// log F(y) = log(Phi(z) - exp(lb)), with `lb` as above - note that the term F
+// subtracts IS the density, up to the 1 / tau, which is what cogmod_geg_lpdf()
+// exploits (see the note there).
+//
+// The difference is taken with log1m_exp() rather than by subtracting the two
+// terms, because in the left tail they are individually tiny and very close
+// together - exactly where cogmod_geg() needs the CDF, since shape < 1
+// multiplies log F by a negative number and any error there is amplified.
+// F > 0 everywhere, so the difference is positive; the floor on `d` is against
+// rounding alone, it is the same one .lcdf_exgaussian() uses so that the two
+// sides agree bit for bit rather than one of them returning -inf, and it is
+// what leaves the sum negative without a closing fmin().
+real cogmod_exgaussian_logcdf(real y, real mu, real sigma, real tau) {
+  real z = (y - mu) / sigma;
+  real la = cogmod_log_Phi(z);
+  real lb = square(sigma) / (2 * square(tau)) - (y - mu) / tau
+              + cogmod_log_Phi(z - sigma / tau);
+  real d = fmin(lb - la, -2.220446049250313e-16);
+  return la + log1m_exp(d);
+}
+
+// log S(y), as the SUM of the two positive terms
+//   S(y) = Phi(-z) + exp(sigma^2 / (2 tau^2) - (y - mu) / tau) Phi(z - sigma / tau),
+// rather than log1m_exp() of the above: a right-censored slow response sits
+// exactly where 1 - F has no digits left. Each tail is written where its terms
+// do not cancel.
+real cogmod_exgaussian_logsurv(real y, real mu, real sigma, real tau) {
+  real z = (y - mu) / sigma;
+  return fmin(log_sum_exp(
+    cogmod_log_Phi(-z),
+    square(sigma) / (2 * square(tau)) - (y - mu) / tau
+      + cogmod_log_Phi(z - sigma / tau)
+  ), 0);
+}
+")
+
+
 #' @keywords internal
 .cogmod_exgaussian_lpdf <- function() {
-    "
+    paste0(.EXGAUSSIAN_STAN_PRELUDE, "
 // Log-likelihood for a single observation from the classical Ex-Gaussian distribution.
 // Y: observed reaction time.
 // mu: mean of the Gaussian component. A LOCATION, so unbounded - the
@@ -276,32 +354,30 @@ real cogmod_exgaussian_lpdf(real Y, real mu, real sigma, real tau) {
     // Parameter checks
     if (sigma <= 0 || tau <= 0) return negative_infinity();
 
-    // Stan's built-in exp_mod_normal is parameterized with the rate of the
-    // exponential component (beta = 1 / tau)
-    return exp_mod_normal_lpdf(Y | mu, sigma, inv(tau));
+    // The same expression as Stan's exp_mod_normal_lpdf(Y | mu, sigma, 1 / tau)
+    // and as dcogmod_exgaussian() in R, written through cogmod_log_Phi() rather
+    // than the built-in's erfc: the value agrees to the last bit in the body of
+    // the distribution and keeps going where erfc underflows, about 38
+    // standardized units into the left tail. It also shares its one normal tail
+    // with the CDF, which is what cogmod_geg() is built on.
+    return cogmod_exgaussian_ldens(Y, mu, sigma, tau);
 }
 
 // CDF and survival of the same distribution, for brms's cens() addition term
-// (see ?rcogmod_invgaussian for what censoring a reaction time means). The
-// survival is written as the sum of its two POSITIVE terms,
-//   S(x) = Phi(-z) + exp(sigma^2 / (2 tau^2) - (x - mu) / tau) Phi(z - sigma / tau),
-// rather than as log1m_exp(lcdf): a right-censored slow response sits exactly
-// where 1 - F has no digits left.
+// (see ?rcogmod_invgaussian for what censoring a reaction time means). Both are
+// the helpers above; these wrappers exist only because brms writes
+// `<family>_lcdf(y | ...)` and Stan reserves those two suffixes for the `|`
+// call syntax.
 real cogmod_exgaussian_lcdf(real Y, real mu, real sigma, real tau) {
     if (sigma <= 0 || tau <= 0) return negative_infinity();
-    return exp_mod_normal_lcdf(Y | mu, sigma, inv(tau));
+    return cogmod_exgaussian_logcdf(Y, mu, sigma, tau);
 }
 
 real cogmod_exgaussian_lccdf(real Y, real mu, real sigma, real tau) {
     if (sigma <= 0 || tau <= 0) return negative_infinity();
-    real z = (Y - mu) / sigma;
-    return log_sum_exp(
-      std_normal_lcdf(-z),
-      square(sigma) / (2 * square(tau)) - (Y - mu) / tau
-        + std_normal_lcdf(z - sigma / tau)
-    );
+    return cogmod_exgaussian_logsurv(Y, mu, sigma, tau);
 }
-"
+")
 }
 
 #' @rdname rcogmod_exgaussian

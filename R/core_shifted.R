@@ -1201,6 +1201,65 @@ real %s_lccdf(%s) {
 }
 
 
+# log(Phi(x)) for Stan, shared by every prelude that takes a normal tail:
+# .WALD_STAN_PRELUDE and .LOGNORMAL_STAN_PRELUDE below (and so the ex-Wald's
+# and the LNR's), .RDM_STAN_PRELUDE in model_rdm.R and .EXGAUSSIAN_STAN_PRELUDE
+# in model_exgaussian.R (and so the GEG's) paste it in front of their own
+# functions. It is its own object so that helper-stan.R can strip the duplicate
+# copies when it concatenates every family into one test program - a function
+# defined twice will not compile - and so that the next family to need a normal
+# tail takes this one rather than a Stan built-in. The reasoning is in the Stan
+# comment.
+#
+# It sits here, ahead of every prelude, because those preludes paste it in at
+# load time: an object defined further down the file does not exist yet.
+#' @keywords internal
+.LOG_PHI_STAN_PRELUDE <- "
+// log(Phi(x)), the one piece of arithmetic every normal tail in this package is
+// built from. Neither of Stan's two routes to it is good enough for both jobs
+// it has here, which is to be right in the far tail *and* to hand back a
+// usable derivative there. All three claims below were measured against
+// central differences of the log probability over 20000 responses.
+//
+// The erfc route - std_normal_lcdf() is not it, but lognormal_lcdf(),
+// lognormal_lccdf() and the log(u1) + log1m(u2 / u1) the LogNormal used to
+// write are - has good partials, to about 4e-6 on a summed gradient of order
+// 1e3. But erfc underflows near x = -38, and then the value is log(0) and the
+// partials are inf or 0/0. That is not a harmless -inf in a mixture:
+// log_mix() in the lpdf stays finite when the decision component is -inf, but
+// reverse mode multiplies the (zero) adjoint into the stored partial, and
+// 0 * inf is NaN, so a single response turns the gradient of the whole model
+// to NaN - 'Gradient evaluated at the initial value is not finite' at the
+// start of a fit, divergent transitions afterwards.
+//
+// std_normal_lcdf() has the range: its value is exact against R's
+// pnorm(log.p = TRUE) as far as x = -1e7. Its partials are not - they sat
+// 1.7e-3 from central differences where the erfc route sat 4e-6 on the LNR,
+// and 2e-4 to 7e-2 on the RDM, which took every tail through it - so it is not
+// a drop-in for the tails of a race, where those partials are the gradient of
+// the drifts and the scales.
+//
+// So: erfc in the body of the distribution, and below x = -25 the asymptotic
+// expansion of the tail,
+//
+//   Phi(x) = phi(x) / (-x) * (1 - 1/x^2 + 3/x^4 - 15/x^6 + 105/x^8 - 945/x^10)
+//
+// whose leading term is the exponent itself. Nothing underflows, the result
+// stays finite and differentiable as far as x = -1e150, and the six terms
+// agree with pnorm(log.p = TRUE) to 4e-16 relative from x = -25 down - the
+// last bit of a double - so the two branches meet with no step in the density.
+real cogmod_log_Phi(real x) {
+  if (x < -25) {
+    real z = inv_square(x);
+    real series = 1 + z * (-1 + z * (3 + z * (-15 + z * (105 - 945 * z))));
+    return -0.5 * square(x) - log(-x) - 0.91893853320467274 + log(series);
+  }
+  if (x > 0) return log1p(-0.5 * erfc(x * 0.7071067811865476));
+  return log(0.5 * erfc(-x * 0.7071067811865476));
+}
+"
+
+
 # Unshifted Wald ----------------------------------------------------------
 
 # The decision component of cogmod_invgaussian(), written out here rather than
@@ -1377,10 +1436,20 @@ real %s_lccdf(%s) {
 })
 
 # Stan counterpart of .dwald_raw(). The branch is the same one, and so is the
-# reason for it: at sigmadrift = 0 the two normal CDFs are 0/0 rather than 1.
-# Both are taken through the lower tail (`log1m_exp(std_normal_lcdf(-z))`)
-# because with a positive drift and threshold both arguments are positive, which
-# is where Phi itself saturates.
+# reason for it: at sigmadrift = 0 the two normal truncation factors are 0/0
+# rather than 1.
+#
+# Every normal tail below is cogmod_log_Phi(), never std_normal_lcdf(): the
+# built-in's value is right but its partials are not, and `sigmadrift` is
+# differentiated almost entirely through the two truncation factors of the
+# closed-form branch. Measured 2026-09-18, this is what the gradient check was
+# seeing - 1.2e-3 relative on d/d sigmadrift, 2.7e-4 on d/d mu, against 1e-8
+# for the families that were already on cogmod_log_Phi(). The truncation factor
+# used to be written log1m_exp(std_normal_lcdf(-z)), the lower tail because
+# with a positive drift and threshold the argument is positive and Phi itself
+# saturates there; cogmod_log_Phi(z) is that same quantity computed from
+# log1p(-erfc(z / sqrt(2)) / 2), so the saturation is gone along with the
+# round trip through log1m_exp().
 #' @keywords internal
 #
 # The CDF and survival follow, for cens(). At sigmadrift = 0 both are closed
@@ -1397,7 +1466,7 @@ real %s_lccdf(%s) {
 .WALD_STAN_PRELUDE <- local({
   num <- function(v) formatC(v, format = "g", digits = 17, width = 1)
   k <- length(.GAUSS_LEGENDRE$x)
-  paste0("
+  paste0(.LOG_PHI_STAN_PRELUDE, "
 // Log density of the fixed-drift Wald with drift v > 0 and threshold a > 0,
 // at t > 0: an inverse Gaussian with mean a / v and shape a^2.
 real cogmod_wald_ldens(real t, real v, real a) {
@@ -1411,8 +1480,8 @@ real cogmod_wald_logcdf(real t, real v, real a) {
   if (t <= 0) return negative_infinity();
   real st = sqrt(t);
   return log_sum_exp(
-    std_normal_lcdf((v * t - a) / st),
-    2 * a * v + std_normal_lcdf(-(v * t + a) / st)
+    cogmod_log_Phi((v * t - a) / st),
+    2 * a * v + cogmod_log_Phi(-(v * t + a) / st)
   );
 }
 
@@ -1423,8 +1492,8 @@ real cogmod_wald_logcdf(real t, real v, real a) {
 real cogmod_wald_lsurv(real t, real v, real a) {
   if (t <= 0) return 0;
   real st = sqrt(t);
-  real m1 = std_normal_lcdf((a - v * t) / st);
-  real m2 = 2 * a * v + std_normal_lcdf(-(a + v * t) / st);
+  real m1 = cogmod_log_Phi((a - v * t) / st);
+  real m2 = 2 * a * v + cogmod_log_Phi(-(a + v * t) / st);
   return m1 > m2 ? log_diff_exp(m1, m2) : negative_infinity();
 }
 
@@ -1435,8 +1504,8 @@ real cogmod_wald_lsurv(real t, real v, real a) {
 // are taken in log space and are positive.
 real cogmod_wald_liF(real t, real v, real a) {
   real st = sqrt(t);
-  real lPa = std_normal_lcdf((v * t - a) / st);
-  real lPb = 2 * a * v + std_normal_lcdf(-(v * t + a) / st);
+  real lPa = cogmod_log_Phi((v * t - a) / st);
+  real lPb = 2 * a * v + cogmod_log_Phi(-(v * t + a) / st);
   real lF = log_sum_exp(lPa, lPb);
   real lP = lPa > lPb ? log_diff_exp(lPa, lPb) : negative_infinity();
   real x = log(t) + lF;
@@ -1452,8 +1521,8 @@ real cogmod_wald_liF(real t, real v, real a) {
 real cogmod_wald_liS(real t, real v, real a) {
   if (t <= 0) return log(a / v - t);
   real st = sqrt(t);
-  real lQa = std_normal_lcdf(-(v * t - a) / st);
-  real lQb = 2 * a * v + std_normal_lcdf(-(v * t + a) / st);
+  real lQa = cogmod_log_Phi(-(v * t - a) / st);
+  real lQb = 2 * a * v + cogmod_log_Phi(-(v * t + a) / st);
   real c1 = a / v - t;
   real c2 = a / v + t;
   if (c1 >= 0) return log_sum_exp(log(c1) + lQa, log(c2) + lQb);
@@ -1517,7 +1586,7 @@ real cogmod_wald_sv_lquad(real t, real mu, real boundary, real sigmadrift,
   real hi = mu + 10 * sigmadrift;
   real half = 0.5 * (hi - lo);
   real mid = 0.5 * (hi + lo);
-  real lnorm = log1m_exp(std_normal_lcdf(-mu / sigmadrift));
+  real lnorm = cogmod_log_Phi(mu / sigmadrift);
   vector[", k, "] terms;
   for (j in 1:", k, ") {
     real v = mid + half * gx[j];
@@ -1543,8 +1612,8 @@ real cogmod_invgaussian_decision_lpdf(real t, real mu, real boundary,
     real s2 = square(sigmadrift);
     real D = 1 + s2 * t;
     return base - 0.5 * log(D) - square(boundary - mu * t) / (2 * t * D)
-      + log1m_exp(std_normal_lcdf(-(boundary * s2 + mu) / (sigmadrift * sqrt(D))))
-      - log1m_exp(std_normal_lcdf(-mu / sigmadrift));
+      + cogmod_log_Phi((boundary * s2 + mu) / (sigmadrift * sqrt(D)))
+      - cogmod_log_Phi(mu / sigmadrift);
   }
   if (sigmadrift <= 0) return cogmod_wald_st0(t, mu, boundary, sigmandt, 0);
   return cogmod_wald_sv_lquad(t, mu, boundary, sigmadrift, sigmandt, 0);
@@ -2604,60 +2673,6 @@ real cogmod_lba1_decision_lpdf(real t, real drift, real sigma, real sigmabias, r
 .lognormal_acc_lccdf <- function(t, meanlog, sigma, A) {
   .lognormal_acc_ltails(t, meanlog, sigma, A)$lccdf
 }
-
-
-# log(Phi(x)) for Stan, shared by every prelude that takes a normal tail:
-# .LOGNORMAL_STAN_PRELUDE below (and so the LNR's) and .RDM_STAN_PRELUDE in
-# model_rdm.R paste it in front of their own functions. It is its own object so
-# that helper-stan.R can strip the duplicate copies when it concatenates every
-# family into one test program - a function defined twice will not compile -
-# and so that the next family to need a normal tail takes this one rather than
-# a Stan built-in. The reasoning is in the Stan comment.
-#' @keywords internal
-.LOG_PHI_STAN_PRELUDE <- "
-// log(Phi(x)), the one piece of arithmetic every normal tail in this package is
-// built from. Neither of Stan's two routes to it is good enough for both jobs
-// it has here, which is to be right in the far tail *and* to hand back a
-// usable derivative there. All three claims below were measured against
-// central differences of the log probability over 20000 responses.
-//
-// The erfc route - std_normal_lcdf() is not it, but lognormal_lcdf(),
-// lognormal_lccdf() and the log(u1) + log1m(u2 / u1) the LogNormal used to
-// write are - has good partials, to about 4e-6 on a summed gradient of order
-// 1e3. But erfc underflows near x = -38, and then the value is log(0) and the
-// partials are inf or 0/0. That is not a harmless -inf in a mixture:
-// log_mix() in the lpdf stays finite when the decision component is -inf, but
-// reverse mode multiplies the (zero) adjoint into the stored partial, and
-// 0 * inf is NaN, so a single response turns the gradient of the whole model
-// to NaN - 'Gradient evaluated at the initial value is not finite' at the
-// start of a fit, divergent transitions afterwards.
-//
-// std_normal_lcdf() has the range: its value is exact against R's
-// pnorm(log.p = TRUE) as far as x = -1e7. Its partials are not - they sat
-// 1.7e-3 from central differences where the erfc route sat 4e-6 on the LNR,
-// and 2e-4 to 7e-2 on the RDM, which took every tail through it - so it is not
-// a drop-in for the tails of a race, where those partials are the gradient of
-// the drifts and the scales.
-//
-// So: erfc in the body of the distribution, and below x = -25 the asymptotic
-// expansion of the tail,
-//
-//   Phi(x) = phi(x) / (-x) * (1 - 1/x^2 + 3/x^4 - 15/x^6 + 105/x^8 - 945/x^10)
-//
-// whose leading term is the exponent itself. Nothing underflows, the result
-// stays finite and differentiable as far as x = -1e150, and the six terms
-// agree with pnorm(log.p = TRUE) to 4e-16 relative from x = -25 down - the
-// last bit of a double - so the two branches meet with no step in the density.
-real cogmod_log_Phi(real x) {
-  if (x < -25) {
-    real z = inv_square(x);
-    real series = 1 + z * (-1 + z * (3 + z * (-15 + z * (105 - 945 * z))));
-    return -0.5 * square(x) - log(-x) - 0.91893853320467274 + log(series);
-  }
-  if (x > 0) return log1p(-0.5 * erfc(x * 0.7071067811865476));
-  return log(0.5 * erfc(-x * 0.7071067811865476));
-}
-"
 
 
 # The Stan side of the helpers above, line for line. cogmod_lnr() appends its

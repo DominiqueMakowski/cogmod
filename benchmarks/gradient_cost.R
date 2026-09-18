@@ -7,7 +7,17 @@
 # request and its head - compiled side by side and timed in alternating
 # blocks on the same machine, so that whatever else the machine is doing hits
 # both alike. The headline is the ratio of medians; absolute times on a shared
-# runner mean little, ratios taken this way hold to a few percent.
+# runner mean little, and only the ratio is worth reading.
+#
+# How much to trust that ratio: the alternating blocks handle whatever the
+# machine is doing *within* a run, but nothing here controls for what it is
+# doing between two runs. At the default --reps 7, measured 2026-09-18 on a
+# Windows laptop, the same ratio came back 0.15 apart across runs, and
+# byte-identical code read 1.02 once and 1.19 another time. Treat 7 blocks as
+# a screen: it will catch a real regression, which reproduced at 1.47 and 1.48
+# there, but it will not tell 1.1 from 1.25. Before quoting a number, or
+# before concluding anything about a ratio near --fail, re-run it with
+# --reps 21; the same comparison settled to 1.11 and 1.12 at that setting.
 #
 # A family whose generated Stan program is byte-for-byte the same in both
 # trees is reported as unchanged and neither compiled nor timed: that is

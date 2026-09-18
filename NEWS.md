@@ -37,6 +37,53 @@
   moved into a prelude of its own (`.LOG_PHI_STAN_PRELUDE`) so that any family
   can take it; the LogNormal's and the RDM's preludes both start with it.
 
+* **`cogmod_invgaussian()`'s gradient is now exact.** The same defect as the
+  RDM's, in the family's own Stan code: every normal tail of the Wald - the two
+  terms of its CDF and survival, the two integrated ones a non-decision range
+  needs, and the truncation factors that make `sigmadrift` a *truncated* normal
+  drift - went through `std_normal_lcdf()`. `sigmadrift` is differentiated
+  almost entirely through those truncation factors, and its partial sat 1.2e-3
+  relative from central differences of the log probability, `mu`'s 2.7e-4,
+  against 1e-8 for the families already on `cogmod_log_Phi()`. Six of the
+  eighteen points the gradient check walks failed on it. All of them now go
+  through `cogmod_log_Phi()`, which brings the worst error over the same grid
+  to 5e-8; the truncation factors lose a round trip through `log1m_exp()` in
+  the bargain, since `log1m_exp(std_normal_lcdf(-z))` is `cogmod_log_Phi(z)`
+  written the long way. `cogmod_exwald()` builds on the same prelude and gets
+  the same fix. Values are unchanged.
+
+* **`cogmod_geg()`'s CDF term is no longer Stan's `exp_mod_normal_lcdf()`.**
+  The alpha-power construction puts `(shape - 1) * log F_EG` inside the
+  *density*, so the ex-Gaussian CDF is differentiated on every evaluation, not
+  only when a response is censored. The built-in agrees with the R side to
+  1e-8 over the range the tests walk, but outside it - at `sigma / tau` around
+  9, where the two terms of `F_EG` cancel hardest - both its value and its
+  partials go wrong: Stan's own central differences put `d/d sigma` at 28.5
+  where its autodiff said 77.5, and `d/d tau` at 113.6 against 53.0. The Stan
+  side now subtracts the two terms in log space itself, through
+  `cogmod_log_Phi()`, exactly as `.lcdf_exgaussian()` always has in R; over the
+  same grid the worst gradient error is 2e-9, and the log CDF matches
+  quadrature of the density to 5e-15. It costs about 10% per gradient
+  evaluation (3.1 ms to 3.5 ms over 5000 trials, median of 21 alternating
+  blocks). Two things kept it to that. The ex-Gaussian density is the CDF's
+  second term over `tau`, so the GEG writes both out from one pair of normal
+  tails rather than calling for each; and the pair is written inline rather
+  than returned from a helper - a `vector[2]` return measured half again the
+  cost of the inline form, through the autodiff-stack allocation it makes on
+  every call.
+
+* **`cogmod_exgaussian()`'s Stan density, CDF and survival go through
+  `cogmod_log_Phi()`.** The density is the same expression as before -
+  `exp_mod_normal_lpdf()` and `dcogmod_exgaussian()` in R evaluate it too, and
+  log-probabilities are unchanged to every digit that matters - but it is now
+  written out over `cogmod_log_Phi()`, so it stays finite about 38 standardized
+  units into the left tail where the built-in's bare `erfc` underflows, and it
+  shares its normal tail with the CDF that `cogmod_geg()` is built on. The
+  `cens()` path gets the accurate CDF with it: `cogmod_exgaussian_lcdf()` was
+  `exp_mod_normal_lcdf()` and had the same wrong partials as the GEG's, and
+  `cogmod_exgaussian_lccdf()` was on `std_normal_lcdf()`. About 10% per
+  gradient evaluation, the cost of `cogmod_log_Phi()` over the built-in.
+
 * **`cogmod_lnr()` and `cogmod_lognormal()` no longer hand Stan a non-finite
   gradient in the tails.** `cogmod_lognormal_ldiff_Phi()` formed
   `log(Phi(y + c) - Phi(y))` from `erfc` as `log(u1) + log1m(u2 / u1)`, and the
