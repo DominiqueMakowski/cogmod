@@ -2610,22 +2610,65 @@ real cogmod_lba1_decision_lpdf(real t, real drift, real sigma, real sigmabias, r
 # race to this (see .LNR_STAN_PRELUDE in model_lnr.R).
 #' @keywords internal
 .LOGNORMAL_STAN_PRELUDE <- "
-// log(Phi(y + c) - Phi(y)) for c > 0, from whichever tail keeps the two terms
-// from cancelling. See .lognormal_ldiff_pnorm(). The tails are
-// 0.5 * erfc(|y| / sqrt(2)) rather than std_normal_lccdf(): Stan's upper-tail
-// log-CDF is only accurate to about 1e-8 beyond y = 5 and is -Inf beyond
-// y = 8.25, and a fast response puts the standardized rate exactly there. erfc
-// of a positive argument is accurate to the last digit down to its underflow
-// near y = 38, where the density is below 1e-300 anyway.
-real cogmod_lognormal_ldiff_Phi(real y, real c) {
-  if (y > 0) {
-    real u1 = 0.5 * erfc(y * 0.7071067811865476);
-    real u2 = 0.5 * erfc((y + c) * 0.7071067811865476);
-    return u2 < u1 ? log(u1) + log1m(u2 / u1) : negative_infinity();
+// log(Phi(x)), the one piece of arithmetic every tail below is built from.
+// Neither of Stan's two routes to it is good enough for both jobs it has here,
+// which is to be right in the far tail *and* to hand back a usable derivative
+// there. All three claims below were measured against central differences of
+// the log probability over 20000 responses.
+//
+// The erfc route - std_normal_lcdf() is not it, but lognormal_lcdf(),
+// lognormal_lccdf() and the log(u1) + log1m(u2 / u1) this file used to write
+// are - has good partials, to about 4e-6 on a summed gradient of order 1e3.
+// But erfc underflows near x = -38, and then the value is log(0) and the
+// partials are inf or 0/0. That is not a harmless -inf in a mixture:
+// log_mix() in the lpdf stays finite when the decision component is -inf, but
+// reverse mode multiplies the (zero) adjoint into the stored partial, and
+// 0 * inf is NaN, so a single response turns the gradient of the whole model
+// to NaN - 'Gradient evaluated at the initial value is not finite' at the
+// start of a fit, divergent transitions afterwards.
+//
+// std_normal_lcdf() has the range: its value is exact against R's
+// pnorm(log.p = TRUE) as far as x = -1e7. Its partials are not - they sat
+// 1.7e-3 from central differences where the erfc route sat 4e-6 - so it is not
+// a drop-in for the tails of a race, where those partials are the gradient of
+// nu and sigma.
+//
+// So: erfc in the body of the distribution, and below x = -25 the asymptotic
+// expansion of the tail,
+//
+//   Phi(x) = phi(x) / (-x) * (1 - 1/x^2 + 3/x^4 - 15/x^6 + 105/x^8 - 945/x^10)
+//
+// whose leading term is the exponent itself. Nothing underflows, the result
+// stays finite and differentiable as far as x = -1e150, and the six terms
+// agree with pnorm(log.p = TRUE) to 4e-16 relative from x = -25 down - the
+// last bit of a double - so the two branches meet with no step in the density.
+real cogmod_log_Phi(real x) {
+  if (x < -25) {
+    real z = inv_square(x);
+    real series = 1 + z * (-1 + z * (3 + z * (-15 + z * (105 - 945 * z))));
+    return -0.5 * square(x) - log(-x) - 0.91893853320467274 + log(series);
   }
-  real p1 = 0.5 * erfc(-(y + c) * 0.7071067811865476);
-  real p2 = 0.5 * erfc(-y * 0.7071067811865476);
-  return p2 < p1 ? log(p1) + log1m(p2 / p1) : negative_infinity();
+  if (x > 0) return log1p(-0.5 * erfc(x * 0.7071067811865476));
+  return log(0.5 * erfc(-x * 0.7071067811865476));
+}
+
+// log(Phi(y + c) - Phi(y)) for c > 0, from whichever tail keeps the two terms
+// from cancelling: the upper one when y > 0, where both CDFs sit near 1, the
+// lower one otherwise. Taken as the larger tail plus log(1 - ratio) in log
+// space, the way .lognormal_ldiff_pnorm() does it - the quotient u2 / u1 this
+// replaces divides two minute numbers and lost its own accuracy long before
+// either underflowed (8e-4 against central differences, against 1e-6 here).
+real cogmod_lognormal_ldiff_Phi(real y, real c) {
+  real hi;
+  real lo;
+  if (y > 0) {
+    hi = cogmod_log_Phi(-y);
+    lo = cogmod_log_Phi(-(y + c));
+  } else {
+    hi = cogmod_log_Phi(y + c);
+    lo = cogmod_log_Phi(y);
+  }
+  return lo < hi ? hi + log1m_exp(lo - hi) : negative_infinity();
 }
 
 // Log density of the accumulator's finishing time with start-point range A.
@@ -2646,16 +2689,18 @@ real cogmod_lognormal_acc_ldens(real t, real meanlog, real sigma, real A) {
 // [log F, log S] of the accumulator's finishing time, each computed directly
 // on the side where it is the small one. See .lognormal_acc_ltails().
 vector cogmod_lognormal_acc_ltails(real t, real meanlog, real sigma, real A) {
-  if (A == 0) {
-    return [lognormal_lcdf(t | meanlog, sigma), lognormal_lccdf(t | meanlog, sigma)]';
-  }
   real a = (meanlog - log(t)) / sigma;
+  // At A = 0 this is the plain LogNormal, whose two tails are Phi(-a) and
+  // Phi(a). Written that way rather than as lognormal_lcdf()/lognormal_lccdf(),
+  // which are erfc alone and so reach log(0) with non-finite partials around
+  // |a| = 38 - see cogmod_log_Phi() above for what that costs.
+  if (A == 0) return [cogmod_log_Phi(-a), cogmod_log_Phi(a)]';
   real c = log1p(A) / sigma;
   if (c < 1e-4) {
     real r = log1p(A) / A;
     real corr = c * r * (0.5 + c * (2 * sigma - a) / 6);
-    real lPa = std_normal_lcdf(a);
-    real lQa = std_normal_lcdf(-a);
+    real lPa = cogmod_log_Phi(a);
+    real lQa = cogmod_log_Phi(-a);
     real lphi = std_normal_lpdf(a);
     real lS = fmin(lPa + log1p(corr * exp(lphi - lPa)), 0);
     real dF = 1 - corr * exp(lphi - lQa);
@@ -2667,25 +2712,33 @@ vector cogmod_lognormal_acc_ltails(real t, real meanlog, real sigma, real A) {
   real lD2 = -meanlog + square(sigma) / 2 + log(t)
              + cogmod_lognormal_ldiff_Phi(a - sigma, c) - lA;
   if (a < 0) {
-    real lP = std_normal_lcdf(a + c);
+    real lP = cogmod_log_Phi(a + c);
     real br = 1 + exp(lD1 - lP) - exp(lD2 - lP);
     if (br <= 0) return [0, negative_infinity()]';
     real lS = fmin(lP + log(br), 0);
     return [lS < 0 ? log1m_exp(lS) : negative_infinity(), lS]';
   }
-  real lQ = std_normal_lcdf(-a);
-  real R = exp(std_normal_lcdf(-a - c) - lQ);
+  real lQ = cogmod_log_Phi(-a);
+  real R = exp(cogmod_log_Phi(-a - c) - lQ);
   real br = R - (1 - R) / A + exp(lD2 - lQ);
   if (br <= 0) return [negative_infinity(), 0]';
   real lF = fmin(lQ + log(br), 0);
   return [lF, lF < 0 ? log1m_exp(lF) : negative_infinity()]';
 }
 
+// Above A = 0 the two tails share lD1 and lD2, so building the pair and taking
+// one of them is the cheap way round. At A = 0 they share nothing - each is a
+// single cogmod_log_Phi() of the same standardized time - and the pair would
+// put a whole discarded tail on the autodiff tape for every observation.
+// cogmod_lnr() reads the survival alone, once per trial per loser, so that is
+// the hot path of the family.
 real cogmod_lognormal_acc_logcdf(real t, real meanlog, real sigma, real A) {
+  if (A == 0) return cogmod_log_Phi((log(t) - meanlog) / sigma);
   return cogmod_lognormal_acc_ltails(t, meanlog, sigma, A)[1];
 }
 
 real cogmod_lognormal_acc_logsurv(real t, real meanlog, real sigma, real A) {
+  if (A == 0) return cogmod_log_Phi((meanlog - log(t)) / sigma);
   return cogmod_lognormal_acc_ltails(t, meanlog, sigma, A)[2];
 }
 "

@@ -1,3 +1,51 @@
+# cogmod 0.3.3
+
+## Bug fixes
+
+* **`cogmod_lnr()` and `cogmod_lognormal()` no longer hand Stan a non-finite
+  gradient in the tails.** `cogmod_lognormal_ldiff_Phi()` formed
+  `log(Phi(y + c) - Phi(y))` from `erfc` as `log(u1) + log1m(u2 / u1)`, and the
+  `A == 0` branch of `cogmod_lognormal_acc_ltails()` called `lognormal_lcdf()`
+  and `lognormal_lccdf()`, which are `erfc` alone. `erfc` underflows near
+  `x = -38` - about 38 standardized log units from an accumulator's median
+  finishing time - and past that the value is `log(0)` and the partials are
+  `inf` or `0 / 0`. The outlier mixture then hides it: `log_mix()` stays finite
+  with one component at `-inf`, but reverse mode multiplies the zero adjoint
+  into the stored partial and `0 * inf` is `NaN`, so one response in a data set
+  turned the gradient of the whole model to `NaN`. That reads as
+  `Gradient evaluated at the initial value is not finite` at the start of a fit
+  and as divergent transitions afterwards. Both now go through one function,
+  `cogmod_log_Phi()`: `erfc` in the body of the distribution and, below
+  `x = -25`, the asymptotic expansion of the tail, whose leading term is the
+  exponent itself, so nothing underflows and the result stays finite and
+  differentiable as far as `x = -1e150`; its six terms agree with R's
+  `pnorm(log.p = TRUE)` to 4e-16 relative, so the two branches meet with no step
+  in the density. `cogmod_lognormal_ldiff_Phi()` now takes the difference in
+  logs with `log1m_exp()` rather than as a quotient of two minute numbers.
+  Measured over a grid of decision times from 1 ms to 300 s and sigmas from
+  0.02 to 1.2, with and without a start-point range: 6 of 72 gradients were
+  non-finite before and none are now, and the densities agree with the R
+  kernels everywhere, with no value newly truncated to `-inf`.
+
+  `std_normal_lcdf()` is not used for this, although it has the range - its
+  value is exact against `pnorm(log.p = TRUE)` as far as `x = -1e7`. Its
+  analytic partials are not: on 20000 responses they sat 1.7e-3 from central
+  differences of the log probability where the `erfc` route sat 4e-6, and in a
+  race those partials *are* the gradient of `nu` and `sigma`.
+
+  Where the old code's gradient was finite it was not always right. On 20000
+  responses with a start-point range it sat 8.3e-4 from central differences and
+  the new one sits 9.6e-7, which is the finite differences' own noise; without
+  a start-point range both sit at 4.1e-6, so nothing there was given up for it.
+
+  Sampling is not slower in the case most models are in.
+  `cogmod_lognormal_acc_logcdf()` and `cogmod_lognormal_acc_logsurv()` now take
+  the single tail they were asked for when `sigmabias = 0`, instead of building
+  the pair and discarding one: the two share no work there, and `cogmod_lnr()`
+  reads the survival alone. On 20000 responses a gradient of the plain LNR came
+  out about 20% cheaper than before and one with a start-point range about 15%
+  dearer, the latter buying the corrected gradient above.
+
 # cogmod 0.3.2
 
 ## New features
