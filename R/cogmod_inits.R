@@ -107,9 +107,16 @@
 #' @param data The data, as passed to `brms::brm()`. May be left `NULL` only
 #'   when `warmstart` is a `brmsfit`, whose data are then used.
 #' @param jitter SD of the noise added on the unconstrained scale, so that
-#'   chains start at different points. Set to `0` for identical starts. `NULL`
-#'   (the default) means 0.25, or 0.05 with a `warmstart`, whose values come
-#'   from a converged posterior and should not be scattered far.
+#'   chains start at different points. One number is the SD for the
+#'   population-level blocks, the intercepts and slopes; the group-level and
+#'   smooth blocks - the standardized effects `z_*` and `zs_*` and their scales
+#'   `sd_*` and `sds_*` - get a fifth of it, because a unit of noise there is
+#'   multiplied through a scale and a design column before it reaches the
+#'   linear predictor, and reaches it once per participant or basis function.
+#'   Two numbers set the two tiers directly, population first. Set to `0` for
+#'   identical starts. `NULL` (the default) means 0.25, so 0.05 on the
+#'   hierarchical blocks, or 0.05 with a `warmstart`, whose values come from a
+#'   converged posterior and should not be scattered far.
 #' @param warmstart A previous fit to start from instead of the family's
 #'   generic values: a `brmsfit`, a [cogmod_warmstart()] object, the data frame
 #'   `as.data.frame()` makes of one, or the path to a CSV file of it. The
@@ -158,7 +165,7 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
     stop("`formula` and `data` are required, unless `warmstart` is a brmsfit ",
          "to take them from.", call. = FALSE)
   }
-  if (is.null(jitter)) jitter <- 0.25
+  jitter <- .init_jitter(jitter)
 
   family <- .cogmod_family(formula)
   fam <- .family_name(family)
@@ -207,6 +214,29 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 # responses (a simulated one, say) sits below the start instead, which is the
 # harmless direction. The jitter is on the log scale, so a jittered start stays
 # below the first percentile.
+#
+# Considered and not done (2026-09-18), for whoever meets a data set that
+# argues otherwise. A cluster report on a smooth-heavy LNR had one
+# participant's ndt start above 98 of their 128 trials; that came from the
+# untiered jitter on the smooth coefficients (see .init_tier()), not from this
+# rule. With the tiering in place, simulating 30 participants x 128 trials
+# whose non-decision times spread by 0.15-0.4 log-SD leaves 0.2-0.8 trials per
+# data set below the start, more than five in about 1% of data sets, with the
+# start 1.3-1.5x below the typical ndt. A trial below the start is not a
+# rejection - the outlier component absorbs it - but a mass of them is a
+# basin: their gradient on the race parameters is exactly zero and the one on
+# poutlier is n / poutlier, so the first transitions inflate the outlier rate
+# instead of lowering ndt. At under one trial that is five log units, not a
+# basin. Two alternatives were weighed: (a) the minimum over grouping levels
+# of each level's own half first percentile - takes the count to zero, but
+# puts everyone's start 1.7-2x below the typical ndt and lets one level's
+# single spurious fast trial set the start for all; (b) a downward-only jitter
+# on Intercept_ndt - halves between-chain dispersion for a bound the two-sided
+# jitter already keeps (x1.65 at 2 SD stays under the first percentile). If a
+# guard is wanted, the bounded form is a warning naming any grouping level on
+# ndt with more than a few percent of its responses below the start: the
+# grouping indices J_<k> and the Z_<k>_ndt_<j> names in the Stan data say
+# which levels those are, and it leaves the start alone.
 #' @keywords internal
 .ndt_start <- function(y, fallback = 0.1) {
   y <- y[is.finite(y) & y > 0]
@@ -220,14 +250,16 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 # cogmod_warmstart(), whose plan carries a previous fit's means.
 #' @keywords internal
 .init_fun <- function(plan, jitter) {
+  jitter <- .init_jitter(jitter)
   function(chain_id = 1) {
     out <- lapply(plan, function(e) {
       v <- e$value
-      if (jitter > 0) {
+      j <- jitter[[e$tier]]
+      if (j > 0) {
         v <- switch(
           e$kind,
-          bounds = .jitter_bounded(v, e$lower, e$upper, jitter),
-          sorted = sort(v + stats::rnorm(length(v), 0, jitter)),
+          bounds = .jitter_bounded(v, e$lower, e$upper, j),
+          sorted = sort(v + stats::rnorm(length(v), 0, j)),
           v # "fixed": a structured value that jitter would invalidate
         )
       }
@@ -306,7 +338,7 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
     upper <- bounds[["upper"]]
 
     entry <- list(name = d$name, dim = dims, lower = lower, upper = upper,
-                  kind = "bounds")
+                  kind = "bounds", tier = .init_tier(d$name))
 
     # Structured types: a valid value is not just a number in a range, so the
     # bounds-based default and the jitter are both skipped.
@@ -388,6 +420,14 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
     return(out)
   }
 
+  # A smooth's wiggliness scale starts near flat. The generic lower-bound
+  # default of 0.25 is a plausible group-level SD but a lot of wiggle for a
+  # spline: multiplied into jittered coefficients and tensor-product basis
+  # values in the tens, it is what bent one production model's ndt smooth up to
+  # 0.89 s at a participant whose trials sat below 0.5 s. Penalised smoothers
+  # start flat and let the data buy curvature; so does this.
+  if (startsWith(d$name, "sds_")) return(rep(0.05, n))
+
   rep(.default_value(lower, upper), n)
 }
 
@@ -415,6 +455,43 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
   if (is.na(lower)) return(upper - pmax(upper - v, 1e-8) * exp(e))
   w <- pmin(pmax((v - lower) / (upper - lower), 1e-8), 1 - 1e-8)
   lower + (upper - lower) * stats::plogis(stats::qlogis(w) + e)
+}
+
+
+# Which of the two jitters a declared parameter gets. brms names the
+# standardized group-level effects `z_<k>`, the smooth coefficients
+# `zs_<k>_<j>`, and their scales `sd_<k>` and `sds_<k>_<j>`; Gaussian processes
+# follow the pattern with `zgp_`, `sdgp_` and `lscale_`. A unit of noise on one
+# of those is not a unit on the linear predictor: it is multiplied by the scale
+# and by a design column - tensor-product basis values reach tens - and every
+# participant and every basis function draws its own, so the predictor at any
+# one row moves by the sum of many. Measured on a production model (a Muller-
+# Lyer study: a tensor smooth on five dpars, a participant intercept on six),
+# 0.25 there moved the linear predictors by one to two and a half link units,
+# which put one participant's ndt start above 98 of their 128 trials and a
+# sigma start at 0.07 s where 0.5 was intended; at 0.05 the same model started
+# where the targets say. Intercepts and population-level slopes keep the full
+# jitter: that is where between-chain dispersion makes Rhat mean something,
+# and a quarter of a link unit there is a quarter.
+#' @keywords internal
+.init_tier <- function(name) {
+  if (grepl("^(z|zs|sd|sds|zgp|sdgp|lscale)_", name)) "hierarchical" else "population"
+}
+
+
+# `jitter` as the user gives it - one SD for everything, or one per tier - as
+# the named pair .init_fun() reads. Idempotent, so it can be applied at the
+# door and again inside.
+#' @keywords internal
+.init_jitter <- function(jitter) {
+  if (is.null(jitter)) jitter <- 0.25
+  if (!is.numeric(jitter) || !length(jitter) %in% 1:2 || anyNA(jitter) ||
+      any(jitter < 0)) {
+    stop("`jitter` must be one non-negative number, or two: population-level ",
+         "then hierarchical.", call. = FALSE)
+  }
+  if (length(jitter) == 1) jitter <- c(jitter, jitter / 5)
+  c(population = jitter[[1]], hierarchical = jitter[[2]])
 }
 
 

@@ -2606,20 +2606,25 @@ real cogmod_lba1_decision_lpdf(real t, real drift, real sigma, real sigmabias, r
 }
 
 
-# The Stan side of the helpers above, line for line. cogmod_lnr() appends its
-# race to this (see .LNR_STAN_PRELUDE in model_lnr.R).
+# log(Phi(x)) for Stan, shared by every prelude that takes a normal tail:
+# .LOGNORMAL_STAN_PRELUDE below (and so the LNR's) and .RDM_STAN_PRELUDE in
+# model_rdm.R paste it in front of their own functions. It is its own object so
+# that helper-stan.R can strip the duplicate copies when it concatenates every
+# family into one test program - a function defined twice will not compile -
+# and so that the next family to need a normal tail takes this one rather than
+# a Stan built-in. The reasoning is in the Stan comment.
 #' @keywords internal
-.LOGNORMAL_STAN_PRELUDE <- "
-// log(Phi(x)), the one piece of arithmetic every tail below is built from.
-// Neither of Stan's two routes to it is good enough for both jobs it has here,
-// which is to be right in the far tail *and* to hand back a usable derivative
-// there. All three claims below were measured against central differences of
-// the log probability over 20000 responses.
+.LOG_PHI_STAN_PRELUDE <- "
+// log(Phi(x)), the one piece of arithmetic every normal tail in this package is
+// built from. Neither of Stan's two routes to it is good enough for both jobs
+// it has here, which is to be right in the far tail *and* to hand back a
+// usable derivative there. All three claims below were measured against
+// central differences of the log probability over 20000 responses.
 //
 // The erfc route - std_normal_lcdf() is not it, but lognormal_lcdf(),
-// lognormal_lccdf() and the log(u1) + log1m(u2 / u1) this file used to write
-// are - has good partials, to about 4e-6 on a summed gradient of order 1e3.
-// But erfc underflows near x = -38, and then the value is log(0) and the
+// lognormal_lccdf() and the log(u1) + log1m(u2 / u1) the LogNormal used to
+// write are - has good partials, to about 4e-6 on a summed gradient of order
+// 1e3. But erfc underflows near x = -38, and then the value is log(0) and the
 // partials are inf or 0/0. That is not a harmless -inf in a mixture:
 // log_mix() in the lpdf stays finite when the decision component is -inf, but
 // reverse mode multiplies the (zero) adjoint into the stored partial, and
@@ -2629,9 +2634,10 @@ real cogmod_lba1_decision_lpdf(real t, real drift, real sigma, real sigmabias, r
 //
 // std_normal_lcdf() has the range: its value is exact against R's
 // pnorm(log.p = TRUE) as far as x = -1e7. Its partials are not - they sat
-// 1.7e-3 from central differences where the erfc route sat 4e-6 - so it is not
+// 1.7e-3 from central differences where the erfc route sat 4e-6 on the LNR,
+// and 2e-4 to 7e-2 on the RDM, which took every tail through it - so it is not
 // a drop-in for the tails of a race, where those partials are the gradient of
-// nu and sigma.
+// the drifts and the scales.
 //
 // So: erfc in the body of the distribution, and below x = -25 the asymptotic
 // expansion of the tail,
@@ -2651,7 +2657,13 @@ real cogmod_log_Phi(real x) {
   if (x > 0) return log1p(-0.5 * erfc(x * 0.7071067811865476));
   return log(0.5 * erfc(-x * 0.7071067811865476));
 }
+"
 
+
+# The Stan side of the helpers above, line for line. cogmod_lnr() appends its
+# race to this (see .LNR_STAN_PRELUDE in model_lnr.R).
+#' @keywords internal
+.LOGNORMAL_STAN_PRELUDE <- paste0(.LOG_PHI_STAN_PRELUDE, "
 // log(Phi(y + c) - Phi(y)) for c > 0, from whichever tail keeps the two terms
 // from cancelling: the upper one when y > 0, where both CDFs sit near 1, the
 // lower one otherwise. Taken as the larger tail plus log(1 - ratio) in log
@@ -2741,7 +2753,7 @@ real cogmod_lognormal_acc_logsurv(real t, real meanlog, real sigma, real A) {
   if (A == 0) return cogmod_log_Phi((meanlog - log(t)) / sigma);
   return cogmod_lognormal_acc_ltails(t, meanlog, sigma, A)[2];
 }
-"
+")
 
 
 # Log-Gamma helpers -------------------------------------------------------

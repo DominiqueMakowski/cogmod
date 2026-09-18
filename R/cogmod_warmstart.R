@@ -133,7 +133,9 @@
 #' @param jitter SD of the noise added to the starting values on the
 #'   unconstrained scale, so that chains start at different points. Smaller than
 #'   [cogmod_inits()]'s default because the values come from a converged
-#'   posterior; `0` gives identical starts.
+#'   posterior; `0` gives identical starts. As there, one number is the SD for
+#'   the population-level blocks and the group-level and smooth blocks get a
+#'   fifth of it; two numbers set the two tiers directly.
 #' @param ... Passed to [brms::make_stancode()], [brms::make_standata()] and
 #'   [brms::brm()] (with `empty = TRUE`) when the target model is built, for
 #'   arguments such as `data2`.

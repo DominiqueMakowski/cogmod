@@ -32,7 +32,9 @@ with both \code{NULL} the source fit itself. That requires \code{x} to be a
 \item{jitter}{SD of the noise added to the starting values on the
 unconstrained scale, so that chains start at different points. Smaller than
 \code{\link[=cogmod_inits]{cogmod_inits()}}'s default because the values come from a converged
-posterior; \code{0} gives identical starts.}
+posterior; \code{0} gives identical starts. As there, one number is the SD for
+the population-level blocks and the group-level and smooth blocks get a
+fifth of it; two numbers set the two tiers directly.}
 
 \item{...}{Passed to \code{\link[brms:stancode]{brms::make_stancode()}}, \code{\link[brms:standata]{brms::make_standata()}} and
 \code{\link[brms:brm]{brms::brm()}} (with \code{empty = TRUE}) when the target model is built, for

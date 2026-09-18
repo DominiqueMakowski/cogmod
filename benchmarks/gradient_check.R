@@ -49,15 +49,6 @@ source("benchmarks/gradient_programs.R")
 # Families whose gradient is known to disagree with central differences, with
 # the reason. Non-finite gradients are never waived - only the mismatch is.
 .GP_KNOWN <- c(
-  # Stan's std_normal_lcdf() has exact values but approximate partial
-  # derivatives, and cogmod_rdm() takes every normal tail through it. Measured
-  # 2026-09-18: gradient 2e-4 relative from central differences at the start,
-  # up to 7e-2 where the drift is small. The value itself is smooth to 1e-7.
-  # Confirmed the same day by substitution: with cogmod_log_Phi()
-  # (core_shifted.R) in place of all eleven calls, the worst error over the
-  # same grid is 1.8e-7, at 9% more per gradient. That is the fix; it wants
-  # cogmod_log_Phi() in a prelude the RDM can share.
-  cogmod_rdm = "std_normal_lcdf() partials are approximate (2e-4 to 7e-2 relative)",
   # Stan's 7-parameter wiener_lpdf(): with both a start-point range and a
   # non-decision-time range, and the latter pushed wide (st0 = 0.46 s at
   # ndt = 0.035 s), the partials for `bias` and `sigmabias` come out 20 times

@@ -67,6 +67,12 @@
     vapply(cogmod:::.SHIFTED, .stan_prelude_name, character(1)),
     vapply(cogmod:::.CHOICE, .stan_prelude_name, character(1))
   )
+  # One level down: cogmod_log_Phi() is pasted into the front of more than one
+  # registry prelude (the LogNormal's and the RDM's), so once the family
+  # preludes are deduplicated it is still defined once per family that carries
+  # it. It goes last, after the family preludes have been stripped, so that the
+  # copy kept is the one inside the first surviving prelude.
+  named <- c(named, ".LOG_PHI_STAN_PRELUDE")
   for (nm in unique(named[nzchar(named)])) {
     pre <- getFromNamespace(nm, "cogmod")
     hits <- which(vapply(codes, grepl, logical(1), pattern = pre, fixed = TRUE))

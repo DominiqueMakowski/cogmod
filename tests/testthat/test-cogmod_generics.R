@@ -140,6 +140,41 @@ test_that("cogmod_inits jitters without leaving the bounds", {
 })
 
 
+test_that("cogmod_inits jitters the hierarchical blocks less", {
+  # A unit of noise on a standardized group effect or a smooth coefficient is
+  # multiplied through a scale and a design column before it reaches the
+  # linear predictor, once per participant or basis function; a unit on an
+  # intercept is a unit. So the hierarchical blocks get a fifth of the jitter.
+  set.seed(3)
+  dd <- cbind(d_ig, x = rnorm(nrow(d_ig)))
+  f <- brms::bf(RT ~ s(x) + (1 | id), ndt ~ (1 | id),
+                family = cogmod_invgaussian())
+  inits <- cogmod_inits(f, dd)
+  draws <- replicate(400, inits(1), simplify = FALSE)
+  first <- function(name) vapply(draws, function(v) v[[name]][1], numeric(1))
+  expect_equal(stats::sd(first("Intercept")), 0.25, tolerance = 0.15)
+  expect_equal(stats::sd(first("z_1")), 0.05, tolerance = 0.15)
+  expect_equal(stats::sd(first("zs_1_1")), 0.05, tolerance = 0.15)
+  # the scales are jittered on the log scale, where the tier's SD applies
+  expect_equal(stats::sd(log(first("sd_1"))), 0.05, tolerance = 0.15)
+
+  # a smooth starts near flat; a group-level SD keeps the generic start
+  fixed <- cogmod_inits(f, dd, jitter = 0)(1)
+  expect_true(all(fixed$sds_1_1 == 0.05))
+  expect_true(all(fixed$sd_1 == 0.25))
+
+  # two numbers set the tiers directly
+  two <- cogmod_inits(f, dd, jitter = c(0.5, 0))
+  a <- two(1)
+  b <- two(2)
+  expect_identical(a$z_1, b$z_1)
+  expect_identical(a$zs_1_1, b$zs_1_1)
+  expect_false(identical(a$Intercept, b$Intercept))
+  expect_error(cogmod_inits(f, dd, jitter = -1), "jitter")
+  expect_error(cogmod_inits(f, dd, jitter = c(1, 2, 3)), "jitter")
+})
+
+
 # cogmod_inits: families --------------------------------------------------
 
 test_that("cogmod_inits supports cogmod_exgaussian", {

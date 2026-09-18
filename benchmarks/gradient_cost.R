@@ -101,7 +101,11 @@ for (fam in fams) {
     rows[[fam]] <- data.frame(family = fam, status = "new in PR", base_ms = NA, pr_ms = NA, ratio = NA)
     cat(sprintf("  %-22s new in PR\n", fam)); next
   }
-  if (identical(readLines(base_stan), pr_code)) {
+  # Compared with comments and blank lines stripped: the preludes carry their
+  # reasoning as Stan comments, and rewording one should not cost two
+  # compilations and a timing.
+  strip <- function(x) { x <- sub("//.*$", "", x); x <- trimws(x); x[nzchar(x)] }
+  if (identical(strip(readLines(base_stan)), strip(pr_code))) {
     rows[[fam]] <- data.frame(family = fam, status = "unchanged", base_ms = NA, pr_ms = NA, ratio = NA)
     cat(sprintf("  %-22s unchanged\n", fam)); next
   }
@@ -136,11 +140,23 @@ worst <- if (nrow(timed)) max(timed$ratio) else NA
 verdict <- if (any(grepl("^failed", res$status))) "FAILED" else
   if (isTRUE(worst > opt$fail)) sprintf("regression (worst ratio %.2f)", worst) else
   if (nrow(timed) == 0) "no Stan program changed" else sprintf("no regression (worst ratio %.2f)", worst)
+# The number of trials as emitted (--n at the emit step, plus nothing: the cost
+# programs carry no tail responses), read back from the data rather than
+# assumed.
+n_trials <- vapply(fams, function(fam) {
+  d <- file.path(opt$pr, paste0(fam, ".data.json"))
+  if (file.exists(d)) as.integer(jsonlite::fromJSON(d)$N) else NA_integer_
+}, integer(1))
+n_label <- if (length(unique(stats::na.omit(n_trials))) == 1) {
+  sprintf("%d simulated trials", unique(stats::na.omit(n_trials)))
+} else {
+  sprintf("%d to %d simulated trials", min(n_trials, na.rm = TRUE), max(n_trials, na.rm = TRUE))
+}
 md <- c(
   sprintf("## Gradient cost: %s", verdict),
   "",
-  sprintf("Base %s vs PR %s. Milliseconds per `grad_log_prob()` on %d simulated trials, median of %d alternating blocks of %d; ratio = PR / base, flagged above %.2f, failing above %.2f.",
-          label(opt$base), label(opt$pr), 5000L, opt$reps, opt$block, opt$warn, opt$fail),
+  sprintf("Base %s vs PR %s. Milliseconds per `grad_log_prob()` on %s, median of %d alternating blocks of %d; ratio = PR / base, flagged above %.2f, failing above %.2f.",
+          label(opt$base), label(opt$pr), n_label, opt$reps, opt$block, opt$warn, opt$fail),
   ""
 )
 if (nrow(timed)) {

@@ -1,6 +1,41 @@
 # cogmod 0.3.3
 
+## New features
+
+* **`cogmod_inits()` jitters the hierarchical blocks a fifth as much as the
+  population-level ones, and starts smooths flat.** One `jitter` (default
+  0.25) now applies to intercepts and slopes; the standardized group-level
+  effects `z_*`, the smooth coefficients `zs_*` and their scales `sd_*` and
+  `sds_*` get a fifth of it (0.05), and `sds_*` starts at 0.05 rather than the
+  generic 0.25. Two numbers set the two tiers directly. The reason is that a
+  unit of noise on a group effect or a spline coefficient is not a unit on the
+  linear predictor: it is multiplied by a scale and a design column - tensor
+  basis values reach tens - once per participant or basis function. On a
+  production model with a tensor smooth on five distributional parameters and
+  a participant intercept on six, the old jitter moved linear predictors by
+  one to two and a half link units at some rows, which started one
+  participant's non-decision time above 98 of their 128 trials and a sigma at
+  0.07 s where 0.5 was intended, all of it then explained by the outlier
+  component; at 0.05 on those blocks the same model started where the targets
+  say. Chains still start apart where it matters for Rhat, on the intercepts
+  and slopes. Warm starts (`cogmod_warmstart()`, `warmstart =`) use the same
+  rule at their smaller default.
+
 ## Bug fixes
+
+* **`cogmod_rdm()`'s gradient is now exact.** Every normal tail in the RDM's
+  Stan code went through Stan's `std_normal_lcdf()`, whose value is right but
+  whose partial derivatives are an approximation, and in a race those partials
+  *are* the gradient of the drifts and the boundary. Measured against central
+  differences of the log probability, the gradient sat 2e-4 relative from the
+  truth at a typical start and as far as 7e-2 where the drift is small, while
+  the log probability itself was smooth to 1e-7. HMC stays exact under an
+  inexact gradient - the accept step corrects for it - but pays in step size
+  and acceptance. All eleven calls now go through `cogmod_log_Phi()`, the
+  function introduced below for the LNR, which brings the worst error over the
+  same grid to 2e-7 at about 14% more per gradient evaluation. The function
+  moved into a prelude of its own (`.LOG_PHI_STAN_PRELUDE`) so that any family
+  can take it; the LogNormal's and the RDM's preludes both start with it.
 
 * **`cogmod_lnr()` and `cogmod_lognormal()` no longer hand Stan a non-finite
   gradient in the tails.** `cogmod_lognormal_ldiff_Phi()` formed
