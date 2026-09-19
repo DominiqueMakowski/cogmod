@@ -236,6 +236,32 @@ test_that("cogmod_priors returns rows that match real parameters", {
   expect_true(any(p$dpar == "ndt" & p$class == "Intercept" & nzchar(p$prior)))
 })
 
+# brms fills the blanket `sds` row of a smooth itself and leaves the per-term
+# rows empty, so filling only what arrives empty never reached it: a smooth on
+# `ndt` kept student_t(3, 0, 2.5) on its wiggliness scale - the loosest prior
+# in the model, on the link scale of a parameter whose intercept had been fenced
+# on purpose - while ?cogmod_priors promised exponential(1).
+test_that("cogmod_priors sets sds for a smooth on a dpar and leaves mu's alone", {
+  set.seed(4)
+  dd <- transform(d_ig, x = runif(nrow(d_ig)))
+  f <- brms::bf(RT ~ s(x), ndt ~ s(x), poutlier ~ 1, family = cogmod_lognormal())
+  p <- cogmod_priors(f, dd)
+  sds <- p[p$class == "sds", ]
+  # the blanket row is the one brms uses, and it is the one set
+  expect_equal(sds$prior[sds$dpar == "ndt" & sds$coef == ""], "exponential(1)")
+  expect_true(all(sds$prior[sds$dpar == "ndt" & nzchar(sds$coef)] == ""))
+  # the response's own smooth keeps brms's default, like its slopes do
+  expect_equal(sds$prior[sds$dpar == "" & sds$coef == ""], "student_t(3, 0, 2.5)")
+  # and a grouping term on the same dpar still gets its per-group row
+  g <- brms::bf(RT ~ 1, ndt ~ s(x) + (1 | id), poutlier ~ 1,
+                family = cogmod_lognormal())
+  q <- cogmod_priors(g, dd)
+  expect_equal(q$prior[q$class == "sd" & q$dpar == "ndt" & q$group == "id" &
+                         q$coef == ""], "exponential(1)")
+  expect_equal(q$prior[q$class == "sds" & q$dpar == "ndt" & q$coef == ""],
+               "exponential(1)")
+})
+
 # cogmod_exgaussian is not on the ndt + poutlier mixture, but `sigma` and `tau`
 # are still lengths of time in seconds behind a softplus link. `tau` arrives from
 # brms flat; `sigma` arrives with a student_t(3, 0, 2.5) it supplies because it

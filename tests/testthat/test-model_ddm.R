@@ -681,8 +681,12 @@ test_that("stanvars carry the likelihood with the outlier component", {
   expect_true(grepl("wiener_lpdf\\(y \\| boundary, tau0, w, v\\)", code))
   expect_true(grepl("wiener_lpdf\\(y \\| boundary, tau0, w, v, sigmadrift\\)",
                     code))
+  # ...and the 7-parameter one carries the package's tolerance, not Stan's
+  # default: it is generated from .DDM_WIENER_PRECISION, so check that number
   expect_true(grepl(
-    "wiener_lpdf\\(y \\| boundary, tau0, w, v, sigmadrift, sw, sigmandt\\)",
+    sprintf("wiener_lpdf\\(y \\| boundary, tau0, w, v, sigmadrift, sw, sigmandt, %s\\)",
+            formatC(cogmod:::.DDM_WIENER_PRECISION, format = "g", digits = 17,
+                    width = 1)),
     code
   ))
   # the old parameterization is gone

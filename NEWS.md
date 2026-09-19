@@ -21,7 +21,59 @@
   and slopes. Warm starts (`cogmod_warmstart()`, `warmstart =`) use the same
   rule at their smaller default.
 
+* **The 7-parameter `cogmod_ddm()` is 1.7x cheaper per gradient when both
+  `sigmabias` and `sigmandt` are estimated.** Stan's 7-parameter
+  `wiener_lpdf()` integrates the start-point and non-decision-time ranges out
+  by adaptive cubature - eight integrals per observation, one for the density
+  and one per partial derivative - and takes a tolerance for them that the
+  Stan code never passed, so it ran at Stan's default of 1e-4. It now passes
+  `1e-3` (`.DDM_WIENER_PRECISION`). Measured per observation and gradient on
+  CmdStan 2.38.0: with both ranges open, 274 us falls to 163; with one open
+  the cost does not move (102 to 100 us), because a one-dimensional integral
+  is already settled by cubature's first pass, and nothing much happens past
+  1e-3 either (153 us at 1e-2), which is why it stops there. On the
+  intercept-only program `benchmarks/gradient_cost.R` times, 5000 trials with
+  all seven parameters estimated, a gradient went from 3.25 s to 1.50 s
+  (ratio 0.46, median of 21 alternating blocks). The price: the
+  Stan density still agrees with the R one to 1e-5 over the test grid, but
+  its gradient sits about 2e-5 relative from central differences at a typical
+  point where it sat 2e-6 before, and 1.2e-4 with `ndt` pushed 2.5 log units
+  above its start - a point no chain visits after warmup, and small next to
+  the leapfrog error a sampler already carries, but a change of an order of
+  magnitude, so it is recorded with the constant. Any value between 3e-4 and
+  1e-3 measures the same gradient error and 1e-3 is the cheaper. A paired fit
+  settles it (`benchmarks/ddm_precision/`): the 7-parameter model on 100
+  trials, both tolerances from one start, metric and seed, end to end and
+  again with adaptation held fixed - the same 24 leapfrog steps per
+  iteration, the same step size, acceptance 0.90 against 0.92, fewer
+  divergences (7 against 10 and 11), min bulk ESS 248 against 206 and 261
+  against 224, at half the cost per gradient (445 against 883 ms): 2.2 to
+  2.4 times the effective samples per CPU second. That fit also puts the
+  standalone figures above in perspective: at its posterior a gradient cost
+  8.3 ms per observation at Stan's default tolerance, thirty times the
+  274 us of the benign benchmark point. The same cost measurements are now
+  in `?cogmod_ddm`, under the between-trial variability section:
+  estimating `sigmadrift` costs about 2.8x the classic model per gradient,
+  estimating one of `sigmabias` / `sigmandt` about 18x and both about 30x,
+  and the fast path is a test for *exactly* zero, so a tight prior does not
+  buy it back - only `sigmandt = 0` in `bf()` does. Nothing user-facing said
+  so before, and it is the difference between a day and weeks on a large
+  data set.
+
 ## Bug fixes
+
+* **`cogmod_priors()` now sets the wiggliness prior (`sds`) of a smooth on a
+  distributional parameter.** The table in `?cogmod_priors` has always listed
+  `sds` alongside `sd` at `exponential(1)`, but brms fills a smooth's blanket
+  `sds` row itself and leaves the per-term rows empty, so a function that
+  fills only what arrives empty never reached it: `ndt ~ s(x)` kept
+  `student_t(3, 0, 2.5)` on its smooth's scale. On a log or logit link that is
+  a half-t with median 1.9 in link units - loose enough for the smooth alone
+  to move a `sigmandt` by a factor of seven or walk a `sigmabias` across its
+  range, behind an intercept the family had deliberately fenced. The blanket
+  row is now replaced, for every family and every dpar `cogmod_priors()`
+  handles; the response's own smooth is left to brms, as its slopes are.
+  Group-level `sd` rows were never affected.
 
 * **`cogmod_rdm()`'s gradient is now exact.** Every normal tail in the RDM's
   Stan code went through Stan's `std_normal_lcdf()`, whose value is right but
