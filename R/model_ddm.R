@@ -71,6 +71,21 @@
 #' tight priors. Fixing the ones a design cannot identify is usually better than
 #' estimating them behind a prior.
 #'
+#' There is a cost argument too, and it is a cliff rather than a slope. The
+#' Stan density has a closed form for `sigmadrift`, so estimating it costs
+#' about 2.8 times the classic model per gradient evaluation. `sigmabias` and
+#' `sigmandt` have no closed form: Stan integrates them out numerically, once
+#' for the density and once more for each partial derivative, at every
+#' observation and every leapfrog step. Measured against the `sigmadrift`-only
+#' model, estimating *one* of them costs about 18 times as much per gradient
+#' and estimating *both* about 30 times (55 before the tolerance the package
+#' now passes to `wiener_lpdf()`). Nothing in between exists: the fast path is
+#' a test for exactly zero, so a tight prior does not buy it back - a
+#' `sigmandt` estimated at 1e-5 costs the same as one at 0.05 s. Only
+#' `sigmandt = 0` in `bf()` does. On a few thousand trials this is the
+#' difference between minutes and hours; on a few hundred thousand, between a
+#' day and weeks.
+#'
 #' # The outlier component
 #'
 #' A shifted distribution assigns exactly zero density to any response faster
@@ -862,6 +877,58 @@ cogmod_ddm <- function(
 #' @keywords internal
 .DDM_TAU0 <- 1e-10
 
+# The tolerance handed to Stan's 7-parameter `wiener_lpdf()`, the form the Stan
+# code falls through to when `sigmabias` or `sigmandt` is estimated. Stan
+# integrates the start point and the non-decision time out numerically
+# (adaptive cubature), and not once but eight times per observation: the
+# density, then each partial derivative in an integral of its own. This number
+# is the relative tolerance of every one of those integrals; Stan's default is
+# 1e-4.
+#
+# Measured 2026-09-18 (CmdStan 2.38.0, per observation and gradient, on the
+# benchmark of the report that prompted this): with only one of the two ranges
+# open the tolerance changes nothing - 102 us at 1e-4, 100 at 1e-3, 97 at 1e-2 -
+# because a one-dimensional integral is already settled by cubature's first
+# 15-point pass, so that cost is a floor. With both open, 274 us at 1e-4 falls
+# to 223 at 2e-4, 182 at 5e-4, 163 at 1e-3 and 153 at 1e-2: a 1.7x saving by
+# 1e-3 and nothing much after it, which is why this stops there. The
+# 5-parameter form, for comparison, is 5.4 us; the fast paths are untouched by
+# this. On the brms program benchmarks/gradient_cost.R emits - 5000 trials,
+# every dpar estimated - the gradient went from 3.25 s to 1.50 s, ratio 0.46
+# over 21 alternating blocks: more than the 1.7x above, the operating point
+# being a different one.
+#
+# What it costs in accuracy (benchmarks/gradient_check.R, cogmod_ddm, 22
+# points): the value still agrees with the R density to 1e-5 across
+# test-model_ddm.R's grid, but the gradient's relative error against central
+# differences is about 2e-5 at a typical point where Stan's default gave 2e-6,
+# and 1.2e-4 at the one tail point that now exceeds the check's 1e-4 gate -
+# `ndt` 2.5 log units above its start, where nearly every trial has fallen to
+# the outlier component. The step happens at the first loosening: 3e-4, 5e-4
+# and 1e-3 measure the same error at every one of those points, so there is no
+# intermediate value that keeps the default's accuracy and any of the saving.
+# The known-bad point (`sigmandt` pushed wide, see .GP_KNOWN in the check) is
+# unrelated to this number and moves around with it - 13 at 1e-4, 5e-4 at
+# 5e-4, 0.06 at 1e-3.
+#
+# And in a fit (benchmarks/ddm_precision/, same day): the intercept-only
+# 7-parameter model on 100 simulated trials, 4 chains, both tolerances from
+# the same start, metric and seed. End to end (100 warmup + 200 draws) and
+# again with adaptation off from one shared adapted state (200 draws), the
+# sampler did not notice the looser gradient - 24 leapfrog steps per iteration
+# either way, the same step size, acceptance 0.90 -> 0.92, divergences 10 -> 7
+# and 11 -> 7, min bulk ESS 206 -> 248 and 224 -> 261 (noise at 800 draws,
+# but not lower) - while a gradient cost 883 -> 445 ms and 830 -> 435 ms. Min
+# ESS per CPU second: x2.4 and x2.2. The same fit says the report's 274 us
+# per observation is a benign point: here it was 8.3 ms at the default
+# tolerance, thirty times that, with the posterior at sigmandt ~ 0.03 s and
+# sigmadrift ~ 0.7 - and Laplace draws in the tails cost seconds per
+# evaluation, which is cubature's 6000-evaluation cap times eight integrals.
+# If the trade ever looks wrong in a fit, this constant is the one line to
+# change back.
+#' @keywords internal
+.DDM_WIENER_PRECISION <- 1e-3
+
 
 # Log-density of the diffusion finishing at decision time `t` (already net of
 # the non-decision time) at the boundary named by `k`: 1 is upper, 0 lower.
@@ -1298,6 +1365,12 @@ cogmod_ddm <- function(
 // fastest path), or to the dedicated 5-parameter (sv-only) form otherwise,
 // which is still much cheaper than the general 7-parameter form (the latter
 // falls back to adaptive numerical quadrature whenever sw or st0 is nonzero).
+// Measured per observation and gradient (2026-09-18): 2.0 us classic, 5.4 us
+// with sv, 100 us with one of sw / st0 nonzero, 274 us with both - and the
+// last is what the tolerance passed to it (see .DDM_WIENER_PRECISION) brings
+// down to about 160. The test is for *exact* zero, so an estimated sigmabias
+// or sigmandt never takes the fast path however small it gets; only fixing
+// it in bf() does.
 //
 // The classic form is not usable everywhere, though - see
 // cogmod_ddm_log_density_scale() below for the two regions it has to be kept
@@ -1395,11 +1468,12 @@ real cogmod_ddm_decision_lpdf(real t, real v, real boundary, real w,
                                    sigmandt) < -600) {
     return negative_infinity();
   }
-  return wiener_lpdf(y | boundary, tau0, w, v, sigmadrift, sw, sigmandt);
+  return wiener_lpdf(y | boundary, tau0, w, v, sigmadrift, sw, sigmandt, %s);
 }
 ",
   formatC(.DDM_TAU0, format = "g", digits = 17, width = 1),
-  formatC(.DDM_TAU0, format = "g", digits = 17, width = 1)
+  formatC(.DDM_TAU0, format = "g", digits = 17, width = 1),
+  formatC(.DDM_WIENER_PRECISION, format = "g", digits = 17, width = 1)
 )
 
 

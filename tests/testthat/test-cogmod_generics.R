@@ -140,6 +140,41 @@ test_that("cogmod_inits jitters without leaving the bounds", {
 })
 
 
+test_that("cogmod_inits jitters the hierarchical blocks less", {
+  # A unit of noise on a standardized group effect or a smooth coefficient is
+  # multiplied through a scale and a design column before it reaches the
+  # linear predictor, once per participant or basis function; a unit on an
+  # intercept is a unit. So the hierarchical blocks get a fifth of the jitter.
+  set.seed(3)
+  dd <- cbind(d_ig, x = rnorm(nrow(d_ig)))
+  f <- brms::bf(RT ~ s(x) + (1 | id), ndt ~ (1 | id),
+                family = cogmod_invgaussian())
+  inits <- cogmod_inits(f, dd)
+  draws <- replicate(400, inits(1), simplify = FALSE)
+  first <- function(name) vapply(draws, function(v) v[[name]][1], numeric(1))
+  expect_equal(stats::sd(first("Intercept")), 0.25, tolerance = 0.15)
+  expect_equal(stats::sd(first("z_1")), 0.05, tolerance = 0.15)
+  expect_equal(stats::sd(first("zs_1_1")), 0.05, tolerance = 0.15)
+  # the scales are jittered on the log scale, where the tier's SD applies
+  expect_equal(stats::sd(log(first("sd_1"))), 0.05, tolerance = 0.15)
+
+  # a smooth starts near flat; a group-level SD keeps the generic start
+  fixed <- cogmod_inits(f, dd, jitter = 0)(1)
+  expect_true(all(fixed$sds_1_1 == 0.05))
+  expect_true(all(fixed$sd_1 == 0.25))
+
+  # two numbers set the tiers directly
+  two <- cogmod_inits(f, dd, jitter = c(0.5, 0))
+  a <- two(1)
+  b <- two(2)
+  expect_identical(a$z_1, b$z_1)
+  expect_identical(a$zs_1_1, b$zs_1_1)
+  expect_false(identical(a$Intercept, b$Intercept))
+  expect_error(cogmod_inits(f, dd, jitter = -1), "jitter")
+  expect_error(cogmod_inits(f, dd, jitter = c(1, 2, 3)), "jitter")
+})
+
+
 # cogmod_inits: families --------------------------------------------------
 
 test_that("cogmod_inits supports cogmod_exgaussian", {
@@ -199,6 +234,32 @@ test_that("cogmod_priors returns rows that match real parameters", {
   p <- cogmod_priors(f, d_ig)
   expect_s3_class(p, "brmsprior")
   expect_true(any(p$dpar == "ndt" & p$class == "Intercept" & nzchar(p$prior)))
+})
+
+# brms fills the blanket `sds` row of a smooth itself and leaves the per-term
+# rows empty, so filling only what arrives empty never reached it: a smooth on
+# `ndt` kept student_t(3, 0, 2.5) on its wiggliness scale - the loosest prior
+# in the model, on the link scale of a parameter whose intercept had been fenced
+# on purpose - while ?cogmod_priors promised exponential(1).
+test_that("cogmod_priors sets sds for a smooth on a dpar and leaves mu's alone", {
+  set.seed(4)
+  dd <- transform(d_ig, x = runif(nrow(d_ig)))
+  f <- brms::bf(RT ~ s(x), ndt ~ s(x), poutlier ~ 1, family = cogmod_lognormal())
+  p <- cogmod_priors(f, dd)
+  sds <- p[p$class == "sds", ]
+  # the blanket row is the one brms uses, and it is the one set
+  expect_equal(sds$prior[sds$dpar == "ndt" & sds$coef == ""], "exponential(1)")
+  expect_true(all(sds$prior[sds$dpar == "ndt" & nzchar(sds$coef)] == ""))
+  # the response's own smooth keeps brms's default, like its slopes do
+  expect_equal(sds$prior[sds$dpar == "" & sds$coef == ""], "student_t(3, 0, 2.5)")
+  # and a grouping term on the same dpar still gets its per-group row
+  g <- brms::bf(RT ~ 1, ndt ~ s(x) + (1 | id), poutlier ~ 1,
+                family = cogmod_lognormal())
+  q <- cogmod_priors(g, dd)
+  expect_equal(q$prior[q$class == "sd" & q$dpar == "ndt" & q$group == "id" &
+                         q$coef == ""], "exponential(1)")
+  expect_equal(q$prior[q$class == "sds" & q$dpar == "ndt" & q$coef == ""],
+               "exponential(1)")
 })
 
 # cogmod_exgaussian is not on the ndt + poutlier mixture, but `sigma` and `tau`

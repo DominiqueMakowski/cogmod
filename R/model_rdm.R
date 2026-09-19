@@ -1166,9 +1166,17 @@ cogmod_rdm <- function(
 # The Stan side of the decision component. Pulled out of the lpdf as a
 # prelude, like the LBA's and the Log-Gamma's, because the density itself is
 # one expression in the registry and the arithmetic that keeps it stable does
-# not fit in one.
+# not fit in one. Every normal tail below goes through cogmod_log_Phi(), which
+# comes in with .LOG_PHI_STAN_PRELUDE (core_shifted.R): Stan's
+# std_normal_lcdf() has the right value but approximate partial derivatives,
+# and here those partials are the gradient of the drifts and the boundary.
+# Measured against central differences of the log probability over the
+# gradient check's grid (benchmarks/gradient_check.R): 2e-4 relative at the
+# start and up to 7e-2 with a small drift through std_normal_lcdf(), 2e-7
+# through cogmod_log_Phi(), at about 14% more per gradient
+# (benchmarks/gradient_cost.R, 5000 trials).
 #' @keywords internal
-.RDM_STAN_PRELUDE <- "
+.RDM_STAN_PRELUDE <- paste0(.LOG_PHI_STAN_PRELUDE, "
 // ---------------------------------------------------------------------------
 // Two-accumulator Racing Diffusion Model (Tillman, Van Zandt & Logan, 2020).
 //
@@ -1229,22 +1237,23 @@ real cogmod_rdm_log_g_lphi(real u, real lPhi) {
 // Standalone form, for the one caller that has no log Phi(u) to hand.
 real cogmod_rdm_log_g(real u) {
   if (u <= -10) return cogmod_rdm_log_g_lphi(u, 0);   // lPhi unused there
-  return cogmod_rdm_log_g_lphi(u, std_normal_lcdf(u | ));
+  return cogmod_rdm_log_g_lphi(u, cogmod_log_Phi(u));
 }
 
 // log(Phi(b) - Phi(a)) for b >= a, using whichever tail keeps both arguments
 // away from a saturating normal CDF.
 //
-// The upper tail is written as std_normal_lcdf(-a) rather than
-// std_normal_lccdf(a): Stan's lccdf collapses to -inf once its argument passes
-// about 8.3 (and is already wrong in the 3rd decimal at 8), whereas its lcdf
-// stays accurate past -30. The two are mathematically identical, and the
+// The upper tail is written as cogmod_log_Phi(-a) rather than as a Stan
+// upper-tail function: std_normal_lccdf() collapses to -inf once its argument
+// passes about 8.3 (and is already wrong in the 3rd decimal at 8), and the
 // distinction is not academic here -- alpha reaches 10 for a reaction time only
-// a few milliseconds above the non-decision time.
+// a few milliseconds above the non-decision time. cogmod_log_Phi() of the
+// negated argument is the same quantity, finite and differentiable however far
+// out.
 real cogmod_rdm_log_diff_Phi(real a, real b) {
   if (b <= a) return negative_infinity();
-  if (a >= 0) return log_diff_exp(std_normal_lcdf(-a | ), std_normal_lcdf(-b | ));
-  if (b <= 0) return log_diff_exp(std_normal_lcdf(b | ), std_normal_lcdf(a | ));
+  if (a >= 0) return log_diff_exp(cogmod_log_Phi(-a), cogmod_log_Phi(-b));
+  if (b <= 0) return log_diff_exp(cogmod_log_Phi(b), cogmod_log_Phi(a));
   return log(Phi(b) - Phi(a));
 }
 
@@ -1317,8 +1326,8 @@ real cogmod_rdm_wald_lsurv(real t, real nu, real k, real A) {
 
   if (A / st < 1e-4) {              // midpoint plain Wald survival
     real bm = k + 0.5 * A;
-    real m1 = std_normal_lcdf((bm - nu * t) / st | );
-    real m2 = 2 * nu * bm + std_normal_lcdf(-(bm + nu * t) / st | );
+    real m1 = cogmod_log_Phi((bm - nu * t) / st);
+    real m2 = 2 * nu * bm + cogmod_log_Phi(-(bm + nu * t) / st);
     return m1 > m2 ? log_diff_exp(m1, m2) : negative_infinity();
   }
 
@@ -1336,8 +1345,8 @@ real cogmod_rdm_wald_lsurv(real t, real nu, real k, real A) {
   real linv = -log(2 * abs(nu));
 
   // The two shared normal CDFs: log_g needs them, and so does D2 below.
-  real lPa = std_normal_lcdf(alpha | );
-  real lPb = std_normal_lcdf(beta | );
+  real lPa = cogmod_log_Phi(alpha);
+  real lPb = cogmod_log_Phi(beta);
 
   // S * A = D1 - D2, both pieces positive.
   //
@@ -1378,11 +1387,11 @@ real cogmod_rdm_wald_lsurv(real t, real nu, real k, real A) {
   // ulp of its terms, where D2 / D1 is far below double precision anyway.
   // Measured against quadrature this form is as accurate as the grouped one;
   // what it buys is a gradient that stays finite as t -> 0.
-  real lEb = 2 * nu * b + std_normal_lcdf(-(b + nu * t) / st | );
-  real lEk = 2 * nu * k + std_normal_lcdf(-(k + nu * t) / st | );
+  real lEb = 2 * nu * b + cogmod_log_Phi(-(b + nu * t) / st);
+  real lEk = 2 * nu * k + cogmod_log_Phi(-(k + nu * t) / st);
   real lP = alpha < 3
             ? log_diff_exp(lPb, lPa)
-            : log_diff_exp(std_normal_lcdf(-alpha | ), std_normal_lcdf(-beta | ));
+            : log_diff_exp(cogmod_log_Phi(-alpha), cogmod_log_Phi(-beta));
   real lD2;
   if (nu > 0) {
     if (lEb >= lEk) {
@@ -1400,7 +1409,7 @@ real cogmod_rdm_wald_lsurv(real t, real nu, real k, real A) {
   real ls = lD1 > lD2 ? log_diff_exp(lD1, lD2) : negative_infinity();
   return fmin(ls - log(A), 0);
 }
-"
+")
 
 
 #' @keywords internal

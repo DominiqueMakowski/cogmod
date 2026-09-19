@@ -692,6 +692,20 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
   # The modelled counterpart of the auxiliary override: these rows arrive
   # non-empty, so they have to be replaced rather than filled.
   link <- link | (p$dpar %in% override & p$class == "Intercept")
+  # A smooth's wiggliness scale (`sds`) arrives the other way round from a
+  # group-level `sd`: brms fills the BLANKET row itself, student_t(3, 0, 2.5),
+  # and leaves the per-term rows empty. The empty rows are then covered and the
+  # filled one was never a candidate, so until 0.3.3 an `sds` on a dpar kept
+  # brms's default while the table in ?cogmod_priors said exponential(1). (The
+  # `sd` rows escape because brms's blanket there has an empty group and the
+  # rows it sets have the grouping factor's, so the two never match.) The
+  # blanket is the row brms will use, so take it and replace it. On a logit- or
+  # log-linked dpar a half-t(3, 0, 2.5), median 1.9 on the link scale, lets
+  # the smooth alone walk a `sigmabias` across its whole range or move a
+  # `sigmandt` by a factor of seven - which undoes the tight intercept the
+  # family put there on purpose. The response's own smooth (`dpar == ""`) is
+  # not touched, for the same reason its slopes are not.
+  link <- link | (p$dpar %in% dpars & p$class == "sds" & !nzchar(p$coef))
 
   # `mu` is the response's own linear predictor, so brms reports it with an
   # EMPTY dpar - class "Intercept", or class "b" with coef "Intercept" under

@@ -80,6 +80,12 @@ paper/reviewers.txt
 
 # Compiled Stan executables produced by benchmarks/*.R
 benchmarks/results/exe/
+# Output of the two gradient scripts (benchmarks/gradient_check.R and
+# gradient_cost.R): generated Stan programs, their executables and the
+# per-point CSVs. CI keeps them as workflow artifacts; locally they are
+# regenerated on every run.
+benchmarks/results/gradient_check/
+benchmarks/results/gradient_cost/
 
 # Warm-start ablation benchmark (benchmarks/warmstart_ablation.R): only the
 # per-fit results and the summary CSV are kept, and the figure lives in

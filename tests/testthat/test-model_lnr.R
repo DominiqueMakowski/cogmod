@@ -743,3 +743,75 @@ test_that("cogmod_lnr recovers ndt above the fastest observed response", {
   expect_true(with_outliers(fit)$family$predict_outliers)
   expect_false(without_outliers(fit)$family$predict_outliers)
 })
+
+
+test_that("the Stan gradient stays finite deep in an accumulator's tail", {
+  # Regression test. The value of cogmod_lnr_lpdf was always finite here - the
+  # outlier component keeps log_mix() finite however far the decision term
+  # falls - but its gradient was not. The tails were formed from erfc as
+  # log(u1) + log1m(u2 / u1), and lognormal_lcdf()/lognormal_lccdf() form
+  # theirs the same way; once erfc underflows the result is -inf with partials
+  # that are not finite, and reverse mode multiplies the zero adjoint into
+  # them: 0 * inf is NaN, so one response in a data set was enough to turn the
+  # whole model's gradient to NaN. A response about 38 standardized log units
+  # from an accumulator's median finishing time did it, which an ordinary 5 s
+  # trial reaches once a sigma is near 0.05. Only the gradient sees this, so
+  # only a compiled model with model methods can test it - hence the slow gate;
+  # stan_fun() exposes values only.
+  skip_if_not_slow()
+  skip_on_cran()
+  skip_if_not_installed("cmdstanr")
+
+  # The start-point range is data, not a parameter: the value under test is an
+  # exact zero, which takes the plain-LogNormal branch of the kernels, and a
+  # parameter declared <lower=0> cannot be initialised there (Stan rejects the
+  # init: the log-Jacobian of the bound is log(0)).
+  code <- paste0(
+    "functions {\n", .cogmod_lnr_lpdf(), "}\n",
+    "data { int N; vector[N] Y; array[N] int dec; real<lower=0> sigmabias; }\n",
+    "parameters {\n",
+    "  real mu; real nuone; real<lower=0> sigmazero; real<lower=0> sigmaone;\n",
+    "  real<lower=0> ndt;\n",
+    "  real<lower=0, upper=1> poutlier;\n",
+    "}\n",
+    "model {\n",
+    "  for (n in 1:N) {\n",
+    "    target += cogmod_lnr_lpdf(Y[n] | mu, nuone, sigmazero, sigmaone,\n",
+    "                              sigmabias, ndt, poutlier, dec[n]);\n",
+    "  }\n",
+    "}\n"
+  )
+  # Compiled once, outside the loop: the same code writes to the same file, and
+  # cmdstan_model() on an existing executable returns a pre-compiled model, on
+  # which init_model_methods() refuses to work.
+  mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(code),
+                                 compile_model_methods = TRUE)
+  # Both responses, so each accumulator takes its turn as the loser, over
+  # decision times from a millisecond to five minutes. With sigma at 0.05 the
+  # standardized distance runs well past where erfc underflows.
+  dt <- c(1e-3, 0.02, 0.1, 0.5, 5, 20, 60, 300)
+  pars <- list(mu = 0.7, nuone = 0.7, sigmazero = 0.05, sigmaone = 0.05,
+               ndt = 0.2, poutlier = 0.02)
+  for (A in c(0, 0.3)) {
+    d <- list(N = 2L * length(dt), Y = pars$ndt + rep(dt, 2),
+              dec = rep(0:1, each = length(dt)), sigmabias = A)
+
+    fit <- mod$sample(data = d, init = list(pars), chains = 1, iter_warmup = 1,
+                      iter_sampling = 1, fixed_param = TRUE, refresh = 0,
+                      show_messages = FALSE)
+    fit$init_model_methods(verbose = FALSE)
+    up <- fit$unconstrain_variables(pars)
+
+    expect_true(is.finite(fit$log_prob(up)), label = paste("log_prob at A =", A))
+    g <- fit$grad_log_prob(up)
+    expect_true(all(is.finite(g)), label = paste("gradient at A =", A))
+
+    # And it is the right gradient, not merely a finite one.
+    h <- 1e-6
+    fd <- vapply(seq_along(up), function(j) {
+      e <- replace(numeric(length(up)), j, h)
+      (fit$log_prob(up + e) - fit$log_prob(up - e)) / (2 * h)
+    }, numeric(1))
+    expect_equal(as.numeric(g), fd, tolerance = 1e-4)
+  }
+})

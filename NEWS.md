@@ -1,3 +1,185 @@
+# cogmod 0.3.3
+
+## New features
+
+* **`cogmod_inits()` jitters the hierarchical blocks a fifth as much as the
+  population-level ones, and starts smooths flat.** One `jitter` (default
+  0.25) now applies to intercepts and slopes; the standardized group-level
+  effects `z_*`, the smooth coefficients `zs_*` and their scales `sd_*` and
+  `sds_*` get a fifth of it (0.05), and `sds_*` starts at 0.05 rather than the
+  generic 0.25. Two numbers set the two tiers directly. The reason is that a
+  unit of noise on a group effect or a spline coefficient is not a unit on the
+  linear predictor: it is multiplied by a scale and a design column - tensor
+  basis values reach tens - once per participant or basis function. On a
+  production model with a tensor smooth on five distributional parameters and
+  a participant intercept on six, the old jitter moved linear predictors by
+  one to two and a half link units at some rows, which started one
+  participant's non-decision time above 98 of their 128 trials and a sigma at
+  0.07 s where 0.5 was intended, all of it then explained by the outlier
+  component; at 0.05 on those blocks the same model started where the targets
+  say. Chains still start apart where it matters for Rhat, on the intercepts
+  and slopes. Warm starts (`cogmod_warmstart()`, `warmstart =`) use the same
+  rule at their smaller default.
+
+* **The 7-parameter `cogmod_ddm()` is 1.7x cheaper per gradient when both
+  `sigmabias` and `sigmandt` are estimated.** Stan's 7-parameter
+  `wiener_lpdf()` integrates the start-point and non-decision-time ranges out
+  by adaptive cubature - eight integrals per observation, one for the density
+  and one per partial derivative - and takes a tolerance for them that the
+  Stan code never passed, so it ran at Stan's default of 1e-4. It now passes
+  `1e-3` (`.DDM_WIENER_PRECISION`). Measured per observation and gradient on
+  CmdStan 2.38.0: with both ranges open, 274 us falls to 163; with one open
+  the cost does not move (102 to 100 us), because a one-dimensional integral
+  is already settled by cubature's first pass, and nothing much happens past
+  1e-3 either (153 us at 1e-2), which is why it stops there. On the
+  intercept-only program `benchmarks/gradient_cost.R` times, 5000 trials with
+  all seven parameters estimated, a gradient went from 3.25 s to 1.50 s
+  (ratio 0.46, median of 21 alternating blocks). The price: the
+  Stan density still agrees with the R one to 1e-5 over the test grid, but
+  its gradient sits about 2e-5 relative from central differences at a typical
+  point where it sat 2e-6 before, and 1.2e-4 with `ndt` pushed 2.5 log units
+  above its start - a point no chain visits after warmup, and small next to
+  the leapfrog error a sampler already carries, but a change of an order of
+  magnitude, so it is recorded with the constant. Any value between 3e-4 and
+  1e-3 measures the same gradient error and 1e-3 is the cheaper. A paired fit
+  settles it (`benchmarks/ddm_precision/`): the 7-parameter model on 100
+  trials, both tolerances from one start, metric and seed, end to end and
+  again with adaptation held fixed - the same 24 leapfrog steps per
+  iteration, the same step size, acceptance 0.90 against 0.92, fewer
+  divergences (7 against 10 and 11), min bulk ESS 248 against 206 and 261
+  against 224, at half the cost per gradient (445 against 883 ms): 2.2 to
+  2.4 times the effective samples per CPU second. That fit also puts the
+  standalone figures above in perspective: at its posterior a gradient cost
+  8.3 ms per observation at Stan's default tolerance, thirty times the
+  274 us of the benign benchmark point. The same cost measurements are now
+  in `?cogmod_ddm`, under the between-trial variability section:
+  estimating `sigmadrift` costs about 2.8x the classic model per gradient,
+  estimating one of `sigmabias` / `sigmandt` about 18x and both about 30x,
+  and the fast path is a test for *exactly* zero, so a tight prior does not
+  buy it back - only `sigmandt = 0` in `bf()` does. Nothing user-facing said
+  so before, and it is the difference between a day and weeks on a large
+  data set.
+
+## Bug fixes
+
+* **`cogmod_priors()` now sets the wiggliness prior (`sds`) of a smooth on a
+  distributional parameter.** The table in `?cogmod_priors` has always listed
+  `sds` alongside `sd` at `exponential(1)`, but brms fills a smooth's blanket
+  `sds` row itself and leaves the per-term rows empty, so a function that
+  fills only what arrives empty never reached it: `ndt ~ s(x)` kept
+  `student_t(3, 0, 2.5)` on its smooth's scale. On a log or logit link that is
+  a half-t with median 1.9 in link units - loose enough for the smooth alone
+  to move a `sigmandt` by a factor of seven or walk a `sigmabias` across its
+  range, behind an intercept the family had deliberately fenced. The blanket
+  row is now replaced, for every family and every dpar `cogmod_priors()`
+  handles; the response's own smooth is left to brms, as its slopes are.
+  Group-level `sd` rows were never affected.
+
+* **`cogmod_rdm()`'s gradient is now exact.** Every normal tail in the RDM's
+  Stan code went through Stan's `std_normal_lcdf()`, whose value is right but
+  whose partial derivatives are an approximation, and in a race those partials
+  *are* the gradient of the drifts and the boundary. Measured against central
+  differences of the log probability, the gradient sat 2e-4 relative from the
+  truth at a typical start and as far as 7e-2 where the drift is small, while
+  the log probability itself was smooth to 1e-7. HMC stays exact under an
+  inexact gradient - the accept step corrects for it - but pays in step size
+  and acceptance. All eleven calls now go through `cogmod_log_Phi()`, the
+  function introduced below for the LNR, which brings the worst error over the
+  same grid to 2e-7 at about 14% more per gradient evaluation. The function
+  moved into a prelude of its own (`.LOG_PHI_STAN_PRELUDE`) so that any family
+  can take it; the LogNormal's and the RDM's preludes both start with it.
+
+* **`cogmod_invgaussian()`'s gradient is now exact.** The same defect as the
+  RDM's, in the family's own Stan code: every normal tail of the Wald - the two
+  terms of its CDF and survival, the two integrated ones a non-decision range
+  needs, and the truncation factors that make `sigmadrift` a *truncated* normal
+  drift - went through `std_normal_lcdf()`. `sigmadrift` is differentiated
+  almost entirely through those truncation factors, and its partial sat 1.2e-3
+  relative from central differences of the log probability, `mu`'s 2.7e-4,
+  against 1e-8 for the families already on `cogmod_log_Phi()`. Six of the
+  eighteen points the gradient check walks failed on it. All of them now go
+  through `cogmod_log_Phi()`, which brings the worst error over the same grid
+  to 5e-8; the truncation factors lose a round trip through `log1m_exp()` in
+  the bargain, since `log1m_exp(std_normal_lcdf(-z))` is `cogmod_log_Phi(z)`
+  written the long way. `cogmod_exwald()` builds on the same prelude and gets
+  the same fix. Values are unchanged.
+
+* **`cogmod_geg()`'s CDF term is no longer Stan's `exp_mod_normal_lcdf()`.**
+  The alpha-power construction puts `(shape - 1) * log F_EG` inside the
+  *density*, so the ex-Gaussian CDF is differentiated on every evaluation, not
+  only when a response is censored. The built-in agrees with the R side to
+  1e-8 over the range the tests walk, but outside it - at `sigma / tau` around
+  9, where the two terms of `F_EG` cancel hardest - both its value and its
+  partials go wrong: Stan's own central differences put `d/d sigma` at 28.5
+  where its autodiff said 77.5, and `d/d tau` at 113.6 against 53.0. The Stan
+  side now subtracts the two terms in log space itself, through
+  `cogmod_log_Phi()`, exactly as `.lcdf_exgaussian()` always has in R; over the
+  same grid the worst gradient error is 2e-9, and the log CDF matches
+  quadrature of the density to 5e-15. It costs about 10% per gradient
+  evaluation (3.1 ms to 3.5 ms over 5000 trials, median of 21 alternating
+  blocks). Two things kept it to that. The ex-Gaussian density is the CDF's
+  second term over `tau`, so the GEG writes both out from one pair of normal
+  tails rather than calling for each; and the pair is written inline rather
+  than returned from a helper - a `vector[2]` return measured half again the
+  cost of the inline form, through the autodiff-stack allocation it makes on
+  every call.
+
+* **`cogmod_exgaussian()`'s Stan density, CDF and survival go through
+  `cogmod_log_Phi()`.** The density is the same expression as before -
+  `exp_mod_normal_lpdf()` and `dcogmod_exgaussian()` in R evaluate it too, and
+  log-probabilities are unchanged to every digit that matters - but it is now
+  written out over `cogmod_log_Phi()`, so it stays finite about 38 standardized
+  units into the left tail where the built-in's bare `erfc` underflows, and it
+  shares its normal tail with the CDF that `cogmod_geg()` is built on. The
+  `cens()` path gets the accurate CDF with it: `cogmod_exgaussian_lcdf()` was
+  `exp_mod_normal_lcdf()` and had the same wrong partials as the GEG's, and
+  `cogmod_exgaussian_lccdf()` was on `std_normal_lcdf()`. About 10% per
+  gradient evaluation, the cost of `cogmod_log_Phi()` over the built-in.
+
+* **`cogmod_lnr()` and `cogmod_lognormal()` no longer hand Stan a non-finite
+  gradient in the tails.** `cogmod_lognormal_ldiff_Phi()` formed
+  `log(Phi(y + c) - Phi(y))` from `erfc` as `log(u1) + log1m(u2 / u1)`, and the
+  `A == 0` branch of `cogmod_lognormal_acc_ltails()` called `lognormal_lcdf()`
+  and `lognormal_lccdf()`, which are `erfc` alone. `erfc` underflows near
+  `x = -38` - about 38 standardized log units from an accumulator's median
+  finishing time - and past that the value is `log(0)` and the partials are
+  `inf` or `0 / 0`. The outlier mixture then hides it: `log_mix()` stays finite
+  with one component at `-inf`, but reverse mode multiplies the zero adjoint
+  into the stored partial and `0 * inf` is `NaN`, so one response in a data set
+  turned the gradient of the whole model to `NaN`. That reads as
+  `Gradient evaluated at the initial value is not finite` at the start of a fit
+  and as divergent transitions afterwards. Both now go through one function,
+  `cogmod_log_Phi()`: `erfc` in the body of the distribution and, below
+  `x = -25`, the asymptotic expansion of the tail, whose leading term is the
+  exponent itself, so nothing underflows and the result stays finite and
+  differentiable as far as `x = -1e150`; its six terms agree with R's
+  `pnorm(log.p = TRUE)` to 4e-16 relative, so the two branches meet with no step
+  in the density. `cogmod_lognormal_ldiff_Phi()` now takes the difference in
+  logs with `log1m_exp()` rather than as a quotient of two minute numbers.
+  Measured over a grid of decision times from 1 ms to 300 s and sigmas from
+  0.02 to 1.2, with and without a start-point range: 6 of 72 gradients were
+  non-finite before and none are now, and the densities agree with the R
+  kernels everywhere, with no value newly truncated to `-inf`.
+
+  `std_normal_lcdf()` is not used for this, although it has the range - its
+  value is exact against `pnorm(log.p = TRUE)` as far as `x = -1e7`. Its
+  analytic partials are not: on 20000 responses they sat 1.7e-3 from central
+  differences of the log probability where the `erfc` route sat 4e-6, and in a
+  race those partials *are* the gradient of `nu` and `sigma`.
+
+  Where the old code's gradient was finite it was not always right. On 20000
+  responses with a start-point range it sat 8.3e-4 from central differences and
+  the new one sits 9.6e-7, which is the finite differences' own noise; without
+  a start-point range both sit at 4.1e-6, so nothing there was given up for it.
+
+  Sampling is not slower in the case most models are in.
+  `cogmod_lognormal_acc_logcdf()` and `cogmod_lognormal_acc_logsurv()` now take
+  the single tail they were asked for when `sigmabias = 0`, instead of building
+  the pair and discarding one: the two share no work there, and `cogmod_lnr()`
+  reads the survival alone. On 20000 responses a gradient of the plain LNR came
+  out about 20% cheaper than before and one with a start-point range about 15%
+  dearer, the latter buying the corrected gradient above.
+
 # cogmod 0.3.2
 
 ## New features

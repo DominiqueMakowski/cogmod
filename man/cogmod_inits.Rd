@@ -16,9 +16,16 @@ used.}
 when \code{warmstart} is a \code{brmsfit}, whose data are then used.}
 
 \item{jitter}{SD of the noise added on the unconstrained scale, so that
-chains start at different points. Set to \code{0} for identical starts. \code{NULL}
-(the default) means 0.25, or 0.05 with a \code{warmstart}, whose values come
-from a converged posterior and should not be scattered far.}
+chains start at different points. One number is the SD for the
+population-level blocks, the intercepts and slopes; the group-level and
+smooth blocks - the standardized effects \verb{z_*} and \verb{zs_*} and their scales
+\verb{sd_*} and \verb{sds_*} - get a fifth of it, because a unit of noise there is
+multiplied through a scale and a design column before it reaches the
+linear predictor, and reaches it once per participant or basis function.
+Two numbers set the two tiers directly, population first. Set to \code{0} for
+identical starts. \code{NULL} (the default) means 0.25, so 0.05 on the
+hierarchical blocks, or 0.05 with a \code{warmstart}, whose values come from a
+converged posterior and should not be scattered far.}
 
 \item{warmstart}{A previous fit to start from instead of the family's
 generic values: a \code{brmsfit}, a \code{\link[=cogmod_warmstart]{cogmod_warmstart()}} object, the data frame

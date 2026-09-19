@@ -246,6 +246,21 @@ floor - the link only reaches zero at minus infinity, and the likelihood stops
 changing well before then - so \code{\link[=cogmod_priors]{cogmod_priors()}} gives all three deliberately
 tight priors. Fixing the ones a design cannot identify is usually better than
 estimating them behind a prior.
+
+There is a cost argument too, and it is a cliff rather than a slope. The
+Stan density has a closed form for \code{sigmadrift}, so estimating it costs
+about 2.8 times the classic model per gradient evaluation. \code{sigmabias} and
+\code{sigmandt} have no closed form: Stan integrates them out numerically, once
+for the density and once more for each partial derivative, at every
+observation and every leapfrog step. Measured against the \code{sigmadrift}-only
+model, estimating \emph{one} of them costs about 18 times as much per gradient
+and estimating \emph{both} about 30 times (55 before the tolerance the package
+now passes to \code{wiener_lpdf()}). Nothing in between exists: the fast path is
+a test for exactly zero, so a tight prior does not buy it back - a
+\code{sigmandt} estimated at 1e-5 costs the same as one at 0.05 s. Only
+\code{sigmandt = 0} in \code{bf()} does. On a few thousand trials this is the
+difference between minutes and hours; on a few hundred thousand, between a
+day and weeks.
 }
 
 \section{The outlier component}{
