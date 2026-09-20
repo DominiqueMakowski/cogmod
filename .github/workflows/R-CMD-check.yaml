@@ -23,9 +23,9 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - {os: macos-latest,   r: 'release'}
-          - {os: windows-latest, r: 'release'}
-          - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release'}
+          - {os: macos-latest,   r: 'release', use-public-rspm: false}
+          - {os: windows-latest, r: 'release', use-public-rspm: true}
+          - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release', use-public-rspm: true}
           # Exactly one job carries CmdStan. The Stan-touching tests all route
           # through `stan_fun()` (helper-stan.R), which compiles ONE model
           # holding every family's functions block and shares it for the rest of
@@ -34,8 +34,8 @@ jobs:
           # other four would multiply that by four and, at 1-2 GB of cache per
           # runner OS, crowd the repository's 10 GB cache allowance for nothing:
           # the generated Stan does not vary by platform.
-          - {os: ubuntu-latest,  r: 'release', stan: true}
-          - {os: ubuntu-latest,  r: 'oldrel-1'}
+          - {os: ubuntu-latest,  r: 'release', stan: true, use-public-rspm: true}
+          - {os: ubuntu-latest,  r: 'oldrel-1', use-public-rspm: true}
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -63,7 +63,7 @@ jobs:
         with:
           r-version: ${{ matrix.config.r }}
           http-user-agent: ${{ matrix.config.http-user-agent }}
-          use-public-rspm: true
+          use-public-rspm: ${{ matrix.config.use-public-rspm }}
           # pak resolves dependencies from the configured repositories only - it
           # does not read Additional_repositories out of DESCRIPTION - so
           # without this it cannot find cmdstanr and the lockfile fails to solve.
