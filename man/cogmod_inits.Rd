@@ -139,8 +139,12 @@ The family is read off \code{formula}, so build it with
 \code{\link[=cogmod_weibull]{cogmod_weibull()}}, \code{\link[=cogmod_invweibull]{cogmod_invweibull()}}, \code{\link[=cogmod_logweibull]{cogmod_logweibull()}}, \code{\link[=cogmod_lba1]{cogmod_lba1()}} and,
 for the choice-and-RT models, \code{\link[=cogmod_lnr]{cogmod_lnr()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}},
 \code{\link[=cogmod_lba2]{cogmod_lba2()}} and \code{\link[=cogmod_ddm]{cogmod_ddm()}} - plus
-\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}, whose three parameters are all on the RT scale behind a
-\code{softplus} link and so are equally badly served by starting at \code{log(2)}.
+\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} and \code{\link[=cogmod_geg]{cogmod_geg()}}, whose parameters are all on the RT
+scale behind a \code{softplus} link and so are equally badly served by starting
+at \code{log(2)}.
+
+The two bounded-scale families for subjective ratings, \code{\link[=cogmod_choco]{cogmod_choco()}} and
+\code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}, are covered as well to help with warmup.
 }
 
 \examples{
@@ -148,6 +152,13 @@ d <- data.frame(RT = rcogmod_gamma(50, ndt = 0.3, poutlier = 0.02))
 f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1, family = cogmod_gamma())
 inits <- cogmod_inits(f, d)
 inits(1)
+
+# The bounded-scale families are covered too. `pmid` starts at 0.05 rather
+# than the logit origin's 0.5, which would put half of every response
+# exactly on the midpoint of the scale.
+r <- data.frame(y = rcogmod_choco(50, pmid = 0.05))
+g <- brms::bf(y ~ 1, pmid ~ 1, family = cogmod_choco())
+cogmod_inits(g, r, jitter = 0)(1)
 
 \donttest{
 # Fitting needs cmdstanr, which lives outside CRAN - see the package website.

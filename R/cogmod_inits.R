@@ -97,8 +97,12 @@
 #' [cogmod_weibull()], [cogmod_invweibull()], [cogmod_logweibull()], [cogmod_lba1()] and,
 #' for the choice-and-RT models, [cogmod_lnr()], [cogmod_rdm()],
 #' [cogmod_lba2()] and [cogmod_ddm()] - plus
-#' [cogmod_exgaussian()], whose three parameters are all on the RT scale behind a
-#' `softplus` link and so are equally badly served by starting at `log(2)`.
+#' [cogmod_exgaussian()] and [cogmod_geg()], whose parameters are all on the RT
+#' scale behind a `softplus` link and so are equally badly served by starting
+#' at `log(2)`.
+#'
+#' The two bounded-scale families for subjective ratings, [cogmod_choco()] and
+#' [cogmod_betadiscrete()], are covered as well to help with warmup.
 #'
 #' @param formula The model formula, as passed to `brms::brm()`. Must carry the
 #'   family, i.e. be built with `brms::bf(..., family = cogmod_gamma())`. May
@@ -139,6 +143,13 @@
 #' inits <- cogmod_inits(f, d)
 #' inits(1)
 #'
+#' # The bounded-scale families are covered too. `pmid` starts at 0.05 rather
+#' # than the logit origin's 0.5, which would put half of every response
+#' # exactly on the midpoint of the scale.
+#' r <- data.frame(y = rcogmod_choco(50, pmid = 0.05))
+#' g <- brms::bf(y ~ 1, pmid ~ 1, family = cogmod_choco())
+#' cogmod_inits(g, r, jitter = 0)(1)
+#'
 #' \donttest{
 #' # Fitting needs cmdstanr, which lives outside CRAN - see the package website.
 #' if (requireNamespace("cmdstanr", quietly = TRUE) &&
@@ -152,18 +163,32 @@
 #' }
 #'
 #' @export
-cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart = NULL, ...) {
+cogmod_inits <- function(
+  formula = NULL,
+  data = NULL,
+  jitter = NULL,
+  warmstart = NULL,
+  ...
+) {
   # A warm start is cogmod_warmstart()'s job: it builds this function's plan
   # for the model, then writes the previous fit's posterior means over it.
   # Only there can `formula` or `data` be left out, taken from the fit.
   if (!is.null(warmstart)) {
-    ws <- cogmod_warmstart(warmstart, formula = formula, data = data,
-                           jitter = if (is.null(jitter)) 0.05 else jitter, ...)
+    ws <- cogmod_warmstart(
+      warmstart,
+      formula = formula,
+      data = data,
+      jitter = if (is.null(jitter)) 0.05 else jitter,
+      ...
+    )
     return(ws$init)
   }
   if (is.null(formula) || is.null(data)) {
-    stop("`formula` and `data` are required, unless `warmstart` is a brmsfit ",
-         "to take them from.", call. = FALSE)
+    stop(
+      "`formula` and `data` are required, unless `warmstart` is a brmsfit ",
+      "to take them from.",
+      call. = FALSE
+    )
   }
   jitter <- .init_jitter(jitter)
 
@@ -174,7 +199,9 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
     stop(
       "cogmod_inits() has nothing to offer for family '",
       if (is.null(fam)) "<none found on the formula>" else fam,
-      "'. Supported: ", paste(.init_families(), collapse = ", "), ". ",
+      "'. Supported: ",
+      paste(.init_families(), collapse = ", "),
+      ". ",
       "The family is read off the formula, so build it with ",
       "bf(..., family = cogmod_gamma()).",
       call. = FALSE
@@ -193,7 +220,9 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
   sdata <- suppressWarnings(
     brms::make_standata(formula, data = data, family = family, ...)
   )
-  if (!is.null(targets$ndt)) targets$ndt <- .ndt_start(sdata$Y, targets$ndt)
+  if (!is.null(targets$ndt)) {
+    targets$ndt <- .ndt_start(sdata$Y, targets$ndt)
+  }
   plan <- .init_plan(.stan_param_decls(code), as.list(sdata), targets, links)
   .init_fun(plan, jitter)
 }
@@ -240,7 +269,9 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 #' @keywords internal
 .ndt_start <- function(y, fallback = 0.1) {
   y <- y[is.finite(y) & y > 0]
-  if (!length(y)) return(fallback)
+  if (!length(y)) {
+    return(fallback)
+  }
   0.5 * stats::quantile(y, 0.01, names = FALSE)
 }
 
@@ -263,7 +294,9 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
           v # "fixed": a structured value that jitter would invalidate
         )
       }
-      if (length(e$dim) > 1) dim(v) <- e$dim
+      if (length(e$dim) > 1) {
+        dim(v) <- e$dim
+      }
       v
     })
     stats::setNames(out, vapply(plan, `[[`, character(1), "name"))
@@ -275,22 +308,142 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 
 # Which families cogmod_inits() has targets for.
 #' @keywords internal
-.init_families <- function() c(.OUTLIER_FAMILIES, "cogmod_exgaussian")
+.init_families <- function() c(.OUTLIER_FAMILIES, names(.INIT_PLAIN))
+
+
+# Families that are NOT on the ndt + poutlier mixture but still have dpars the
+# unconstrained origin puts somewhere no data set lives. One natural-scale
+# value per dpar, the same shape as the registries' `init` slot; .init_value()
+# sends it through the family's own link for a modelled intercept and uses it
+# as it stands for a dpar left out of bf(), which brms declares on the natural
+# scale.
+#
+# Kept as a list rather than the switch() this was, so that .init_families()
+# can be derived from it. The switch() had grown a cogmod_geg entry that the
+# hand-written list of supported families never learned about, so the error
+# message for an unsupported family named every family but that one.
+#' @keywords internal
+.INIT_PLAIN <- list(
+  # mu and tau are the Gaussian centre and the exponential mean, both in
+  # seconds; sigma is the Gaussian SD. Behind the softplus link that `sigma`
+  # and `tau` use, the default start puts both at log(2) = 0.69 s, which makes
+  # sigma alone wider than most whole RT distributions. `mu` is on identity,
+  # where the generic start of 0 would put the Gaussian centre at zero
+  # seconds - harmless but pointless when 0.4 s is known to be the right
+  # neighbourhood.
+  cogmod_exgaussian = list(mu = 0.4, sigma = 0.1, tau = 0.2),
+
+  # cogmod_geg() starts from the ex-Gaussian it nests: shape = 1 is that
+  # model exactly, and it is the one point on the shape axis known not to be
+  # somewhere up the shape/mu ridge.
+  cogmod_geg = list(mu = 0.4, sigma = 0.1, tau = 0.2, shape = 1),
+
+  # The two bounded-scale families below are a weaker case than the RT ones,
+  # and worth stating as such: neither has a flat region of the gamma/weibull
+  # kind, every start named here is a proper density, and a chain begun at the
+  # unconstrained origin does move. What it has to do first is walk back a
+  # start that describes a rating scale nobody uses, which costs warmup rather
+  # than the fit.
+  #
+  # `precright` and `precleft` are the Beta precisions of the two halves,
+  # behind a softplus link, so the origin puts them at log(2) = 0.69. The Beta
+  # shapes are `conf * prec * 2` and `(1 - conf) * prec * 2`, so at the origin
+  # both are 0.69 - a U-shaped Beta, unbounded at both ends of each half of the
+  # scale, which is the one shape rating data almost never has. 2 puts both
+  # shapes at 2: a gentle hump, strictly inside the unimodal region.
+  #
+  # Where in the unimodal region matters much less than getting into it.
+  # Measured over five simulated 4000-trial data sets spanning flat,
+  # confident, unconfident and extreme-heavy response styles, the worst
+  # shortfall against a data set's own parameters is 1.00 log units per
+  # observation at prec 1, 1.12 at 2, 1.35 at 3 and 2.25 at 6 - flat between 1
+  # and 2, then climbing, which is also why this is not the 4 that
+  # ?rcogmod_choco defaults to. `prec` and `conf` are entangled, and the
+  # asymmetry that sets `ndt` holds here too: a spread Beta put in the wrong
+  # place costs far less than a concentrated one, so the flat end of that
+  # range is the one to start at. Note what the numbers do NOT say - against
+  # the origin's 0.69, prec 2 wins on four of the five but by 0.36 and 0.13
+  # log units per observation on the two most ordinary shapes and by a hair on
+  # the rest. The case for moving it is the U shape, not the average.
+  #
+  # `pmid` is the probability of landing exactly on the midpoint, and the logit
+  # origin starts it at 0.5: half of every response sitting on one value. This
+  # is the worst single part of the default start. On a 2000-trial slider data
+  # set with 5% exact midpoints the origin costs 1871 log-likelihood units
+  # against these targets, and 983 of them are `pmid` alone (722 the two
+  # `prec`, 166 `pex`, nothing at all the rest). 0.05 is where sliders with a
+  # visible midpoint usually sit; ?rcogmod_choco defaults it to 0, which a
+  # logit link cannot start at. A scale with no midpoint category is better
+  # served by `pmid = 0` in bf(), which removes the parameter instead.
+  #
+  # `pex` is the total probability of an extreme (0 or 1) response. It matters
+  # least of the three: the observed proportion of 0s and 1s pins it almost
+  # immediately, and the cost is shallow across 0.05 to 0.2. 0.1 is the
+  # ?rcogmod_choco default and the middle of the usual empirical range; the
+  # point is only that the origin's 0.5 is not in it.
+  #
+  # `mu` (the share of non-mid responses on the right), `bex` (which end the
+  # extremes favour) and the two `conf` all start at 0.5, which is where the
+  # logit origin already puts them - there is no reason to favour a side, an
+  # end, or a direction of confidence. They are named anyway so that the start
+  # follows a non-default link rather than silently landing elsewhere.
+  cogmod_choco = list(
+    mu = 0.5,
+    confright = 0.5,
+    precright = 2,
+    confleft = 0.5,
+    precleft = 2,
+    pex = 0.1,
+    bex = 0.5,
+    pmid = 0.05
+  ),
+
+  # cogmod_betadiscrete() bins a Beta into k categories, so unlike the three
+  # above it has no density that can be unbounded: every category probability
+  # is a difference of Beta CDFs and stays finite whatever the shapes. Its
+  # `phi` is on a log link, and the origin's exp(0) = 1 with `mu` at 0.5 is
+  # exactly the discrete Uniform - the max-entropy point, and the right place
+  # to start. Both are named regardless, because brms' actual default is
+  # `init = "random"`, i.e. U(-2, 2) on the unconstrained scale, which draws
+  # `phi` anywhere from 0.14 to 7.4. That range is not symmetric in cost: a
+  # spread Beta gives every category a workable probability and so can never be
+  # very wrong, whereas a concentrated one starves the categories the data
+  # actually occupy. Over six simulated 4000-trial data sets - uniform,
+  # mid-peaked, high, low, U-shaped and at the ceiling - the largest shortfall
+  # per observation is 1.08 log units at phi = 1 against 1.68 at 2 and 2.87 at
+  # 4, still climbing. Below 1 it barely improves and stops being the Uniform:
+  # 0.5 shaves the worst case to 0.89 but is worse on four of the six.
+  #
+  # `pzero` is the hurdle mass on the extra "0" category, which the logit
+  # origin starts at 0.5 - half of every response outside the rating scale
+  # altogether, and on a 2000-trial data set with 4% zeros the whole of the
+  # origin's 1066 log-likelihood units. Over data sets whose true hurdle is 0,
+  # 0.03 and 0.2, a start of 0.05 is the least bad: worst case 0.38 log units
+  # per observation, against 1.01 at 0.5 and 0.53 at 0.02. ?rcogmod_betadiscrete
+  # defaults it to 0, which a logit link cannot start at; a scale with no zero
+  # category wants `pzero = 0` in bf(), which removes the parameter.
+  cogmod_betadiscrete = list(mu = 0.5, phi = 1, pzero = 0.05)
+)
+
 
 # The natural-scale value each dpar should start at, or NULL for a family with
 # no opinion attached. The shifted families take theirs from the registry in
 # shifted.R and add the two the parameterization introduces; anything else
-# is listed here.
+# comes from .INIT_PLAIN above.
 #' @keywords internal
 .init_targets <- function(family) {
   fam <- .family_name(family)
-  if (is.null(fam)) return(NULL)
+  if (is.null(fam)) {
+    return(NULL)
+  }
   if (fam %in% .OUTLIER_FAMILIES) {
     if (is.character(family)) {
       stop(
         "cogmod_inits() needs the family object rather than its name, ",
         "because the links ride on it. Build the formula with ",
-        "bf(..., family = ", fam, "()).",
+        "bf(..., family = ",
+        fam,
+        "()).",
         call. = FALSE
       )
     }
@@ -299,22 +452,10 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
     # response with no finite positive value leaves it in place.
     return(c(.mixture_spec(fam)$init, list(ndt = 0.1, poutlier = 0.02)))
   }
-  switch(
-    fam,
-    # mu and tau are the Gaussian centre and the exponential mean, both in
-    # seconds; sigma is the Gaussian SD. Behind the softplus link that `sigma`
-    # and `tau` use, the default start puts both at log(2) = 0.69 s, which makes
-    # sigma alone wider than most whole RT distributions. `mu` is on identity,
-    # where the generic start of 0 would put the Gaussian centre at zero
-    # seconds - harmless but pointless when 0.4 s is known to be the right
-    # neighbourhood.
-    cogmod_exgaussian = list(mu = 0.4, sigma = 0.1, tau = 0.2),
-    # cogmod_geg() starts from the ex-Gaussian it nests: shape = 1 is that
-    # model exactly, and it is the one point on the shape axis known not to be
-    # somewhere up the shape/mu ridge.
-    cogmod_geg = list(mu = 0.4, sigma = 0.1, tau = 0.2, shape = 1),
-    NULL
-  )
+  if (!fam %in% names(.INIT_PLAIN)) {
+    return(NULL)
+  }
+  .INIT_PLAIN[[fam]]
 }
 
 
@@ -330,21 +471,31 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 .init_plan <- function(decls, sdata, targets, links) {
   plan <- lapply(decls, function(d) {
     dims <- vapply(d$dims, .eval_stan_expr, numeric(1), sdata = sdata)
-    if (anyNA(dims)) return(NULL)
+    if (anyNA(dims)) {
+      return(NULL)
+    }
     dims <- as.integer(dims)
     n <- if (length(dims)) prod(dims) else 1L
     bounds <- .stan_bounds(d$bounds, sdata)
     lower <- bounds[["lower"]]
     upper <- bounds[["upper"]]
 
-    entry <- list(name = d$name, dim = dims, lower = lower, upper = upper,
-                  kind = "bounds", tier = .init_tier(d$name))
+    entry <- list(
+      name = d$name,
+      dim = dims,
+      lower = lower,
+      upper = upper,
+      kind = "bounds",
+      tier = .init_tier(d$name)
+    )
 
     # Structured types: a valid value is not just a number in a range, so the
     # bounds-based default and the jitter are both skipped.
     structured <- switch(
       d$type,
-      cholesky_factor_corr = , cholesky_factor_cov = , corr_matrix = ,
+      cholesky_factor_corr = ,
+      cholesky_factor_cov = ,
+      corr_matrix = ,
       cov_matrix = as.vector(diag(dims[1])),
       simplex = rep(1 / dims[1], dims[1]),
       unit_vector = c(1, rep(0, dims[1] - 1)),
@@ -353,8 +504,15 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
     if (!is.null(structured)) {
       entry$value <- structured
       entry$kind <- "fixed"
-      if (d$type %in% c("cholesky_factor_corr", "cholesky_factor_cov",
-                        "corr_matrix", "cov_matrix")) {
+      if (
+        d$type %in%
+          c(
+            "cholesky_factor_corr",
+            "cholesky_factor_cov",
+            "corr_matrix",
+            "cov_matrix"
+          )
+      ) {
         entry$dim <- c(dims[1], dims[1])
       }
       return(entry)
@@ -408,11 +566,16 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
   # goes to that element of `b`. The centered parameterization drops the first
   # column instead, which is how the two are told apart - there `b` is one
   # shorter than the design matrix and every element really is a slope.
-  if (identical(d$type, "vector") && length(d$dims) == 1 &&
-      (identical(d$name, "b") || startsWith(d$name, "b_"))) {
+  if (
+    identical(d$type, "vector") &&
+      length(d$dims) == 1 &&
+      (identical(d$name, "b") || startsWith(d$name, "b_"))
+  ) {
     dpar <- if (identical(d$name, "b")) "mu" else sub("^b_", "", d$name)
     out <- rep(0, n)
-    cn <- colnames(sdata[[if (identical(dpar, "mu")) "X" else paste0("X_", dpar)]])
+    cn <- colnames(sdata[[
+      if (identical(dpar, "mu")) "X" else paste0("X_", dpar)
+    ]])
     if (length(cn) == n && dpar %in% names(targets) && "Intercept" %in% cn) {
       v <- .apply_link(targets[[dpar]], links[dpar])
       if (!is.na(v)) out[match("Intercept", cn)] <- v
@@ -426,7 +589,9 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
   # values in the tens, it is what bent one production model's ndt smooth up to
   # 0.89 s at a participant whose trials sat below 0.5 s. Penalised smoothers
   # start flat and let the data buy curvature; so does this.
-  if (startsWith(d$name, "sds_")) return(rep(0.05, n))
+  if (startsWith(d$name, "sds_")) {
+    return(rep(0.05, n))
+  }
 
   rep(.default_value(lower, upper), n)
 }
@@ -437,9 +602,15 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 # bound for a constrained one, the midpoint when bounded on both sides.
 #' @keywords internal
 .default_value <- function(lower, upper) {
-  if (is.na(lower) && is.na(upper)) return(0)
-  if (is.na(upper)) return(lower + 0.25)
-  if (is.na(lower)) return(upper - 0.25)
+  if (is.na(lower) && is.na(upper)) {
+    return(0)
+  }
+  if (is.na(upper)) {
+    return(lower + 0.25)
+  }
+  if (is.na(lower)) {
+    return(upper - 0.25)
+  }
   lower + (upper - lower) / 2
 }
 
@@ -450,9 +621,15 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 #' @keywords internal
 .jitter_bounded <- function(v, lower, upper, jitter) {
   e <- stats::rnorm(length(v), 0, jitter)
-  if (is.na(lower) && is.na(upper)) return(v + e)
-  if (is.na(upper)) return(lower + pmax(v - lower, 1e-8) * exp(e))
-  if (is.na(lower)) return(upper - pmax(upper - v, 1e-8) * exp(e))
+  if (is.na(lower) && is.na(upper)) {
+    return(v + e)
+  }
+  if (is.na(upper)) {
+    return(lower + pmax(v - lower, 1e-8) * exp(e))
+  }
+  if (is.na(lower)) {
+    return(upper - pmax(upper - v, 1e-8) * exp(e))
+  }
   w <- pmin(pmax((v - lower) / (upper - lower), 1e-8), 1 - 1e-8)
   lower + (upper - lower) * stats::plogis(stats::qlogis(w) + e)
 }
@@ -475,7 +652,11 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 # and a quarter of a link unit there is a quarter.
 #' @keywords internal
 .init_tier <- function(name) {
-  if (grepl("^(z|zs|sd|sds|zgp|sdgp|lscale)_", name)) "hierarchical" else "population"
+  if (grepl("^(z|zs|sd|sds|zgp|sdgp|lscale)_", name)) {
+    "hierarchical"
+  } else {
+    "population"
+  }
 }
 
 
@@ -484,13 +665,24 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 # door and again inside.
 #' @keywords internal
 .init_jitter <- function(jitter) {
-  if (is.null(jitter)) jitter <- 0.25
-  if (!is.numeric(jitter) || !length(jitter) %in% 1:2 || anyNA(jitter) ||
-      any(jitter < 0)) {
-    stop("`jitter` must be one non-negative number, or two: population-level ",
-         "then hierarchical.", call. = FALSE)
+  if (is.null(jitter)) {
+    jitter <- 0.25
   }
-  if (length(jitter) == 1) jitter <- c(jitter, jitter / 5)
+  if (
+    !is.numeric(jitter) ||
+      !length(jitter) %in% 1:2 ||
+      anyNA(jitter) ||
+      any(jitter < 0)
+  ) {
+    stop(
+      "`jitter` must be one non-negative number, or two: population-level ",
+      "then hierarchical.",
+      call. = FALSE
+    )
+  }
+  if (length(jitter) == 1) {
+    jitter <- c(jitter, jitter / 5)
+  }
   c(population = jitter[[1]], hierarchical = jitter[[2]])
 }
 
@@ -505,13 +697,19 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 .stan_param_decls <- function(code) {
   lines <- strsplit(code, "\n")[[1]]
   start <- grep("^\\s*parameters\\s*\\{", lines)
-  if (!length(start)) return(list())
+  if (!length(start)) {
+    return(list())
+  }
   close <- grep("^\\s*\\}\\s*$", lines)
   close <- close[close > start[1]]
-  if (!length(close)) return(list())
+  if (!length(close)) {
+    return(list())
+  }
   block <- sub("//.*$", "", lines[(start[1] + 1):(close[1] - 1)])
 
-  stmts <- trimws(strsplit(paste(block, collapse = " "), ";", fixed = TRUE)[[1]])
+  stmts <- trimws(strsplit(paste(block, collapse = " "), ";", fixed = TRUE)[[
+    1
+  ]])
   out <- lapply(stmts[nzchar(stmts)], .parse_stan_decl)
   out[!vapply(out, is.null, logical(1))]
 }
@@ -519,9 +717,18 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 
 #' @keywords internal
 .STAN_PARAM_TYPES <- c(
-  "real", "vector", "row_vector", "matrix", "simplex", "ordered",
-  "positive_ordered", "unit_vector", "cholesky_factor_corr",
-  "cholesky_factor_cov", "corr_matrix", "cov_matrix"
+  "real",
+  "vector",
+  "row_vector",
+  "matrix",
+  "simplex",
+  "ordered",
+  "positive_ordered",
+  "unit_vector",
+  "cholesky_factor_corr",
+  "cholesky_factor_cov",
+  "corr_matrix",
+  "cov_matrix"
 )
 
 
@@ -535,31 +742,41 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 
   if (grepl("^array\\s*\\[", s)) {
     g <- .take_bracket(sub("^array\\s*", "", s))
-    if (is.null(g)) return(NULL)
+    if (is.null(g)) {
+      return(NULL)
+    }
     dims <- .split_top_commas(g$inside)
     s <- trimws(g$rest)
   }
 
   type <- regmatches(s, regexpr("^[A-Za-z_][A-Za-z0-9_]*", s))
-  if (!length(type) || !type %in% .STAN_PARAM_TYPES) return(NULL)
+  if (!length(type) || !type %in% .STAN_PARAM_TYPES) {
+    return(NULL)
+  }
   s <- trimws(substring(s, nchar(type) + 1L))
 
   bounds <- ""
   if (startsWith(s, "<")) {
     i <- regexpr(">", s, fixed = TRUE)
-    if (i < 0) return(NULL)
+    if (i < 0) {
+      return(NULL)
+    }
     bounds <- substring(s, 2L, i - 1L)
     s <- trimws(substring(s, i + 1L))
   }
 
   if (startsWith(s, "[")) {
     g <- .take_bracket(s)
-    if (is.null(g)) return(NULL)
+    if (is.null(g)) {
+      return(NULL)
+    }
     dims <- c(dims, .split_top_commas(g$inside))
     s <- trimws(g$rest)
   }
 
-  if (!grepl("^[A-Za-z_][A-Za-z0-9_]*$", s)) return(NULL)
+  if (!grepl("^[A-Za-z_][A-Za-z0-9_]*$", s)) {
+    return(NULL)
+  }
   list(name = s, type = type, dims = dims, bounds = bounds)
 }
 
@@ -568,10 +785,14 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 #' @keywords internal
 .take_bracket <- function(s) {
   chars <- strsplit(s, "", fixed = TRUE)[[1]]
-  if (!length(chars) || chars[1] != "[") return(NULL)
+  if (!length(chars) || chars[1] != "[") {
+    return(NULL)
+  }
   depth <- 0L
   for (i in seq_along(chars)) {
-    if (chars[i] == "[") depth <- depth + 1L
+    if (chars[i] == "[") {
+      depth <- depth + 1L
+    }
     if (chars[i] == "]") {
       depth <- depth - 1L
       if (depth == 0L) {
@@ -591,13 +812,19 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 #' @keywords internal
 .split_top_commas <- function(s) {
   chars <- strsplit(s, "", fixed = TRUE)[[1]]
-  if (!length(chars)) return(character(0))
+  if (!length(chars)) {
+    return(character(0))
+  }
   depth <- 0L
   grp <- 1L
   which_grp <- integer(length(chars))
   for (i in seq_along(chars)) {
-    if (chars[i] %in% c("[", "(")) depth <- depth + 1L
-    if (chars[i] %in% c("]", ")")) depth <- depth - 1L
+    if (chars[i] %in% c("[", "(")) {
+      depth <- depth + 1L
+    }
+    if (chars[i] %in% c("]", ")")) {
+      depth <- depth - 1L
+    }
     if (chars[i] == "," && depth == 0L) {
       grp <- grp + 1L
       next # which_grp stays 0, so the separator itself is dropped
@@ -614,9 +841,13 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 #' @keywords internal
 .stan_bounds <- function(bounds, sdata) {
   out <- c(lower = NA_real_, upper = NA_real_)
-  if (!nzchar(bounds)) return(out)
+  if (!nzchar(bounds)) {
+    return(out)
+  }
   for (part in .split_top_commas(bounds)) {
-    kv <- regmatches(part, regexec("^\\s*(lower|upper)\\s*=\\s*(.+)$", part))[[1]]
+    kv <- regmatches(part, regexec("^\\s*(lower|upper)\\s*=\\s*(.+)$", part))[[
+      1
+    ]]
     if (length(kv) == 3) out[[kv[2]]] <- .eval_stan_expr(kv[3], sdata)
   }
   out
@@ -631,7 +862,9 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
     eval(parse(text = expr), envir = sdata, enclos = baseenv()),
     error = function(e) NULL
   )
-  if (!is.numeric(v) || length(v) != 1 || is.na(v)) return(NA_real_)
+  if (!is.numeric(v) || length(v) != 1 || is.na(v)) {
+    return(NA_real_)
+  }
   as.numeric(v)
 }
 
@@ -642,7 +875,9 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
 # run.
 #' @keywords internal
 .apply_link <- function(x, link) {
-  if (is.null(link) || is.na(link)) return(NA_real_)
+  if (is.null(link) || is.na(link)) {
+    return(NA_real_)
+  }
   out <- switch(
     link,
     identity = x,
@@ -652,7 +887,8 @@ cogmod_inits <- function(formula = NULL, data = NULL, jitter = NULL, warmstart =
     inverse = 1 / x,
     sqrt = sqrt(x),
     logit = stats::qlogis(x),
-    probit = , probit_approx = stats::qnorm(x),
+    probit = ,
+    probit_approx = stats::qnorm(x),
     cloglog = log(-log1p(-x)),
     cauchit = stats::qcauchy(x),
     softplus = log(expm1(x)),

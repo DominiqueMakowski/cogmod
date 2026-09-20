@@ -2,6 +2,74 @@
 
 ## New features
 
+* **A distributional parameter pinned at a boundary is now checked against the
+  response.** The three bounded-scale families are mixtures of a continuous
+  part and one or more point masses, and every weight involved can be fixed in
+  `bf()`. Fixing one at a boundary switches its component off, so any
+  observation belonging to that component has zero probability and the
+  log-likelihood is `-Inf` everywhere - which CmdStan reports only as
+  `Initialization failed after 100 attempts`, naming nothing. `cogmod_priors()`
+  now errors first, saying how many rows are involved and how to proceed.
+  Eleven combinations are covered: for `cogmod_choco()`, `pmid = 0` with a
+  response exactly at the midpoint, `pmid = 1` with one anywhere else,
+  `pex = 0` with an exact 0 or 1, `bex = 0` with a 1 and `bex = 1` with a 0;
+  for `cogmod_betagate()` the same `pex = 0` and `bex` cases plus `pex = 1`
+  with any interior response; and for `cogmod_betadiscrete()`, `pzero = 0`
+  with a 0 and `pzero = 1` with any rating. The first and the last are the
+  ones the documentation invites - `?rcogmod_betadiscrete` offers `pzero = 0`
+  as the way to say a scale has no zero category, and `?cogmod_priors`
+  suggests fixing `pmid` or `pzero` at 0 to switch the parameter off.
+
+* **`cogmod_priors()` now covers `cogmod_choco()`, `cogmod_betagate()` and
+  `cogmod_betadiscrete()`.** Every distributional parameter of the three
+  bounded-scale rating families previously arrived either flat - improper - or
+  with a `brms` default aimed at a different parameterization. Two of those
+  were worse than unhelpful. The point-mass probabilities `pmid` and `pzero`
+  were flat on a `logit` link, which is improper in the posterior as well as
+  the prior whenever the event is absent from the data: with no exact
+  midpoints anywhere, the likelihood in `pmid` increases monotonically all the
+  way to zero and nothing stops the logit running to minus infinity. That is
+  `poutlier`'s failure, and they now get `poutlier`'s treatment, including an
+  omitted form whose mode is at zero. Measured on 400 slider responses with no
+  midpoints and no extremes: the flat defaults put `pex` at `-1.1e14` and
+  `pmid` at `-3.4e13`, `Rhat` 2.9, ESS 5, with 12% divergent transitions;
+  these priors give -4.70 and -5.15, `Rhat` 1.00, ESS 3000-4000, no
+  divergences. `phi` arrived with
+  `student_t(3, 0, 2.5)`, which `brms` supplies because it recognises the name
+  from its own beta family - the same trap `cogmod_exgaussian()`'s `sigma`
+  falls into; on `cogmod_betadiscrete()`'s `log` link that prior's 95%
+  interval runs to `phi = 2853`, where the Beta has collapsed onto a single
+  rating category, so it is overridden rather than filled. The Beta precisions
+  are fenced away from both ends: below about 1 the underlying Beta is
+  U-shaped and unbounded, and a large one narrows it sharply. `mu` is
+  left to `brms` in all three, since on a `logit` link its
+  `student_t(3, 0, 2.5)` is the standard weakly informative choice. See
+  `?cogmod_priors` for the full table and the reasoning behind each number.
+
+* **`cogmod_inits()` now covers `cogmod_choco()` and `cogmod_betadiscrete()`.**
+  Both are bounded-scale families for subjective ratings, and neither has a
+  flat region of the kind that makes an init mandatory for the RT families -
+  every start is a proper density and a chain begun at the default does move.
+  What it has to move away from is a description of a rating scale that no
+  data set matches. The logit origin puts `pmid` and `pzero` at 0.5, i.e. half
+  of every response exactly on the midpoint or outside the scale altogether;
+  they now start at 0.05. `cogmod_choco()`'s two Beta precisions are behind a
+  `softplus` link, so `softplus(0) = 0.69` puts both Beta shapes below 1 - a
+  U-shaped rating distribution, unbounded at both ends of each half of the
+  scale; they now start at 2, in the middle of a plateau where the fit is
+  insensitive to the exact value. `pex` starts at 0.1 rather than 0.5. On a
+  2000-trial slider data set the old start sat about 1900 log-likelihood units
+  from the new one, 983 of them `pmid` alone. For `cogmod_betadiscrete()`,
+  `phi = 1` with `mu = 0.5` is the discrete Uniform, which is where the
+  origin already is - it is named so that `init = "random"`, which draws `phi`
+  anywhere from 0.14 to 7.4, no longer decides it. So this buys warmup rather
+  than a fit that would otherwise fail.
+
+* **`cogmod_inits()` lists `cogmod_geg()` among the families it supports.** It
+  had targets for it but was not naming it, so the error message for an
+  unsupported family said cogmod_geg() was one. The supported list is now
+  derived from the targets rather than kept beside them.
+
 * **`cogmod_inits()` jitters the hierarchical blocks a fifth as much as the
   population-level ones, and starts smooths flat.** One `jitter` (default
   0.25) now applies to intercepts and slopes; the standardized group-level

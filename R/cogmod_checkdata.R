@@ -133,6 +133,9 @@
   if (identical(cls, "choice")) {
     .checkdata_choice(bterms, data, family)
   }
+  # Runs after the per-class response checks, so that a response off the
+  # support is reported as that rather than as a pinned-weight problem.
+  .checkdata_pinned(formula, y, resp, family)
   .checkdata_cens(bterms, data, family)
   invisible(NULL)
 }
@@ -488,6 +491,124 @@
       "` has negative values. cogmod_betadiscrete() runs over ",
       "0, 1, ..., k, where 0 is the separate zero-response category and the ",
       "ratings themselves start at 1.",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
+
+# Mixture weights switched off by a fixed value
+# =============================================
+#
+# The three bounded-scale families are mixtures of a continuous part and one or
+# more point masses, and every weight involved can be pinned in bf(). Pin one at
+# a boundary and the component it controls has probability zero - so every
+# observation belonging to that component has density zero, the log-likelihood
+# is -Inf at every point in the parameter space, and CmdStan gives up with
+# "Initialization failed after 100 attempts" and nothing about which column is
+# to blame. It is a data-and-formula problem rather than a data one, which is
+# why it is checked here rather than in .checkdata_unit() / .checkdata_rating().
+#
+# Both halves of the mistake are easy to make. `?rcogmod_betadiscrete` offers
+# `pzero = 0` as the way to say "my scale has no zero category", and
+# ?cogmod_priors recommends fixing `pmid` or `pzero` at 0 to switch the
+# parameter off outright - neither of which is safe if the column still has one
+# of those responses in it.
+#
+# One entry per (dpar, pinned value) that closes a component, with the responses
+# that then become impossible. The gate arithmetic behind the `pex` and `bex`
+# rows is `cutzero = pex * (1 - bex)` and `cutone = 1 - pex * bex`: `pex = 0`
+# opens both gates fully so neither 0 nor 1 can be produced, and `bex` at either
+# end closes one of them. cogmod_choco()'s `mid` is hard-coded at 0.5 in the
+# Stan code, so the midpoint is a constant here too. Note that `pex = 1` is
+# fatal for cogmod_betagate() but not for cogmod_choco(): it collapses
+# betagate's two gates onto each other, leaving no room for the continuous
+# part, whereas each of choco's halves uses only one gate.
+#' @keywords internal
+.CHECKDATA_PINNED <- list(
+  cogmod_choco = list(
+    list(dpar = "pmid", at = 0, hits = function(y) y == 0.5,
+         what = "exactly at the midpoint 0.5"),
+    list(dpar = "pmid", at = 1, hits = function(y) y != 0.5,
+         what = "anywhere other than the midpoint 0.5"),
+    list(dpar = "pex", at = 0, hits = function(y) y == 0 | y == 1,
+         what = "exactly 0 or exactly 1"),
+    list(dpar = "bex", at = 0, hits = function(y) y == 1,
+         what = "exactly 1"),
+    list(dpar = "bex", at = 1, hits = function(y) y == 0,
+         what = "exactly 0")
+  ),
+  cogmod_betagate = list(
+    list(dpar = "pex", at = 0, hits = function(y) y == 0 | y == 1,
+         what = "exactly 0 or exactly 1"),
+    list(dpar = "pex", at = 1, hits = function(y) y > 0 & y < 1,
+         what = "strictly between 0 and 1"),
+    list(dpar = "bex", at = 0, hits = function(y) y == 1,
+         what = "exactly 1"),
+    list(dpar = "bex", at = 1, hits = function(y) y == 0,
+         what = "exactly 0")
+  ),
+  cogmod_betadiscrete = list(
+    list(dpar = "pzero", at = 0, hits = function(y) y == 0,
+         what = "exactly 0"),
+    list(dpar = "pzero", at = 1, hits = function(y) y >= 1,
+         what = "a rating of 1 or more")
+  )
+)
+
+
+# The dpars a formula pins to a single number, as a named numeric vector.
+# Anything that is not one plain number - an expression, a name, a vector - is
+# dropped rather than guessed at, the same tolerance .warn_scale_ray() applies.
+#' @keywords internal
+.checkdata_pfix <- function(formula) {
+  if (!inherits(formula, "brmsformula")) {
+    return(stats::setNames(numeric(0), character(0)))
+  }
+  pfix <- formula$pfix
+  if (!length(pfix)) {
+    return(stats::setNames(numeric(0), character(0)))
+  }
+  num <- vapply(
+    pfix,
+    function(v) {
+      out <- tryCatch(suppressWarnings(as.numeric(v)), error = function(e) NA_real_)
+      if (length(out) != 1L || !is.finite(out)) NA_real_ else out
+    },
+    numeric(1)
+  )
+  num[!is.na(num)]
+}
+
+
+#' @keywords internal
+.checkdata_pinned <- function(formula, y, resp, family) {
+  fam <- .family_name(family)
+  if (is.null(fam) || !fam %in% names(.CHECKDATA_PINNED)) {
+    return(invisible(NULL))
+  }
+  pfix <- .checkdata_pfix(formula)
+  if (!length(pfix)) {
+    return(invisible(NULL))
+  }
+
+  for (e in .CHECKDATA_PINNED[[fam]]) {
+    if (!e$dpar %in% names(pfix) || pfix[[e$dpar]] != e$at) {
+      next
+    }
+    bad <- sum(e$hits(y))
+    if (!bad) {
+      next
+    }
+    stop(
+      bad, " of ", length(y), " values of `", resp, "` are ", e$what,
+      ", and `", e$dpar, " = ", e$at, "` in bf() gives those zero ",
+      "probability. The log-likelihood is -Inf everywhere, so the fit cannot ",
+      "start - CmdStan reports it as `Initialization failed after 100 ",
+      "attempts` without saying why. Either drop those rows, or let `",
+      e$dpar, "` be estimated: leave it out of bf() to get it as a plain ",
+      "auxiliary parameter, or write `", e$dpar, " ~ 1` to model it.",
       call. = FALSE
     )
   }
