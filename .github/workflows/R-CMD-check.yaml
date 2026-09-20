@@ -23,9 +23,9 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - {os: macos-latest,   r: 'release', use-public-rspm: false}
-          - {os: windows-latest, r: 'release', use-public-rspm: true}
-          - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release', use-public-rspm: true}
+          - {os: macos-latest,   r: 'release'}
+          - {os: windows-latest, r: 'release'}
+          - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release'}
           # Exactly one job carries CmdStan. The Stan-touching tests all route
           # through `stan_fun()` (helper-stan.R), which compiles ONE model
           # holding every family's functions block and shares it for the rest of
@@ -34,8 +34,8 @@ jobs:
           # other four would multiply that by four and, at 1-2 GB of cache per
           # runner OS, crowd the repository's 10 GB cache allowance for nothing:
           # the generated Stan does not vary by platform.
-          - {os: ubuntu-latest,  r: 'release', stan: true, use-public-rspm: true}
-          - {os: ubuntu-latest,  r: 'oldrel-1', use-public-rspm: true}
+          - {os: ubuntu-latest,  r: 'release', stan: true}
+          - {os: ubuntu-latest,  r: 'oldrel-1'}
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -63,7 +63,17 @@ jobs:
         with:
           r-version: ${{ matrix.config.r }}
           http-user-agent: ${{ matrix.config.http-user-agent }}
-          use-public-rspm: ${{ matrix.config.use-public-rspm }}
+          # `always`, not `true`: on macOS `true` enables Posit Package Manager
+          # only for Posit's own organisations (setup-r's shouldUsePublicRspm)
+          # and everyone else installs from CRAN. Since 2026-09-20 CRAN's macOS
+          # binaries for R 4.6 are zstd-compressed under the .tgz name, and the
+          # pak that setup-r-dependencies installs (pkgdepends 0.9.1) knows
+          # gzip, bzip2, xz and zip only - so the macOS job died on the first
+          # such file with "Cannot extract ..., unknown archive type". P3M still
+          # serves the same versions gzip-compressed. Linux and Windows are on
+          # P3M under `true` already, so `always` changes nothing there. Back to
+          # `true` once a released pak extracts zstd: r-lib/pkgdepends#485.
+          use-public-rspm: always
           # pak resolves dependencies from the configured repositories only - it
           # does not read Additional_repositories out of DESCRIPTION - so
           # without this it cannot find cmdstanr and the lockfile fails to solve.
