@@ -163,8 +163,10 @@ One asymmetry did appear, and it is about robustness rather than speed. On
 the full 31k-row data, of the sound families' 48 constant-start fits, 4 went
 wrong - the ex-Gaussian at seeds 4 and 6, under both warmup lengths, so the
 jittered start decided it: two stuck at R-hat 1.6 with 120 and 458
-divergences, two still running at the 2 h wall - against 0 of 48 data-start
-fits. Fisher's exact test puts that around p = 0.06; one family, one data
+divergences, two past the 2 h wall of `short` - and resubmitted with 8 h, the
+warmup-150 one finished as another stuck fit (R-hat 1.56, ESS 7, 321
+leapfrog steps per draw) while its data-start twin had taken 1.5 h to a clean
+one - against 0 of 48 data-start fits. Fisher's exact test puts that around p = 0.06; one family, one data
 set. It is the kind of effect a start can plausibly have on a large data set
 whose constants sit far off (median RT 0.56 s against a constant `mu` of
 0.4 s and `tau` of 0.2 s), and it would want confirming before it carried
