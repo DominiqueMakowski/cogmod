@@ -1,0 +1,837 @@
+diff --git a/NEWS.md b/NEWS.md
+index d682ac2..c78ce18 100644
+--- a/NEWS.md
++++ b/NEWS.md
+@@ -2,6 +2,33 @@
+ 
+ ## New features
+ 
++* **`cogmod_inits()` now reads its starting values off the data.** It has
++  always placed `ndt` from the response (half the first percentile); the same
++  idea now extends to the decision parameters of every RT-only family. Once
++  `ndt` is placed, each family matches the moments of the decision times
++  `RT - ndt` to its own parameterization: the log mean and log SD for
++  `cogmod_lognormal()`, `cogmod_logstudent()`, `cogmod_loggamma()` and
++  `cogmod_logweibull()` (each corrected for what its shape or start-point
++  range adds to those moments); the Wald inversion `drift = sqrt(mean / var)`,
++  `boundary = drift * mean` for `cogmod_invgaussian()` and, in its own closed
++  form, `cogmod_bisa()`; the two-moment inversion for `cogmod_gamma()`,
++  `cogmod_invgamma()`, `cogmod_weibull()` and `cogmod_invweibull()`; and the
++  skewness-based ex-Gaussian estimator for `cogmod_exgaussian()` and
++  `cogmod_geg()`. A parameter fixed in `bf()` - `sigmabias = 0`, say - is
++  honoured by the rule that corrects for it. Every rule falls back to the
++  previous constants, silently, on fewer than 20 usable responses, a variance
++  that is zero or not finite, or an estimate outside the parameter's support;
++  a censored response only contributes its observed rows. The starts the plan
++  was built from are on the returned function as its `"targets"` attribute,
++  with the ones read off the data named in their `"from_data"` attribute.
++  Measured on simulated data at a slower, more variable participant than the
++  constants describe, the constants sat 2-6 log-likelihood units per
++  observation below the truth and the data starts 0.01-0.4; on real
++  lexical-decision RTs every family started higher than before. The choice
++  families and the rating families are unchanged. Priors are unchanged too,
++  deliberately: a moment estimate is biased when the variability parameters
++  are free, which is tolerable in a start and not in a prior.
++
+ * **A distributional parameter pinned at a boundary is now checked against the
+   response.** The three bounded-scale families are mixtures of a continuous
+   part and one or more point masses, and every weight involved can be fixed in
+diff --git a/R/cogmod_inits.R b/R/cogmod_inits.R
+index 52dcd6c..1540df3 100644
+--- a/R/cogmod_inits.R
++++ b/R/cogmod_inits.R
+@@ -220,11 +220,14 @@ cogmod_inits <- function(
+   sdata <- suppressWarnings(
+     brms::make_standata(formula, data = data, family = family, ...)
+   )
+-  if (!is.null(targets$ndt)) {
+-    targets$ndt <- .ndt_start(sdata$Y, targets$ndt)
+-  }
++  targets <- .data_start(family, formula, sdata, targets)
+   plan <- .init_plan(.stan_param_decls(code), as.list(sdata), targets, links)
+-  .init_fun(plan, jitter)
++  out <- .init_fun(plan, jitter)
++  # The natural-scale starts the plan was built from, for whoever wants to see
++  # them - a benchmark, or a user asking why a chain began where it did. Their
++  # "from_data" attribute names the ones .data_start() read off the response.
++  attr(out, "targets") <- targets
++  out
+ }
+ 
+ 
+@@ -276,6 +279,230 @@ cogmod_inits <- function(
+ }
+ 
+ 
++# Starting values read off the data ---------------------------------------
++
++# .ndt_start() generalised: every natural-scale start a family can estimate
++# from its response, by matching moments. The rule for each family lives on
++# its registry entry as `data_init = function(s, p)` - beside `init`, where
++# the constants are - or in .DATA_INIT_PLAIN for the families in no registry.
++# `s` is .init_summary() of the DECISION times `y - ndt`, and `p` the natural-
++# scale values already known: the constants, with whatever the formula fixes
++# written over them, so that a rule can correct for the value of a parameter it
++# does not itself estimate (cogmod_lognormal()'s `sigmabias`, the Wald's
++# `sigmandt`). A rule returns a named list of the dpars it can place, or NULL
++# to decline; a family without one behaves exactly as before.
++#
++# `ndt` goes first, and that ordering is most of the design: every rule is a
++# moment match on the decision time, and .ndt_start() is what turns a response
++# into one. Its start is half the first percentile - deliberately below the
++# non-decision time, so `d` runs a little long and every rule inherits a small
++# upward bias in location. That is the cheap direction (see .ndt_start()), and
++# still an order of magnitude closer than a constant chosen for all data sets.
++#
++# All-or-nothing per family: a rule's estimates are jointly derived (the
++# Wald's threshold is its drift times the mean), so half of them applied over
++# the other half's constants would describe no distribution anyone intended.
++# One estimate not finite, or not strictly inside its dpar's support, and the
++# whole rule falls through, silently - a data set too small for the count
++# guard is the normal case for a pilot, not an error. The names that did come
++# from the data ride on the result as its "from_data" attribute.
++#
++# Deliberately NOT guarded: distance from the constant. Clamping each start
++# into a window around the old value would throw the benefit away exactly on
++# the unusual data set the constant serves worst. Guard on validity, and let
++# the fit be the judge.
++#
++# Nor is `0 + Intercept` treated specially, though it was considered. Under
++# the centred parameterization the intercept is the dpar at mean covariates,
++# which is what a marginal moment estimates; under `0 + Intercept` it is the
++# dpar at the reference level. For a START the two coincide: every slope
++# begins at zero, so the linear predictor is the intercept at every row either
++# way, and the pooled estimate is the right number for both.
++#' @keywords internal
++.data_start <- function(family, formula, sdata, targets) {
++  y <- .init_response(sdata)
++  if (!is.null(targets$ndt)) {
++    targets$ndt <- .ndt_start(y, targets$ndt)
++  }
++  fam <- .family_name(family)
++  rule <- .data_init_rule(fam)
++  if (is.null(rule)) {
++    return(targets)
++  }
++  fixed <- .fixed_dpars(formula)
++  known <- targets
++  known[names(fixed)] <- fixed
++  d <- if (is.null(targets$ndt)) y else y - targets$ndt
++  est <- .data_init_apply(rule, d, known, family)
++  # A fixed dpar is not a Stan parameter, so there is nothing to start; its
++  # target is left as the constant it always was.
++  est <- est[setdiff(names(est), names(fixed))]
++  targets[names(est)] <- est
++  attr(targets, "from_data") <- names(est)
++  targets
++}
++
++
++# The response as the model sees it: finite and positive, and where brms's
++# `cens()` is in play only the rows it observed outright. A right-censored row
++# carries the censoring time, which is a lower bound on the response and not a
++# response, and a moment taken over it is biased by however far the tail was
++# cut. `cens` is how make_standata() names the indicator: 0 for observed.
++#' @keywords internal
++.init_response <- function(sdata) {
++  y <- sdata$Y
++  keep <- is.finite(y) & y > 0
++  if (!is.null(sdata$cens) && length(sdata$cens) == length(y)) {
++    keep <- keep & sdata$cens == 0
++  }
++  y[keep]
++}
++
++
++# The moments the rules read, computed once, or NULL when there is not enough
++# to compute them from. Twenty is where a sample variance stops being noise
++# for the purpose - a start, not an estimate - and below it the constants are
++# the more honest guess anyway. Decision times at or below zero are dropped
++# rather than failing the log moments: .ndt_start() sits under the first
++# percentile, so there are never more than a handful, and each is a response
++# the model itself will hand to the outlier component.
++#' @keywords internal
++.init_summary <- function(d, min_n = 20L) {
++  d <- d[is.finite(d) & d > 0]
++  n <- length(d)
++  if (n < min_n) {
++    return(NULL)
++  }
++  m <- mean(d)
++  v <- stats::var(d)
++  if (!is.finite(v) || v <= 0) {
++    return(NULL)
++  }
++  ld <- log(d)
++  list(
++    n = n,
++    mean = m,
++    var = v,
++    sd = sqrt(v),
++    # Fisher skewness, the biased (moment) form: what the ex-Gaussian rule
++    # inverts, and at n >= 20 the small-sample correction is beside the point.
++    skew = mean((d - m)^3) / v^1.5,
++    meanlog = mean(ld),
++    sdlog = stats::sd(ld)
++  )
++}
++
++
++# The rule for a family, or NULL. The ndt families keep theirs on the registry
++# entry; the rest, which have no entry, in .DATA_INIT_PLAIN.
++#' @keywords internal
++.data_init_rule <- function(fam) {
++  if (is.null(fam)) {
++    return(NULL)
++  }
++  if (fam %in% .OUTLIER_FAMILIES) {
++    return(.mixture_spec(fam)$data_init)
++  }
++  .DATA_INIT_PLAIN[[fam]]
++}
++
++
++# Runs one rule and applies the guards: a summary to run it on, a result, and
++# every value finite and strictly inside its dpar's support, read off the
++# family object's `lb` / `ub` so that the check follows the family rather than
++# a copy of it. Any failure returns an empty list, which .data_start() treats
++# as "keep the constants".
++#' @keywords internal
++.data_init_apply <- function(rule, d, known, family) {
++  s <- .init_summary(d)
++  if (is.null(s)) {
++    return(list())
++  }
++  est <- tryCatch(
++    suppressWarnings(rule(s, known)),
++    error = function(e) NULL
++  )
++  if (!is.list(est) || !length(est) || is.null(names(est))) {
++    return(list())
++  }
++  ok <- vapply(
++    names(est),
++    function(p) {
++      v <- est[[p]]
++      i <- match(p, family$dpars)
++      if (is.na(i) || !is.numeric(v) || length(v) != 1 || !is.finite(v)) {
++        return(FALSE)
++      }
++      lb <- family$lb[[i]]
++      ub <- family$ub[[i]]
++      (is.na(lb) || v > lb) && (is.na(ub) || v < ub)
++    },
++    logical(1)
++  )
++  if (!all(ok)) {
++    return(list())
++  }
++  est
++}
++
++
++# The dpars the formula pins - `bf(..., sigmabias = 0)` - as a named list of
++# natural-scale values. brms records them on the terms object rather than the
++# family, so this is the one place they can be read; anything going wrong
++# here means "none known", which only costs a rule the correction it would
++# have made.
++#' @keywords internal
++.fixed_dpars <- function(formula) {
++  bt <- tryCatch(brms::brmsterms(formula), error = function(e) NULL)
++  fd <- bt$fdpars
++  if (!length(fd)) {
++    return(list())
++  }
++  vals <- lapply(fd, function(x) x$value)
++  vals[vapply(vals, function(v) is.numeric(v) && length(v) == 1, logical(1))]
++}
++
++
++# Wald (drift, threshold) from the mean and variance of the decision time. A
++# first-passage time with drift v and threshold a has mean a / v and variance
++# a / v^3, so the ratio gives the drift and the mean then gives the threshold.
++# A uniform non-decision range `sigmandt` already known to be in play adds
++# sigmandt / 2 to the mean and sigmandt^2 / 12 to the variance, and is taken
++# out first. Exact at sigmadrift = 0, which is where cogmod_invgaussian()
++# starts it; drift variability fattens the tail, so the start's drift runs a
++# little low there. cogmod_bisa() carries the same currency but its own closed
++# form, on its entry: its moments are the Wald's plus a term in the drift alone.
++#' @keywords internal
++.wald_start <- function(mean, var, sigmandt = 0) {
++  m <- mean - sigmandt / 2
++  v <- var - sigmandt^2 / 12
++  if (!(m > 0 && v > 0)) {
++    return(NULL)
++  }
++  drift <- sqrt(m / v)
++  list(mu = drift, boundary = drift * m)
++}
++
++
++# A two-parameter family whose coefficient of variation depends on the shape
++# alone: solve the CV for the shape on a log grid by root finding, then read
++# the scale off the mean. `cv2` is the squared CV as a function of the shape,
++# decreasing on `range` (the Weibull's and the Frechet's both are); a squared
++# sample CV outside what the range can produce declines rather than clamps.
++#' @keywords internal
++.shape_scale_start <- function(s, cv2, range, mean_of) {
++  target <- s$var / s$mean^2
++  f <- function(lk) cv2(exp(lk)) - target
++  lo <- log(range[1])
++  hi <- log(range[2])
++  if (!(f(lo) > 0 && f(hi) < 0)) {
++    return(NULL)
++  }
++  k <- exp(stats::uniroot(f, c(lo, hi), tol = 1e-9)$root)
++  list(mu = k, sigma = s$mean / mean_of(k))
++}
++
++
+ # The `init` function brm() gets: one draw of the plan per call, each entry
+ # jittered on the scale Stan samples on and shaped as declared. Shared with
+ # cogmod_warmstart(), whose plan carries a previous fit's means.
+@@ -426,6 +653,56 @@ cogmod_inits <- function(
+ )
+ 
+ 
++# The data-aware counterpart of .INIT_PLAIN: the rule .data_start() runs for a
++# family in no registry (see there for the calling convention). Only the two
++# ex-Gaussians have one. The rating families are not RT models, and their
++# constants were placed by measuring log-likelihood shortfalls across response
++# styles, which is a better argument than a moment could make.
++#' @keywords internal
++.DATA_INIT_PLAIN <- list(
++  cogmod_exgaussian = function(s, p) .exgaussian_start(s),
++  # shape = 1 is the ex-Gaussian exactly, and that is where the constant
++  # leaves it, so the same three moments place the same three parameters.
++  cogmod_geg = function(s, p) .exgaussian_start(s)
++)
++
++
++# Ex-Gaussian (mu, sigma, tau) from the first three central moments: the mean
++# is mu + tau, the variance sigma^2 + tau^2, and the third central moment
++# 2 tau^3 - the Gaussian contributes none - so the skewness pins tau on its
++# own and the other two follow (Lacouture & Cousineau, 2008). Declines when
++# the skewness is not positive, where the cube root has nothing to take.
++#
++# The skewness is capped at 1.7 before it is used, and the cap is the part
++# that makes the rule usable. sigma is the square root of var - tau^2, a
++# difference of two nearly equal numbers once the tail dominates, so a sample
++# skewness a little high starves the Gaussian stage - and a Gaussian started
++# too narrow is the expensive error, every response near the mode paying for
++# it, where a tail started too short is cheap. At the cap tau is 0.95 sd and
++# sigma 0.31 sd, which is as narrow as the rule will start anyone. Measured
++# over 300 samples of 200 trials at an ex-Gaussian of skewness 1.4: uncapped,
++# the worst start was 1.0 log units per observation short of the truth and 5%
++# of samples declined outright; capped at 1.7 the worst was 0.04, and the
++# median was unchanged. On real lexical-decision data (speed_acc) the sample
++# skewness sits at 1.8-2.3 for most participants, above an exponential's own
++# 2 for a third of them, so the uncapped rule declines for 11 of 17 and the
++# capped one starts every one of them 0.02-0.22 log units per observation
++# above the constants. 1.5 was a little worse on the very skewed truths and
++# 1.9 on the tail; the difference between them is small.
++#' @keywords internal
++.exgaussian_start <- function(s) {
++  if (!(s$skew > 0)) {
++    return(NULL)
++  }
++  tau <- (min(s$skew, 1.7) / 2)^(1 / 3) * s$sd
++  sigma2 <- s$var - tau^2
++  if (!(sigma2 > 0)) {
++    return(NULL)
++  }
++  list(mu = s$mean - tau, sigma = sqrt(sigma2), tau = tau)
++}
++
++
+ # The natural-scale value each dpar should start at, or NULL for a family with
+ # no opinion attached. The shifted families take theirs from the registry in
+ # shifted.R and add the two the parameterization introduces; anything else
+diff --git a/R/core_shifted.R b/R/core_shifted.R
+index 152e9b9..05a7531 100644
+--- a/R/core_shifted.R
++++ b/R/core_shifted.R
+@@ -35,6 +35,14 @@
+ #  lcdf / lccdf      : the R counterparts, at t > 0, as functions of (t, p)
+ #  rng               : R sampler for the decision component
+ #  mean              : E[decision time]; Inf where it does not exist
++#  init              : natural-scale starting values for cogmod_inits(), one
++#                      per dpar; the constants a data set is started from when
++#                      nothing better is known
++#  data_init         : optional, `function(s, p)` returning better ones read
++#                      off the data: `s` is .init_summary() of the decision
++#                      times, `p` the values already known (`init`, with what
++#                      the formula fixes written over it). NULL declines. See
++#                      .data_start() in cogmod_inits.R for the guards
+ #  prior             : optional, per-dpar priors for cogmod_priors() to fill,
+ #                      where the likelihood has a flat direction brms would
+ #                      otherwise leave improper. Each entry is a named character
+@@ -78,6 +86,30 @@
+     # E[D] E[exp(mu + sigma Z)], the distance and the rate being independent
+     mean = function(p) (1 + p$sigmabias / 2) * exp(p$mu + p$sigma^2 / 2),
+     init = list(mu = -0.7, sigma = 0.5, sigmabias = 0.5),
++    # The log moments are the MLE of (mu, sigma) at sigmabias = 0. Above it
++    # the decision time is the LogNormal times (1 + U) with U ~ Uniform(0, A),
++    # whose log adds an independent term to log D: mean ((1 + A) log(1 + A)
++    # - A) / A and second moment ((1 + A)(L^2 - 2L + 2) - 2) / A with
++    # L = log(1 + A), both by integrating log x and log^2 x over [1, 1 + A].
++    # At the start's A = 0.5 the mean is 0.216, which is not nothing on a
++    # scale where mu itself is -0.7, so both are taken out. Whatever A the
++    # model has - the constant, or the 0 a `bf(sigmabias = 0)` pins - `p`
++    # carries it.
++    data_init = function(s, p) {
++      A <- p$sigmabias
++      if (A > 0) {
++        L <- log1p(A)
++        m1 <- ((1 + A) * L - A) / A
++        m2 <- ((1 + A) * (L^2 - 2 * L + 2) - 2) / A
++        v1 <- m2 - m1^2
++      } else {
++        m1 <- 0
++        v1 <- 0
++      }
++      s2 <- s$sdlog^2 - v1
++      if (!(s2 > 0)) return(NULL)
++      list(mu = s$meanlog - m1, sigma = sqrt(s2))
++    },
+     # `sigmabias` has the flat direction cogmod_lba1()'s has: as the range
+     # approaches zero the model converges to the LogNormal and the likelihood
+     # stops changing, while the softplus link reaches zero only at minus
+@@ -132,6 +164,16 @@
+     # exact: ndt + exp(mu).
+     mean = NULL,
+     init = list(mu = -0.7, sigma = 0.4, dof = 5),
++    # log D = mu + sigma T with T a Student-t on `dof` degrees of freedom, so
++    # the log mean is mu exactly and the log variance sigma^2 dof / (dof - 2)
++    # - not sigma^2, which is what reading the LogNormal's rule across would
++    # assume, and at the start's dof = 5 the factor is 1.29. Below dof = 2 the
++    # variance does not exist and the sample SD is used as it stands, the
++    # scale then being at least in the right decade.
++    data_init = function(s, p) {
++      k <- if (p$dof > 2) sqrt((p$dof - 2) / p$dof) else 1
++      list(mu = s$meanlog, sigma = s$sdlog * k)
++    },
+     # Two flat-ish directions, and the prior is what fences both.
+     #
+     # Upward: the LogNormal is only reached as dof -> Inf, and it is approached
+@@ -194,6 +236,24 @@
+     rng = function(n, p) .rloggamma(n, p$mu, p$sigma, p$shape),
+     mean = function(p) .mloggamma(p$mu, p$sigma, p$shape),
+     init = list(mu = -0.7, sigma = 0.5, shape = 0),
++    # log D = mu + sigma W with W = log(shape^2 G) / shape and G a
++    # Gamma(1 / shape^2, 1) - see .rloggamma() - so E[W] = (digamma(1 /
++    # shape^2) + log shape^2) / shape and Var[W] = trigamma(1 / shape^2) /
++    # shape^2, both tending to the standard normal's 0 and 1 as shape -> 0.
++    # At the start's shape = 0 the rule is therefore the LogNormal's exactly;
++    # the general form is kept so that a shape fixed in bf() is honoured.
++    data_init = function(s, p) {
++      q <- p$shape
++      if (abs(q) < 1e-6) {
++        m1 <- 0
++        v1 <- 1
++      } else {
++        m1 <- (digamma(1 / q^2) + log(q^2)) / q
++        v1 <- trigamma(1 / q^2) / q^2
++      }
++      sigma <- s$sdlog / sqrt(v1)
++      list(mu = s$meanlog - sigma * m1, sigma = sigma)
++    },
+     dpar_doc = c(
+       "mu: location of the decision time on the log scale.",
+       "sigma: scale of the decision time on the log scale (> 0).",
+@@ -281,6 +341,10 @@
+       ifelse(p$sigmadrift > 0, Inf, p$boundary / p$mu + p$sigmandt / 2)
+     },
+     init = list(mu = 3, boundary = 0.5, sigmadrift = 0.5, sigmandt = 0.05),
++    # The Wald moment match, .wald_start(), with the non-decision range taken
++    # out of both moments first; `sigmadrift` is left to the constant, and
++    # its effect on the tail to the sampler.
++    data_init = function(s, p) .wald_start(s$mean, s$var, p$sigmandt),
+     # Same flat direction as cogmod_lba1()'s `sigmabias` and cogmod_ddm()'s own
+     # `sigmadrift`: the floor at zero is only reached by the softplus link at
+     # minus infinity, and the likelihood stops changing well before then, which
+@@ -435,6 +499,17 @@
+     # The same starting point as cogmod_invgaussian(), the parameters meaning
+     # the same thing there.
+     init = list(mu = 3, boundary = 0.5),
++    # Two moments, two unknowns, in closed form. With m the mean and V the
++    # variance above, substituting a = mu m - 1 / (2 mu) from the mean into
++    # the variance leaves V = m / mu^2 + 3 / (4 mu^4), a quadratic in mu^2
++    # whose positive root is (m + sqrt(m^2 + 3 V)) / (2 V). The threshold
++    # then follows from the mean; the support check in .data_init_apply()
++    # catches it coming out at or below zero, which a very fast, very
++    # variable data set can do.
++    data_init = function(s, p) {
++      mu <- sqrt((s$mean + sqrt(s$mean^2 + 3 * s$var)) / (2 * s$var))
++      list(mu = mu, boundary = mu * s$mean - 1 / (2 * mu))
++    },
+     dpar_doc = c(
+       paste("mu: drift rate, the average size of the per-cycle evidence",
+             "increment (> 0)."),
+@@ -480,6 +555,10 @@
+     rng = function(n, p) stats::rgamma(n, shape = p$mu, scale = p$sigma),
+     mean = function(p) p$mu * p$sigma,
+     init = list(mu = 2, sigma = 0.2),
++    # Shape k and scale theta: mean k theta, variance k theta^2.
++    data_init = function(s, p) {
++      list(mu = s$mean^2 / s$var, sigma = s$var / s$mean)
++    },
+     label = "Gamma"
+   ),
+   cogmod_invgamma = list(
+@@ -506,6 +585,13 @@
+     # The mean of an inverse Gamma exists only for shape > 1.
+     mean = function(p) ifelse(p$mu > 1, p$sigma / (p$mu - 1), Inf),
+     init = list(mu = 4, sigma = 1.5),
++    # Shape a and scale b: mean b / (a - 1) and variance b^2 / ((a - 1)^2
++    # (a - 2)), so the squared inverse CV is a - 2. The start is therefore
++    # always above 2, where both moments exist.
++    data_init = function(s, p) {
++      a <- s$mean^2 / s$var + 2
++      list(mu = a, sigma = s$mean * (a - 1))
++    },
+     label = "inverse Gamma"
+   ),
+   cogmod_weibull = list(
+@@ -529,6 +615,19 @@
+     rng = function(n, p) stats::rweibull(n, shape = p$mu, scale = p$sigma),
+     mean = function(p) p$sigma * gamma(1 + 1 / p$mu),
+     init = list(mu = 2, sigma = 0.5),
++    # Shape k and scale lambda: mean lambda Gamma(1 + 1 / k), and a squared
++    # CV of Gamma(1 + 2 / k) / Gamma(1 + 1 / k)^2 - 1 that depends on k alone
++    # and falls monotonically in it. No closed inverse, so .shape_scale_start()
++    # solves it on [0.3, 50]: 0.3 is a squared CV above 100, 50 one below
++    # 1e-3, and nothing that is still a reaction time lies outside.
++    data_init = function(s, p) {
++      .shape_scale_start(
++        s,
++        cv2 = function(k) exp(lgamma(1 + 2 / k) - 2 * lgamma(1 + 1 / k)) - 1,
++        range = c(0.3, 50),
++        mean_of = function(k) gamma(1 + 1 / k)
++      )
++    },
+     label = "Weibull"
+   ),
+   cogmod_invweibull = list(
+@@ -551,6 +650,20 @@
+     # E[Frechet] is finite only for shape > 1.
+     mean = function(p) ifelse(p$mu > 1, p$sigma * gamma(1 - 1 / p$mu), Inf),
+     init = list(mu = 3, sigma = 0.4),
++    # The Weibull's rule with the signs turned: mean sigma Gamma(1 - 1 / mu)
++    # and squared CV Gamma(1 - 2 / mu) / Gamma(1 - 1 / mu)^2 - 1, again in the
++    # shape alone and decreasing. Both moments need mu > 2, and the squared
++    # CV climbs without bound as the shape approaches it from above, so the
++    # bracket starts at 2.05 (a squared CV near 12) and a sample more
++    # dispersed than that - a Frechet's tail can do it - declines.
++    data_init = function(s, p) {
++      .shape_scale_start(
++        s,
++        cv2 = function(a) exp(lgamma(1 - 2 / a) - 2 * lgamma(1 - 1 / a)) - 1,
++        range = c(2.05, 50),
++        mean_of = function(a) gamma(1 - 1 / a)
++      )
++    },
+     label = "inverse Weibull (Frechet)"
+   ),
+   cogmod_lba1 = list(
+@@ -652,6 +765,14 @@
+     # geometric mean rather than the mean.
+     mean = function(p) ifelse(p$sigma < 1, exp(p$mu) * gamma(1 - p$sigma), Inf),
+     init = list(mu = -0.8, sigma = 0.3),
++    # A Gumbel's location is NOT its mean: log D has mean mu + gamma sigma
++    # (Euler's gamma, 0.5772) and SD sigma pi / sqrt(6) = 1.283 sigma, so the
++    # LogNormal's rule read across would start mu 0.17 too high and sigma 28%
++    # too wide at the constants. Scale first, then location.
++    data_init = function(s, p) {
++      sigma <- s$sdlog * sqrt(6) / pi
++      list(mu = s$meanlog - 0.5772156649015329 * sigma, sigma = sigma)
++    },
+     label = "Log-Weibull (Gumbel)"
+   )
+ )
+diff --git a/tests/testthat/test-cogmod_generics.R b/tests/testthat/test-cogmod_generics.R
+index 507e06a..1f5bf15 100644
+--- a/tests/testthat/test-cogmod_generics.R
++++ b/tests/testthat/test-cogmod_generics.R
+@@ -70,16 +70,33 @@ test_that("cogmod_inits matches the declared dimensions", {
+ test_that("cogmod_inits puts the targets on the right scale", {
+   f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1,
+                 family = cogmod_lognormal())
+-  vals <- cogmod_inits(f, d_ig, jitter = 0)(1)
++  init <- cogmod_inits(f, d_ig, jitter = 0)
++  vals <- init(1)
++  targets <- attr(init, "targets")
+   # ndt starts below the data - half the first percentile of the responses -
+   # on the log link
+   ndt0 <- 0.5 * quantile(d_ig$RT, 0.01, names = FALSE)
+   expect_lt(ndt0, quantile(d_ig$RT, 0.01))
++  expect_equal(targets$ndt, ndt0)
+   expect_equal(vals$Intercept_ndt, log(ndt0))
+   expect_equal(vals$Intercept_poutlier, qlogis(0.02))
+-  # mu has an identity link here, sigma a softplus one
+-  expect_equal(vals$Intercept, -0.7)
+-  expect_equal(vals$Intercept_sigma, log(expm1(0.5)))
++  # mu and sigma are read off the decision times RT - ndt: the log mean and
++  # log SD, less what the start-point range at its constant of 0.5 adds to
++  # each. mu has an identity link here, sigma a softplus one.
++  expect_setequal(attr(targets, "from_data"), c("mu", "sigma"))
++  expect_equal(vals$Intercept, targets$mu)
++  expect_equal(vals$Intercept_sigma, log(expm1(targets$sigma)))
++  d <- d_ig$RT - ndt0
++  d <- d[d > 0]
++  A <- 0.5
++  L <- log1p(A)
++  m1 <- ((1 + A) * L - A) / A
++  v1 <- ((1 + A) * (L^2 - 2 * L + 2) - 2) / A - m1^2
++  expect_equal(targets$mu, mean(log(d)) - m1)
++  expect_equal(targets$sigma, sqrt(sd(log(d))^2 - v1))
++  # the constants that were not read off the data are still the constants
++  expect_equal(targets$sigmabias, 0.5)
++  expect_equal(targets$poutlier, 0.02)
+ })
+ 
+ 
+@@ -94,11 +111,17 @@ test_that("cogmod_inits leaves an omitted dpar on the natural scale", {
+ 
+ 
+ test_that("cogmod_inits follows the links on the family", {
+-  # mu's target is 3; softplus by default, log if asked for.
++  # mu's target is the Wald drift read off the data - the same number under
++  # either link; softplus by default, log if asked for.
+   g <- brms::bf(RT ~ 1, family = cogmod_invgaussian())
+   h <- brms::bf(RT ~ 1, family = cogmod_invgaussian(link_mu = "log"))
+-  expect_equal(cogmod_inits(g, d_ig, jitter = 0)(1)$Intercept, log(expm1(3)))
+-  expect_equal(cogmod_inits(h, d_ig, jitter = 0)(1)$Intercept, log(3))
++  ig <- cogmod_inits(g, d_ig, jitter = 0)
++  ih <- cogmod_inits(h, d_ig, jitter = 0)
++  mu <- attr(ig, "targets")$mu
++  expect_true(is.finite(mu) && mu > 0)
++  expect_equal(attr(ih, "targets")$mu, mu)
++  expect_equal(ig(1)$Intercept, log(expm1(mu)))
++  expect_equal(ih(1)$Intercept, log(mu))
+ })
+ 
+ 
+@@ -121,9 +144,11 @@ test_that("cogmod_inits does not mistake a spline coefficient for a dpar", {
+   set.seed(2)
+   dd <- cbind(d_ig, x = rnorm(nrow(d_ig)))
+   f <- brms::bf(RT ~ s(x), boundary ~ 1, ndt ~ 1, family = cogmod_invgaussian())
+-  vals <- cogmod_inits(f, dd, jitter = 0)(1)
++  init <- cogmod_inits(f, dd, jitter = 0)
++  vals <- init(1)
+   expect_equal(vals$bs, 0)
+-  expect_equal(vals$Intercept_boundary, log(expm1(0.5)))
++  # the threshold's start comes off the data and goes through softplus
++  expect_equal(vals$Intercept_boundary, log(expm1(attr(init, "targets")$boundary)))
+ })
+ 
+ 
+@@ -180,20 +205,31 @@ test_that("cogmod_inits jitters the hierarchical blocks less", {
+ test_that("cogmod_inits supports cogmod_exgaussian", {
+   f <- brms::bf(RT ~ Condition, sigma ~ Condition, tau ~ Condition + (1 | id),
+                 family = cogmod_exgaussian())
+-  vals <- cogmod_inits(f, d_ex, jitter = 0)(1)
++  init <- cogmod_inits(f, d_ex, jitter = 0)
++  vals <- init(1)
++  targets <- attr(init, "targets")
+   expect_setequal(names(vals), declared_params(f, d_ex))
++  # All three come off the data: there is no ndt, so the moments are the
++  # response's own, and the skewness is capped at 1.7 before tau is read off
++  # it (see .exgaussian_start()).
++  expect_setequal(attr(targets, "from_data"), c("mu", "sigma", "tau"))
++  s <- cogmod:::.init_summary(d_ex$RT)
++  tau <- (min(s$skew, 1.7) / 2)^(1 / 3) * s$sd
++  expect_equal(targets$tau, tau)
++  expect_equal(targets$mu, s$mean - tau)
++  expect_equal(targets$sigma, sqrt(s$var - tau^2))
+   # `mu` is on `identity` - it is the location of the Gaussian component, not a
+   # scale - so its start is in seconds outright. `sigma` and `tau` are lengths
+   # of time behind `softplus`, so theirs go through the inverse link.
+-  expect_equal(vals$Intercept, 0.4)
+-  expect_equal(vals$Intercept_sigma, log(expm1(0.1)))
+-  expect_equal(vals$Intercept_tau, log(expm1(0.2)))
++  expect_equal(vals$Intercept, targets$mu)
++  expect_equal(vals$Intercept_sigma, log(expm1(targets$sigma)))
++  expect_equal(vals$Intercept_tau, log(expm1(targets$tau)))
+ 
+   # Omitted from the formula: natural scale, no link.
+   g <- brms::bf(RT ~ 1, family = cogmod_exgaussian())
+   omitted <- cogmod_inits(g, d_ex, jitter = 0)(1)
+-  expect_equal(omitted$sigma, 0.1)
+-  expect_equal(omitted$tau, 0.2)
++  expect_equal(omitted$sigma, targets$sigma)
++  expect_equal(omitted$tau, targets$tau)
+ })
+ 
+ 
+@@ -253,6 +289,170 @@ test_that("cogmod_inits refuses a family it has nothing to offer", {
+ })
+ 
+ 
++# cogmod_inits: starts read off the data ----------------------------------
++
++# Every rule against its family's own RNG at known parameters, handed the
++# decision times themselves so that the rule is what is tested and not the
++# bias .ndt_start() builds in on purpose. This is the failure that matters
++# most: a parameterization misread off the registry entry would put the start
++# below the constant on every data set, silently.
++test_that("the data-aware rules recover their parameters", {
++  set.seed(42)
++  n <- 1e5
++  # `fixed` plays the part of a dpar pinned in bf(), which the rule is told
++  # about; `tol` is relative, and loose only where the estimator is noisy
++  # (the ex-Gaussian's sigma is the square root of a small difference).
++  cases <- list(
++    list(fam = "cogmod_lognormal", truth = list(mu = -0.4, sigma = 0.35),
++         fixed = list(sigmabias = 0),
++         draw = function() rcogmod_lognormal(n, mu = -0.4, sigma = 0.35,
++                                             ndt = 0, sigmabias = 0)),
++    # the start-point range at its constant, corrected for
++    list(fam = "cogmod_lognormal", truth = list(mu = -0.4, sigma = 0.35),
++         draw = function() rcogmod_lognormal(n, mu = -0.4, sigma = 0.35,
++                                             ndt = 0, sigmabias = 0.5)),
++    list(fam = "cogmod_logstudent", truth = list(mu = -0.4, sigma = 0.3),
++         draw = function() rcogmod_logstudent(n, mu = -0.4, sigma = 0.3,
++                                              dof = 5, ndt = 0)),
++    list(fam = "cogmod_loggamma", truth = list(mu = -0.4, sigma = 0.3),
++         draw = function() rcogmod_loggamma(n, mu = -0.4, sigma = 0.3,
++                                            shape = 0, ndt = 0)),
++    list(fam = "cogmod_loggamma", truth = list(mu = -0.4, sigma = 0.3),
++         fixed = list(shape = 0.8),
++         draw = function() rcogmod_loggamma(n, mu = -0.4, sigma = 0.3,
++                                            shape = 0.8, ndt = 0)),
++    list(fam = "cogmod_logweibull", truth = list(mu = -0.6, sigma = 0.25),
++         draw = function() rcogmod_logweibull(n, mu = -0.6, sigma = 0.25,
++                                              ndt = 0)),
++    list(fam = "cogmod_invgaussian", truth = list(mu = 4, boundary = 0.8),
++         draw = function() rcogmod_invgaussian(n, drift = 4, boundary = 0.8,
++                                               ndt = 0, sigmadrift = 0,
++                                               sigmandt = 0.05)),
++    list(fam = "cogmod_bisa", truth = list(mu = 4, boundary = 0.8),
++         draw = function() rcogmod_bisa(n, mu = 4, boundary = 0.8, ndt = 0)),
++    list(fam = "cogmod_gamma", truth = list(mu = 3, sigma = 0.15),
++         draw = function() rcogmod_gamma(n, mu = 3, sigma = 0.15, ndt = 0)),
++    list(fam = "cogmod_invgamma", truth = list(mu = 5, sigma = 1.2),
++         draw = function() rcogmod_invgamma(n, mu = 5, sigma = 1.2, ndt = 0)),
++    list(fam = "cogmod_weibull", truth = list(mu = 2.5, sigma = 0.6),
++         draw = function() rcogmod_weibull(n, mu = 2.5, sigma = 0.6, ndt = 0)),
++    list(fam = "cogmod_invweibull", truth = list(mu = 4, sigma = 0.4),
++         draw = function() rcogmod_invweibull(n, mu = 4, sigma = 0.4, ndt = 0)),
++    list(fam = "cogmod_exgaussian",
++         truth = list(mu = 0.45, sigma = 0.08, tau = 0.25), tol = 0.12,
++         draw = function() rcogmod_exgaussian(n, mu = 0.45, sigma = 0.08,
++                                              tau = 0.25)),
++    list(fam = "cogmod_geg",
++         truth = list(mu = 0.45, sigma = 0.08, tau = 0.25), tol = 0.12,
++         draw = function() rcogmod_geg(n, mu = 0.45, sigma = 0.08, tau = 0.25,
++                                       shape = 1))
++  )
++  for (cs in cases) {
++    family <- get(cs$fam, envir = asNamespace("cogmod"))()
++    known <- cogmod:::.init_targets(family)
++    known[names(cs$fixed)] <- cs$fixed
++    est <- cogmod:::.data_init_apply(
++      cogmod:::.data_init_rule(cs$fam), cs$draw(), known, family
++    )
++    expect_setequal(names(est), names(cs$truth))
++    tol <- if (is.null(cs$tol)) 0.05 else cs$tol
++    for (p in names(cs$truth)) {
++      expect_equal(est[[p]], cs$truth[[p]], tolerance = tol,
++                   info = paste(cs$fam, p))
++    }
++  }
++})
++
++
++test_that("the data-aware rules fall through to the constants when they should", {
++  f <- brms::bf(RT ~ 1, sigma ~ 1, sigmabias = 0, family = cogmod_lognormal())
++  # Fewer than 20 usable responses: the summary is not computed at all, and
++  # the constants stand. A pilot data set doing this is normal, not an error.
++  few <- cogmod_inits(f, d_ig[1:15, ], jitter = 0)
++  expect_null(attr(attr(few, "targets"), "from_data"))
++  expect_equal(few(1)$Intercept, -0.7)
++  expect_equal(few(1)$Intercept_sigma, log(expm1(0.5)))
++  # No variance: same.
++  flat <- transform(d_ig, RT = 0.5)
++  expect_null(attr(attr(cogmod_inits(f, flat, jitter = 0), "targets"), "from_data"))
++
++  # The summary itself
++  expect_null(cogmod:::.init_summary(1:10))
++  expect_null(cogmod:::.init_summary(rep(1, 30)))
++  # non-finite and non-positive decision times are dropped, not fatal
++  expect_equal(cogmod:::.init_summary(c(seq(0.5, 1.5, length.out = 30), NA, -1, 0))$n, 30)
++
++  # A rule's estimates have to be finite and strictly inside the support, or
++  # none of them is used: they are jointly derived, and half a rule over half
++  # the constants describes nothing anyone intended.
++  set.seed(9)
++  d <- rcogmod_gamma(500, mu = 3, sigma = 0.15, ndt = 0)
++  fam <- cogmod_gamma()
++  known <- cogmod:::.init_targets(fam)
++  apply_rule <- function(rule) cogmod:::.data_init_apply(rule, d, known, fam)
++  expect_length(apply_rule(function(s, p) list(mu = -1, sigma = 0.2)), 0)
++  expect_length(apply_rule(function(s, p) list(mu = 2, sigma = NA_real_)), 0)
++  expect_length(apply_rule(function(s, p) list(mu = 2, sigma = Inf)), 0)
++  expect_length(apply_rule(function(s, p) stop("no")), 0)
++  expect_length(apply_rule(function(s, p) NULL), 0)
++  expect_length(apply_rule(function(s, p) list(nosuchdpar = 1)), 0)
++  expect_named(apply_rule(function(s, p) list(mu = 2, sigma = 0.2)), c("mu", "sigma"))
++
++  # The ex-Gaussian rule declines a sample with no positive skewness - a
++  # left-skewed one here - where the cube root has nothing to take.
++  expect_null(cogmod:::.exgaussian_start(cogmod:::.init_summary(1 - rexp(500, 10))))
++})
++
++
++test_that("a dpar fixed in bf() is seen by the rule and not started", {
++  set.seed(5)
++  y <- rcogmod_lognormal(2000, mu = -0.4, sigma = 0.3, ndt = 0.2, sigmabias = 0)
++  fam <- cogmod_lognormal()
++  targets <- cogmod:::.init_targets(fam)
++  free <- cogmod:::.data_start(
++    fam, brms::bf(y ~ 1, family = fam), list(Y = y), targets
++  )
++  pinned <- cogmod:::.data_start(
++    fam, brms::bf(y ~ 1, sigmabias = 0, family = fam), list(Y = y), targets
++  )
++  # Same decision times either way, so the two differ by exactly the
++  # E[log(1 + U(0, 0.5))] the free rule takes out for a range it believes
++  # is 0.5 and the pinned rule knows is 0.
++  m1 <- (1.5 * log(1.5) - 0.5) / 0.5
++  expect_equal(pinned$mu - free$mu, m1)
++  # and the free rule takes the range's log variance out of sigma too
++  expect_gt(pinned$sigma, free$sigma)
++  # The pinned dpar is not a Stan parameter, so nothing is started for it and
++  # its target stays the constant; it is not claimed as read off the data.
++  expect_equal(pinned$sigmabias, 0.5)
++  expect_setequal(attr(pinned, "from_data"), c("mu", "sigma"))
++  expect_equal(cogmod:::.fixed_dpars(brms::bf(y ~ 1, sigmabias = 0, family = fam)),
++               list(sigmabias = 0))
++  expect_equal(cogmod:::.fixed_dpars(brms::bf(y ~ 1, family = fam)), list())
++})
++
++
++test_that("a censored response contributes only its observed rows", {
++  cut <- quantile(d_ig$RT, 0.8, names = FALSE)
++  dc <- transform(d_ig, cens = ifelse(RT > cut, "right", "none"),
++                  RT = pmin(RT, cut))
++  fc <- brms::bf(RT | cens(cens) ~ 1, sigmabias = 0, family = cogmod_lognormal())
++  fo <- brms::bf(RT ~ 1, sigmabias = 0, family = cogmod_lognormal())
++  tc <- attr(cogmod_inits(fc, dc, jitter = 0), "targets")
++  to <- attr(cogmod_inits(fo, dc[dc$cens == "none", ], jitter = 0), "targets")
++  expect_equal(tc[c("mu", "sigma", "ndt")], to[c("mu", "sigma", "ndt")])
++})
++
++
++test_that("a family without a rule is left exactly as it was", {
++  d <- data.frame(y = rcogmod_choco(150, pmid = 0.05))
++  init <- cogmod_inits(brms::bf(y ~ 1, pmid ~ 1, family = cogmod_choco()), d,
++                       jitter = 0)
++  expect_null(attr(attr(init, "targets"), "from_data"))
++  expect_equal(attr(init, "targets"), cogmod:::.INIT_PLAIN$cogmod_choco)
++})
++
++
+ # cogmod_stanvars ---------------------------------------------------------
+ 
+ test_that("cogmod_stanvars dispatches on the family", {

@@ -266,6 +266,24 @@ cogmod_inits <- function(
 # ndt with more than a few percent of its responses below the start: the
 # grouping indices J_<k> and the Z_<k>_ndt_<j> names in the Stan data say
 # which levels those are, and it leaves the start alone.
+#
+# Also considered and not done (2026-09-22): extending this rule to EVERY
+# start, by moment-matching each family's decision parameters to the response
+# once `ndt` is placed (log mean and log SD for the log-location families, the
+# Wald inversion drift = sqrt(mean / var), and so on - twelve families). It
+# was built, and it worked as an estimator: on simulated slow participants the
+# constants sat 2-6 log-likelihood units per observation below the truth and
+# the data starts 0.01-0.4. Fitted, it bought nothing. Over 384 cells on real
+# RTs at three sizes and 39 cells of tensor-smooth models at 120-480
+# participants, the leapfrog steps spent in warmup were within 1% of the
+# constant start's in the median, ESS per second was a coin flip, and Rhat
+# identical; the Wald's data start reached the typical set in 16-37% fewer
+# iterations and then spent more steps walking its step size back down. The
+# constants were never the problem: what the sampler cannot recover from is a
+# start on a flat region, which this rule and the constants already avoid, and
+# a start merely far from the mode is absorbed by the first metric window. The
+# write-up, the harness that measured it and the implementation as a patch are
+# in benchmarks/data_inits_ablation.md and benchmarks/inits_ablation/.
 #' @keywords internal
 .ndt_start <- function(y, fallback = 0.1) {
   y <- y[is.finite(y) & y > 0]
