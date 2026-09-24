@@ -2,20 +2,6 @@
 
 ## New features
 
-* **New family: `cogmod_gaussbit()` (Gaussian + probit), a baseline for the
-  choice and RT models.** A Gaussian reaction time and a probit choice,
-  correlated at the trial level: the choice-and-RT counterpart of fitting
-  `gaussian()` to the RTs and `bernoulli("probit")` to the choices, which it
-  reduces to exactly at `rho = 0` - same likelihood, and through
-  `cogmod_priors()` the same priors, with one added for `rho`. It takes the
-  same `rt | dec(response)` data as `cogmod_lnr()`, `cogmod_rdm()`,
-  `cogmod_ddm()` and `cogmod_lba2()`, so `loo_compare()` measures what a
-  sequential sampling model gains over the default analysis. Whatever `rho` is, the RT is exactly `Normal(mu, sigma)`
-  and `P(dec = 1)` exactly `pnorm(mudec)`; `rho` sets how the choice depends on
-  the RT - slow errors or fast ones - and lives on the Fisher-z scale, the
-  correlation being `tanh(rho)`. No `ndt` (the Gaussian's location is free, so
-  a shift is `mu` itself) and no outlier component. Experimental.
-
 * **A distributional parameter pinned at a boundary is now checked against the
   response.** The three bounded-scale families are mixtures of a continuous
   part and one or more point masses, and every weight involved can be fixed in

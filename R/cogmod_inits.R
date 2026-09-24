@@ -102,8 +102,7 @@
 #' at `log(2)`.
 #'
 #' The two bounded-scale families for subjective ratings, [cogmod_choco()] and
-#' [cogmod_betadiscrete()], are covered as well to help with warmup, as is the
-#' Gaussian-probit baseline [cogmod_gaussbit()].
+#' [cogmod_betadiscrete()], are covered as well to help with warmup.
 #'
 #' @param formula The model formula, as passed to `brms::brm()`. Must carry the
 #'   family, i.e. be built with `brms::bf(..., family = cogmod_gamma())`. May
@@ -441,19 +440,7 @@ cogmod_inits <- function(
   # per observation, against 1.01 at 0.5 and 0.53 at 0.02. ?rcogmod_betadiscrete
   # defaults it to 0, which a logit link cannot start at; a scale with no zero
   # category wants `pzero = 0` in bf(), which removes the parameter.
-  cogmod_betadiscrete = list(mu = 0.5, phi = 1, pzero = 0.05),
-
-  # cogmod_gaussbit() has no start that fails: its density is positive
-  # everywhere, with no flat region and no boundary for a start to land on.
-  # What brms' random init does to it is merely wasteful - `sigma` anywhere
-  # from 0.14 to 7.4 s through the log link, and `rho` up to tanh(2) = 0.96,
-  # where the choice is nearly a step function of the RT and a single trial on
-  # the wrong side of the step costs thousands of log units. So `mu` and `sigma`
-  # start where RT data live, and `mudec` and `rho` at their neutral points,
-  # `rho = 0` being the nested default analysis. Not measured, and not claimed
-  # to matter much; the entry is also there so that cogmod_inits() accepts
-  # every family a model comparison hands it.
-  cogmod_gaussbit = list(mu = 0.6, sigma = 0.2, mudec = 0, rho = 0)
+  cogmod_betadiscrete = list(mu = 0.5, phi = 1, pzero = 0.05)
 )
 
 

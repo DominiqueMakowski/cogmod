@@ -28,10 +28,7 @@
   if (is.null(fam)) {
     return(NULL)
   }
-  # cogmod_gaussbit() takes the same `rt | dec(response)` data as the
-  # registry's choice families without being one of them: it has no ndt and no
-  # outlier component to put in an entry.
-  if (fam %in% c(.CHOICE_FAMILIES, "cogmod_gaussbit")) {
+  if (fam %in% .CHOICE_FAMILIES) {
     return("choice")
   }
   if (fam %in% c(names(.SHIFTED), "cogmod_exgaussian", "cogmod_geg")) {
@@ -164,17 +161,16 @@
   if (isTRUE(fam %in% .CENS_FAMILIES)) {
     return(invisible(NULL))
   }
-  if (isTRUE(fam %in% c(.CHOICE_FAMILIES, "cogmod_gaussbit"))) {
+  if (isTRUE(fam %in% .CHOICE_FAMILIES)) {
     # A choice model's likelihood is a set of defective densities summing to one
     # over the options, and the contaminant's 1 / K exists to keep it so. A
     # censored likelihood - a density for one outcome, a bare survival for the
     # other - breaks that identity by construction, so it does not belong here
-    # even where the Stan code could be written. cogmod_gaussbit() has no
-    # accumulators, but its joint density is the same kind of object.
+    # even where the Stan code could be written.
     stop(
       fam,
-      "() already models the errors, through dec(): the choice and the ",
-      "reaction time are scored jointly. ",
+      "() already models the errors, through dec(): each response ",
+      "option has its own accumulator and the two are scored jointly. ",
       "`cens()` belongs on the RT-only families - bf(rt | cens(error) ~ ..., ",
       "family = cogmod_invgaussian()) - where an error is treated as a ",
       "right-censored correct response instead. See ?rcogmod_invgaussian.",
@@ -271,11 +267,8 @@
   # The families on the ndt + poutlier mixture put ZERO density below `ndt`, and
   # `ndt` is itself bounded below by zero, so a non-positive reaction time sends
   # the whole log-likelihood to -Inf and no chain can initialise. The
-  # ex-Gaussian, the gamma-ex-Gaussian and cogmod_gaussbit() have support on
-  # the entire real line, so there the same row is implausible rather than
-  # fatal. Still warned about: a simulation from those families produces a few
-  # (rcogmod_gaussbit() at mu = 0.6, sigma = 0.15 puts 3e-5 of its mass below
-  # zero), but an observed reaction time cannot be negative.
+  # ex-Gaussian and the gamma-ex-Gaussian have support on the entire real line,
+  # so there the same row is implausible rather than fatal.
   shifted <- isTRUE(fam %in% .OUTLIER_FAMILIES)
   bad <- sum(y <= 0)
   if (bad) {

@@ -94,105 +94,20 @@ condition), which can be problematic for accurate estimations.
 
 ## Models
 
-All six models below use `dec(Error)` to indicate the two-choice
-outcome (`0` = Correct, `1` = Error), and `cogmod_priors()`, `cogmod_inits()`
-and `cogmod_stanvars()` read the family off the formula, so the same three
-lines set up any of them. The first one is not an evidence accumulation model
-at all but the baseline the others are measured against.
+All five models below use `dec(Error)` to indicate the two-choice
+outcome (`0` = Correct, `1` = Error), and all five share the parameterization
+used by the RT-only families (see `vignette("outliers")`): `ndt` is estimated
+directly, in seconds, and a `poutlier` parameter mixes in an outlier process so
+that `ndt` is not capped at the fastest observed response. The outlier
+component is a half Normal with a fixed scale of 0.2 s, so **reaction times
+must be in seconds**.
 
-The five accumulation models share the parameterization used by the RT-only
-families (see `vignette("outliers")`): `ndt` is estimated directly, in seconds,
-and a `poutlier` parameter mixes in an outlier process so that `ndt` is not
-capped at the fastest observed response. The outlier component is a half
-Normal with a fixed scale of 0.2 s, so **reaction times must be in seconds**.
-`cogmod_priors()` and `cogmod_inits()` are worth using rather than
+`cogmod_priors()` and `cogmod_inits()` read the family off the formula, so the
+same three lines set up any of them. Both are worth using rather than
 hand-written priors and `init = 0`: on a log link `init = 0` starts `ndt` at
 `exp(0) = 1` second, above nearly every observed RT, and each of these families
 has at least one direction the likelihood is flat in that `brms` would otherwise
 leave improper.
-
-### Gaussian + Probit (Gaussbit)
-
-The analysis most people run on these data is two separate regressions: a
-**linear model** on the RTs, and a **logistic regression** on the accuracy.
-`cogmod_gaussbit()` is essentially that analysis, done as one model. Its RT
-half is a Gaussian regression - `mu` is the mean RT and `sigma` its SD, exactly
-as in `brms::gaussian()` - and its choice half is a probit regression, `mudec`
-being the probit of the probability of an error. A probit is the logistic
-regression's close cousin: the two curves are nearly the same shape, and
-probit coefficients are about the logit ones divided by 1.7.
-
-What makes it one model rather than two is `rho`, a **trial-level
-correlation** between the RT and the choice. With the errors coded `1`,
-`rho > 0` means the slower a trial, the more likely it is to be an error
-(*slow errors*), and `rho < 0` the reverse (*fast errors*). It changes neither
-half on its own: whatever `rho` is, the RTs are exactly `Normal(mu, sigma)` and
-the error rate exactly `pnorm(mudec)`. `rho` lives on the Fisher-z scale, and
-the correlation itself is `tanh(rho)`.
-
-At `rho = 0` the family *is* the two separate regressions, likelihood and
-priors included, so the two formulas below fit the same model:
-
-```{r}
-#| eval: false
-#| code-fold: false
-
-bf(RT | dec(Error) ~ Condition, mudec ~ Condition, rho = 0,
-   family = cogmod_gaussbit())
-
-bf(RT ~ Condition) +
-  bf(Error ~ Condition, family = bernoulli("probit")) +
-  set_rescor(FALSE)
-```
-
-This is what makes it a useful baseline. It knows nothing about the
-decision process: the RT distribution is a symmetric Gaussian with no
-right skew, no non-decision time (the location is free, so a shift *is* `mu`)
-and no outlier component. The difference in `elpd` between it and an
-accumulation model is what the process assumptions buy over the default
-analysis, measured on the same data and the same scale.
-
-Here we let `rho` vary with `Condition`: errors are slower than correct
-responses in the `Accuracy` condition but not in the `Speed` one (see the
-figure above), which is the kind of pattern `rho` is there to pick up.
-
-```{r}
-#| eval: false
-#| code-fold: false
-
-f <- bf(
-  RT | dec(Error) ~ Condition,
-  sigma ~ Condition,
-  mudec ~ Condition,
-  rho ~ Condition,
-  family = cogmod_gaussbit()
-)
-
-m_gaussbit <- brm(f,
-  data = df,
-  prior = cogmod_priors(f, df),
-  init = cogmod_inits(f, df),
-  stanvars = cogmod_stanvars(f),
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_gaussbit <- brms::add_criterion(m_gaussbit, "loo")  # Add model performance criterion
-```
-```{r}
-#| eval: false
-#| echo: false
-
-saveRDS(m_gaussbit, file = "../models/m_gaussbit.rds")
-```
-
-The coefficients read the way the two separate regressions would. The
-RT half says a mean RT of 0.69 s in `Accuracy` and 0.14 s faster in `Speed`,
-with an SD (`exp()` of `sigma`) of 0.24 s and 0.15 s. The choice half says
-`pnorm(-1.68)` = 4.6% errors in `Accuracy` and `pnorm(-1.68 + 0.39)` = 9.9% in
-`Speed`. `rho` comes out close to zero in both conditions (0.06, 95% CI -0.03
-to 0.14 in `Accuracy`). The errors in `Accuracy` *are* slower, but only by
-about 30 ms, which is small next to an SD of 0.24 s, so a Gaussian barely
-registers it.
 
 ### Drift Diffusion Model (DDM)
 
@@ -537,7 +452,6 @@ race.
 
 path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"
 
-m_gaussbit <- readRDS(url(paste0(path, "m_gaussbit.rds")))
 m_ddm <- readRDS(url(paste0(path, "m_ddm.rds")))
 m_ddm5 <- readRDS(url(paste0(path, "m_ddm5.rds")))
 m_lba <- readRDS(url(paste0(path, "m_lba2.rds")))
@@ -548,18 +462,9 @@ m_rdm <- readRDS(url(paste0(path, "m_rdm.rds")))
 ```{r}
 #| code-fold: false
 
-loo::loo_compare(m_gaussbit, m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
+loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
   parameters(include_ENP = TRUE)
 ```
-
-The Gaussbit baseline comes last, about 1300 points of `elpd` behind the
-others, which differ among themselves by at most about 120. Most of that gap
-is likely the shape of the RT distribution rather than anything specific to
-one accumulation process (the posterior predictive check below shows it): RTs are right-skewed and bounded below by the time it
-takes to respond at all, and a Gaussian is neither. So when a psychologist
-fits a linear model to the RTs and a logistic regression to the accuracy, the
-first thing an evidence accumulation model gains over that analysis is a
-plausible RT distribution.
 
 
 ### Sampling Duration
@@ -572,12 +477,10 @@ three races, the LNR is by far the cheapest, since its density and survival
 are just LogNormal ones, while the RDM and the LBA are much slower.
 Freeing `sigmadrift` is not free either: DDM-5 costs is significantly slower than the
 simple DDM, though it remains cheaper than either of the two slow races.
-Gaussbit is the cheapest of all, under a minute per chain, since its
-likelihood is one Normal density and one Normal CDF per trial.
 
 ```{r}
 models <- list(
-  Gaussbit = m_gaussbit, DDM = m_ddm, `DDM-5` = m_ddm5, LNR = m_lnr, LBA = m_lba, RDM = m_rdm
+  DDM = m_ddm, `DDM-5` = m_ddm5, LNR = m_lnr, LBA = m_lba, RDM = m_rdm
 )
 model_levels <- names(models)
 
@@ -623,7 +526,7 @@ returns them in a `Component` column (`"rt"` and `"response"`), which we pivot
 back into two columns.
 
 Correct responses are drawn upwards and errors downwards, with the observed
-data as histograms and the six models as overlaid density lines (faint: one
+data as histograms and the five models as overlaid density lines (faint: one
 per posterior draw; bold: pooled over draws). Rather than normalizing each
 half separately, both are scaled by the **proportion** of that response, so
 that the area under each curve equals its predicted frequency - which is why
@@ -637,10 +540,6 @@ distributions right.
 #| code-fold: true
 
 pred <- rbind(
-  estimate_prediction(m_gaussbit, data = df, iterations = 50, 
-                      keep_iterations = TRUE, ci = NULL) |>
-    reshape_iterations() |>
-    data_modify(Model = "Gaussbit"),
   estimate_prediction(m_ddm, data = df, iterations = 50, 
                       keep_iterations = TRUE, ci = NULL) |>
     reshape_iterations() |>
@@ -664,7 +563,7 @@ pred <- rbind(
 ) |>
   datawizard::data_select(select = c("Row", "Component", "Condition", "iter_value", "iter_group", "iter_index", "Model")) |>
   datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model", "Condition"), values_from = "iter_value", names_from = "Component") |> 
-  data_modify(Model = factor(Model, levels = c("Gaussbit", "DDM", "DDM-5", "LNR", "LBA", "RDM")))
+  data_modify(Model = factor(Model, levels = c("DDM", "DDM-5", "LNR", "LBA", "RDM")))
 
 # The LBA occasionally predicts enormous RTs (a near-zero drift rate takes a
 # very long time to reach the threshold). `stat_density()` spreads its
@@ -722,19 +621,12 @@ p
 ![](../man/figures/decision_making1.png)
 
 The mismatch discussed above is visible in the lower half: the **DDM**
-(blue) places its error density well to the left of the observed errors,
-while the three races put theirs on top of them. **DDM-5** (green) sits
+(purple) places its error density well to the left of the observed errors,
+while the three races put theirs on top of them. **DDM-5** (blue) sits
 between the two - it recovers the average error timing but spreads the
-errors too widely. In the upper half the five accumulation models are close,
-which is the point worth taking away: a model's problem can be invisible if
-one only looks at the RTs of correct responses.
-
-**Gaussbit** (purple) is the one that stands apart, and it shows where its
-`elpd` went. Being symmetric, it puts density below 0.35 s, where there are no
-responses at all, peaks too late and too low, and spreads the `Accuracy`
-distribution out to match a long right tail it cannot bend to follow. Its error
-rate is right - that half is a probit regression and fits as well as one does -
-but the RT half is exactly the Gaussian a linear model assumes.
+errors too widely. In the upper half all five are close, which is the point
+worth taking away: a model's problem can be invisible if one only looks at
+the RTs of correct responses.
 
 ```{r}
 #| echo: false

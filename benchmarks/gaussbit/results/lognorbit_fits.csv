@@ -1,0 +1,7 @@
+"model","seed","wall_s","cpu_s","warmup_s","sampling_s","leapfrog_per_iter","min_ess","worst","max_rhat","divergent","cpu_ms_per_ess"
+"LNR",1,144.5,527.1,337.6,189.5,18.3,699,"Intercept_ndt",1.005,0,271.2
+"Lognorbit",1,128.1,507.6,312.2,195.4,22.3,775,"b_ndt[1]",1.006,0,252.1
+"Lognorbit",2,124.5,453.4,280.9,172.5,19.5,1039,"Intercept_ndt",1.005,0,166.1
+"LNR",2,141.7,545.8,328.6,217.2,20.2,913,"Intercept_ndt",1.005,0,237.8
+"LNR",3,141.8,520.8,347.9,172.9,19.4,685,"Intercept_ndt",1.006,0,252.3
+"Lognorbit",3,123.5,478.4,280.3,198.1,23,864,"b[1]",1.007,0,229.2

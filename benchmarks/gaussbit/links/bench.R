@@ -1,4 +1,7 @@
 # Probit or logit for the choice half of cogmod_gaussbit()?
+#
+# The family has since been dropped (see ../README.md). To rerun this, apply
+# ../gaussbit.patch first: `git apply benchmarks/gaussbit/gaussbit.patch`.
 # ============================================================
 #
 # Question (2026-09-24): is the probit version actually cheaper to SAMPLE from
@@ -30,13 +33,13 @@
 # fits themselves is reported too but is the noisiest of the three.
 #
 # Usage:
-#   Rscript benchmarks/gaussbit_links/bench.R [--datasets 3] [--warmup 1000]
-#     [--sampling 1000] [--out benchmarks/gaussbit_links/results]
+#   Rscript benchmarks/gaussbit/links/bench.R [--datasets 3] [--warmup 1000]
+#     [--sampling 1000] [--out benchmarks/gaussbit/links/results]
 #     [--settings fixed,mixed] [--models gp_rho,gl_rho,gp_0,mv_probit,mv_logit]
 
 args <- commandArgs(trailingOnly = TRUE)
 opt <- list(datasets = 3L, warmup = 1000L, sampling = 1000L,
-            out = "benchmarks/gaussbit_links/results",
+            out = "benchmarks/gaussbit/links/results",
             settings = "fixed,mixed",
             models = "gp_rho,gl_rho,gp_0,mv_probit,mv_logit",
             reps = 21L, block = 20L)

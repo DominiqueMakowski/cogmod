@@ -1,5 +1,9 @@
 # Probit or logit for `cogmod_gaussbit()`?
 
+> The family was dropped on 2026-09-24; see [`../README.md`](../README.md)
+> for why. This benchmark decided its link while it existed, and `bench.R`
+> needs `../gaussbit.patch` applied to run.
+
 Run 2026-09-24 on a 16-core Windows laptop, CmdStan 2.38, brms 2.23.1, with
 `bench.R` at its defaults: 3 simulated datasets per setting, 4 chains x
 (1000 + 1000) iterations, brms' default random inits for every model. Raw

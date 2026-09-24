@@ -24,7 +24,7 @@
   "cogmod_invgamma", "cogmod_weibull", "cogmod_invweibull", "cogmod_logweibull",
   "cogmod_exwald", "cogmod_bisa", "cogmod_lba1", "cogmod_lnr", "cogmod_rdm", "cogmod_ddm", "cogmod_lba2",
   "cogmod_betagate", "cogmod_choco", "cogmod_exgaussian", "cogmod_geg",
-  "cogmod_gaussbit", "cogmod_betadiscrete"
+  "cogmod_betadiscrete"
 )
 
 # The cache lives in an option rather than in this file's environment, because
