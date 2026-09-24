@@ -1,0 +1,634 @@
+<!-- Pulled into rt_models.qmd by quarto's `include` shortcode, under the Wald:
+the Normal distribution as the end of a random walk, and the Wald as what the
+same walk gives once it is tilted forward in time. The leading underscore keeps
+it out of quarto's and pkgdown's render targets, as for `_widget.qmd`; render
+it on its own to preview it.
+
+A file of its own rather than a second figure in `_widget.qmd`, and it shares
+nothing with that one. Every ojs cell on a page lives in one namespace, and
+rt_models.qmd pulls in both partials, so a name used in both - `cfg`, `drift`,
+`density`, `volley` - would be a duplicate definition and break both figures.
+Every name here therefore starts with `walk`, and every class with
+`cogmod-walk-`: the big figure finds its title, tabs and layout with
+`document.querySelector()`, and would find this one's first if they shared a
+class. Borrowing its helpers instead would have made this figure silently
+depend on the other being on the same page, and there is nothing worth
+borrowing: the density below is elementary, with no `erfc` and no series. The
+colours are the same values as the palette in `_widget.qmd`, so the drift is
+the same green and the threshold the same orange in both figures.
+
+The process. A walk leaves the origin heading at `tilt` from the vertical, at
+unit speed, and is jostled along the perpendicular by j times a Brownian
+motion - `j` being a constant of the figure (`jostle2` = j^2 below), not a
+slider. Progress along the heading is therefore the walk's clock, exactly: the
+walk is a time axis and a noise axis, rotated as a whole. The threshold is the
+horizontal line at height `a`. A walk that crosses it at `u` along the line has
+travelled r = u sin(tilt) + a cos(tilt) - which is also the time it took - and
+has been pushed q = u cos(tilt) - a sin(tilt) off its heading on the way, so
+the density of crossing points is
+
+  f(u) = (a / r) * Normal(q; 0, j^2 r)
+
+the jostle's own Normal at the moment of crossing, reweighted by the `a / r` of
+the hitting-time theorem. Aimed straight up, every walk crosses at r = a, the
+factor is 1, and f is Normal(0, j^2 a): the Central Limit Theorem, with the
+distance to the threshold setting its variance. That Normal's SD is the
+`sigma` slider, which is why the slider moves the threshold -
+`a = sigma^2 / j^2` - and why it is orange. Tilted, r is different for every
+walk: the height is climbed at cos(tilt) with noise j sin(tilt), so the time to
+cross is an inverse Gaussian, and u is that time laid onto the line,
+u = (T - a cos(tilt)) / sin(tilt). So every tilt above zero is a Wald exactly -
+shifted and rescaled, and with the same `a / r` form at both ends, so there is
+no branch. Its mean is a tan(tilt), which is where the drift arrow lands; its
+SD is sigma cos(tilt)^(-3/2); its skewness is j sin(tilt) / sqrt(a cos(tilt))
+times 3, which is what the title reads out. Checked against 20,000 simulated
+walks per setting (2026-09-24): the density integrates to 1, and mean, SD and
+skewness agree with those three expressions to four digits.
+
+That SD is why the slider is `sigma (SD)` untilted and plain `sigma` tilted.
+It keeps its name, as a fitted parameter does, but once the drift leans it is
+no longer the SD of anything drawn - the threshold it sets moves the Wald's
+location, spread and shape all at once - so the "(SD)" is dropped rather than
+left making a claim that has stopped being true. What it *does* stays in the
+description under it at every tilt: it sets the threshold.
+
+Why the jostle turns with the heading. Kept horizontal, a tilted drift only
+slides the Normal along the line - every walk still takes the same time. Made
+vertical, it would leave nothing to spread the walks out at zero tilt. Turning
+the walk as a whole is the one reading of "tilt" in which the walk itself does
+not change, only its direction relative to the threshold, and the skew then
+follows from nothing else. The price is that a tilted walk can step backwards
+along the line - the jostle has a horizontal part until the heading lies flat -
+which is also why the Wald's lower bound, -a cot(tilt), sits left of the start.
+The horizontal line becomes pure time only at 90 degrees, where there is no
+drift towards the threshold left; the article, and the label on the line, call
+it time from the first degree of tilt, which is the idea this figure is for
+and not a claim about its axes.
+
+The frame has equal units on both axes, so the jostle looks perpendicular and
+the angle on screen is the slider's; and a fixed domain, so tilting moves the
+distribution rather than the axes. `tilt` stops at 60 degrees because the right
+tail leaves the frame beyond it. -->
+
+```{=html}
+<style>
+/* Scoped to the figure rather than on `:root`: `_widget.qmd` owns the page's
+   `--cogmod-*` palette, and this figure has to stand without it. Same values. */
+.cogmod-walk { --walk-green: #009E73; --walk-orange: #F4511E;
+  --walk-grey: #90A4AE; --walk-black: #000000; margin: 0.75rem 0 1.25rem; }
+.cogmod-walk-title { font-size: 1.15rem; font-weight: 700; margin: 0 0 0.4rem; }
+/* The readout is the one number the figure is about - what the tilt does to
+   the shape - so it sits with the name rather than in the plot. */
+.cogmod-walk-stat { margin-left: 0.6rem; font-size: 12px; font-weight: 400;
+  color: #78858c; font-family: var(--bs-font-monospace, monospace); }
+.cogmod-walk-controls { display: flex; flex-wrap: wrap; gap: 0.25rem 2.5rem;
+  margin-top: 0.35rem; }
+.cogmod-walk-par { flex: 0 1 230px; min-width: 0; }
+.cogmod-walk-par > p { margin: 0 0 0.1rem; }
+.cogmod-walk-par-sigma { --par: var(--walk-orange); }
+.cogmod-walk-par-tilt { --par: var(--walk-green); }
+.cogmod-walk-par code:not(.sourceCode) { color: var(--par); font-weight: 600;
+  background: none; padding: 0; }
+/* The "(SD)" after `sigma`, which is true only untilted - see the top of the
+   file. `walkTilted` puts `.cogmod-walk-tilted` on the figure. */
+.cogmod-walk-sdnote { color: var(--par); font-weight: 600; font-size: 0.9em; }
+.cogmod-walk-tilted .cogmod-walk-sdnote { display: none; }
+.cogmod-walk-full { margin-left: 0.35rem; font-size: 11px; color: #6c757d; }
+/* The slider as `_widget.qmd` draws its own, so the two figures on the page
+   have the same handles: no number box, the value in a bubble over the thumb
+   while the pointer is on it, and the thumb painted in the parameter's colour.
+   See the comments there for why each rule is written the way it is. */
+.cogmod-walk-par input[type="number"] { display: none; }
+.cogmod-walk-par form { position: relative; }
+.cogmod-walk-par .cell, .cogmod-walk-par .cell-output { overflow: visible; }
+.cogmod-walk-bubble { position: absolute; bottom: 100%; margin-bottom: 3px;
+  transform: translateX(-50%); padding: 0 0.35rem; border-radius: 3px;
+  background: var(--par); color: #fff; font-size: 11px;
+  font-family: var(--bs-font-monospace, monospace); line-height: 1.5;
+  opacity: 0; transition: opacity 0.12s; pointer-events: none; }
+.cogmod-walk-par form:hover .cogmod-walk-bubble,
+.cogmod-walk-par form:has(input:active) .cogmod-walk-bubble { opacity: 1; }
+.cogmod-walk-par input[type="range"] { -webkit-appearance: none;
+  appearance: none; height: 14px; background: none; }
+.cogmod-walk-par input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px; background: #dfe3e8; }
+.cogmod-walk-par input[type="range"]::-moz-range-track {
+  height: 4px; border-radius: 2px; background: #dfe3e8; }
+.cogmod-walk-par input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 13px; height: 13px;
+  margin-top: -4.5px; border-radius: 50%; background: var(--par);
+  transition: box-shadow 0.12s; }
+.cogmod-walk-par input[type="range"]::-moz-range-thumb {
+  width: 13px; height: 13px; border: none; border-radius: 50%;
+  background: var(--par); transition: box-shadow 0.12s; }
+.cogmod-walk-par form:hover input[type="range"]::-webkit-slider-thumb,
+.cogmod-walk-par form:has(input:active) input[type="range"]::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--par) 22%, transparent); }
+.cogmod-walk-par form:hover input[type="range"]::-moz-range-thumb,
+.cogmod-walk-par form:has(input:active) input[type="range"]::-moz-range-thumb {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--par) 22%, transparent); }
+</style>
+```
+
+::::: {.cogmod-walk}
+
+```{ojs}
+//| echo: false
+// The name follows the tilt and nothing else: at zero it is the Normal, and at
+// any tilt at all it is a Wald - there is no in-between shape to name.
+html`<div class="cogmod-walk-title">${walkTilt === 0 ? "Normal" : "Wald"}
+distribution<span class="cogmod-walk-stat">skewness
+${d3.format(".2f")(walkSkew)}</span></div>`
+```
+
+```{ojs}
+//| echo: false
+walkDrag(walkFire(Plot.plot({
+  width: walkFrame.width,
+  height: walkFrame.height,
+  marginLeft: walkCfg.margin,
+  marginRight: walkCfg.margin,
+  marginTop: walkCfg.margin,
+  marginBottom: walkCfg.margin,
+  // No axes. Neither has a scale worth reading - the units are the walk's
+  // own - and the one number that matters is in the title.
+  x: {domain: [walkCfg.xmin, walkCfg.xmax], axis: null},
+  y: {domain: [walkCfg.ybot, walkCfg.ytop], axis: null},
+  color: {type: "identity"},
+  marks: [
+    // The crossing density, standing on the threshold it is the density on,
+    // pinned by its peak as the densities of `_widget.qmd` are.
+    Plot.areaY(walkDensity, {x: "x", y1: "base", y2: "y",
+                             fill: walkCfg.green, fillOpacity: 0.15}),
+    Plot.line(walkDensity, {x: "x", y: "y", stroke: walkCfg.green,
+                            strokeWidth: 2}),
+    // The walks. `walkFire` finds them by being the only line mark with more
+    // than one path.
+    Plot.line(walkPaths.rows, {x: "x", y: "y", z: "id", stroke: "colour",
+                               strokeOpacity: 0.42, strokeWidth: 0.9,
+                               clip: true}),
+    // The line the walks leave from. It is only called time once the drift
+    // leans into it: aimed straight up, the walk's clock runs vertically and
+    // this line is just where the crossings are measured along.
+    Plot.arrow([{x1: walkCfg.xmin, y1: 0, x2: walkCfg.xmax, y2: 0}],
+               {x1: "x1", y1: "y1", x2: "x2", y2: "y2", stroke: walkCfg.black,
+                strokeWidth: 1.2, headLength: 7}),
+    Plot.text(walkTilt > 0 ? [{x: walkCfg.xmax, y: 0}] : [],
+              {x: "x", y: "y", text: ["Time"], dx: -12, dy: 13,
+               textAnchor: "end", fill: walkCfg.black, fontSize: 11}),
+    // Where the drift pointed before it was tilted, so the tilt is read as a
+    // turn away from something. Under the arrow at zero, and so not drawn.
+    Plot.ruleX(walkTilt > 0 ? [0] : [],
+               {y1: 0, y2: walkA, stroke: walkCfg.grey,
+                strokeDasharray: "4,3"}),
+    // Labelled at the left end rather than the right, where `_widget.qmd`
+    // labels its boundary: here the right end is where the Wald's tail runs,
+    // and left of the start is the one stretch neither curve reaches.
+    Plot.ruleY([walkA], {stroke: walkCfg.orange, strokeWidth: 1.2}),
+    Plot.text([{x: walkCfg.xmin, y: walkA}],
+              {x: "x", y: "y", text: ["threshold"], dy: -7,
+               textAnchor: "start", fill: walkCfg.orange, fontSize: 11,
+               stroke: "white", strokeWidth: 3, paintOrder: "stroke"}),
+    // The two things the `sigma` slider sets, in its colour: the distance to
+    // the threshold, standing at the right edge, and - while the distribution
+    // is still a Normal - its SD, lying across the curve.
+    Plot.arrow(walkSpans.climb, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                                 stroke: walkCfg.orange, strokeWidth: 1.8,
+                                 headLength: 8}),
+    Plot.arrow(walkSpans.sd, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                              stroke: walkCfg.orange, strokeWidth: 1.8,
+                              headLength: 6}),
+    Plot.text(walkSpans.sd.slice(0, 1),
+              {x: "x1", y: "y1", text: ["SD"], dy: -8, fill: walkCfg.orange,
+               fontSize: 11, stroke: "white", strokeWidth: 3,
+               paintOrder: "stroke"}),
+    // The mean drift, from the start to where it meets the threshold - which
+    // is the mean crossing point, at every tilt.
+    Plot.arrow([walkArrow], {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                             stroke: walkCfg.green, strokeWidth: 3,
+                             headLength: 11}),
+    Plot.text([walkArrow.label],
+              {x: "x", y: "y", text: ["mean drift"], textAnchor: "end",
+               fill: walkCfg.green, fontSize: 11, stroke: "white",
+               strokeWidth: 3, paintOrder: "stroke"}),
+    Plot.arrow(walkArrow.arc, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                               stroke: walkCfg.green, strokeWidth: 1.8,
+                               headLength: 7, bend: walkArrow.bend}),
+    Plot.dot(walkPaths.hits, {x: "x", y: "y", fill: walkCfg.orange, r: 3})
+  ]
+})))
+```
+
+:::: {.cogmod-walk-controls}
+
+::: {.cogmod-walk-par .cogmod-walk-par-sigma}
+`sigma`[&nbsp;(SD)]{.cogmod-walk-sdnote}[sets the threshold]{.cogmod-walk-full}
+
+```{ojs}
+//| echo: false
+// The untilted Normal's SD, and so the threshold's height: a = sigma^2 / j^2.
+// The range puts the threshold between 0.2 and 0.8, which the frame is sized
+// for.
+viewof walkSigma = Inputs.range([0.1, 0.2], {value: 0.15, step: 0.005,
+                                             width: 190})
+```
+:::
+
+::: {.cogmod-walk-par .cogmod-walk-par-tilt}
+`tilt`[the drift leaning into time]{.cogmod-walk-full}
+
+```{ojs}
+//| echo: false
+viewof walkTilt = Inputs.range([0, 60], {value: 0, step: 1, width: 190})
+```
+:::
+
+::::
+
+:::::
+
+```{ojs}
+//| echo: false
+// `jostle2` is j^2, the jostle's variance per unit of travel, chosen so that
+// the `sigma` range above puts the threshold between 0.2 and 0.8. The domain
+// holds the widest Normal (3.25 SD either side of the start) and, at 60
+// degrees, the default Wald out to about its 95th percentile; wider settings
+// run off the right edge, as a long tail does. `tcap` is how long a walk is
+// followed before it is given up on - past it the walk has left the frame
+// anyway.
+walkCfg = {
+  const box = document.querySelector(".cogmod-walk");
+  const css = getComputedStyle(box || document.documentElement);
+  const hex = (name) => {
+    const v = css.getPropertyValue("--walk-" + name).trim();
+    if (!v) throw new Error("--walk-" + name + " is not in the palette");
+    return v;
+  };
+  return {jostle2: 0.05, xmin: -0.65, xmax: 1.9, ybot: -0.15, ytop: 1.16,
+          dheight: 0.3, margin: 8, dt: 0.005, tcap: 3, npaths: 30,
+          green: hex("green"), orange: hex("orange"), grey: hex("grey"),
+          black: hex("black")};
+}
+```
+
+```{ojs}
+//| echo: false
+walkA = walkSigma * walkSigma / walkCfg.jostle2
+```
+
+```{ojs}
+//| echo: false
+// Drops the "(SD)" from the `sigma` label once the drift leans - see the top
+// of the file. A class on the figure rather than a rewritten label, so that
+// the markup says what both labels are.
+walkTilted = {
+  const box = document.querySelector(".cogmod-walk");
+  if (box) box.classList.toggle("cogmod-walk-tilted", walkTilt > 0);
+  return walkTilt > 0;
+}
+```
+
+```{ojs}
+//| echo: false
+walkTheta = walkTilt * Math.PI / 180
+```
+
+```{ojs}
+//| echo: false
+walkSkew = 3 * Math.sqrt(walkCfg.jostle2) * Math.sin(walkTheta) /
+           Math.sqrt(walkA * Math.cos(walkTheta))
+```
+
+```{ojs}
+//| echo: false
+// Equal units on both axes: the height follows from the width. Plot scales the
+// svg down proportionally below its own width, so the aspect survives that.
+walkFrame = {
+  const w = Math.max(320, Math.min(width, 760));
+  const unit = (w - 2 * walkCfg.margin) / (walkCfg.xmax - walkCfg.xmin);
+  return {width: w, unit: unit,
+          height: Math.round(unit * (walkCfg.ytop - walkCfg.ybot) +
+                             2 * walkCfg.margin)};
+}
+```
+
+```{ojs}
+//| echo: false
+// f(u) = (a / r) Normal(q; 0, j^2 r) - see the top of the file. Zero where
+// r <= 0, which is left of the Wald's lower bound and never happens untilted.
+walkDensity = {
+  const {jostle2, xmin, xmax, dheight} = walkCfg;
+  const a = walkA, s = Math.sin(walkTheta), c = Math.cos(walkTheta);
+  const n = 800;
+  const xs = [], fs = [];
+  let fmax = 0;
+  for (let i = 0; i <= n; i++) {
+    const u = xmin + (xmax - xmin) * i / n;
+    const r = u * s + a * c;
+    const q = u * c - a * s;
+    const f = r > 0 ? a / r * Math.exp(-q * q / (2 * jostle2 * r)) /
+                      Math.sqrt(2 * Math.PI * jostle2 * r)
+                    : 0;
+    xs.push(u);
+    fs.push(f);
+    fmax = Math.max(fmax, f);
+  }
+  const k = fmax > 0 ? dheight / fmax : 0;
+  return xs.map((x, i) => ({x: x, base: a, y: a + fs[i] * k}));
+}
+```
+
+```{ojs}
+//| echo: false
+// The drift arrow, its label and the arc marking its tilt. The label stands
+// off the arrow's middle along the perpendicular on its upper-left side, which
+// is clear of the arrow at every tilt. The arc is centred on the start, from
+// straight up round to the arrow, so its `bend` is half the tilt; it goes
+// below 4 degrees, where it would be shorter than its own head.
+walkArrow = {
+  const a = walkA, s = Math.sin(walkTheta), c = Math.cos(walkTheta);
+  const px = 1 / walkFrame.unit;                 // one pixel, in data units
+  const x2 = a * s / c;
+  const r = 34 * px;
+  return {
+    x1: 0, y1: 0, x2: x2, y2: a,
+    label: {x: x2 / 2 - 9 * px * c, y: a / 2 + 9 * px * s},
+    arc: walkTilt >= 4 ? [{x1: 0, y1: r, x2: r * s, y2: r * c}] : [],
+    bend: walkTilt / 2
+  };
+}
+```
+
+```{ojs}
+//| echo: false
+// Two arrows out from each span's midpoint, as the dimension lines of
+// `_widget.qmd` are drawn. The SD one is only there while the curve is a
+// Normal, and sits at the height the pinned curve has at one SD from its
+// mean - exp(-1/2) of its peak - so its heads touch the curve. Tilted, the
+// slider no longer is the SD of anything drawn.
+walkSpans = {
+  const a = walkA, bx = walkCfg.xmax - 0.02;
+  const y = a + walkCfg.dheight * Math.exp(-0.5);
+  return {
+    climb: [{x1: bx, y1: a / 2, x2: bx, y2: 0},
+            {x1: bx, y1: a / 2, x2: bx, y2: a}],
+    sd: walkTilt > 0 ? []
+      : [{x1: 0, y1: y, x2: -walkSigma, y2: y},
+         {x1: 0, y1: y, x2: walkSigma, y2: y}]
+  };
+}
+```
+
+```{ojs}
+//| echo: false
+// A fresh set of walks every nine seconds while the figure is on screen, and
+// one as it comes into view - it sits far down a long article, and a set drawn
+// at page load would have finished long before anyone got there. None of it
+// for a reader who has asked for less movement: one static set, no timer.
+walkVolley = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ? null
+  : Generators.observe((next) => {
+      let n = 0, timer = null;
+      next(n);
+      const box = document.querySelector(".cogmod-walk");
+      const watch = new IntersectionObserver(([seen]) => {
+        if (seen.isIntersecting && timer === null) {
+          next(++n);
+          timer = setInterval(() => next(++n), 9000);
+        } else if (!seen.isIntersecting && timer !== null) {
+          clearInterval(timer);
+          timer = null;
+        }
+      });
+      if (box) watch.observe(box);
+      return () => {
+        if (timer !== null) clearInterval(timer);
+        watch.disconnect();
+      };
+    })
+```
+
+```{ojs}
+//| echo: false
+// True once per volley, so that a rebuild from a slider does not restart the
+// animation. Cell state: nothing depends on it, so it is made once.
+walkNewVolley = {
+  let seen = null;
+  return (n) => (n === seen ? false : (seen = n, true));
+}
+```
+
+```{ojs}
+//| echo: false
+// The Brownian increments, drawn once per volley and held while the sliders
+// move, so that dragging redraws these thirty walks under the new settings
+// rather than thirty new ones - the tilt is then seen turning the same walks.
+// A row is long enough to follow a walk for `tcap`.
+walkDraws = {
+  walkVolley;
+  const rnorm = d3.randomNormal(0, Math.sqrt(walkCfg.dt));
+  const nsteps = Math.ceil(walkCfg.tcap / walkCfg.dt);
+  return Array.from({length: walkCfg.npaths},
+                    () => Float64Array.from({length: nsteps}, rnorm));
+}
+```
+
+```{ojs}
+//| echo: false
+// Each walk integrated from its held increments: `p` is progress along the
+// heading and `q` the jostle off it, rotated into the frame. The step that
+// crosses the threshold is cut where it crosses, so the walk and its dot end
+// on the line. A walk that leaves by the right edge first is dropped there and
+// greyed, as `_widget.qmd` greys a path that never arrives. `span` is how long
+// each walk ran, which `walkFire` turns into how long it takes to draw.
+walkPaths = {
+  const {dt, xmax, npaths, green, grey} = walkCfg;
+  const j = Math.sqrt(walkCfg.jostle2);
+  const a = walkA, s = Math.sin(walkTheta), c = Math.cos(walkTheta);
+  const rows = [], hits = [], span = [];
+  for (let k = 0; k < npaths; k++) {
+    const dw = walkDraws[k];
+    const pts = [{x: 0, y: 0}];
+    let p = 0, q = 0, x = 0, y = 0, hit = false, i = 0;
+    for (; i < dw.length; i++) {
+      const x0 = x, y0 = y;
+      p += dt;
+      q += j * dw[i];
+      x = p * s + q * c;
+      y = p * c - q * s;
+      if (y >= a) {
+        x = x0 + (x - x0) * (a - y0) / (y - y0);
+        y = a;
+        hit = true;
+      }
+      pts.push({x: x, y: y});
+      if (hit || x > xmax) break;
+    }
+    if (hit) hits.push({id: k, x: x, y: y});
+    span.push((i + 1) * dt);
+    for (const pt of pts) {
+      rows.push({id: k, colour: hit ? green : grey, x: pt.x, y: pt.y});
+    }
+  }
+  return {rows: rows, hits: hits, span: span};
+}
+```
+
+```{ojs}
+//| echo: false
+// The walks drawn on one at a time. `_widget.qmd` wipes each trace in from the
+// left, which works because its paths move left to right; these do not - at
+// zero tilt they climb straight up - so each is drawn along its own length
+// instead: `pathLength` 1 makes the dash pattern a fraction of the path, and
+// the dash offset runs from 1 to 0. A walk's duration is the time it ran, at a
+// fixed number of milliseconds per unit of the walk's clock, so a straggler is
+// seen to straggle; and its dot appears as it arrives.
+walkFire = function(plot) {
+  if (walkVolley === null || !walkNewVolley(walkVolley)) return plot;
+  const MS = 1400;                       // ms per unit of the walk's clock
+  const STAGGER = 180;                   // ms between one walk and the next
+  const held = [...plot.querySelectorAll('g[aria-label="line"]')]
+    .find((g) => g.querySelectorAll("path").length > 1);
+  if (!held) return plot;
+  const done = [...held.querySelectorAll("path")].map((path, i) => {
+    const delay = i * STAGGER, duration = walkPaths.span[i] * MS;
+    path.setAttribute("pathLength", 1);
+    path.style.strokeDasharray = "1 1";
+    path.animate([{strokeDashoffset: 1}, {strokeDashoffset: 0}],
+                 {duration: duration, delay: delay, easing: "linear",
+                  fill: "both"});
+    return delay + duration;
+  });
+  const dots = plot.querySelector('g[aria-label="dot"]');
+  if (dots) {
+    [...dots.children].forEach((dot, i) => {
+      const hit = walkPaths.hits[i];
+      if (!hit) return;
+      dot.animate([{opacity: 0}, {opacity: 1}],
+                  {duration: 120, delay: done[hit.id], fill: "both"});
+    });
+  }
+  return plot;
+}
+```
+
+```{ojs}
+//| echo: false
+// Two handles, each writing to its slider as the drag handles of `_widget.qmd`
+// do, so a value lives in one place: the threshold line drags up and down (and
+// so sets `sigma`), and the drift arrow turns about its foot (and so sets the
+// tilt). Geometry is measured once at pointerdown and the listeners go on the
+// window, because every change rebuilds the plot out from under the pointer.
+walkDrag = function(plot) {
+  const GRAB = 7;
+  const slider = {
+    sigma: (viewof walkSigma).querySelector('input[type="range"]'),
+    tilt: (viewof walkTilt).querySelector('input[type="range"]')
+  };
+  const at = (key) => Number(slider[key].value);
+  const box = plot.viewBox.baseVal;
+  const mapper = (scale, anchor) => {
+    const [d0, d1] = scale.domain, [p0, p1] = scale.range;
+    const k = (p1 - p0) / (d1 - d0);
+    const per = (rect) => box.height / rect.height;
+    return {
+      to: (v, rect) => anchor(rect) + (p0 + (v - d0) * k) / per(rect),
+      from: (p, rect) => d0 + ((p - anchor(rect)) * per(rect) - p0) / k
+    };
+  };
+  const X = mapper(plot.scale("x"), (rect) => rect.left);
+  const Y = mapper(plot.scale("y"), (rect) => rect.top);
+  const threshold = () => at("sigma") * at("sigma") / walkCfg.jostle2;
+  const toSegment = (p, a, b) => {
+    const vx = b.x - a.x, vy = b.y - a.y, len = vx * vx + vy * vy;
+    const t = len ? Math.max(0, Math.min(1, ((p.x - a.x) * vx +
+                                             (p.y - a.y) * vy) / len)) : 0;
+    return Math.hypot(p.x - (a.x + t * vx), p.y - (a.y + t * vy));
+  };
+  const handle = {
+    sigma: {
+      cursor: "ns-resize",
+      away: (p, rect) => Math.abs(p.y - Y.to(threshold(), rect)),
+      read: (p, rect) =>
+        Math.sqrt(Math.max(0, Y.from(p.y, rect)) * walkCfg.jostle2)
+    },
+    tilt: {
+      cursor: "move",
+      away: (p, rect) => {
+        const a = threshold(), th = at("tilt") * Math.PI / 180;
+        return toSegment(p, {x: X.to(0, rect), y: Y.to(0, rect)},
+                         {x: X.to(a * Math.tan(th), rect), y: Y.to(a, rect)});
+      },
+      // The angle from straight up to the pointer, about the arrow's foot.
+      // Equal units on both axes make it the angle on screen too.
+      read: (p, rect) => Math.atan2(X.from(p.x, rect), Y.from(p.y, rect)) *
+                         180 / Math.PI
+    }
+  };
+  const nearest = (event, rect) => {
+    const p = {x: event.clientX, y: event.clientY};
+    let pick = null, best = GRAB;
+    for (const key in handle) {
+      const away = handle[key].away(p, rect);
+      if (away < best) { pick = key; best = away; }
+    }
+    return pick;
+  };
+  plot.addEventListener("pointermove", (event) => {
+    const pick = nearest(event, plot.getBoundingClientRect());
+    plot.style.cursor = pick ? handle[pick].cursor : "";
+  });
+  plot.addEventListener("pointerdown", (event) => {
+    const rect = plot.getBoundingClientRect();
+    const pick = nearest(event, rect);
+    if (!pick) return;
+    event.preventDefault();
+    document.body.style.userSelect = "none";
+    const input = slider[pick];
+    const lo = Number(input.min), hi = Number(input.max);
+    const step = Number(input.step);
+    const move = (e) => {
+      const asked = handle[pick].read({x: e.clientX, y: e.clientY}, rect);
+      if (!Number.isFinite(asked)) return;
+      const v = Math.max(lo, Math.min(hi, Math.round(asked / step) * step));
+      if (v === Number(input.value)) return;
+      input.value = v;
+      input.dispatchEvent(new Event("input", {bubbles: true}));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  });
+  return plot;
+}
+```
+
+```{ojs}
+//| echo: false
+// The value bubble over each thumb, as in `_widget.qmd`: set up once per
+// slider, then kept in place by the slider's own input events.
+walkBubbles = {
+  const forms = [[viewof walkSigma, (v) => v.toFixed(3)],
+                 [viewof walkTilt, (v) => v + "°"]];
+  for (const [form, label] of forms) {
+    if (form.querySelector(".cogmod-walk-bubble")) continue;
+    const range = form.querySelector('input[type="range"]');
+    const bubble = form.appendChild(document.createElement("span"));
+    bubble.className = "cogmod-walk-bubble";
+    const place = () => {
+      const lo = Number(range.min), hi = Number(range.max);
+      const frac = (range.valueAsNumber - lo) / (hi - lo);
+      bubble.textContent = label(range.valueAsNumber);
+      bubble.style.left = (range.offsetLeft + 6.5 +
+                           frac * (range.offsetWidth - 13)) + "px";
+    };
+    range.addEventListener("input", place);
+    form.addEventListener("pointerenter", place);
+    place();
+  }
+}
+```

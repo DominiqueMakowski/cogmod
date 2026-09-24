@@ -492,8 +492,38 @@ decision threshold: the distribution of the times at which that threshold is
 first crossed *is* the Wald distribution. Its skewed shape is not a modelling
 choice, it is a consequence of the assumed mechanism.
 
+To better grasp the core idea behind evidence accumulation models, let's start from a
+distribution we already know. As we saw above, the Normal distribution is what
+the Central Limit Theorem gives whenever many small random contributions add
+up. In other words, the Normal distribution can be seen as the **end result of a process**: 
+that process being a random walk that heads towards a threshold at a steady
+pace while being jostled sideways at every step. The **average direction** of all 
+the individual steps, or the **mean drift** is vertical, and the distance to the threshold 
+determines the distribution's SD, since a longer journey accumulates more jostling and
+widens the distribution.
 
-{{< include _widget.qmd >}}
+This perspective allows us to see the Normal distribution not just as a static shape, 
+but as the outcome of an underlying process.
+This means that instead of describing a Normal distribution **by its shape** 
+(with mean $\mu$ and SD $\sigma$), we can also describe it by the 
+parameters of the underlying process: the **mean drift** (vertical), the location of
+its **starting point** (corresponding to its mean), and the distance to the threshold 
+(**boundary separation**, corresponding to the SD of the distribution).
+
+
+The genius idea of evidence accumulation models is cast this idea into reality, and 
+impose the notion of "time". What if each random process was one "evidence accumulation" 
+cognitive process unfolding over time, which means that it needs to always go **forward**, 
+which in turns tilts the mean drift towards the time axis. The walk itself is unchanged, but its sideways
+jostling now also pushes it towards or away from the threshold: walks pushed
+towards it cross early, while walks pushed away straggle on for longer, and are
+carried further along the time axis as they go. **The crossing points are no
+longer Normal but skewed to the right**, and this "skewed Normal" actually corresponds to the **Wald distribution**. 
+Therein lies the beauty: a simple "perspective changing" (thinking of a distribution as the result of a process), 
+and then imposing physical constraints (time) naturally gives rise to the skewed RT distributions we often observe.
+
+
+{{< include _widget_wald.qmd >}}
 
 
 The Shifted Wald model (also known as the Inverse Gaussian distribution) is actually equivalent to a one-response version of the Drift Diffusion Model (DDM) 
@@ -506,7 +536,9 @@ task difficulty or processing efficiency), `boundary` is the **decision threshol
 `ndt` is again the **non-decision time** (encoding and motor execution). This
 is why the formula below regresses `Condition` on `boundary` rather than on `sigma`:
 the natural hypothesis for a speed-vs-accuracy manipulation is that
-instructions move the *threshold*, not the quality of the evidence.
+instructions move the *threshold*, not the quality of the evidence. (The
+figure at the start of [Other Models](#other-models) draws the Wald in exactly
+these terms, with time along the horizontal axis.)
 
 Two caveats are worth keeping in mind. First, because this version has a
 single boundary, it only describes the timing of *one* type of response - it
@@ -643,6 +675,22 @@ context are correspondingly less well documented. They are nonetheless capable
 of generating close fits to RT data, and more research is needed to establish
 whether they offer any real advantage - in terms of fit, of interpretability,
 or of computational behaviour - over the more established options.
+
+Several of them - and some of the main families above - are variants of one
+accumulation process that differ only in a few assumptions: whether the
+evidence is noisy within a trial, whether its rate varies from one trial to the
+next (and how), and how many accumulators and boundaries there are. The figure
+below turns those assumptions into toggles. It opens on the Wald, this time
+laid out the way the model is parametrized: time runs along the horizontal
+axis, evidence accumulates up the vertical one, and the slope of the mean drift
+is the drift rate. From there, the tabs lead to its relatives - the recinormal
+(LATER) below, the shifted LogNormal and the single-accumulator LBA above, and
+the choice models of the *Decision Making* vignette - and the Wald-4 below is
+the Wald with between-trial variability set to "Normal".
+
+
+{{< include _widget.qmd >}}
+
 
 ### Recinormal (LATER)
 
