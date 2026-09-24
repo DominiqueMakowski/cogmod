@@ -144,7 +144,8 @@ scale behind a \code{softplus} link and so are equally badly served by starting
 at \code{log(2)}.
 
 The two bounded-scale families for subjective ratings, \code{\link[=cogmod_choco]{cogmod_choco()}} and
-\code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}, are covered as well to help with warmup.
+\code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}, are covered as well to help with warmup, as is the
+Gaussian-probit baseline \code{\link[=cogmod_gaussbit]{cogmod_gaussbit()}}.
 }
 
 \examples{

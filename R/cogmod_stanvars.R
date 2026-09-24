@@ -96,7 +96,7 @@ cogmod_stanvars <- function(formula, ...) {
   unique(c(
     "cogmod_betadiscrete", "cogmod_betagate", "cogmod_choco", "cogmod_ddm",
     "cogmod_lba2", "cogmod_lnr", "cogmod_rdm", "cogmod_exgaussian",
-    "cogmod_geg",
+    "cogmod_geg", "cogmod_gaussbit",
     .OUTLIER_FAMILIES
   ))
 }

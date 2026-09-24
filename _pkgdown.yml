@@ -37,6 +37,7 @@ reference:
           - rcogmod_lba2
           - rcogmod_ddm
           - rcogmod_rdm
+          - rcogmod_gaussbit
     - title: "RT-only Models"
       contents:
           - rcogmod_lognormal

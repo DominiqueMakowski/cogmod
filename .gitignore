@@ -101,6 +101,12 @@ benchmarks/results/warmstart_ablation.png
 benchmarks/*.bat
 # Superseded benchmark runs, kept locally for reference
 benchmarks/results/archive-*/
+# Probit-vs-logit benchmark for cogmod_gaussbit()
+# (benchmarks/gaussbit_links/bench.R): only the three CSVs are kept; the
+# generated programs, their executables and the log are regenerable.
+benchmarks/gaussbit_links/results/*.exe
+benchmarks/gaussbit_links/results/*.stan
+benchmarks/gaussbit_links/results/run.log*
 
 # The animation scripts import a shared module, which leaves one of these.
 __pycache__/

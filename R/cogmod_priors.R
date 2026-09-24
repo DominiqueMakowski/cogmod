@@ -118,7 +118,10 @@
 #' [cogmod_ddm()]. [cogmod_exgaussian()] and [cogmod_geg()] are edited too,
 #' although they are not built on that parameterization - see their own section
 #' below - as are the three bounded-scale families for subjective ratings,
-#' [cogmod_choco()], [cogmod_betagate()] and [cogmod_betadiscrete()]. Any other
+#' [cogmod_choco()], [cogmod_betagate()] and [cogmod_betadiscrete()], and the
+#' Gaussian-probit baseline [cogmod_gaussbit()], whose priors are the `brms`
+#' defaults for `gaussian()` plus `bernoulli("probit")` with one added for its
+#' correlation `rho` (see [cogmod_gaussbit()]). Any other
 #' family, or a formula carrying none, is passed through: you get a message and
 #' `brms`'s own defaults, unchanged, so the call is always safe to leave in a
 #' script.
@@ -375,6 +378,8 @@
 #' | `mu` ([cogmod_exgaussian()]) | `normal(0.4, 0.25)` | - (always modelled) |
 #' | `sigma` ([cogmod_exgaussian()]) | `normal(-2.3, 0.7)` | `lognormal(-2.3, 0.7)` |
 #' | `tau` ([cogmod_exgaussian()]) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
+#' | `mudec` ([cogmod_gaussbit()]; slopes left flat) | `student_t(3, 0, 2.5)` | `student_t(3, 0, 2.5)` |
+#' | `rho` ([cogmod_gaussbit()]) | `normal(0, 0.5)` | `normal(0, 0.5)` |
 #' | `confright`, `confleft` ([cogmod_choco()]), `bex` | `normal(0, 1)` | `beta(2, 2)` |
 #' | `precright`, `precleft` ([cogmod_choco()]), `phi` ([cogmod_betagate()]) | `normal(2, 1.5)` | `lognormal(0.7, 0.7)` |
 #' | `phi` ([cogmod_betadiscrete()]) | `normal(0.7, 0.8)` | `lognormal(0.7, 0.8)` |
@@ -491,7 +496,8 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
     out <- .priors_shifted(formula, data, family, ...)
   } else if (isTRUE(fam %in% names(.PRIORS_PLAIN))) {
     spec <- .PRIORS_PLAIN[[fam]]
-    out <- .priors_dpars(formula, data, family, spec$prior, spec$override, ...)
+    out <- .priors_dpars(formula, data, family, spec$prior, spec$override, ...,
+                         free_slopes = spec$free_slopes)
   } else {
     message(
       "cogmod_priors() has nothing to add for family '",
@@ -600,6 +606,11 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
 # `override` names the dpars whose *modelled intercept* row is replaced even
 # though brms already supplied a prior for it. Auxiliary rows are always
 # replaced - that is what the `nat` entry is for - so they need no listing.
+#
+# `free_slopes` names the dpars whose slopes are left to brms, flat, rather
+# than given the family's `slope` or the blanket default - the treatment `mu`
+# gets everywhere, for the same reason: they are the effects the model is
+# being fitted to estimate.
 #' @keywords internal
 .PRIORS_PLAIN <- list(
   # cogmod_exgaussian() has no ndt and no poutlier, but it does have two
@@ -805,6 +816,40 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
                 slope = "normal(0, 0.5)")
     ),
     override = "phi"
+  ),
+
+  # cogmod_gaussbit() is the default analysis - gaussian() on the RTs,
+  # bernoulli("probit") on the choices - plus a correlation, and its priors are
+  # that analysis's priors plus one for the correlation, so that at `rho = 0`
+  # the two fits are the same model, priors included (see
+  # ?rcogmod_gaussbit).
+  #
+  # `mu` and `sigma` are therefore left to brms, which gives them exactly what
+  # it gives gaussian(): a student_t(3, median(y), 2.5) intercept on `mu` - on
+  # an identity link brms centres it on the data, so the ex-Gaussian's
+  # zero-seconds problem does not arise - and student_t(3, 0, 2.5) on `sigma`,
+  # half on the natural scale when it is omitted, on the log scale when it is
+  # modelled.
+  #
+  # `mudec` is a custom name, so brms leaves it flat in both forms. It gets the
+  # student_t(3, 0, 2.5) bernoulli() gives its intercept, and its slopes stay
+  # flat, as bernoulli()'s do. Being on an identity link, the modelled and the
+  # omitted forms are on one scale and carry one prior.
+  #
+  # `rho` is the one addition. It is the Fisher z of a correlation, and a flat
+  # prior is improper wherever the likelihood cannot see it - with no errors in
+  # a cell, say. normal(0, 0.5) centres it on independence, the nested default
+  # analysis, and puts 95% of the correlation within tanh(0.98) = +/-0.75:
+  # wide enough for the conditional accuracy functions real tasks produce, and
+  # it keeps the sampler off the |rho| -> 1 edge, where the choice becomes a
+  # step function of the RT. Identity link, so again one scale.
+  cogmod_gaussbit = list(
+    prior = list(
+      mudec = c(link = "student_t(3, 0, 2.5)", nat = "student_t(3, 0, 2.5)"),
+      rho = c(link = "normal(0, 0.5)", nat = "normal(0, 0.5)",
+              slope = "normal(0, 0.5)")
+    ),
+    free_slopes = "mudec"
   )
 )
 
@@ -879,7 +924,8 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
 # with any of `link`, `nat` and `slope`. See .PRIORS_PLAIN above.
 #' @keywords internal
 .priors_dpars <- function(formula, data, family, own, override = character(0),
-                          ..., slope_default = "normal(0, 0.2)") {
+                          ..., slope_default = "normal(0, 0.2)",
+                          free_slopes = character(0)) {
   p <- brms::get_prior(formula, data = data, family = family, ...)
   # Kept whole: once `p` has been filtered down to the rows being set, there is
   # no way left to tell "this blanket row covers a coefficient we left alone"
@@ -931,6 +977,10 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
   # family put there on purpose. The response's own smooth (`dpar == ""`) is
   # not touched, for the same reason its slopes are not.
   link <- link | (p$dpar %in% dpars & p$class == "sds" & !nzchar(p$coef))
+  # Slopes the family leaves to brms, blanket row included. `b` on a coefficient
+  # named "Intercept" is the intercept under `0 + Intercept`, and stays.
+  link <- link & !(p$dpar %in% free_slopes & p$class == "b" &
+                     p$coef != "Intercept")
 
   # `mu` is the response's own linear predictor, so brms reports it with an
   # EMPTY dpar - class "Intercept", or class "b" with coef "Intercept" under

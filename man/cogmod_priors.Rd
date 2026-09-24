@@ -144,7 +144,10 @@ choice-and-RT models, \code{\link[=cogmod_lnr]{cogmod_lnr()}}, \code{\link[=cogm
 \code{\link[=cogmod_ddm]{cogmod_ddm()}}. \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} and \code{\link[=cogmod_geg]{cogmod_geg()}} are edited too,
 although they are not built on that parameterization - see their own section
 below - as are the three bounded-scale families for subjective ratings,
-\code{\link[=cogmod_choco]{cogmod_choco()}}, \code{\link[=cogmod_betagate]{cogmod_betagate()}} and \code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}. Any other
+\code{\link[=cogmod_choco]{cogmod_choco()}}, \code{\link[=cogmod_betagate]{cogmod_betagate()}} and \code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}, and the
+Gaussian-probit baseline \code{\link[=cogmod_gaussbit]{cogmod_gaussbit()}}, whose priors are the \code{brms}
+defaults for \code{gaussian()} plus \code{bernoulli("probit")} with one added for its
+correlation \code{rho} (see \code{\link[=cogmod_gaussbit]{cogmod_gaussbit()}}). Any other
 family, or a formula carrying none, is passed through: you get a message and
 \code{brms}'s own defaults, unchanged, so the call is always safe to leave in a
 script.
@@ -400,6 +403,8 @@ lives on:\tabular{lll}{
    \code{mu} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(0.4, 0.25)} \tab - (always modelled) \cr
    \code{sigma} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(-2.3, 0.7)} \tab \code{lognormal(-2.3, 0.7)} \cr
    \code{tau} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(-1.5, 0.7)} \tab \code{lognormal(-1.5, 0.7)} \cr
+   \code{mudec} (\code{\link[=cogmod_gaussbit]{cogmod_gaussbit()}}; slopes left flat) \tab \code{student_t(3, 0, 2.5)} \tab \code{student_t(3, 0, 2.5)} \cr
+   \code{rho} (\code{\link[=cogmod_gaussbit]{cogmod_gaussbit()}}) \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \cr
    \code{confright}, \code{confleft} (\code{\link[=cogmod_choco]{cogmod_choco()}}), \code{bex} \tab \code{normal(0, 1)} \tab \code{beta(2, 2)} \cr
    \code{precright}, \code{precleft} (\code{\link[=cogmod_choco]{cogmod_choco()}}), \code{phi} (\code{\link[=cogmod_betagate]{cogmod_betagate()}}) \tab \code{normal(2, 1.5)} \tab \code{lognormal(0.7, 0.7)} \cr
    \code{phi} (\code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}) \tab \code{normal(0.7, 0.8)} \tab \code{lognormal(0.7, 0.8)} \cr
