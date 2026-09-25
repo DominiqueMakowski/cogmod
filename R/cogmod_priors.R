@@ -224,7 +224,7 @@
 #' Note that no prior is set on the shape of [cogmod_weibull()] or
 #' [cogmod_gamma()], although a shape below 2 makes their `ndt` gradient
 #' unbounded. That region is reached because the *likelihood* prefers it, by
-#' around 100 log units on the data in `vignette("rt_models")`, so a prior weak
+#' around 100 log units on the data in the [RT models article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html), so a prior weak
 #' enough to be a sensible default cannot move the posterior out of it - only
 #' bias it. `?rcogmod_weibull` sets out what to do instead.
 #'

@@ -416,6 +416,7 @@ test_that("cens() is refused where it cannot go and questioned where it is doubt
 
 test_that("a censored shifted Wald recovers its parameters and loo() runs", {
   skip_if_not_slow()
+  skip_if_not_installed("loo")
   set.seed(11)
   n <- 600
   # Correct responses from the model; an independent competing process that

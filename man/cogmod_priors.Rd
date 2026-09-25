@@ -251,7 +251,7 @@ region under a flat prior. See \code{\link[=cogmod_lba1]{cogmod_lba1()}}, \code{
 Note that no prior is set on the shape of \code{\link[=cogmod_weibull]{cogmod_weibull()}} or
 \code{\link[=cogmod_gamma]{cogmod_gamma()}}, although a shape below 2 makes their \code{ndt} gradient
 unbounded. That region is reached because the \emph{likelihood} prefers it, by
-around 100 log units on the data in \code{vignette("rt_models")}, so a prior weak
+around 100 log units on the data in the \href{https://dominiquemakowski.github.io/cogmod/articles/rt_models.html}{RT models article}, so a prior weak
 enough to be a sensible default cannot move the posterior out of it - only
 bias it. \code{?rcogmod_weibull} sets out what to do instead.
 }

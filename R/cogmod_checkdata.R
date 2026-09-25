@@ -251,7 +251,7 @@
       "had not finished by then. In practice, Miller et al. (2018) argue ",
       "for the potential suitability of this model for less than 5% of errors, ",
       "as with more it can severely bias the drift. Consider a race that models ",
-      "errors as such, that and compare the ",
+      "errors as such, and compare the ",
       "censored trials' RTs to the others': censoring can only ever ",
       "produce them slower.",
       call. = FALSE

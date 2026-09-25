@@ -146,7 +146,7 @@ response, which is exactly where the data put it.
 }
 
 The middle regime is the one to watch, because nothing warns about it. On the
-4285-trial lexical-decision data in \code{vignette("rt_models")} the shape comes
+4285-trial lexical-decision data in the \href{https://dominiquemakowski.github.io/cogmod/articles/rt_models.html}{RT models article} the shape comes
 out at 1.4, \code{ndt} lands at 0.40 s inside the dense left edge of the data, and
 the sampler's step size collapses to 0.005 against 0.19 for
 \code{\link[=cogmod_lognormal]{cogmod_lognormal()}} on the same data: mean treedepth 8.1 against 3.9, which
@@ -197,7 +197,7 @@ choose the shape rather than having the family fix it. On the data above it
 samples in a third of the time with no divergences.
 
 The slow sampling and the poor fit are the same fact, not two problems.
-Across the ten families fitted in \code{vignette("rt_models")} the Weibull comes
+Across the ten families fitted in the \href{https://dominiquemakowski.github.io/cogmod/articles/rt_models.html}{RT models article} the Weibull comes
 \strong{last} by \code{loo}, 196 elpd (SE 21) behind \code{\link[=cogmod_loggamma]{cogmod_loggamma()}} and 95 behind
 the next worst. What the sampler struggles with is the model contorting
 itself - pushing the shift up into the data, pulling the shape toward 1 - to

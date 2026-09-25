@@ -795,12 +795,13 @@ test_that("cogmod_priors fences the start-point range for cogmod_lognormal", {
   code <- brms::make_stancode(pinned, data = d, prior = p3,
                               stanvars = cogmod_stanvars(pinned))
   expect_true(grepl("real sigmabias = 0;", code, fixed = TRUE))
-  # and cens() builds with the range modelled
+  # and cens() builds with the range modelled (half the trials censored, which
+  # draws the heavy-censoring warning: not what this test is about)
   d$cens <- rep(c(0L, 1L), length.out = 150)
   censored <- brms::bf(RT | cens(cens) ~ 1, sigmabias ~ 1,
                        family = cogmod_lognormal())
   code2 <- brms::make_stancode(censored, data = d,
-                               prior = cogmod_priors(censored, d),
+                               prior = suppressWarnings(cogmod_priors(censored, d)),
                                stanvars = cogmod_stanvars(censored))
   expect_true(grepl("cogmod_lognormal_lccdf", code2, fixed = TRUE))
 })

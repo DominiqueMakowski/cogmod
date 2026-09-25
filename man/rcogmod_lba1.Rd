@@ -198,7 +198,7 @@ small enough, making it smaller stops changing the density, so the likelihood
 goes \strong{flat}. On a \code{softplus} link zero is at minus infinity, so a flat prior
 there leaves the posterior improper, and the symptom is a chain that wanders
 off rather than one that fails. Fitted without priors on the 4285-trial data
-in \code{vignette("rt_models")}, \code{sigmabias} for one condition ran to
+in the \href{https://dominiquemakowski.github.io/cogmod/articles/rt_models.html}{RT models article}, \code{sigmabias} for one condition ran to
 \code{softplus(-10.4) = 3e-05} with \code{Rhat} 1.69 and an effective sample size of 6.
 
 There are two ways out, and the choice is a modelling decision rather than a

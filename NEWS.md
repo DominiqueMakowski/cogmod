@@ -248,6 +248,17 @@
   out about 20% cheaper than before and one with a start-point range about 15%
   dearer, the latter buying the corrected gradient above.
 
+## Documentation
+
+* Help pages that sent the reader to `vignette("rt_models")` or
+  `vignette("performance")` now link to those articles on the package website.
+  Both are website articles, not installed vignettes, so the call failed.
+
+* The `cogmod_warmstart()` example is now self-contained and runs (with
+  CmdStan): it simulates its data, fits the pilot and the warm-started model,
+  and writes the warm-start table to a temporary file rather than to the
+  working directory.
+
 # cogmod 0.3.2
 
 ## New features

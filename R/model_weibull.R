@@ -42,7 +42,7 @@
 #' - `mu > 2`: bounded gradient. `mu > 3` additionally bounds the curvature.
 #'
 #' The middle regime is the one to watch, because nothing warns about it. On the
-#' 4285-trial lexical-decision data in `vignette("rt_models")` the shape comes
+#' 4285-trial lexical-decision data in the [RT models article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html) the shape comes
 #' out at 1.4, `ndt` lands at 0.40 s inside the dense left edge of the data, and
 #' the sampler's step size collapses to 0.005 against 0.19 for
 #' [cogmod_lognormal()] on the same data: mean treedepth 8.1 against 3.9, which
@@ -93,7 +93,7 @@
 #' samples in a third of the time with no divergences.
 #'
 #' The slow sampling and the poor fit are the same fact, not two problems.
-#' Across the ten families fitted in `vignette("rt_models")` the Weibull comes
+#' Across the ten families fitted in the [RT models article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html) the Weibull comes
 #' **last** by `loo`, 196 elpd (SE 21) behind [cogmod_loggamma()] and 95 behind
 #' the next worst. What the sampler struggles with is the model contorting
 #' itself - pushing the shift up into the data, pulling the shape toward 1 - to
