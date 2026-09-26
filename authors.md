@@ -8,7 +8,7 @@
 ## Citation
 
 Source:
-[`inst/CITATION`](https://github.com/DominiqueMakowski/cogmod/blob/main/inst/CITATION)
+[`inst/CITATION`](https://github.com/DominiqueMakowski/cogmod/blob/v0.3.3/inst/CITATION)
 
 Makowski, D. (2026). cogmod: Cognitive Models for Subjective Scales and
 Decision Making Tasks. R package version 0.3.3.
