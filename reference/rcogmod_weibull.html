@@ -29,7 +29,7 @@ cogmod_weibull_stanvars(): Generates the stanvars to pass to brm().
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -227,7 +227,7 @@ keeps it so - but the gradient spikes wherever <code>ndt</code> sits close to a
 response, which is exactly where the data put it.</p></li>
 <li><p><code>mu &gt; 2</code>: bounded gradient. <code>mu &gt; 3</code> additionally bounds the curvature.</p></li>
 </ul><p>The middle regime is the one to watch, because nothing warns about it. On the
-4285-trial lexical-decision data in <code>vignette("rt_models")</code> the shape comes
+4285-trial lexical-decision data in the <a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html">RT models article</a> the shape comes
 out at 1.4, <code>ndt</code> lands at 0.40 s inside the dense left edge of the data, and
 the sampler's step size collapses to 0.005 against 0.19 for
 <code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code> on the same data: mean treedepth 8.1 against 3.9, which
@@ -276,7 +276,7 @@ not smooth.</p>
 choose the shape rather than having the family fix it. On the data above it
 samples in a third of the time with no divergences.</p>
 <p>The slow sampling and the poor fit are the same fact, not two problems.
-Across the ten families fitted in <code>vignette("rt_models")</code> the Weibull comes
+Across the ten families fitted in the <a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html">RT models article</a> the Weibull comes
 <strong>last</strong> by <code>loo</code>, 196 elpd (SE 21) behind <code><a href="rcogmod_loggamma.html">cogmod_loggamma()</a></code> and 95 behind
 the next worst. What the sampler struggles with is the model contorting
 itself - pushing the shift up into the data, pulling the shape toward 1 - to

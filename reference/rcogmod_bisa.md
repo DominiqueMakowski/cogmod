@@ -281,11 +281,11 @@ hist(rts, breaks = 100, xlab = "RT (s)")
 
 # The mean is the Wald's, boundary / mu, plus 1 / (2 * mu^2).
 mean(rcogmod_bisa(1e5, mu = 3, boundary = 0.5, ndt = 0.2))
-#> [1] 0.4224397
+#> [1] 0.4219589
 0.2 + 0.5 / 3 + 1 / (2 * 3^2)
 #> [1] 0.4222222
 
 # The median is exactly ndt + boundary / mu.
 median(rcogmod_bisa(1e5, mu = 3, boundary = 0.5, ndt = 0.2))
-#> [1] 0.3669211
+#> [1] 0.3674137
 ```

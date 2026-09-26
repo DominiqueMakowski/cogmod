@@ -15,7 +15,7 @@ the failure is silent: the chain does not error, it simply never moves."><meta p
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -81,9 +81,16 @@ when <code>warmstart</code> is a <code>brmsfit</code>, whose data are then used.
 
 <dt id="arg-jitter">jitter<a class="anchor" aria-label="anchor" href="#arg-jitter"></a></dt>
 <dd><p>SD of the noise added on the unconstrained scale, so that
-chains start at different points. Set to <code>0</code> for identical starts. <code>NULL</code>
-(the default) means 0.25, or 0.05 with a <code>warmstart</code>, whose values come
-from a converged posterior and should not be scattered far.</p></dd>
+chains start at different points. One number is the SD for the
+population-level blocks, the intercepts and slopes; the group-level and
+smooth blocks - the standardized effects <code>z_*</code> and <code>zs_*</code> and their scales
+<code>sd_*</code> and <code>sds_*</code> - get a fifth of it, because a unit of noise there is
+multiplied through a scale and a design column before it reaches the
+linear predictor, and reaches it once per participant or basis function.
+Two numbers set the two tiers directly, population first. Set to <code>0</code> for
+identical starts. <code>NULL</code> (the default) means 0.25, so 0.05 on the
+hierarchical blocks, or 0.05 with a <code>warmstart</code>, whose values come from a
+converged posterior and should not be scattered far.</p></dd>
 
 
 <dt id="arg-warmstart">warmstart<a class="anchor" aria-label="anchor" href="#arg-warmstart"></a></dt>
@@ -189,8 +196,11 @@ rest of warmup.</p>
 <code><a href="rcogmod_weibull.html">cogmod_weibull()</a></code>, <code><a href="rcogmod_invweibull.html">cogmod_invweibull()</a></code>, <code><a href="rcogmod_logweibull.html">cogmod_logweibull()</a></code>, <code><a href="rcogmod_lba1.html">cogmod_lba1()</a></code> and,
 for the choice-and-RT models, <code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>, <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>,
 <code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code> and <code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code> - plus
-<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>, whose three parameters are all on the RT scale behind a
-<code>softplus</code> link and so are equally badly served by starting at <code>log(2)</code>.</p>
+<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code> and <code><a href="rcogmod_geg.html">cogmod_geg()</a></code>, whose parameters are all on the RT
+scale behind a <code>softplus</code> link and so are equally badly served by starting
+at <code>log(2)</code>.</p>
+<p>The two bounded-scale families for subjective ratings, <code><a href="rcogmod_choco.html">cogmod_choco()</a></code> and
+<code><a href="rcogmod_betadiscrete.html">cogmod_betadiscrete()</a></code>, are covered as well to help with warmup.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -214,6 +224,37 @@ for the choice-and-RT models, <code><a href="rcogmod_lnr.html">cogmod_lnr()</a><
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $Intercept_poutlier</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] -3.861294</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># The bounded-scale families are covered too. `pmid` starts at 0.05 rather</span></span></span>
+<span class="r-in"><span><span class="co"># than the logit origin's 0.5, which would put half of every response</span></span></span>
+<span class="r-in"><span><span class="co"># exactly on the midpoint of the scale.</span></span></span>
+<span class="r-in"><span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>y <span class="op">=</span> <span class="fu"><a href="rcogmod_choco.html">rcogmod_choco</a></span><span class="op">(</span><span class="fl">50</span>, pmid <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">g</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fl">1</span>, <span class="va">pmid</span> <span class="op">~</span> <span class="fl">1</span>, family <span class="op">=</span> <span class="fu"><a href="rcogmod_choco.html">cogmod_choco</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">cogmod_inits</span><span class="op">(</span><span class="va">g</span>, <span class="va">r</span>, jitter <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $Intercept</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $confright</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.5</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $precright</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $confleft</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.5</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $precleft</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $pex</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $bex</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.5</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $Intercept_pmid</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] -2.944439</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># \donttest{</span></span></span>

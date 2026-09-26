@@ -33,7 +33,7 @@ cogmod_bisa_stanvars(): Generates the stanvars to pass to brm().
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -300,13 +300,13 @@ distributions. <em>Journal of Applied Probability</em>, <em>6</em>(2), 319-327.
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># The mean is the Wald's, boundary / mu, plus 1 / (2 * mu^2).</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="fu">rcogmod_bisa</span><span class="op">(</span><span class="fl">1e5</span>, mu <span class="op">=</span> <span class="fl">3</span>, boundary <span class="op">=</span> <span class="fl">0.5</span>, ndt <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.4224397</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.4219589</span>
 <span class="r-in"><span><span class="fl">0.2</span> <span class="op">+</span> <span class="fl">0.5</span> <span class="op">/</span> <span class="fl">3</span> <span class="op">+</span> <span class="fl">1</span> <span class="op">/</span> <span class="op">(</span><span class="fl">2</span> <span class="op">*</span> <span class="fl">3</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.4222222</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># The median is exactly ndt + boundary / mu.</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/stats/median.html" class="external-link">median</a></span><span class="op">(</span><span class="fu">rcogmod_bisa</span><span class="op">(</span><span class="fl">1e5</span>, mu <span class="op">=</span> <span class="fl">3</span>, boundary <span class="op">=</span> <span class="fl">0.5</span>, ndt <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.3669211</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.3674137</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

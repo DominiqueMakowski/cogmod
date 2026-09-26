@@ -233,7 +233,7 @@ hist(rts, breaks = 100, xlab = "RT (s)")
 
 # The mean is boundary / mu + tau, on top of ndt.
 mean(rcogmod_exwald(1e5, mu = 3, boundary = 0.5, tau = 0.15, ndt = 0.2))
-#> [1] 0.5168124
+#> [1] 0.5165326
 0.2 + 0.5 / 3 + 0.15
 #> [1] 0.5166667
 ```

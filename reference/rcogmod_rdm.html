@@ -39,7 +39,7 @@ p_outlier(): Per-trial posterior probability of being an outlier.
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -437,7 +437,7 @@ Wald density is thin on the fast side and flat on the slow side, so an
 error accumulator started too fast sits hundreds of log-density units above
 the posterior, and a cold chain's first trajectory can convert that into a
 run down the flat <code>driftone</code> direction from which it never returns. On the
-benchmark data of <code>vignette("performance")</code> that froze one chain in four;
+benchmark data of the <a href="https://dominiquemakowski.github.io/cogmod/articles/performance.html">performance article</a> that froze one chain in four;
 the slower start removed it.</p>
 <p><code><a href="cogmod_priors.html">cogmod_priors()</a></code> is not a convenience here either. Beyond <code>ndt</code> and
 <code>poutlier</code>, <code>sigmabias</code> and <code>boundary</code> are only weakly identified from each

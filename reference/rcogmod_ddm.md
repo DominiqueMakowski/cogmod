@@ -312,6 +312,22 @@ likelihood stops changing well before then - so
 gives all three deliberately tight priors. Fixing the ones a design
 cannot identify is usually better than estimating them behind a prior.
 
+There is a cost argument too, and it is a cliff rather than a slope. The
+Stan density has a closed form for `sigmadrift`, so estimating it costs
+about 2.8 times the classic model per gradient evaluation. `sigmabias`
+and `sigmandt` have no closed form: Stan integrates them out
+numerically, once for the density and once more for each partial
+derivative, at every observation and every leapfrog step. Measured
+against the `sigmadrift`-only model, estimating *one* of them costs
+about 18 times as much per gradient and estimating *both* about 30 times
+(55 before the tolerance the package now passes to `wiener_lpdf()`).
+Nothing in between exists: the fast path is a test for exactly zero, so
+a tight prior does not buy it back - a `sigmandt` estimated at 1e-5
+costs the same as one at 0.05 s. Only `sigmandt = 0` in
+[`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) does.
+On a few thousand trials this is the difference between minutes and
+hours; on a few hundred thousand, between a day and weeks.
+
 ## The outlier component
 
 A shifted distribution assigns exactly zero density to any response
@@ -508,12 +524,12 @@ data <- rcogmod_ddm(1000,
 )
 head(data)
 #>          rt response
-#> 1 0.6881871        0
-#> 2 0.4426854        0
-#> 3 0.3992289        1
-#> 4 0.6083311        0
-#> 5 0.3406405        0
-#> 6 0.3247461        0
+#> 1 0.2661712        1
+#> 2 0.4895229        1
+#> 3 0.4394044        1
+#> 4 0.4781470        1
+#> 5 0.4352195        1
+#> 6 0.2292474        1
 
 # Responses faster than ndt keep positive density, unlike the unmixed model
 dcogmod_ddm(0.1, ndt = 0.2, response = 1, poutlier = 0.02)

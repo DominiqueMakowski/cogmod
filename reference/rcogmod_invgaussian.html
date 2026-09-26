@@ -35,7 +35,7 @@ cogmod_invgaussian_stanvars(): Generates the stanvars to pass to brm().
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -446,10 +446,10 @@ for choice response times. <em>Applied Psychological Measurement</em>, <em>42</e
 <span class="r-in"><span>                              sigmadrift <span class="op">=</span> <span class="fl">1</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/stats/quantile.html" class="external-link">quantile</a></span><span class="op">(</span><span class="va">rts</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.5</span>, <span class="fl">0.99</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>       50%       99% </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 0.3260508 0.8664158 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 0.3298788 0.9004199 </span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/stats/quantile.html" class="external-link">quantile</a></span><span class="op">(</span><span class="va">rts_sv</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.5</span>, <span class="fl">0.99</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>       50%       99% </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 0.3227368 1.2222166 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 0.3189917 1.3774796 </span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Responses faster than ndt keep positive density, unlike the unmixed model</span></span></span>
 <span class="r-in"><span><span class="fu">dcogmod_invgaussian</span><span class="op">(</span><span class="fl">0.1</span>, ndt <span class="op">=</span> <span class="fl">0.3</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span><span class="op">)</span></span></span>

@@ -521,6 +521,658 @@ times at which that threshold is first crossed *is* the Wald
 distribution. Its skewed shape is not a modelling choice, it is a
 consequence of the assumed mechanism.
 
+To better grasp the core idea behind evidence accumulation models, let’s
+start from a distribution we already know. As we saw above, the Normal
+distribution is what the Central Limit Theorem gives whenever many small
+random contributions add up. In other words, the Normal distribution can
+be seen as the **end result of a process**: that process being a random
+walk that heads towards a threshold at a steady pace while being jostled
+sideways at every step. The **average direction** of all the individual
+steps, or the **mean drift** is vertical, and the distance to the
+threshold determines the distribution’s SD, since a longer journey
+accumulates more jostling and widens the distribution.
+
+This perspective allows us to see the Normal distribution not just as a
+static shape, but as the outcome of an underlying process. This means
+that instead of describing a Normal distribution **by its shape** (with
+mean $`\mu`$ and SD $`\sigma`$), we can also describe it by the
+parameters of the underlying process: the **mean drift** (vertical), the
+location of its **starting point** (corresponding to its mean), and the
+distance to the threshold (**boundary separation**, corresponding to the
+SD of the distribution).
+
+The genius idea of evidence accumulation models is cast this idea into
+reality, and impose the notion of “time”. What if each random process
+was one “evidence accumulation” cognitive process unfolding over time,
+which means that it needs to always go **forward**, which in turns tilts
+the mean drift towards the time axis. The walk itself is unchanged, but
+its sideways jostling now also pushes it towards or away from the
+threshold: walks pushed towards it cross early, while walks pushed away
+straggle on for longer, and are carried further along the time axis as
+they go. **The crossing points are no longer Normal but skewed to the
+right**, and this “skewed Normal” actually corresponds to the **Wald
+distribution**. Therein lies the beauty: a simple “perspective changing”
+(thinking of a distribution as the result of a process), and then
+imposing physical constraints (time) naturally gives rise to the skewed
+RT distributions we often observe.
+
+``` js
+// The name follows the tilt and nothing else: at zero it is the Normal, and at
+// any tilt at all it is a Wald - there is no in-between shape to name.
+html`<div class="cogmod-walk-title">${walkTilt === 0 ? "Normal" : "Wald"}
+distribution<span class="cogmod-walk-stat">skewness
+${d3.format(".2f")(walkSkew)}</span></div>`
+```
+
+``` js
+walkDrag(walkFire(Plot.plot({
+  width: walkFrame.width,
+  height: walkFrame.height,
+  marginLeft: walkCfg.margin,
+  marginRight: walkCfg.margin,
+  marginTop: walkCfg.margin,
+  marginBottom: walkCfg.margin,
+  // No axes. Neither has a scale worth reading - the units are the walk's
+  // own - and the one number that matters is in the title.
+  x: {domain: [walkCfg.xmin, walkCfg.xmax], axis: null},
+  y: {domain: [walkCfg.ybot, walkCfg.ytop], axis: null},
+  color: {type: "identity"},
+  marks: [
+    // The crossing density, standing on the threshold it is the density on,
+    // pinned by its peak as the densities of `_widget.qmd` are.
+    Plot.areaY(walkDensity, {x: "x", y1: "base", y2: "y",
+                             fill: walkCfg.green, fillOpacity: 0.15}),
+    Plot.line(walkDensity, {x: "x", y: "y", stroke: walkCfg.green,
+                            strokeWidth: 2}),
+    // The walks. `walkFire` finds them by being the only line mark with more
+    // than one path.
+    Plot.line(walkPaths.rows, {x: "x", y: "y", z: "id", stroke: "colour",
+                               strokeOpacity: 0.42, strokeWidth: 0.9,
+                               clip: true}),
+    // The line the walks leave from. It is only called time once the drift
+    // leans into it: aimed straight up, the walk's clock runs vertically and
+    // this line is just where the crossings are measured along.
+    Plot.arrow([{x1: walkCfg.xmin, y1: 0, x2: walkCfg.xmax, y2: 0}],
+               {x1: "x1", y1: "y1", x2: "x2", y2: "y2", stroke: walkCfg.black,
+                strokeWidth: 1.2, headLength: 7}),
+    Plot.text(walkTilt > 0 ? [{x: walkCfg.xmax, y: 0}] : [],
+              {x: "x", y: "y", text: ["Time"], dx: -12, dy: 13,
+               textAnchor: "end", fill: walkCfg.black, fontSize: 11}),
+    // Where the drift pointed before it was tilted, so the tilt is read as a
+    // turn away from something. Under the arrow at zero, and so not drawn.
+    Plot.ruleX(walkTilt > 0 ? [0] : [],
+               {y1: 0, y2: walkA, stroke: walkCfg.grey,
+                strokeDasharray: "4,3"}),
+    // Labelled at the left end rather than the right, where `_widget.qmd`
+    // labels its boundary: here the right end is where the Wald's tail runs,
+    // and left of the start is the one stretch neither curve reaches.
+    Plot.ruleY([walkA], {stroke: walkCfg.orange, strokeWidth: 1.2}),
+    Plot.text([{x: walkCfg.xmin, y: walkA}],
+              {x: "x", y: "y", text: ["threshold"], dy: -7,
+               textAnchor: "start", fill: walkCfg.orange, fontSize: 11,
+               stroke: "white", strokeWidth: 3, paintOrder: "stroke"}),
+    // The two things the `sigma` slider sets, in its colour: the distance to
+    // the threshold, standing at the right edge, and - while the distribution
+    // is still a Normal - its SD, lying across the curve.
+    Plot.arrow(walkSpans.climb, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                                 stroke: walkCfg.orange, strokeWidth: 1.8,
+                                 headLength: 8}),
+    Plot.arrow(walkSpans.sd, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                              stroke: walkCfg.orange, strokeWidth: 1.8,
+                              headLength: 6}),
+    Plot.text(walkSpans.sd.slice(0, 1),
+              {x: "x1", y: "y1", text: ["SD"], dy: -8, fill: walkCfg.orange,
+               fontSize: 11, stroke: "white", strokeWidth: 3,
+               paintOrder: "stroke"}),
+    // The mean drift, from the start to where it meets the threshold - which
+    // is the mean crossing point, at every tilt.
+    Plot.arrow([walkArrow], {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                             stroke: walkCfg.green, strokeWidth: 3,
+                             headLength: 11}),
+    Plot.text([walkArrow.label],
+              {x: "x", y: "y", text: ["mean drift"], textAnchor: "end",
+               fill: walkCfg.green, fontSize: 11, stroke: "white",
+               strokeWidth: 3, paintOrder: "stroke"}),
+    Plot.arrow(walkArrow.arc, {x1: "x1", y1: "y1", x2: "x2", y2: "y2",
+                               stroke: walkCfg.green, strokeWidth: 1.8,
+                               headLength: 7, bend: walkArrow.bend}),
+    Plot.dot(walkPaths.hits, {x: "x", y: "y", fill: walkCfg.orange, r: 3})
+  ]
+})))
+```
+
+`sigma` (SD)sets the threshold
+
+``` js
+// The untilted Normal's SD, and so the threshold's height: a = sigma^2 / j^2.
+// The range puts the threshold between 0.2 and 0.8, which the frame is sized
+// for.
+viewof walkSigma = Inputs.range([0.1, 0.2], {value: 0.15, step: 0.005,
+                                             width: 190})
+```
+
+`tilt`the drift leaning into time
+
+``` js
+viewof walkTilt = Inputs.range([0, 60], {value: 0, step: 1, width: 190})
+```
+
+``` js
+// `jostle2` is j^2, the jostle's variance per unit of travel, chosen so that
+// the `sigma` range above puts the threshold between 0.2 and 0.8. The domain
+// holds the widest Normal (3.25 SD either side of the start) and, at 60
+// degrees, the default Wald out to about its 95th percentile; wider settings
+// run off the right edge, as a long tail does. `tcap` is how long a walk is
+// followed before it is given up on - past it the walk has left the frame
+// anyway.
+walkCfg = {
+  const box = document.querySelector(".cogmod-walk");
+  const css = getComputedStyle(box || document.documentElement);
+  const hex = (name) => {
+    const v = css.getPropertyValue("--walk-" + name).trim();
+    if (!v) throw new Error("--walk-" + name + " is not in the palette");
+    return v;
+  };
+  return {jostle2: 0.05, xmin: -0.65, xmax: 1.9, ybot: -0.15, ytop: 1.16,
+          dheight: 0.3, margin: 8, dt: 0.005, tcap: 3, npaths: 30,
+          green: hex("green"), orange: hex("orange"), grey: hex("grey"),
+          black: hex("black")};
+}
+```
+
+``` js
+walkA = walkSigma * walkSigma / walkCfg.jostle2
+```
+
+``` js
+// Drops the "(SD)" from the `sigma` label once the drift leans - see the top
+// of the file. A class on the figure rather than a rewritten label, so that
+// the markup says what both labels are.
+walkTilted = {
+  const box = document.querySelector(".cogmod-walk");
+  if (box) box.classList.toggle("cogmod-walk-tilted", walkTilt > 0);
+  return walkTilt > 0;
+}
+```
+
+``` js
+walkTheta = walkTilt * Math.PI / 180
+```
+
+``` js
+walkSkew = 3 * Math.sqrt(walkCfg.jostle2) * Math.sin(walkTheta) /
+           Math.sqrt(walkA * Math.cos(walkTheta))
+```
+
+``` js
+// Equal units on both axes: the height follows from the width. Plot scales the
+// svg down proportionally below its own width, so the aspect survives that.
+walkFrame = {
+  const w = Math.max(320, Math.min(width, 760));
+  const unit = (w - 2 * walkCfg.margin) / (walkCfg.xmax - walkCfg.xmin);
+  return {width: w, unit: unit,
+          height: Math.round(unit * (walkCfg.ytop - walkCfg.ybot) +
+                             2 * walkCfg.margin)};
+}
+```
+
+``` js
+// f(u) = (a / r) Normal(q; 0, j^2 r) - see the top of the file. Zero where
+// r <= 0, which is left of the Wald's lower bound and never happens untilted.
+walkDensity = {
+  const {jostle2, xmin, xmax, dheight} = walkCfg;
+  const a = walkA, s = Math.sin(walkTheta), c = Math.cos(walkTheta);
+  const n = 800;
+  const xs = [], fs = [];
+  let fmax = 0;
+  for (let i = 0; i <= n; i++) {
+    const u = xmin + (xmax - xmin) * i / n;
+    const r = u * s + a * c;
+    const q = u * c - a * s;
+    const f = r > 0 ? a / r * Math.exp(-q * q / (2 * jostle2 * r)) /
+                      Math.sqrt(2 * Math.PI * jostle2 * r)
+                    : 0;
+    xs.push(u);
+    fs.push(f);
+    fmax = Math.max(fmax, f);
+  }
+  const k = fmax > 0 ? dheight / fmax : 0;
+  return xs.map((x, i) => ({x: x, base: a, y: a + fs[i] * k}));
+}
+```
+
+``` js
+// The drift arrow, its label and the arc marking its tilt. The label stands
+// off the arrow's middle along the perpendicular on its upper-left side, which
+// is clear of the arrow at every tilt. The arc is centred on the start, from
+// straight up round to the arrow, so its `bend` is half the tilt; it goes
+// below 4 degrees, where it would be shorter than its own head.
+walkArrow = {
+  const a = walkA, s = Math.sin(walkTheta), c = Math.cos(walkTheta);
+  const px = 1 / walkFrame.unit;                 // one pixel, in data units
+  const x2 = a * s / c;
+  const r = 34 * px;
+  return {
+    x1: 0, y1: 0, x2: x2, y2: a,
+    label: {x: x2 / 2 - 9 * px * c, y: a / 2 + 9 * px * s},
+    arc: walkTilt >= 4 ? [{x1: 0, y1: r, x2: r * s, y2: r * c}] : [],
+    bend: walkTilt / 2
+  };
+}
+```
+
+``` js
+// Two arrows out from each span's midpoint, as the dimension lines of
+// `_widget.qmd` are drawn. The SD one is only there while the curve is a
+// Normal, and sits at the height the pinned curve has at one SD from its
+// mean - exp(-1/2) of its peak - so its heads touch the curve. Tilted, the
+// slider no longer is the SD of anything drawn.
+walkSpans = {
+  const a = walkA, bx = walkCfg.xmax - 0.02;
+  const y = a + walkCfg.dheight * Math.exp(-0.5);
+  return {
+    climb: [{x1: bx, y1: a / 2, x2: bx, y2: 0},
+            {x1: bx, y1: a / 2, x2: bx, y2: a}],
+    sd: walkTilt > 0 ? []
+      : [{x1: 0, y1: y, x2: -walkSigma, y2: y},
+         {x1: 0, y1: y, x2: walkSigma, y2: y}]
+  };
+}
+```
+
+``` js
+// A fresh set of walks every nine seconds while the figure is on screen, and
+// one as it comes into view - it sits far down a long article, and a set drawn
+// at page load would have finished long before anyone got there. None of it
+// for a reader who has asked for less movement: one static set, no timer.
+walkVolley = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ? null
+  : Generators.observe((next) => {
+      let n = 0, timer = null;
+      next(n);
+      const box = document.querySelector(".cogmod-walk");
+      const watch = new IntersectionObserver(([seen]) => {
+        if (seen.isIntersecting && timer === null) {
+          next(++n);
+          timer = setInterval(() => next(++n), 9000);
+        } else if (!seen.isIntersecting && timer !== null) {
+          clearInterval(timer);
+          timer = null;
+        }
+      });
+      if (box) watch.observe(box);
+      return () => {
+        if (timer !== null) clearInterval(timer);
+        watch.disconnect();
+      };
+    })
+```
+
+``` js
+// True once per volley, so that a rebuild from a slider does not restart the
+// animation. Cell state: nothing depends on it, so it is made once.
+walkNewVolley = {
+  let seen = null;
+  return (n) => (n === seen ? false : (seen = n, true));
+}
+```
+
+``` js
+// The Brownian increments, drawn once per volley and held while the sliders
+// move, so that dragging redraws these thirty walks under the new settings
+// rather than thirty new ones - the tilt is then seen turning the same walks.
+// A row is long enough to follow a walk for `tcap`.
+walkDraws = {
+  walkVolley;
+  const rnorm = d3.randomNormal(0, Math.sqrt(walkCfg.dt));
+  const nsteps = Math.ceil(walkCfg.tcap / walkCfg.dt);
+  return Array.from({length: walkCfg.npaths},
+                    () => Float64Array.from({length: nsteps}, rnorm));
+}
+```
+
+``` js
+// Each walk integrated from its held increments: `p` is progress along the
+// heading and `q` the jostle off it, rotated into the frame. The step that
+// crosses the threshold is cut where it crosses, so the walk and its dot end
+// on the line. A walk that leaves by the right edge first is dropped there and
+// greyed, as `_widget.qmd` greys a path that never arrives. `span` is how long
+// each walk ran, which `walkFire` turns into how long it takes to draw.
+walkPaths = {
+  const {dt, xmax, npaths, green, grey} = walkCfg;
+  const j = Math.sqrt(walkCfg.jostle2);
+  const a = walkA, s = Math.sin(walkTheta), c = Math.cos(walkTheta);
+  const rows = [], hits = [], span = [];
+  for (let k = 0; k < npaths; k++) {
+    const dw = walkDraws[k];
+    const pts = [{x: 0, y: 0}];
+    let p = 0, q = 0, x = 0, y = 0, hit = false, i = 0;
+    for (; i < dw.length; i++) {
+      const x0 = x, y0 = y;
+      p += dt;
+      q += j * dw[i];
+      x = p * s + q * c;
+      y = p * c - q * s;
+      if (y >= a) {
+        x = x0 + (x - x0) * (a - y0) / (y - y0);
+        y = a;
+        hit = true;
+      }
+      pts.push({x: x, y: y});
+      if (hit || x > xmax) break;
+    }
+    if (hit) hits.push({id: k, x: x, y: y});
+    span.push((i + 1) * dt);
+    for (const pt of pts) {
+      rows.push({id: k, colour: hit ? green : grey, x: pt.x, y: pt.y});
+    }
+  }
+  return {rows: rows, hits: hits, span: span};
+}
+```
+
+``` js
+// The walks drawn on one at a time. `_widget.qmd` wipes each trace in from the
+// left, which works because its paths move left to right; these do not - at
+// zero tilt they climb straight up - so each is drawn along its own length
+// instead: `pathLength` 1 makes the dash pattern a fraction of the path, and
+// the dash offset runs from 1 to 0. A walk's duration is the time it ran, at a
+// fixed number of milliseconds per unit of the walk's clock, so a straggler is
+// seen to straggle; and its dot appears as it arrives.
+walkFire = function(plot) {
+  if (walkVolley === null || !walkNewVolley(walkVolley)) return plot;
+  const MS = 1400;                       // ms per unit of the walk's clock
+  const STAGGER = 180;                   // ms between one walk and the next
+  const held = [...plot.querySelectorAll('g[aria-label="line"]')]
+    .find((g) => g.querySelectorAll("path").length > 1);
+  if (!held) return plot;
+  const done = [...held.querySelectorAll("path")].map((path, i) => {
+    const delay = i * STAGGER, duration = walkPaths.span[i] * MS;
+    path.setAttribute("pathLength", 1);
+    path.style.strokeDasharray = "1 1";
+    path.animate([{strokeDashoffset: 1}, {strokeDashoffset: 0}],
+                 {duration: duration, delay: delay, easing: "linear",
+                  fill: "both"});
+    return delay + duration;
+  });
+  const dots = plot.querySelector('g[aria-label="dot"]');
+  if (dots) {
+    [...dots.children].forEach((dot, i) => {
+      const hit = walkPaths.hits[i];
+      if (!hit) return;
+      dot.animate([{opacity: 0}, {opacity: 1}],
+                  {duration: 120, delay: done[hit.id], fill: "both"});
+    });
+  }
+  return plot;
+}
+```
+
+``` js
+// Two handles, each writing to its slider as the drag handles of `_widget.qmd`
+// do, so a value lives in one place: the threshold line drags up and down (and
+// so sets `sigma`), and the drift arrow turns about its foot (and so sets the
+// tilt). Geometry is measured once at pointerdown and the listeners go on the
+// window, because every change rebuilds the plot out from under the pointer.
+walkDrag = function(plot) {
+  const GRAB = 7;
+  const slider = {
+    sigma: (viewof walkSigma).querySelector('input[type="range"]'),
+    tilt: (viewof walkTilt).querySelector('input[type="range"]')
+  };
+  const at = (key) => Number(slider[key].value);
+  const box = plot.viewBox.baseVal;
+  const mapper = (scale, anchor) => {
+    const [d0, d1] = scale.domain, [p0, p1] = scale.range;
+    const k = (p1 - p0) / (d1 - d0);
+    const per = (rect) => box.height / rect.height;
+    return {
+      to: (v, rect) => anchor(rect) + (p0 + (v - d0) * k) / per(rect),
+      from: (p, rect) => d0 + ((p - anchor(rect)) * per(rect) - p0) / k
+    };
+  };
+  const X = mapper(plot.scale("x"), (rect) => rect.left);
+  const Y = mapper(plot.scale("y"), (rect) => rect.top);
+  const threshold = () => at("sigma") * at("sigma") / walkCfg.jostle2;
+  const toSegment = (p, a, b) => {
+    const vx = b.x - a.x, vy = b.y - a.y, len = vx * vx + vy * vy;
+    const t = len ? Math.max(0, Math.min(1, ((p.x - a.x) * vx +
+                                             (p.y - a.y) * vy) / len)) : 0;
+    return Math.hypot(p.x - (a.x + t * vx), p.y - (a.y + t * vy));
+  };
+  const handle = {
+    sigma: {
+      cursor: "ns-resize",
+      away: (p, rect) => Math.abs(p.y - Y.to(threshold(), rect)),
+      read: (p, rect) =>
+        Math.sqrt(Math.max(0, Y.from(p.y, rect)) * walkCfg.jostle2)
+    },
+    tilt: {
+      cursor: "move",
+      away: (p, rect) => {
+        const a = threshold(), th = at("tilt") * Math.PI / 180;
+        return toSegment(p, {x: X.to(0, rect), y: Y.to(0, rect)},
+                         {x: X.to(a * Math.tan(th), rect), y: Y.to(a, rect)});
+      },
+      // The angle from straight up to the pointer, about the arrow's foot.
+      // Equal units on both axes make it the angle on screen too.
+      read: (p, rect) => Math.atan2(X.from(p.x, rect), Y.from(p.y, rect)) *
+                         180 / Math.PI
+    }
+  };
+  const nearest = (event, rect) => {
+    const p = {x: event.clientX, y: event.clientY};
+    let pick = null, best = GRAB;
+    for (const key in handle) {
+      const away = handle[key].away(p, rect);
+      if (away < best) { pick = key; best = away; }
+    }
+    return pick;
+  };
+  plot.addEventListener("pointermove", (event) => {
+    const pick = nearest(event, plot.getBoundingClientRect());
+    plot.style.cursor = pick ? handle[pick].cursor : "";
+  });
+  plot.addEventListener("pointerdown", (event) => {
+    const rect = plot.getBoundingClientRect();
+    const pick = nearest(event, rect);
+    if (!pick) return;
+    event.preventDefault();
+    document.body.style.userSelect = "none";
+    const input = slider[pick];
+    const lo = Number(input.min), hi = Number(input.max);
+    const step = Number(input.step);
+    const move = (e) => {
+      const asked = handle[pick].read({x: e.clientX, y: e.clientY}, rect);
+      if (!Number.isFinite(asked)) return;
+      const v = Math.max(lo, Math.min(hi, Math.round(asked / step) * step));
+      if (v === Number(input.value)) return;
+      input.value = v;
+      input.dispatchEvent(new Event("input", {bubbles: true}));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  });
+  return plot;
+}
+```
+
+``` js
+// The value bubble over each thumb, as in `_widget.qmd`: set up once per
+// slider, then kept in place by the slider's own input events.
+walkBubbles = {
+  const forms = [[viewof walkSigma, (v) => v.toFixed(3)],
+                 [viewof walkTilt, (v) => v + "°"]];
+  for (const [form, label] of forms) {
+    if (form.querySelector(".cogmod-walk-bubble")) continue;
+    const range = form.querySelector('input[type="range"]');
+    const bubble = form.appendChild(document.createElement("span"));
+    bubble.className = "cogmod-walk-bubble";
+    const place = () => {
+      const lo = Number(range.min), hi = Number(range.max);
+      const frac = (range.valueAsNumber - lo) / (hi - lo);
+      bubble.textContent = label(range.valueAsNumber);
+      bubble.style.left = (range.offsetLeft + 6.5 +
+                           frac * (range.offsetWidth - 13)) + "px";
+    };
+    range.addEventListener("input", place);
+    form.addEventListener("pointerenter", place);
+    place();
+  }
+}
+```
+
+The Shifted Wald model (also known as the Inverse Gaussian distribution)
+is actually equivalent to a one-response version of the Drift Diffusion
+Model (DDM) with no between-trial variability in drift rate (which is
+what `sigmadrift = 0` does), starting point, or non-decision time
+(`sigmandt = 0`). This changes what the parameters mean. Instead of a
+location and a width (e.g., Mean and SD of the RT distribution), we now
+estimate quantities that refer to distinct components of the decision:
+`mu` is the **drift rate** (the speed at which evidence accumulates,
+often read as task difficulty or processing efficiency), `boundary` is
+the **decision threshold** (how much evidence is required before
+responding, i.e., response caution), and `ndt` is again the
+**non-decision time** (encoding and motor execution). This is why the
+formula below regresses `Condition` on `boundary` rather than on
+`sigma`: the natural hypothesis for a speed-vs-accuracy manipulation is
+that instructions move the *threshold*, not the quality of the evidence.
+(The figure at the start of [Other Models](#other-models) draws the Wald
+in exactly these terms, with time along the horizontal axis.)
+
+Two caveats are worth keeping in mind. First, because this version has a
+single boundary, it only describes the timing of *one* type of
+response - it knows nothing about errors, and so cannot exploit the
+joint distribution of choices and RTs (that is what the DDM and LBA of
+the *Decision Making* vignette are for). Second, this interpretive gain
+is not free: with RT data alone, drift rate and boundary separation
+trade off against each other to a considerable degree, so their separate
+estimates should be treated with more caution than their cognitive
+labels suggest. This issue is even more critical when the additional
+variability parameters (`sigmadrift` and `sigmandt`) are estimated, but
+see below for details about that.
+
+``` r
+
+f <- bf(
+  RT ~ Condition,
+  boundary ~ Condition,
+  ndt ~ Condition,
+  sigmadrift = 0,  # Fixed at zero, not estimated
+  sigmandt = 0,  # Fixed at zero, not estimated
+  family = cogmod_invgaussian()
+)
+
+m_wald <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_wald <- brms::add_criterion(m_wald, "loo")
+```
+
+![](../reference/figures/animations/anim_wald.gif)
+
+### Linear Ballistic Accumulator
+
+The LBA is normally a *race*: one accumulator per response option, each
+rising linearly and ballistically - no within-trial noise - from a start
+point drawn uniformly on `[0, A]` at a drift rate drawn from a normal,
+until one of them reaches the threshold `b`. The first to arrive
+determines both the response and the RT. With no choice to model there
+is nothing to race, so what is used here is the **single-accumulator**
+version: the RT is simply that one accumulator’s finishing time,
+`(b - start) / drift`, plus non-decision time. All of the RT variability
+therefore comes from across-trial variability in the start point
+(`sigmabias`, the `A` above) and in the drift rate, rather than from
+moment-to-moment noise within the trial.
+
+`sigma` is fixed to `1` rather than estimated because the evidence scale
+is arbitrary: nothing observable is measured in “units of evidence”.
+Multiplying the drift rate, its standard deviation `sigma`, the
+start-point range `A` and the threshold `b` all by the same constant
+leaves the decision time `(b - start) / drift` completely unchanged,
+since numerator and denominator scale together. Only *ratios* of these
+parameters are identified, so exactly one of them has to be pinned down
+to fix the scale, and by convention that is the drift standard
+deviation. The remaining parameters are then read in units of the
+across-trial drift SD. Any one of the four would do equally well;
+`sigma` is chosen because it is the least interesting of them. Note that
+this is what `sigma = 1` in the formula below does - it fixes the
+parameter as a constant. Drop it and `brms` will happily *estimate* it
+instead, leaving the model unidentified and the sampler free to wander
+along that ridge.
+
+Fixing the evidence scale is not quite the end of the identification
+story. As the start-point range `sigmabias` shrinks toward zero the LBA
+converges to the *recinormal* - the LATER model, in which
+`1 / (RT - ndt)` is normally distributed - and it does so smoothly,
+which means the likelihood becomes **flat** in `sigmabias` once the
+range is small enough. On a `softplus` link zero sits at minus infinity,
+so a flat prior over a flat likelihood is an improper posterior.
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+supplies weak `normal(0, 1)` priors on `sigmabias` and `boundary` for
+exactly this reason - the threshold is `b = sigmabias + boundary`, so
+the two share the ridge - which brings that same fit to `Rhat` 1.02, an
+effective sample size of 387, and a sensible finite estimate. This is
+the same argument as for `ndt` and `poutlier` in `vignette("outliers")`:
+pass `prior = cogmod_priors(f, df)`.
+
+``` r
+
+f <- bf(
+  RT ~ Condition,
+  sigmabias ~ Condition,
+  boundary ~ Condition,
+  ndt ~ Condition,
+  sigma = 1,
+  family = cogmod_lba1()
+)
+
+m_lba <- brm(
+  f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  chains = 4, iter = 500, backend = "cmdstanr"
+)
+
+m_lba <- brms::add_criterion(m_lba, "loo")
+```
+
+## Other Models
+
+Note that the families presented below have not been used nearly as
+often in the RT literature as the ones above, and their properties in
+this context are correspondingly less well documented. They are
+nonetheless capable of generating close fits to RT data, and more
+research is needed to establish whether they offer any real advantage -
+in terms of fit, of interpretability, or of computational behaviour -
+over the more established options.
+
+Several of them - and some of the main families above - are variants of
+one accumulation process that differ only in a few assumptions: whether
+the evidence is noisy within a trial, whether its rate varies from one
+trial to the next (and how), and how many accumulators and boundaries
+there are. The figure below turns those assumptions into toggles. It
+opens on the Wald, this time laid out the way the model is parametrized:
+time runs along the horizontal axis, evidence accumulates up the
+vertical one, and the slope of the mean drift is the drift rate. From
+there, the tabs lead to its relatives - the recinormal (LATER) below,
+the shifted LogNormal and the single-accumulator LBA above, and the
+choice models of the *Decision Making* vignette - and the Wald-4 below
+is the Wald with between-trial variability set to “Normal”.
+
  
 
 Wald
@@ -2929,137 +3581,6 @@ trials = {
 }
 ```
 
-The Shifted Wald model (also known as the Inverse Gaussian distribution)
-is actually equivalent to a one-response version of the Drift Diffusion
-Model (DDM) with no between-trial variability in drift rate (which is
-what `sigmadrift = 0` does), starting point, or non-decision time
-(`sigmandt = 0`). This changes what the parameters mean. Instead of a
-location and a width (e.g., Mean and SD of the RT distribution), we now
-estimate quantities that refer to distinct components of the decision:
-`mu` is the **drift rate** (the speed at which evidence accumulates,
-often read as task difficulty or processing efficiency), `boundary` is
-the **decision threshold** (how much evidence is required before
-responding, i.e., response caution), and `ndt` is again the
-**non-decision time** (encoding and motor execution). This is why the
-formula below regresses `Condition` on `boundary` rather than on
-`sigma`: the natural hypothesis for a speed-vs-accuracy manipulation is
-that instructions move the *threshold*, not the quality of the evidence.
-
-Two caveats are worth keeping in mind. First, because this version has a
-single boundary, it only describes the timing of *one* type of
-response - it knows nothing about errors, and so cannot exploit the
-joint distribution of choices and RTs (that is what the DDM and LBA of
-the *Decision Making* vignette are for). Second, this interpretive gain
-is not free: with RT data alone, drift rate and boundary separation
-trade off against each other to a considerable degree, so their separate
-estimates should be treated with more caution than their cognitive
-labels suggest. This issue is even more critical when the additional
-variability parameters (`sigmadrift` and `sigmandt`) are estimated, but
-see below for details about that.
-
-``` r
-
-f <- bf(
-  RT ~ Condition,
-  boundary ~ Condition,
-  ndt ~ Condition,
-  sigmadrift = 0,  # Fixed at zero, not estimated
-  sigmandt = 0,  # Fixed at zero, not estimated
-  family = cogmod_invgaussian()
-)
-
-m_wald <- brm(
-  f,
-  data = df,
-  prior = cogmod_priors(f, df),
-  init = cogmod_inits(f, df),
-  stanvars = cogmod_stanvars(f),
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_wald <- brms::add_criterion(m_wald, "loo")
-```
-
-![](../reference/figures/animations/anim_wald.gif)
-
-### Linear Ballistic Accumulator
-
-The LBA is normally a *race*: one accumulator per response option, each
-rising linearly and ballistically - no within-trial noise - from a start
-point drawn uniformly on `[0, A]` at a drift rate drawn from a normal,
-until one of them reaches the threshold `b`. The first to arrive
-determines both the response and the RT. With no choice to model there
-is nothing to race, so what is used here is the **single-accumulator**
-version: the RT is simply that one accumulator’s finishing time,
-`(b - start) / drift`, plus non-decision time. All of the RT variability
-therefore comes from across-trial variability in the start point
-(`sigmabias`, the `A` above) and in the drift rate, rather than from
-moment-to-moment noise within the trial.
-
-`sigma` is fixed to `1` rather than estimated because the evidence scale
-is arbitrary: nothing observable is measured in “units of evidence”.
-Multiplying the drift rate, its standard deviation `sigma`, the
-start-point range `A` and the threshold `b` all by the same constant
-leaves the decision time `(b - start) / drift` completely unchanged,
-since numerator and denominator scale together. Only *ratios* of these
-parameters are identified, so exactly one of them has to be pinned down
-to fix the scale, and by convention that is the drift standard
-deviation. The remaining parameters are then read in units of the
-across-trial drift SD. Any one of the four would do equally well;
-`sigma` is chosen because it is the least interesting of them. Note that
-this is what `sigma = 1` in the formula below does - it fixes the
-parameter as a constant. Drop it and `brms` will happily *estimate* it
-instead, leaving the model unidentified and the sampler free to wander
-along that ridge.
-
-Fixing the evidence scale is not quite the end of the identification
-story. As the start-point range `sigmabias` shrinks toward zero the LBA
-converges to the *recinormal* - the LATER model, in which
-`1 / (RT - ndt)` is normally distributed - and it does so smoothly,
-which means the likelihood becomes **flat** in `sigmabias` once the
-range is small enough. On a `softplus` link zero sits at minus infinity,
-so a flat prior over a flat likelihood is an improper posterior.
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
-supplies weak `normal(0, 1)` priors on `sigmabias` and `boundary` for
-exactly this reason - the threshold is `b = sigmabias + boundary`, so
-the two share the ridge - which brings that same fit to `Rhat` 1.02, an
-effective sample size of 387, and a sensible finite estimate. This is
-the same argument as for `ndt` and `poutlier` in `vignette("outliers")`:
-pass `prior = cogmod_priors(f, df)`.
-
-``` r
-
-f <- bf(
-  RT ~ Condition,
-  sigmabias ~ Condition,
-  boundary ~ Condition,
-  ndt ~ Condition,
-  sigma = 1,
-  family = cogmod_lba1()
-)
-
-m_lba <- brm(
-  f,
-  data = df,
-  prior = cogmod_priors(f, df),
-  init = cogmod_inits(f, df),
-  stanvars = cogmod_stanvars(f),
-  chains = 4, iter = 500, backend = "cmdstanr"
-)
-
-m_lba <- brms::add_criterion(m_lba, "loo")
-```
-
-## Other Models
-
-Note that the families presented below have not been used nearly as
-often in the RT literature as the ones above, and their properties in
-this context are correspondingly less well documented. They are
-nonetheless capable of generating close fits to RT data, and more
-research is needed to establish whether they offer any real advantage -
-in terms of fit, of interpretability, or of computational behaviour -
-over the more established options.
-
 ### Recinormal (LATER)
 
 The **recinormal** (reciprocal-of-normal) distribution is at the basis
@@ -3734,7 +4255,7 @@ fit_summary |>
   theme_minimal()
 ```
 
-![](rt_models_files/figure-html/unnamed-chunk-111-1.png)
+![](rt_models_files/figure-html/unnamed-chunk-131-1.png)
 
 ### Posterior Predictive Check
 
@@ -3818,7 +4339,7 @@ p <- pred |>
 p
 ```
 
-![](rt_models_files/figure-html/unnamed-chunk-112-1.png)
+![](rt_models_files/figure-html/unnamed-chunk-132-1.png)
 
 ### Conclusions
 
@@ -3880,7 +4401,7 @@ rez |>
   theme_minimal()
 ```
 
-![](rt_models_files/figure-html/unnamed-chunk-114-1.png)
+![](rt_models_files/figure-html/unnamed-chunk-134-1.png)
 
 ## Real Data
 

@@ -193,10 +193,18 @@ and, for the choice-and-RT models,
 and
 [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md).
 [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
-is edited too, although it is not built on that parameterization - see
-its own section below. Any other family, or a formula carrying none, is
-passed through: you get a message and `brms`'s own defaults, unchanged,
-so the call is always safe to leave in a script.
+and
+[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+are edited too, although they are not built on that parameterization -
+see their own section below - as are the three bounded-scale families
+for subjective ratings,
+[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md),
+[`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
+and
+[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md).
+Any other family, or a formula carrying none, is passed through: you get
+a message and `brms`'s own defaults, unchanged, so the call is always
+safe to leave in a script.
 
 What gets set, on the link scale (`log` for `ndt`, `logit` for
 `poutlier`, `identity` for `shape`):
@@ -337,9 +345,10 @@ or
 [`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md),
 although a shape below 2 makes their `ndt` gradient unbounded. That
 region is reached because the *likelihood* prefers it, by around 100 log
-units on the data in `vignette("rt_models")`, so a prior weak enough to
-be a sensible default cannot move the posterior out of it - only bias
-it.
+units on the data in the [RT models
+article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
+so a prior weak enough to be a sensible default cannot move the
+posterior out of it - only bias it.
 [`?rcogmod_weibull`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
 sets out what to do instead.
 
@@ -386,6 +395,97 @@ the centre of the Gaussian component **alone**, so the mean of the
 distribution it implies is `mu + tau`; see
 [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md).
 
+## The bounded-scale families
+
+[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md),
+[`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
+and
+[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)
+model subjective ratings on `[0, 1]` or on `1:k` rather than reaction
+times, and none of them has an infinite flat region of the
+[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+kind. They are edited anyway, because every distributional parameter
+they have arrives either flat - improper - or with a `brms` default
+aimed at a different parameterization.
+
+|  |  |  |  |  |  |
+|----|----|----|----|----|----|
+| class | `pmid`, `pzero` | `pex` | `bex`, `confright`, `confleft` | `precright`, `precleft`, `phi` (softplus) | `phi` ([`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md), `log`) |
+| `Intercept` | `normal(-2.5, 1)` | `normal(-2, 1)` | `normal(0, 1)` | `normal(2, 1.5)` | `normal(0.7, 0.8)` |
+| `b` (slopes) | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` |
+| `sd`, `sds` | `exponential(1)` | `exponential(1)` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
+
+**The point masses.** `pmid` is the probability of landing exactly on
+the midpoint of the scale and `pzero` the probability of an extra
+category outside it. Both are flat on a `logit` link, which is improper
+in the posterior as well as the prior whenever the event is simply
+absent from the data: with no exact midpoints anywhere the likelihood in
+`pmid` increases monotonically all the way to zero, and nothing stops
+the logit running to minus infinity. That is `poutlier`'s failure
+exactly, so it gets `poutlier`'s treatment, including the omitted form's
+**mode at zero** - leaving the dpar out of
+[`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) is
+itself the statement that you do not expect the event. `normal(-2.5, 1)`
+is centred on 8% with 95% of its mass below 37%, which covers both a
+slider with a visible midpoint tick and a scale carrying a "not
+applicable" category.
+
+This is not hypothetical, and it has the signature the
+[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+failure has. Fitting
+[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)
+to 400 slider responses containing no exact midpoints and no extremes,
+`brms`'s flat defaults put `pex` at `-1.1e14` and `pmid` at `-3.4e13`,
+both with `Rhat` 2.9 and an effective sample size of 5, alongside 12%
+divergent transitions and 48% of them hitting the maximum treedepth.
+With these priors the same data give -4.70 and -5.15 - 0.9% and 0.6% on
+the probability scale, which is what a data set containing none of
+either should say - at `Rhat` 1.00, 3000 to 4000 effective samples, and
+no divergences.
+
+**The extremes.** `pex`, the total probability of a 0 or a 1,
+deliberately does *not* get the mode-at-zero treatment: extreme
+responding is a documented response style rather than a contaminant, and
+a scale nobody ever answers at the endpoints is the unusual case.
+`normal(-2, 1)` centres it on 12% with 95% between 2% and 49%. `bex`,
+which end the extremes favour, is centred on symmetric; that also fences
+the two values at which the model degenerates, since at `bex = 0` or `1`
+one gate closes entirely and any observation at that endpoint takes the
+density to `-Inf`.
+
+**The Beta shapes.** The precisions are the awkward ones. The underlying
+Beta has shapes `conf * prec * 2` and `(1 - conf) * prec * 2`, so a
+precision below about 1 makes it U-shaped and unbounded at both ends,
+while a large one narrows it sharply: at a precision of 15 the middle
+95% of a side spans only a third of it, and a rating a tenth of the way
+along that side costs 13 log units. `normal(2, 1.5)` on the `softplus`
+link puts the precision between 0.33 and 4.95 with a median of 2.13,
+leaving 17% of its mass below 1 - a U-shaped rating distribution is a
+real thing for a polarising item, so it is fenced rather than excluded.
+
+`phi` is the one row of the three that **overrides** a non-empty `brms`
+default rather than filling an empty one, for the reason
+[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)'s
+`sigma` does: `brms` recognises the name from its own beta family and
+supplies `student_t(3, 0, 2.5)`. On
+[`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)'s
+`softplus` link that is merely loose. On
+[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)'s
+`log` link it is close to improper - its 95% interval runs to
+`phi = 2853`, where the Beta has collapsed onto one rating category and
+every other category's probability has underflowed.
+[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)'s
+precisions escape it only because they are named `precright` and
+`precleft`, which `brms` does not recognise, so they arrive flat
+instead.
+
+`mu` is left to `brms` in all three. It is the response's own predictor,
+and on a `logit` link `student_t(3, 0, 2.5)` is the standard weakly
+informative choice for exactly that - unlike
+[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)'s
+`mu`, which needed overriding only because an `identity` link made the
+same prior a statement about seconds.
+
 ## Parameters left out of the formula
 
 Writing `ndt ~ 1` and omitting `ndt` entirely are not the same thing to
@@ -423,6 +523,11 @@ actually lives on:
 | `mu` ([`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)) | `normal(0.4, 0.25)` | \- (always modelled) |
 | `sigma` ([`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)) | `normal(-2.3, 0.7)` | `lognormal(-2.3, 0.7)` |
 | `tau` ([`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
+| `confright`, `confleft` ([`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)), `bex` | `normal(0, 1)` | `beta(2, 2)` |
+| `precright`, `precleft` ([`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)), `phi` ([`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)) | `normal(2, 1.5)` | `lognormal(0.7, 0.7)` |
+| `phi` ([`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)) | `normal(0.7, 0.8)` | `lognormal(0.7, 0.8)` |
+| `pex` ([`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md), [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)) | `normal(-2, 1)` | `beta(2, 12)` |
+| `pmid` ([`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)), `pzero` ([`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)) | `normal(-2.5, 1)` | `exponential(9)` |
 
 The `ndt` pair describes the same belief twice: `lognormal` is just
 `normal` on the log scale, written for the untransformed parameter. The
@@ -431,6 +536,17 @@ pairs do the same to within a rounding error, because `softplus(x)` and
 `exp(x)` agree to three figures for the `x` below `-2` that both
 parameters live at: `lognormal(-2.3, 0.7)` has median 0.100 against
 `softplus(-2.3) = 0.096`.
+
+The Beta precisions are the one place that reasoning does **not** carry
+over. They live up at `x = 2`, where `softplus(x)` is approximately `x`
+rather than `exp(x)`, so the two forms cannot be the same distribution
+written twice however the numbers are chosen. `lognormal(0.7, 0.7)` is
+matched to `normal(2, 1.5)` on its median - 2.01 against 2.13 - and on
+its sense rather than quantile by quantile: its upper tail reaches 7.9
+where the link form stops at 4.9.
+[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)'s
+`phi` is the exception that shows the rule, being on a `log` link, where
+the pair really is one distribution and carries the same two numbers.
 
 If the data were trimmed before fitting, tighten this rather than
 removing it: `normal(-7, 0.5)` asserts essentially no contamination
@@ -448,6 +564,15 @@ centre is unchanged: `exponential(100)` has median 0.0069 against
 a genuine spike of fast responses will still pull the rate up; to switch
 the parameter off entirely, trim the data and it will simply sit near
 zero.
+
+`pmid` and `pzero` are the same argument on a rating scale, and get the
+same pair: `exponential(9)` has median 0.077 against
+`plogis(-2.5) = 0.076`. To switch either off outright, fix it in
+[`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) -
+`pmid = 0` or `pzero = 0` - which removes the parameter rather than
+merely pushing it down. Note that `pmid = 0` makes any response falling
+exactly on the midpoint impossible, so the fit will fail to initialise
+if the data contain one.
 
 Two rows override a **non-empty** `brms` default rather than filling an
 empty one. `brms` recognises the name `ndt` from its own shifted

@@ -477,10 +477,10 @@ rts_sv <- rcogmod_invgaussian(1000, drift = 3, boundary = 0.5, ndt = 0.2,
                               sigmadrift = 1, poutlier = 0.02)
 quantile(rts, c(0.5, 0.99))
 #>       50%       99% 
-#> 0.3260508 0.8664158 
+#> 0.3298788 0.9004199 
 quantile(rts_sv, c(0.5, 0.99))
 #>       50%       99% 
-#> 0.3227368 1.2222166 
+#> 0.3189917 1.3774796 
 
 # Responses faster than ndt keep positive density, unlike the unmixed model
 dcogmod_invgaussian(0.1, ndt = 0.3, poutlier = 0.02)

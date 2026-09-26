@@ -426,8 +426,9 @@ Wald density is thin on the fast side and flat on the slow side, so an
 error accumulator started too fast sits hundreds of log-density units
 above the posterior, and a cold chain's first trajectory can convert
 that into a run down the flat `driftone` direction from which it never
-returns. On the benchmark data of `vignette("performance")` that froze
-one chain in four; the slower start removed it.
+returns. On the benchmark data of the [performance
+article](https://dominiquemakowski.github.io/cogmod/articles/performance.html)
+that froze one chain in four; the slower start removed it.
 
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
 is not a convenience here either. Beyond `ndt` and `poutlier`,

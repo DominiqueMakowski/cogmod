@@ -61,7 +61,9 @@ print(x, ...)
   scale, so that chains start at different points. Smaller than
   [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)'s
   default because the values come from a converged posterior; `0` gives
-  identical starts.
+  identical starts. As there, one number is the SD for the
+  population-level blocks and the group-level and smooth blocks get a
+  fifth of it; two numbers set the two tiers directly.
 
 - ...:
 
@@ -223,43 +225,59 @@ draws per second of a cold start with a 500-iteration warmup, and four
 to six times those of a cold start with the same 100-iteration warmup.
 The starting values alone bought nothing: what a short warmup lacks is
 an adapted step size and metric, not a good position. Details and the
-benchmark are in `vignette("performance")`.
+benchmark are in the [performance
+article](https://dominiquemakowski.github.io/cogmod/articles/performance.html).
 
 ## See also
 
 [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md),
 which supplies the starting values used where the source has none, and
-`vignette("performance")`.
+the [performance
+article](https://dominiquemakowski.github.io/cogmod/articles/performance.html).
 
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
-# A pilot on some participants, then the full sample
-f <- brms::bf(RT | dec(choice) ~ Condition + (1 | id), ndt ~ 1 + (1 | id),
-              poutlier ~ 1, family = cogmod_lnr())
-pilot <- brms::brm(f, data = df[df$id %in% 1:4, ], prior = cogmod_priors(f, df),
-                   init = cogmod_inits(f, df), stanvars = cogmod_stanvars(f),
-                   backend = "cmdstanr")
-ws <- cogmod_warmstart(pilot, data = df)   # same model, all the data
-ws   # how much of the metric came from the pilot
-m <- brms::brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
-               init = ws$init, inv_metric = ws$inv_metric, step_size = ws$step_size,
-               warmup = 100, iter = 600, backend = "cmdstanr")
+# \donttest{
+# Fitting needs cmdstanr, which lives outside CRAN - see the package website.
+if (requireNamespace("cmdstanr", quietly = TRUE) &&
+    !is.null(cmdstanr::cmdstan_version(error_on_NA = FALSE))) {
+  df <- data.frame(
+    RT = rcogmod_lognormal(400, ndt = 0.3, poutlier = 0.02),
+    id = factor(rep(1:8, each = 50))
+  )
+  f <- brms::bf(RT ~ 1 + (1 | id), ndt ~ 1, poutlier ~ 1,
+    family = cogmod_lognormal()
+  )
 
-# Keep it for a cluster
-write.csv(as.data.frame(ws), "pilot_warmstart.csv", row.names = FALSE)
-# ... and there, one helper per argument, all with the same signature
-tab <- "pilot_warmstart.csv"
-m <- brms::brm(f, data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
-               init = cogmod_inits(f, df, warmstart = tab),
-               inv_metric = cogmod_inv_metric(f, df, warmstart = tab),
-               step_size = cogmod_step_size(f, df, warmstart = tab),
-               warmup = 100, iter = 600, backend = "cmdstanr")
+  # A pilot on some participants, then the full sample
+  pilot_df <- droplevels(df[df$id %in% 1:3, ])
+  pilot <- brms::brm(f,
+    data = pilot_df, prior = cogmod_priors(f, pilot_df),
+    init = cogmod_inits(f, pilot_df), stanvars = cogmod_stanvars(f),
+    backend = "cmdstanr", chains = 1, iter = 500, refresh = 0
+  )
+  ws <- cogmod_warmstart(pilot, data = df) # same model, all the data
+  print(ws) # how much of the metric came from the pilot
+  m <- brms::brm(f,
+    data = df, prior = cogmod_priors(f, df), stanvars = cogmod_stanvars(f),
+    init = ws$init, inv_metric = ws$inv_metric, step_size = ws$step_size,
+    backend = "cmdstanr", chains = 1, warmup = 100, iter = 300, refresh = 0
+  )
 
-# The fourth helper is a different kind of thing: it moves the PRIORS onto
-# the pilot's posterior, which changes the model rather than the sampler.
-# Only where the pilot is independent of `df` - see ?cogmod_priors.
-cogmod_priors(f, df, warmstart = tab)
-} # }
+  # Keep it as a table, e.g. for a cluster...
+  tab <- tempfile(fileext = ".csv")
+  write.csv(as.data.frame(ws), tab, row.names = FALSE)
+  # ... and there, one helper per brm() argument, all with the same signature
+  init <- cogmod_inits(f, df, warmstart = tab)
+  inv_metric <- cogmod_inv_metric(f, df, warmstart = tab)
+  step_size <- cogmod_step_size(f, df, warmstart = tab)
+
+  # The fourth helper is a different kind of thing: it moves the PRIORS onto
+  # the pilot's posterior, which changes the model rather than the sampler.
+  # Only where the pilot is independent of `df` - see ?cogmod_priors.
+  print(cogmod_priors(f, df, warmstart = tab))
+  unlink(tab)
+}
+# }
 ```

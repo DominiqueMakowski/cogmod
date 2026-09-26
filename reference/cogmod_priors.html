@@ -35,7 +35,7 @@ alone is not enough."><meta property="og:image" content="https://dominiquemakows
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -213,10 +213,13 @@ did not have - keeps whatever prior the rest of this function gave it, and
 <code><a href="rcogmod_invgamma.html">cogmod_invgamma()</a></code>,
 <code><a href="rcogmod_weibull.html">cogmod_weibull()</a></code>, <code><a href="rcogmod_invweibull.html">cogmod_invweibull()</a></code>, <code><a href="rcogmod_logweibull.html">cogmod_logweibull()</a></code> and, for the
 choice-and-RT models, <code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>, <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>, <code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code> and
-<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>. <code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code> is edited too, although it is not built
-on that parameterization - see its own section below. Any other family, or
-a formula carrying none, is passed through: you get a message and <code>brms</code>'s own
-defaults, unchanged, so the call is always safe to leave in a script.</p>
+<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>. <code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code> and <code><a href="rcogmod_geg.html">cogmod_geg()</a></code> are edited too,
+although they are not built on that parameterization - see their own section
+below - as are the three bounded-scale families for subjective ratings,
+<code><a href="rcogmod_choco.html">cogmod_choco()</a></code>, <code><a href="rcogmod_betagate.html">cogmod_betagate()</a></code> and <code><a href="rcogmod_betadiscrete.html">cogmod_betadiscrete()</a></code>. Any other
+family, or a formula carrying none, is passed through: you get a message and
+<code>brms</code>'s own defaults, unchanged, so the call is always safe to leave in a
+script.</p>
 <p>What gets set, on the link scale (<code>log</code> for <code>ndt</code>, <code>logit</code> for <code>poutlier</code>,
 <code>identity</code> for <code>shape</code>):</p><table class="table table"><tr><td>class</td><td><code>ndt</code></td><td><code>poutlier</code></td><td><code>shape</code></td></tr><tr><td><code>Intercept</code>, or <code>b</code> on a coefficient named <code>Intercept</code></td><td><code>normal(-1.2, 0.5)</code></td><td><code>normal(-5, 1)</code></td><td><code>normal(0, 0.5)</code></td></tr><tr><td><code>b</code> (slopes)</td><td><code>normal(0, 0.2)</code></td><td><code>normal(0, 0.2)</code></td><td><code>normal(0, 0.2)</code></td></tr><tr><td><code>sd</code>, <code>sds</code></td><td><code>exponential(1)</code></td><td><code>exponential(1)</code></td><td><code>exponential(1)</code></td></tr></table><p><code>normal(-1.2, 0.5)</code> centres <code>ndt</code> on 0.30 s, with 95% of its mass between
 about 0.11 and 0.80 s: wide enough for the non-decision times of slower
@@ -304,7 +307,7 @@ region under a flat prior. See <code><a href="rcogmod_lba1.html">cogmod_lba1()</
 <p>Note that no prior is set on the shape of <code><a href="rcogmod_weibull.html">cogmod_weibull()</a></code> or
 <code><a href="rcogmod_gamma.html">cogmod_gamma()</a></code>, although a shape below 2 makes their <code>ndt</code> gradient
 unbounded. That region is reached because the <em>likelihood</em> prefers it, by
-around 100 log units on the data in <code>vignette("rt_models")</code>, so a prior weak
+around 100 log units on the data in the <a href="https://dominiquemakowski.github.io/cogmod/articles/rt_models.html">RT models article</a>, so a prior weak
 enough to be a sensible default cannot move the posterior out of it - only
 bias it. <code><a href="rcogmod_weibull.html">?rcogmod_weibull</a></code> sets out what to do instead.</p>
     </div>
@@ -338,6 +341,68 @@ is the centre of the Gaussian component <strong>alone</strong>, so the mean of t
 distribution it implies is <code>mu + tau</code>; see <code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>.</p>
     </div>
     <div class="section level2">
+    <h2 id="the-bounded-scale-families">The bounded-scale families<a class="anchor" aria-label="anchor" href="#the-bounded-scale-families"></a></h2>
+    <p><code><a href="rcogmod_choco.html">cogmod_choco()</a></code>, <code><a href="rcogmod_betagate.html">cogmod_betagate()</a></code> and <code><a href="rcogmod_betadiscrete.html">cogmod_betadiscrete()</a></code> model
+subjective ratings on <code>[0, 1]</code> or on <code>1:k</code> rather than reaction times, and
+none of them has an infinite flat region of the <code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code> kind.
+They are edited anyway, because every distributional parameter they have
+arrives either flat - improper - or with a <code>brms</code> default aimed at a
+different parameterization.</p><table class="table table"><tr><td>class</td><td><code>pmid</code>, <code>pzero</code></td><td><code>pex</code></td><td><code>bex</code>, <code>confright</code>, <code>confleft</code></td><td><code>precright</code>, <code>precleft</code>, <code>phi</code> (softplus)</td><td><code>phi</code> (<code><a href="rcogmod_betadiscrete.html">cogmod_betadiscrete()</a></code>, <code>log</code>)</td></tr><tr><td><code>Intercept</code></td><td><code>normal(-2.5, 1)</code></td><td><code>normal(-2, 1)</code></td><td><code>normal(0, 1)</code></td><td><code>normal(2, 1.5)</code></td><td><code>normal(0.7, 0.8)</code></td></tr><tr><td><code>b</code> (slopes)</td><td><code>normal(0, 0.5)</code></td><td><code>normal(0, 0.5)</code></td><td><code>normal(0, 0.5)</code></td><td><code>normal(0, 0.5)</code></td><td><code>normal(0, 0.5)</code></td></tr><tr><td><code>sd</code>, <code>sds</code></td><td><code>exponential(1)</code></td><td><code>exponential(1)</code></td><td><code>exponential(1)</code></td><td><code>exponential(1)</code></td><td><code>exponential(1)</code></td></tr></table><p><strong>The point masses.</strong> <code>pmid</code> is the probability of landing exactly on the
+midpoint of the scale and <code>pzero</code> the probability of an extra category
+outside it. Both are flat on a <code>logit</code> link, which is improper in the
+posterior as well as the prior whenever the event is simply absent from the
+data: with no exact midpoints anywhere the likelihood in <code>pmid</code> increases
+monotonically all the way to zero, and nothing stops the logit running to
+minus infinity. That is <code>poutlier</code>'s failure exactly, so it gets
+<code>poutlier</code>'s treatment, including the omitted form's <strong>mode at zero</strong> -
+leaving the dpar out of <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf()</a></code> is itself the statement that you do not
+expect the event. <code>normal(-2.5, 1)</code> is centred on 8% with 95% of its mass
+below 37%, which covers both a slider with a visible midpoint tick and a
+scale carrying a "not applicable" category.</p>
+<p>This is not hypothetical, and it has the signature the <code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code>
+failure has. Fitting <code><a href="rcogmod_choco.html">cogmod_choco()</a></code> to 400 slider responses containing no
+exact midpoints and no extremes, <code>brms</code>'s flat defaults put <code>pex</code> at
+<code>-1.1e14</code> and <code>pmid</code> at <code>-3.4e13</code>, both with <code>Rhat</code> 2.9 and an effective
+sample size of 5, alongside 12% divergent transitions and 48% of them
+hitting the maximum treedepth. With these priors the same data give -4.70
+and -5.15 - 0.9% and 0.6% on the probability scale, which is what a data
+set containing none of either should say - at <code>Rhat</code> 1.00, 3000 to 4000
+effective samples, and no divergences.</p>
+<p><strong>The extremes.</strong> <code>pex</code>, the total probability of a 0 or a 1, deliberately
+does <em>not</em> get the mode-at-zero treatment: extreme responding is a
+documented response style rather than a contaminant, and a scale nobody ever
+answers at the endpoints is the unusual case. <code>normal(-2, 1)</code> centres it on
+12% with 95% between 2% and 49%. <code>bex</code>, which end the extremes favour, is
+centred on symmetric; that also fences the two values at which the model
+degenerates, since at <code>bex = 0</code> or <code>1</code> one gate closes entirely and any
+observation at that endpoint takes the density to <code>-Inf</code>.</p>
+<p><strong>The Beta shapes.</strong> The precisions are the awkward ones. The underlying
+Beta has shapes <code>conf * prec * 2</code> and <code>(1 - conf) * prec * 2</code>, so a
+precision below about 1 makes it U-shaped and unbounded at both ends, while
+a large one narrows it sharply: at a precision of 15 the middle 95% of a
+side spans only a third of it, and a rating a tenth of the way along that
+side costs 13 log units. <code>normal(2, 1.5)</code> on the
+<code>softplus</code> link puts the precision between 0.33 and 4.95 with a median of
+2.13, leaving 17% of its mass below 1 - a U-shaped rating distribution is
+a real thing for a polarising item, so it is fenced rather than excluded.</p>
+<p><code>phi</code> is the one row of the three that <strong>overrides</strong> a non-empty <code>brms</code>
+default rather than filling an empty one, for the reason
+<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>'s <code>sigma</code> does: <code>brms</code> recognises the name from its
+own beta family and supplies <code>student_t(3, 0, 2.5)</code>. On
+<code><a href="rcogmod_betagate.html">cogmod_betagate()</a></code>'s <code>softplus</code> link that is merely loose. On
+<code><a href="rcogmod_betadiscrete.html">cogmod_betadiscrete()</a></code>'s <code>log</code> link it is close to improper - its 95%
+interval runs to <code>phi = 2853</code>, where the Beta has collapsed onto one rating
+category and every other category's probability has underflowed.
+<code><a href="rcogmod_choco.html">cogmod_choco()</a></code>'s precisions escape it only because they are named
+<code>precright</code> and <code>precleft</code>, which <code>brms</code> does not recognise, so they arrive
+flat instead.</p>
+<p><code>mu</code> is left to <code>brms</code> in all three. It is the response's own predictor, and
+on a <code>logit</code> link <code>student_t(3, 0, 2.5)</code> is the standard weakly informative
+choice for exactly that - unlike <code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>'s <code>mu</code>, which needed
+overriding only because an <code>identity</code> link made the same prior a statement
+about seconds.</p>
+    </div>
+    <div class="section level2">
     <h2 id="parameters-left-out-of-the-formula">Parameters left out of the formula<a class="anchor" aria-label="anchor" href="#parameters-left-out-of-the-formula"></a></h2>
     <p>Writing <code>ndt ~ 1</code> and omitting <code>ndt</code> entirely are not the same thing to
 <code>brms</code>, and the difference matters here. A dpar that appears in <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf()</a></code> - even
@@ -347,12 +412,21 @@ out is declared as a plain auxiliary parameter instead, the same mechanism as
 <code>sigma</code> for <code><a href="https://rdrr.io/r/stats/family.html" class="external-link">gaussian()</a></code>, estimated on the <strong>natural</strong> scale with no link and
 reported under <em>Further Distributional Parameters</em>.</p>
 <p>Both forms are filled, with priors on whichever scale the parameter actually
-lives on:</p><table class="table table"><tr><td>dpar</td><td>in <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf()</a></code> (link scale)</td><td>omitted (natural scale)</td></tr><tr><td><code>ndt</code></td><td><code>normal(-1.2, 0.5)</code></td><td><code>lognormal(-1.2, 0.5)</code></td></tr><tr><td><code>poutlier</code></td><td><code>normal(-5, 1)</code></td><td><code>exponential(100)</code></td></tr><tr><td><code>shape</code></td><td><code>normal(0, 0.5)</code></td><td><code>normal(0, 0.5)</code></td></tr><tr><td><code>sigmabias</code>, <code>boundary</code> (<code><a href="rcogmod_lba1.html">cogmod_lba1()</a></code>, <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>, <code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>sigmazero</code>, <code>sigmaone</code> (<code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>driftone</code> (<code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(1, 2)</code></td><td><code>normal(1, 2)</code></td></tr><tr><td><code>sigmadrift</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-1, 0.75)</code></td></tr><tr><td><code>sigmabias</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>)</td><td><code>normal(-2, 1)</code></td><td><code>beta(1, 5)</code></td></tr><tr><td><code>sigmandt</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>, <code><a href="rcogmod_invgaussian.html">cogmod_invgaussian()</a></code>)</td><td><code>normal(-3, 1)</code></td><td><code>lognormal(-3, 1)</code></td></tr><tr><td><code>sigmadrift</code> (<code><a href="rcogmod_invgaussian.html">cogmod_invgaussian()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>nuone</code> (<code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>)</td><td><code>normal(0.7, 1.5)</code></td><td><code>normal(0.7, 1.5)</code></td></tr><tr><td><code>sigmazero</code>, <code>sigmaone</code> (<code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>sigmabias</code> (<code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>, <code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.35, 0.75)</code></td></tr><tr><td><code>dof</code> (<code><a href="rcogmod_logstudent.html">cogmod_logstudent()</a></code>)</td><td><code>normal(1.8, 0.7)</code></td><td><code>lognormal(1.8, 0.7)</code></td></tr><tr><td><code>tau</code> (<code><a href="rcogmod_exwald.html">cogmod_exwald()</a></code>)</td><td><code>normal(-1.5, 0.7)</code></td><td><code>lognormal(-1.5, 0.7)</code></td></tr><tr><td><code>mu</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(0.4, 0.25)</code></td><td>- (always modelled)</td></tr><tr><td><code>sigma</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(-2.3, 0.7)</code></td><td><code>lognormal(-2.3, 0.7)</code></td></tr><tr><td><code>tau</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(-1.5, 0.7)</code></td><td><code>lognormal(-1.5, 0.7)</code></td></tr></table><p>The <code>ndt</code> pair describes the same belief twice: <code>lognormal</code> is just <code>normal</code>
+lives on:</p><table class="table table"><tr><td>dpar</td><td>in <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf()</a></code> (link scale)</td><td>omitted (natural scale)</td></tr><tr><td><code>ndt</code></td><td><code>normal(-1.2, 0.5)</code></td><td><code>lognormal(-1.2, 0.5)</code></td></tr><tr><td><code>poutlier</code></td><td><code>normal(-5, 1)</code></td><td><code>exponential(100)</code></td></tr><tr><td><code>shape</code></td><td><code>normal(0, 0.5)</code></td><td><code>normal(0, 0.5)</code></td></tr><tr><td><code>sigmabias</code>, <code>boundary</code> (<code><a href="rcogmod_lba1.html">cogmod_lba1()</a></code>, <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>, <code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>sigmazero</code>, <code>sigmaone</code> (<code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>driftone</code> (<code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>)</td><td><code>normal(1, 2)</code></td><td><code>normal(1, 2)</code></td></tr><tr><td><code>sigmadrift</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-1, 0.75)</code></td></tr><tr><td><code>sigmabias</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>)</td><td><code>normal(-2, 1)</code></td><td><code>beta(1, 5)</code></td></tr><tr><td><code>sigmandt</code> (<code><a href="rcogmod_ddm.html">cogmod_ddm()</a></code>, <code><a href="rcogmod_invgaussian.html">cogmod_invgaussian()</a></code>)</td><td><code>normal(-3, 1)</code></td><td><code>lognormal(-3, 1)</code></td></tr><tr><td><code>sigmadrift</code> (<code><a href="rcogmod_invgaussian.html">cogmod_invgaussian()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>nuone</code> (<code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>)</td><td><code>normal(0.7, 1.5)</code></td><td><code>normal(0.7, 1.5)</code></td></tr><tr><td><code>sigmazero</code>, <code>sigmaone</code> (<code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.7, 0.75)</code></td></tr><tr><td><code>sigmabias</code> (<code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>, <code><a href="rcogmod_lognormal.html">cogmod_lognormal()</a></code>)</td><td><code>normal(0, 1)</code></td><td><code>lognormal(-0.35, 0.75)</code></td></tr><tr><td><code>dof</code> (<code><a href="rcogmod_logstudent.html">cogmod_logstudent()</a></code>)</td><td><code>normal(1.8, 0.7)</code></td><td><code>lognormal(1.8, 0.7)</code></td></tr><tr><td><code>tau</code> (<code><a href="rcogmod_exwald.html">cogmod_exwald()</a></code>)</td><td><code>normal(-1.5, 0.7)</code></td><td><code>lognormal(-1.5, 0.7)</code></td></tr><tr><td><code>mu</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(0.4, 0.25)</code></td><td>- (always modelled)</td></tr><tr><td><code>sigma</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(-2.3, 0.7)</code></td><td><code>lognormal(-2.3, 0.7)</code></td></tr><tr><td><code>tau</code> (<code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code>)</td><td><code>normal(-1.5, 0.7)</code></td><td><code>lognormal(-1.5, 0.7)</code></td></tr><tr><td><code>confright</code>, <code>confleft</code> (<code><a href="rcogmod_choco.html">cogmod_choco()</a></code>), <code>bex</code></td><td><code>normal(0, 1)</code></td><td><code>beta(2, 2)</code></td></tr><tr><td><code>precright</code>, <code>precleft</code> (<code><a href="rcogmod_choco.html">cogmod_choco()</a></code>), <code>phi</code> (<code><a href="rcogmod_betagate.html">cogmod_betagate()</a></code>)</td><td><code>normal(2, 1.5)</code></td><td><code>lognormal(0.7, 0.7)</code></td></tr><tr><td><code>phi</code> (<code><a href="rcogmod_betadiscrete.html">cogmod_betadiscrete()</a></code>)</td><td><code>normal(0.7, 0.8)</code></td><td><code>lognormal(0.7, 0.8)</code></td></tr><tr><td><code>pex</code> (<code><a href="rcogmod_choco.html">cogmod_choco()</a></code>, <code><a href="rcogmod_betagate.html">cogmod_betagate()</a></code>)</td><td><code>normal(-2, 1)</code></td><td><code>beta(2, 12)</code></td></tr><tr><td><code>pmid</code> (<code><a href="rcogmod_choco.html">cogmod_choco()</a></code>), <code>pzero</code> (<code><a href="rcogmod_betadiscrete.html">cogmod_betadiscrete()</a></code>)</td><td><code>normal(-2.5, 1)</code></td><td><code>exponential(9)</code></td></tr></table><p>The <code>ndt</code> pair describes the same belief twice: <code>lognormal</code> is just <code>normal</code>
 on the log scale, written for the untransformed parameter. The
 <code><a href="rcogmod_exgaussian.html">cogmod_exgaussian()</a></code> pairs do the same to within a rounding error, because
 <code>softplus(x)</code> and <code>exp(x)</code> agree to three figures for the <code>x</code> below <code>-2</code> that
 both parameters live at: <code>lognormal(-2.3, 0.7)</code> has median 0.100 against
 <code>softplus(-2.3) = 0.096</code>.</p>
+<p>The Beta precisions are the one place that reasoning does <strong>not</strong> carry
+over. They live up at <code>x = 2</code>, where <code>softplus(x)</code> is approximately <code>x</code>
+rather than <code>exp(x)</code>, so the two forms cannot be the same distribution
+written twice however the numbers are chosen. <code>lognormal(0.7, 0.7)</code> is
+matched to <code>normal(2, 1.5)</code> on its median - 2.01 against 2.13 - and on its
+sense rather than quantile by quantile: its upper tail reaches 7.9 where the
+link form stops at 4.9. <code><a href="rcogmod_betadiscrete.html">cogmod_betadiscrete()</a></code>'s <code>phi</code> is the exception
+that shows the rule, being on a <code>log</code> link, where the pair really is one
+distribution and carries the same two numbers.</p>
 <p>If the data were trimmed before fitting, tighten this rather than removing
 it: <code>normal(-7, 0.5)</code> asserts essentially no contamination while keeping the
 density positive below <code>ndt</code>. Fixing <code>poutlier = 0</code> outright reinstates the
@@ -366,6 +440,12 @@ logit-scale prior cannot do at any location. The centre is unchanged:
 still a prior rather than a constraint, so a genuine spike of fast responses
 will still pull the rate up; to switch the parameter off entirely, trim the
 data and it will simply sit near zero.</p>
+<p><code>pmid</code> and <code>pzero</code> are the same argument on a rating scale, and get the same
+pair: <code>exponential(9)</code> has median 0.077 against <code>plogis(-2.5) = 0.076</code>. To
+switch either off outright, fix it in <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf()</a></code> - <code>pmid = 0</code> or <code>pzero = 0</code> -
+which removes the parameter rather than merely pushing it down. Note that
+<code>pmid = 0</code> makes any response falling exactly on the midpoint impossible,
+so the fit will fail to initialise if the data contain one.</p>
 <p>Two rows override a <strong>non-empty</strong> <code>brms</code> default rather than filling an empty
 one. <code>brms</code> recognises the name <code>ndt</code> from its own shifted families and
 supplies <code>uniform(0, min_Y)</code> - precisely the min-RT bound that

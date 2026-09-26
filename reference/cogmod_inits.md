@@ -37,9 +37,17 @@ cogmod_inits(formula = NULL, data = NULL, jitter = NULL, warmstart = NULL, ...)
 - jitter:
 
   SD of the noise added on the unconstrained scale, so that chains start
-  at different points. Set to `0` for identical starts. `NULL` (the
-  default) means 0.25, or 0.05 with a `warmstart`, whose values come
-  from a converged posterior and should not be scattered far.
+  at different points. One number is the SD for the population-level
+  blocks, the intercepts and slopes; the group-level and smooth blocks -
+  the standardized effects `z_*` and `zs_*` and their scales `sd_*` and
+  `sds_*` - get a fifth of it, because a unit of noise there is
+  multiplied through a scale and a design column before it reaches the
+  linear predictor, and reaches it once per participant or basis
+  function. Two numbers set the two tiers directly, population first.
+  Set to `0` for identical starts. `NULL` (the default) means 0.25, so
+  0.05 on the hierarchical blocks, or 0.05 with a `warmstart`, whose
+  values come from a converged posterior and should not be scattered
+  far.
 
 - warmstart:
 
@@ -181,9 +189,17 @@ and, for the choice-and-RT models,
 and
 [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) -
 plus
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md),
-whose three parameters are all on the RT scale behind a `softplus` link
-and so are equally badly served by starting at `log(2)`.
+[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+and
+[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md),
+whose parameters are all on the RT scale behind a `softplus` link and so
+are equally badly served by starting at `log(2)`.
+
+The two bounded-scale families for subjective ratings,
+[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)
+and
+[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md),
+are covered as well to help with warmup.
 
 ## See also
 
@@ -208,6 +224,37 @@ inits(1)
 #> 
 #> $Intercept_poutlier
 #> [1] -3.861294
+#> 
+
+# The bounded-scale families are covered too. `pmid` starts at 0.05 rather
+# than the logit origin's 0.5, which would put half of every response
+# exactly on the midpoint of the scale.
+r <- data.frame(y = rcogmod_choco(50, pmid = 0.05))
+g <- brms::bf(y ~ 1, pmid ~ 1, family = cogmod_choco())
+cogmod_inits(g, r, jitter = 0)(1)
+#> $Intercept
+#> [1] 0
+#> 
+#> $confright
+#> [1] 0.5
+#> 
+#> $precright
+#> [1] 2
+#> 
+#> $confleft
+#> [1] 0.5
+#> 
+#> $precleft
+#> [1] 2
+#> 
+#> $pex
+#> [1] 0.1
+#> 
+#> $bex
+#> [1] 0.5
+#> 
+#> $Intercept_pmid
+#> [1] -2.944439
 #> 
 
 # \donttest{

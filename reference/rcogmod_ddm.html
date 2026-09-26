@@ -45,7 +45,7 @@ boundary rather than to one."><meta property="og:image" content="https://dominiq
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -354,6 +354,20 @@ floor - the link only reaches zero at minus infinity, and the likelihood stops
 changing well before then - so <code><a href="cogmod_priors.html">cogmod_priors()</a></code> gives all three deliberately
 tight priors. Fixing the ones a design cannot identify is usually better than
 estimating them behind a prior.</p>
+<p>There is a cost argument too, and it is a cliff rather than a slope. The
+Stan density has a closed form for <code>sigmadrift</code>, so estimating it costs
+about 2.8 times the classic model per gradient evaluation. <code>sigmabias</code> and
+<code>sigmandt</code> have no closed form: Stan integrates them out numerically, once
+for the density and once more for each partial derivative, at every
+observation and every leapfrog step. Measured against the <code>sigmadrift</code>-only
+model, estimating <em>one</em> of them costs about 18 times as much per gradient
+and estimating <em>both</em> about 30 times (55 before the tolerance the package
+now passes to <code>wiener_lpdf()</code>). Nothing in between exists: the fast path is
+a test for exactly zero, so a tight prior does not buy it back - a
+<code>sigmandt</code> estimated at 1e-5 costs the same as one at 0.05 s. Only
+<code>sigmandt = 0</code> in <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf()</a></code> does. On a few thousand trials this is the
+difference between minutes and hours; on a few hundred thousand, between a
+day and weeks.</p>
     </div>
     <div class="section level2">
     <h2 id="the-outlier-component">The outlier component<a class="anchor" aria-label="anchor" href="#the-outlier-component"></a></h2>
@@ -505,12 +519,12 @@ Psychology</em>, <em>53</em>(4), 222-230. <a href="https://doi.org/10.1016/j.jmp
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">data</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>          rt response</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 0.6881871        0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 0.4426854        0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 0.3992289        1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 0.6083311        0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5 0.3406405        0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6 0.3247461        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 0.2661712        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 0.4895229        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 0.4394044        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 0.4781470        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5 0.4352195        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6 0.2292474        1</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Responses faster than ndt keep positive density, unlike the unmixed model</span></span></span>
 <span class="r-in"><span><span class="fu">dcogmod_ddm</span><span class="op">(</span><span class="fl">0.1</span>, ndt <span class="op">=</span> <span class="fl">0.2</span>, response <span class="op">=</span> <span class="fl">1</span>, poutlier <span class="op">=</span> <span class="fl">0.02</span><span class="op">)</span></span></span>
