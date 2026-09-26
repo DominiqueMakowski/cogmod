@@ -1,0 +1,8 @@
+"model","logLik","k","AIC"
+"gaussbit, rho = 0 (= gaussian() + bernoulli('probit'))",34.94,6,-57.9
+"gaussbit, rho free",35.88,8,-55.8
+"native: gaussian() + probit(Error ~ Condition * RT)",35.88,8,-55.8
+"log-RT + probit, rho = 0",904.97,6,-1797.9
+"log-RT + probit, rho free",905.17,8,-1794.3
+"log-RT + probit + ndt ~ Condition + poutlier ('lognorbit')",1318.29,11,-2614.6
+"LNR (vignette formula)",1325.74,9,-2633.5

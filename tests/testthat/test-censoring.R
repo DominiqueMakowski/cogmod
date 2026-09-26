@@ -258,12 +258,12 @@ test_that("Stan cogmod_exgaussian and cogmod_geg CDFs match their R counterparts
   geg_lcdf <- stan_fun("cogmod_geg", "_lcdf")
   geg_lccdf <- stan_fun("cogmod_geg", "_lccdf")
   for (y in c(-0.2, 0.3, 0.5, 1, 3, 6)) {
-    # Six SDs into the LEFT tail Stan's exp_mod_normal_lcdf subtracts two
-    # near-equal numbers of order 1e-9 before taking the log, and keeps about
-    # seven digits; R's .lcdf_exgaussian() does the subtraction in log space
-    # and keeps them all. The looser criterion there is Stan's builtin, not
-    # ours, and the region is one no reaction time occupies.
-    ltol <- if (y < 0) 1e-6 else 1e-8
+    # y = -0.2 is six SDs into the LEFT tail, where the two terms of F_EG are
+    # near-equal numbers of order 1e-9. Stan's exp_mod_normal_lcdf() subtracts
+    # them before taking the log and kept about seven digits there; the Stan
+    # side now does the subtraction in log space, the same way
+    # .lcdf_exgaussian() does in R, so the one criterion holds everywhere.
+    ltol <- 1e-8
     expect_close(ex_lcdf(y, 0.4, 0.1, 0.2),
                  pcogmod_exgaussian(y, 0.4, 0.1, 0.2, log.p = TRUE),
                  tol = ltol, info = paste("exgaussian lcdf", y))
@@ -416,6 +416,7 @@ test_that("cens() is refused where it cannot go and questioned where it is doubt
 
 test_that("a censored shifted Wald recovers its parameters and loo() runs", {
   skip_if_not_slow()
+  skip_if_not_installed("loo")
   set.seed(11)
   n <- 600
   # Correct responses from the model; an independent competing process that

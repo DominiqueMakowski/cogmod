@@ -1,0 +1,11 @@
+"setting","model","us_per_gradient"
+"fixed","gp_rho",1815.4501914978
+"fixed","gl_rho",4622.80511856079
+"fixed","gp_0",1563.50135803223
+"fixed","mv_probit",896.954536437988
+"fixed","mv_logit",627.601146697998
+"mixed","gp_rho",1962.9955291748
+"mixed","gl_rho",4672.59883880615
+"mixed","gp_0",1782.09543228149
+"mixed","mv_probit",1056.00357055664
+"mixed","mv_logit",894.701480865479

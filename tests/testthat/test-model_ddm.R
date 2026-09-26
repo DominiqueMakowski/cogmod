@@ -41,6 +41,7 @@ make_prep <- function(y, dec, drift, boundary, bias, ndt, poutlier,
 # dcogmod_ddm -------------------------------------------------------------
 
 test_that("dcogmod_ddm matches the mixture density", {
+  skip_if_not_installed("RWiener") # brms::dwiener() calls it
   pars <- list(drift = 0.5, boundary = 1, bias = 0.4, ndt = 0.2)
   for (poutlier in c(0, 0.02, 0.4)) {
     for (response in 0:1) {
@@ -127,6 +128,7 @@ test_that("poutlier = 0 recovers the plain shifted diffusion", {
 
 
 test_that("the tau0 offset is exactly that: an offset", {
+  skip_if_not_installed("RWiener") # brms::dwiener() calls it
   # brms::dwiener() refuses a zero non-decision time, but the density depends on
   # the time and the non-decision time only through their difference, so the
   # decision component is evaluated at (t + tau0, tau0). This checks that the
@@ -681,8 +683,12 @@ test_that("stanvars carry the likelihood with the outlier component", {
   expect_true(grepl("wiener_lpdf\\(y \\| boundary, tau0, w, v\\)", code))
   expect_true(grepl("wiener_lpdf\\(y \\| boundary, tau0, w, v, sigmadrift\\)",
                     code))
+  # ...and the 7-parameter one carries the package's tolerance, not Stan's
+  # default: it is generated from .DDM_WIENER_PRECISION, so check that number
   expect_true(grepl(
-    "wiener_lpdf\\(y \\| boundary, tau0, w, v, sigmadrift, sw, sigmandt\\)",
+    sprintf("wiener_lpdf\\(y \\| boundary, tau0, w, v, sigmadrift, sw, sigmandt, %s\\)",
+            formatC(cogmod:::.DDM_WIENER_PRECISION, format = "g", digits = 17,
+                    width = 1)),
     code
   ))
   # the old parameterization is gone

@@ -7,8 +7,8 @@ authors:
       given-names: Dominique
       email: D.Makowski@sussex.ac.uk
       orcid: "https://orcid.org/0000-0001-5375-9967"
-version: 0.3.0
-date-released: 2026-08-21
+version: 0.3.3
+date-released: 2026-09-25
 url: "https://github.com/DominiqueMakowski/cogmod"
 repository-code: "https://github.com/DominiqueMakowski/cogmod"
 license: MIT

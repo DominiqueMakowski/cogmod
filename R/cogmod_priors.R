@@ -115,10 +115,13 @@
 #' [cogmod_invgamma()],
 #' [cogmod_weibull()], [cogmod_invweibull()], [cogmod_logweibull()] and, for the
 #' choice-and-RT models, [cogmod_lnr()], [cogmod_rdm()], [cogmod_lba2()] and
-#' [cogmod_ddm()]. [cogmod_exgaussian()] is edited too, although it is not built
-#' on that parameterization - see its own section below. Any other family, or
-#' a formula carrying none, is passed through: you get a message and `brms`'s own
-#' defaults, unchanged, so the call is always safe to leave in a script.
+#' [cogmod_ddm()]. [cogmod_exgaussian()] and [cogmod_geg()] are edited too,
+#' although they are not built on that parameterization - see their own section
+#' below - as are the three bounded-scale families for subjective ratings,
+#' [cogmod_choco()], [cogmod_betagate()] and [cogmod_betadiscrete()]. Any other
+#' family, or a formula carrying none, is passed through: you get a message and
+#' `brms`'s own defaults, unchanged, so the call is always safe to leave in a
+#' script.
 #'
 #' What gets set, on the link scale (`log` for `ndt`, `logit` for `poutlier`,
 #' `identity` for `shape`):
@@ -221,7 +224,7 @@
 #' Note that no prior is set on the shape of [cogmod_weibull()] or
 #' [cogmod_gamma()], although a shape below 2 makes their `ndt` gradient
 #' unbounded. That region is reached because the *likelihood* prefers it, by
-#' around 100 log units on the data in `vignette("rt_models")`, so a prior weak
+#' around 100 log units on the data in the [RT models article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html), so a prior weak
 #' enough to be a sensible default cannot move the posterior out of it - only
 #' bias it. `?rcogmod_weibull` sets out what to do instead.
 #'
@@ -264,6 +267,81 @@
 #' is the centre of the Gaussian component **alone**, so the mean of the
 #' distribution it implies is `mu + tau`; see [cogmod_exgaussian()].
 #'
+#' # The bounded-scale families
+#'
+#' [cogmod_choco()], [cogmod_betagate()] and [cogmod_betadiscrete()] model
+#' subjective ratings on `[0, 1]` or on `1:k` rather than reaction times, and
+#' none of them has an infinite flat region of the [cogmod_lognormal()] kind.
+#' They are edited anyway, because every distributional parameter they have
+#' arrives either flat - improper - or with a `brms` default aimed at a
+#' different parameterization.
+#'
+#' | class | `pmid`, `pzero` | `pex` | `bex`, `confright`, `confleft` | `precright`, `precleft`, `phi` (softplus) | `phi` ([cogmod_betadiscrete()], `log`) |
+#' | --- | --- | --- | --- | --- | --- |
+#' | `Intercept` | `normal(-2.5, 1)` | `normal(-2, 1)` | `normal(0, 1)` | `normal(2, 1.5)` | `normal(0.7, 0.8)` |
+#' | `b` (slopes) | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` |
+#' | `sd`, `sds` | `exponential(1)` | `exponential(1)` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
+#'
+#' **The point masses.** `pmid` is the probability of landing exactly on the
+#' midpoint of the scale and `pzero` the probability of an extra category
+#' outside it. Both are flat on a `logit` link, which is improper in the
+#' posterior as well as the prior whenever the event is simply absent from the
+#' data: with no exact midpoints anywhere the likelihood in `pmid` increases
+#' monotonically all the way to zero, and nothing stops the logit running to
+#' minus infinity. That is `poutlier`'s failure exactly, so it gets
+#' `poutlier`'s treatment, including the omitted form's **mode at zero** -
+#' leaving the dpar out of `bf()` is itself the statement that you do not
+#' expect the event. `normal(-2.5, 1)` is centred on 8% with 95% of its mass
+#' below 37%, which covers both a slider with a visible midpoint tick and a
+#' scale carrying a "not applicable" category.
+#'
+#' This is not hypothetical, and it has the signature the [cogmod_lognormal()]
+#' failure has. Fitting [cogmod_choco()] to 400 slider responses containing no
+#' exact midpoints and no extremes, `brms`'s flat defaults put `pex` at
+#' `-1.1e14` and `pmid` at `-3.4e13`, both with `Rhat` 2.9 and an effective
+#' sample size of 5, alongside 12% divergent transitions and 48% of them
+#' hitting the maximum treedepth. With these priors the same data give -4.70
+#' and -5.15 - 0.9% and 0.6% on the probability scale, which is what a data
+#' set containing none of either should say - at `Rhat` 1.00, 3000 to 4000
+#' effective samples, and no divergences.
+#'
+#' **The extremes.** `pex`, the total probability of a 0 or a 1, deliberately
+#' does *not* get the mode-at-zero treatment: extreme responding is a
+#' documented response style rather than a contaminant, and a scale nobody ever
+#' answers at the endpoints is the unusual case. `normal(-2, 1)` centres it on
+#' 12% with 95% between 2% and 49%. `bex`, which end the extremes favour, is
+#' centred on symmetric; that also fences the two values at which the model
+#' degenerates, since at `bex = 0` or `1` one gate closes entirely and any
+#' observation at that endpoint takes the density to `-Inf`.
+#'
+#' **The Beta shapes.** The precisions are the awkward ones. The underlying
+#' Beta has shapes `conf * prec * 2` and `(1 - conf) * prec * 2`, so a
+#' precision below about 1 makes it U-shaped and unbounded at both ends, while
+#' a large one narrows it sharply: at a precision of 15 the middle 95% of a
+#' side spans only a third of it, and a rating a tenth of the way along that
+#' side costs 13 log units. `normal(2, 1.5)` on the
+#' `softplus` link puts the precision between 0.33 and 4.95 with a median of
+#' 2.13, leaving 17% of its mass below 1 - a U-shaped rating distribution is
+#' a real thing for a polarising item, so it is fenced rather than excluded.
+#'
+#' `phi` is the one row of the three that **overrides** a non-empty `brms`
+#' default rather than filling an empty one, for the reason
+#' [cogmod_exgaussian()]'s `sigma` does: `brms` recognises the name from its
+#' own beta family and supplies `student_t(3, 0, 2.5)`. On
+#' [cogmod_betagate()]'s `softplus` link that is merely loose. On
+#' [cogmod_betadiscrete()]'s `log` link it is close to improper - its 95%
+#' interval runs to `phi = 2853`, where the Beta has collapsed onto one rating
+#' category and every other category's probability has underflowed.
+#' [cogmod_choco()]'s precisions escape it only because they are named
+#' `precright` and `precleft`, which `brms` does not recognise, so they arrive
+#' flat instead.
+#'
+#' `mu` is left to `brms` in all three. It is the response's own predictor, and
+#' on a `logit` link `student_t(3, 0, 2.5)` is the standard weakly informative
+#' choice for exactly that - unlike [cogmod_exgaussian()]'s `mu`, which needed
+#' overriding only because an `identity` link made the same prior a statement
+#' about seconds.
+#'
 #' # Parameters left out of the formula
 #'
 #' Writing `ndt ~ 1` and omitting `ndt` entirely are not the same thing to
@@ -297,6 +375,11 @@
 #' | `mu` ([cogmod_exgaussian()]) | `normal(0.4, 0.25)` | - (always modelled) |
 #' | `sigma` ([cogmod_exgaussian()]) | `normal(-2.3, 0.7)` | `lognormal(-2.3, 0.7)` |
 #' | `tau` ([cogmod_exgaussian()]) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
+#' | `confright`, `confleft` ([cogmod_choco()]), `bex` | `normal(0, 1)` | `beta(2, 2)` |
+#' | `precright`, `precleft` ([cogmod_choco()]), `phi` ([cogmod_betagate()]) | `normal(2, 1.5)` | `lognormal(0.7, 0.7)` |
+#' | `phi` ([cogmod_betadiscrete()]) | `normal(0.7, 0.8)` | `lognormal(0.7, 0.8)` |
+#' | `pex` ([cogmod_choco()], [cogmod_betagate()]) | `normal(-2, 1)` | `beta(2, 12)` |
+#' | `pmid` ([cogmod_choco()]), `pzero` ([cogmod_betadiscrete()]) | `normal(-2.5, 1)` | `exponential(9)` |
 #'
 #' The `ndt` pair describes the same belief twice: `lognormal` is just `normal`
 #' on the log scale, written for the untransformed parameter. The
@@ -304,6 +387,16 @@
 #' `softplus(x)` and `exp(x)` agree to three figures for the `x` below `-2` that
 #' both parameters live at: `lognormal(-2.3, 0.7)` has median 0.100 against
 #' `softplus(-2.3) = 0.096`.
+#'
+#' The Beta precisions are the one place that reasoning does **not** carry
+#' over. They live up at `x = 2`, where `softplus(x)` is approximately `x`
+#' rather than `exp(x)`, so the two forms cannot be the same distribution
+#' written twice however the numbers are chosen. `lognormal(0.7, 0.7)` is
+#' matched to `normal(2, 1.5)` on its median - 2.01 against 2.13 - and on its
+#' sense rather than quantile by quantile: its upper tail reaches 7.9 where the
+#' link form stops at 4.9. [cogmod_betadiscrete()]'s `phi` is the exception
+#' that shows the rule, being on a `log` link, where the pair really is one
+#' distribution and carries the same two numbers.
 #'
 #' If the data were trimmed before fitting, tighten this rather than removing
 #' it: `normal(-7, 0.5)` asserts essentially no contamination while keeping the
@@ -319,6 +412,13 @@
 #' still a prior rather than a constraint, so a genuine spike of fast responses
 #' will still pull the rate up; to switch the parameter off entirely, trim the
 #' data and it will simply sit near zero.
+#'
+#' `pmid` and `pzero` are the same argument on a rating scale, and get the same
+#' pair: `exponential(9)` has median 0.077 against `plogis(-2.5) = 0.076`. To
+#' switch either off outright, fix it in `bf()` - `pmid = 0` or `pzero = 0` -
+#' which removes the parameter rather than merely pushing it down. Note that
+#' `pmid = 0` makes any response falling exactly on the midpoint impossible,
+#' so the fit will fail to initialise if the data contain one.
 #'
 #' Two rows override a **non-empty** `brms` default rather than filling an empty
 #' one. `brms` recognises the name `ndt` from its own shifted families and
@@ -580,6 +680,131 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
                 slope = "normal(0, 0.5)")
     ),
     override = c("sigma", "shape")
+  ),
+
+  # The three bounded-scale families for subjective ratings. None is on the
+  # ndt + poutlier mixture and none has an infinite flat region of the
+  # cogmod_lognormal() kind, but every dpar they have arrives either flat -
+  # improper - or with a brms default aimed at a different parameterization.
+  # Four arguments cover all three families, so they are set out once here
+  # rather than three times below.
+  #
+  # THE POINT MASSES. `pmid` (cogmod_choco) and `pzero` (cogmod_betadiscrete)
+  # are the probability of landing exactly on the midpoint of the scale, or on
+  # an extra category outside it. brms leaves both flat on a logit link, and
+  # that is improper in the posterior as well as the prior whenever the event
+  # is simply absent from the data: with no exact midpoints anywhere, the
+  # likelihood in `pmid` increases monotonically all the way to zero and
+  # nothing stops the logit running to minus infinity. That is exactly
+  # `poutlier`'s failure, so it gets exactly `poutlier`'s treatment - a normal
+  # on the link scale, and on the natural scale a distribution with its MODE at
+  # zero, which no logit-scale prior can have at any location. Omitting the
+  # dpar from bf() is itself the statement that you do not expect the event.
+  # The two forms agree on the centre, as that pair does: exponential(9) has
+  # median 0.077 against plogis(-2.5) = 0.076, about 8%, with 95% of the mass
+  # below 37%. Sliders with a visible midpoint tick and scales carrying a "not
+  # applicable" category both sit in that range. exponential(9) puts 1.2e-4 of
+  # its mass above 1, which the declared upper bound truncates away.
+  #
+  # THE EXTREMES. `pex` is the total probability of a 0 or a 1, and it is NOT
+  # given the mode-at-zero treatment, because it is a different kind of
+  # quantity: extreme responding is a documented response style rather than a
+  # contaminant, and a scale on which nobody ever picks an endpoint is the
+  # unusual case. normal(-2, 1) centres it on 12% with 95% between 2% and 49%,
+  # which spans the ordinary and the strongly extreme responder. `bex`, which
+  # end the extremes favour, is centred on symmetric with normal(0, 1) - 12% to
+  # 88%. That also fences the two values at which the model degenerates: at
+  # bex = 0 or 1 one of the two gates closes entirely, and any observation at
+  # that endpoint takes the density to -Inf.
+  #
+  # THE BETA SHAPES. `confright` / `confleft` (cogmod_choco) and `mu`
+  # (cogmod_betagate) are the Beta mean of each side; normal(0, 1) centres them
+  # on the middle of their half of the scale, 12% to 88%. The precisions are
+  # the awkward ones. Shapes are `conf * prec * 2` and `(1 - conf) * prec * 2`,
+  # so prec below about 1 makes the Beta U-shaped and unbounded at both ends,
+  # while a large prec narrows it sharply: at prec 15 the middle 95% of a side
+  # spans only a third of it and a rating a tenth of the way along costs 13 log
+  # units. normal(2, 1.5) on the softplus link puts prec between 0.33 and 4.95
+  # with a median of 2.13, leaving 17% of the mass below 1 - the U shape is a
+  # real rating distribution for a polarising item, so it is fenced, not
+  # excluded.
+  #
+  # Note what the `nat` forms here do NOT do. For `ndt` the pair is one belief
+  # written twice, because lognormal is normal on the log scale; for
+  # cogmod_exgaussian() it is very nearly that, because softplus(x) and exp(x)
+  # agree to three figures below x = -2. Neither holds for a precision, which
+  # lives up at x = 2, where softplus(x) is approximately x rather than exp(x).
+  # So lognormal(0.7, 0.7) is matched to normal(2, 1.5) on its median (2.01
+  # against 2.13) and on its sense, not quantile by quantile - its upper tail
+  # reaches 7.9 where the link form stops at 4.9. cogmod_betadiscrete()'s `phi`
+  # is the exception that shows the rule: it is on a LOG link, so its two forms
+  # are the same distribution and carry the same numbers.
+  #
+  # `phi` is the one row of the three that OVERRIDES rather than fills. brms
+  # recognises the name from its own beta family and supplies
+  # student_t(3, 0, 2.5), the same trap cogmod_exgaussian()'s `sigma` falls
+  # into. On cogmod_betagate()'s softplus link that is merely loose. On
+  # cogmod_betadiscrete()'s log link it is close to improper: its 95% interval
+  # runs to phi = 2853, where the Beta has collapsed onto a single rating
+  # category and every other category's probability has underflowed.
+  # cogmod_choco()'s precisions escape only because they are named `precright`
+  # and `precleft`, which brms does not recognise, so they arrive flat instead.
+  #
+  # `mu` is left to brms in all three. It is the response's own predictor, and
+  # on a logit link brms' student_t(3, 0, 2.5) is the standard weakly
+  # informative choice for exactly that - unlike cogmod_exgaussian()'s `mu`,
+  # which needed overriding only because an identity link made the same prior a
+  # statement about seconds. The dpar slopes get normal(0, 0.5) rather than the
+  # 0.2 default: on a logit scale that is an odds ratio between 0.38 and 2.7
+  # per unit of predictor, and these slopes are what the model is fitted to
+  # estimate.
+  cogmod_choco = list(
+    prior = list(
+      confright = c(link = "normal(0, 1)", nat = "beta(2, 2)",
+                    slope = "normal(0, 0.5)"),
+      confleft = c(link = "normal(0, 1)", nat = "beta(2, 2)",
+                   slope = "normal(0, 0.5)"),
+      precright = c(link = "normal(2, 1.5)", nat = "lognormal(0.7, 0.7)",
+                    slope = "normal(0, 0.5)"),
+      precleft = c(link = "normal(2, 1.5)", nat = "lognormal(0.7, 0.7)",
+                   slope = "normal(0, 0.5)"),
+      pex = c(link = "normal(-2, 1)", nat = "beta(2, 12)",
+              slope = "normal(0, 0.5)"),
+      bex = c(link = "normal(0, 1)", nat = "beta(2, 2)",
+              slope = "normal(0, 0.5)"),
+      pmid = c(link = "normal(-2.5, 1)", nat = "exponential(9)",
+               slope = "normal(0, 0.5)")
+    )
+    # Nothing to override: brms recognises none of these names, so every row
+    # arrives empty.
+  ),
+
+  cogmod_betagate = list(
+    prior = list(
+      phi = c(link = "normal(2, 1.5)", nat = "lognormal(0.7, 0.7)",
+              slope = "normal(0, 0.5)"),
+      pex = c(link = "normal(-2, 1)", nat = "beta(2, 12)",
+              slope = "normal(0, 0.5)"),
+      bex = c(link = "normal(0, 1)", nat = "beta(2, 2)",
+              slope = "normal(0, 0.5)")
+    ),
+    override = "phi"
+  ),
+
+  cogmod_betadiscrete = list(
+    prior = list(
+      # On a log link, so the two forms are one distribution: phi between 0.42
+      # and 9.7, median 2.0, 19% of the mass below 1. Below 1 with `mu` at 0.5
+      # is the U and J shaped rating data this family exists to fit, so it
+      # keeps real weight. The upper end is where the scale stops resolving:
+      # at phi 10 a seven-point scale already has 95% of its mass inside three
+      # of its seven categories, and it only narrows from there.
+      phi = c(link = "normal(0.7, 0.8)", nat = "lognormal(0.7, 0.8)",
+              slope = "normal(0, 0.5)"),
+      pzero = c(link = "normal(-2.5, 1)", nat = "exponential(9)",
+                slope = "normal(0, 0.5)")
+    ),
+    override = "phi"
   )
 )
 
@@ -692,6 +917,20 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
   # The modelled counterpart of the auxiliary override: these rows arrive
   # non-empty, so they have to be replaced rather than filled.
   link <- link | (p$dpar %in% override & p$class == "Intercept")
+  # A smooth's wiggliness scale (`sds`) arrives the other way round from a
+  # group-level `sd`: brms fills the BLANKET row itself, student_t(3, 0, 2.5),
+  # and leaves the per-term rows empty. The empty rows are then covered and the
+  # filled one was never a candidate, so until 0.3.3 an `sds` on a dpar kept
+  # brms's default while the table in ?cogmod_priors said exponential(1). (The
+  # `sd` rows escape because brms's blanket there has an empty group and the
+  # rows it sets have the grouping factor's, so the two never match.) The
+  # blanket is the row brms will use, so take it and replace it. On a logit- or
+  # log-linked dpar a half-t(3, 0, 2.5), median 1.9 on the link scale, lets
+  # the smooth alone walk a `sigmabias` across its whole range or move a
+  # `sigmandt` by a factor of seven - which undoes the tight intercept the
+  # family put there on purpose. The response's own smooth (`dpar == ""`) is
+  # not touched, for the same reason its slopes are not.
+  link <- link | (p$dpar %in% dpars & p$class == "sds" & !nzchar(p$coef))
 
   # `mu` is the response's own linear predictor, so brms reports it with an
   # EMPTY dpar - class "Intercept", or class "b" with coef "Intercept" under

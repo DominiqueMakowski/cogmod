@@ -84,7 +84,7 @@
 #' goes **flat**. On a `softplus` link zero is at minus infinity, so a flat prior
 #' there leaves the posterior improper, and the symptom is a chain that wanders
 #' off rather than one that fails. Fitted without priors on the 4285-trial data
-#' in `vignette("rt_models")`, `sigmabias` for one condition ran to
+#' in the [RT models article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html), `sigmabias` for one condition ran to
 #' `softplus(-10.4) = 3e-05` with `Rhat` 1.69 and an effective sample size of 6.
 #'
 #' There are two ways out, and the choice is a modelling decision rather than a

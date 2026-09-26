@@ -1,0 +1,1597 @@
+diff --git a/NAMESPACE b/NAMESPACE
+index e71c234..1a79e7c 100644
+--- a/NAMESPACE
++++ b/NAMESPACE
+@@ -26,6 +26,9 @@ export(cogmod_exwald_stanvars)
+ export(cogmod_gamma)
+ export(cogmod_gamma_lpdf_expose)
+ export(cogmod_gamma_stanvars)
++export(cogmod_gaussbit)
++export(cogmod_gaussbit_lpdf_expose)
++export(cogmod_gaussbit_stanvars)
+ export(cogmod_geg)
+ export(cogmod_geg_lpdf_expose)
+ export(cogmod_geg_stanvars)
+@@ -79,6 +82,7 @@ export(dcogmod_ddm)
+ export(dcogmod_exgaussian)
+ export(dcogmod_exwald)
+ export(dcogmod_gamma)
++export(dcogmod_gaussbit)
+ export(dcogmod_geg)
+ export(dcogmod_invgamma)
+ export(dcogmod_invgaussian)
+@@ -100,6 +104,7 @@ export(log_lik_cogmod_ddm)
+ export(log_lik_cogmod_exgaussian)
+ export(log_lik_cogmod_exwald)
+ export(log_lik_cogmod_gamma)
++export(log_lik_cogmod_gaussbit)
+ export(log_lik_cogmod_geg)
+ export(log_lik_cogmod_invgamma)
+ export(log_lik_cogmod_invgaussian)
+@@ -136,6 +141,7 @@ export(posterior_epred_cogmod_ddm)
+ export(posterior_epred_cogmod_exgaussian)
+ export(posterior_epred_cogmod_exwald)
+ export(posterior_epred_cogmod_gamma)
++export(posterior_epred_cogmod_gaussbit)
+ export(posterior_epred_cogmod_geg)
+ export(posterior_epred_cogmod_invgamma)
+ export(posterior_epred_cogmod_invgaussian)
+@@ -157,6 +163,7 @@ export(posterior_predict_cogmod_ddm)
+ export(posterior_predict_cogmod_exgaussian)
+ export(posterior_predict_cogmod_exwald)
+ export(posterior_predict_cogmod_gamma)
++export(posterior_predict_cogmod_gaussbit)
+ export(posterior_predict_cogmod_geg)
+ export(posterior_predict_cogmod_invgamma)
+ export(posterior_predict_cogmod_invgaussian)
+@@ -180,6 +187,7 @@ export(rcogmod_ddm)
+ export(rcogmod_exgaussian)
+ export(rcogmod_exwald)
+ export(rcogmod_gamma)
++export(rcogmod_gaussbit)
+ export(rcogmod_geg)
+ export(rcogmod_invgamma)
+ export(rcogmod_invgaussian)
+diff --git a/NEWS.md b/NEWS.md
+index d682ac2..2aca11f 100644
+--- a/NEWS.md
++++ b/NEWS.md
+@@ -2,6 +2,20 @@
+ 
+ ## New features
+ 
++* **New family: `cogmod_gaussbit()` (Gaussian + probit), a baseline for the
++  choice and RT models.** A Gaussian reaction time and a probit choice,
++  correlated at the trial level: the choice-and-RT counterpart of fitting
++  `gaussian()` to the RTs and `bernoulli("probit")` to the choices, which it
++  reduces to exactly at `rho = 0` - same likelihood, and through
++  `cogmod_priors()` the same priors, with one added for `rho`. It takes the
++  same `rt | dec(response)` data as `cogmod_lnr()`, `cogmod_rdm()`,
++  `cogmod_ddm()` and `cogmod_lba2()`, so `loo_compare()` measures what a
++  sequential sampling model gains over the default analysis. Whatever `rho` is, the RT is exactly `Normal(mu, sigma)`
++  and `P(dec = 1)` exactly `pnorm(mudec)`; `rho` sets how the choice depends on
++  the RT - slow errors or fast ones - and lives on the Fisher-z scale, the
++  correlation being `tanh(rho)`. No `ndt` (the Gaussian's location is free, so
++  a shift is `mu` itself) and no outlier component. Experimental.
++
+ * **A distributional parameter pinned at a boundary is now checked against the
+   response.** The three bounded-scale families are mixtures of a continuous
+   part and one or more point masses, and every weight involved can be fixed in
+diff --git a/R/cogmod_checkdata.R b/R/cogmod_checkdata.R
+index ef12611..527ecf6 100644
+--- a/R/cogmod_checkdata.R
++++ b/R/cogmod_checkdata.R
+@@ -28,7 +28,10 @@
+   if (is.null(fam)) {
+     return(NULL)
+   }
+-  if (fam %in% .CHOICE_FAMILIES) {
++  # cogmod_gaussbit() takes the same `rt | dec(response)` data as the
++  # registry's choice families without being one of them: it has no ndt and no
++  # outlier component to put in an entry.
++  if (fam %in% c(.CHOICE_FAMILIES, "cogmod_gaussbit")) {
+     return("choice")
+   }
+   if (fam %in% c(names(.SHIFTED), "cogmod_exgaussian", "cogmod_geg")) {
+@@ -161,16 +164,17 @@
+   if (isTRUE(fam %in% .CENS_FAMILIES)) {
+     return(invisible(NULL))
+   }
+-  if (isTRUE(fam %in% .CHOICE_FAMILIES)) {
++  if (isTRUE(fam %in% c(.CHOICE_FAMILIES, "cogmod_gaussbit"))) {
+     # A choice model's likelihood is a set of defective densities summing to one
+     # over the options, and the contaminant's 1 / K exists to keep it so. A
+     # censored likelihood - a density for one outcome, a bare survival for the
+     # other - breaks that identity by construction, so it does not belong here
+-    # even where the Stan code could be written.
++    # even where the Stan code could be written. cogmod_gaussbit() has no
++    # accumulators, but its joint density is the same kind of object.
+     stop(
+       fam,
+-      "() already models the errors, through dec(): each response ",
+-      "option has its own accumulator and the two are scored jointly. ",
++      "() already models the errors, through dec(): the choice and the ",
++      "reaction time are scored jointly. ",
+       "`cens()` belongs on the RT-only families - bf(rt | cens(error) ~ ..., ",
+       "family = cogmod_invgaussian()) - where an error is treated as a ",
+       "right-censored correct response instead. See ?rcogmod_invgaussian.",
+@@ -267,8 +271,11 @@
+   # The families on the ndt + poutlier mixture put ZERO density below `ndt`, and
+   # `ndt` is itself bounded below by zero, so a non-positive reaction time sends
+   # the whole log-likelihood to -Inf and no chain can initialise. The
+-  # ex-Gaussian and the gamma-ex-Gaussian have support on the entire real line,
+-  # so there the same row is implausible rather than fatal.
++  # ex-Gaussian, the gamma-ex-Gaussian and cogmod_gaussbit() have support on
++  # the entire real line, so there the same row is implausible rather than
++  # fatal. Still warned about: a simulation from those families produces a few
++  # (rcogmod_gaussbit() at mu = 0.6, sigma = 0.15 puts 3e-5 of its mass below
++  # zero), but an observed reaction time cannot be negative.
+   shifted <- isTRUE(fam %in% .OUTLIER_FAMILIES)
+   bad <- sum(y <= 0)
+   if (bad) {
+diff --git a/R/cogmod_inits.R b/R/cogmod_inits.R
+index 8748eaa..51b7f79 100644
+--- a/R/cogmod_inits.R
++++ b/R/cogmod_inits.R
+@@ -102,7 +102,8 @@
+ #' at `log(2)`.
+ #'
+ #' The two bounded-scale families for subjective ratings, [cogmod_choco()] and
+-#' [cogmod_betadiscrete()], are covered as well to help with warmup.
++#' [cogmod_betadiscrete()], are covered as well to help with warmup, as is the
++#' Gaussian-probit baseline [cogmod_gaussbit()].
+ #'
+ #' @param formula The model formula, as passed to `brms::brm()`. Must carry the
+ #'   family, i.e. be built with `brms::bf(..., family = cogmod_gamma())`. May
+@@ -440,7 +441,19 @@ cogmod_inits <- function(
+   # per observation, against 1.01 at 0.5 and 0.53 at 0.02. ?rcogmod_betadiscrete
+   # defaults it to 0, which a logit link cannot start at; a scale with no zero
+   # category wants `pzero = 0` in bf(), which removes the parameter.
+-  cogmod_betadiscrete = list(mu = 0.5, phi = 1, pzero = 0.05)
++  cogmod_betadiscrete = list(mu = 0.5, phi = 1, pzero = 0.05),
++
++  # cogmod_gaussbit() has no start that fails: its density is positive
++  # everywhere, with no flat region and no boundary for a start to land on.
++  # What brms' random init does to it is merely wasteful - `sigma` anywhere
++  # from 0.14 to 7.4 s through the log link, and `rho` up to tanh(2) = 0.96,
++  # where the choice is nearly a step function of the RT and a single trial on
++  # the wrong side of the step costs thousands of log units. So `mu` and `sigma`
++  # start where RT data live, and `mudec` and `rho` at their neutral points,
++  # `rho = 0` being the nested default analysis. Not measured, and not claimed
++  # to matter much; the entry is also there so that cogmod_inits() accepts
++  # every family a model comparison hands it.
++  cogmod_gaussbit = list(mu = 0.6, sigma = 0.2, mudec = 0, rho = 0)
+ )
+ 
+ 
+diff --git a/R/cogmod_priors.R b/R/cogmod_priors.R
+index 8627bd8..35e0b55 100644
+--- a/R/cogmod_priors.R
++++ b/R/cogmod_priors.R
+@@ -118,7 +118,10 @@
+ #' [cogmod_ddm()]. [cogmod_exgaussian()] and [cogmod_geg()] are edited too,
+ #' although they are not built on that parameterization - see their own section
+ #' below - as are the three bounded-scale families for subjective ratings,
+-#' [cogmod_choco()], [cogmod_betagate()] and [cogmod_betadiscrete()]. Any other
++#' [cogmod_choco()], [cogmod_betagate()] and [cogmod_betadiscrete()], and the
++#' Gaussian-probit baseline [cogmod_gaussbit()], whose priors are the `brms`
++#' defaults for `gaussian()` plus `bernoulli("probit")` with one added for its
++#' correlation `rho` (see [cogmod_gaussbit()]). Any other
+ #' family, or a formula carrying none, is passed through: you get a message and
+ #' `brms`'s own defaults, unchanged, so the call is always safe to leave in a
+ #' script.
+@@ -375,6 +378,8 @@
+ #' | `mu` ([cogmod_exgaussian()]) | `normal(0.4, 0.25)` | - (always modelled) |
+ #' | `sigma` ([cogmod_exgaussian()]) | `normal(-2.3, 0.7)` | `lognormal(-2.3, 0.7)` |
+ #' | `tau` ([cogmod_exgaussian()]) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
++#' | `mudec` ([cogmod_gaussbit()]; slopes left flat) | `student_t(3, 0, 2.5)` | `student_t(3, 0, 2.5)` |
++#' | `rho` ([cogmod_gaussbit()]) | `normal(0, 0.5)` | `normal(0, 0.5)` |
+ #' | `confright`, `confleft` ([cogmod_choco()]), `bex` | `normal(0, 1)` | `beta(2, 2)` |
+ #' | `precright`, `precleft` ([cogmod_choco()]), `phi` ([cogmod_betagate()]) | `normal(2, 1.5)` | `lognormal(0.7, 0.7)` |
+ #' | `phi` ([cogmod_betadiscrete()]) | `normal(0.7, 0.8)` | `lognormal(0.7, 0.8)` |
+@@ -491,7 +496,8 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
+     out <- .priors_shifted(formula, data, family, ...)
+   } else if (isTRUE(fam %in% names(.PRIORS_PLAIN))) {
+     spec <- .PRIORS_PLAIN[[fam]]
+-    out <- .priors_dpars(formula, data, family, spec$prior, spec$override, ...)
++    out <- .priors_dpars(formula, data, family, spec$prior, spec$override, ...,
++                         free_slopes = spec$free_slopes)
+   } else {
+     message(
+       "cogmod_priors() has nothing to add for family '",
+@@ -600,6 +606,11 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
+ # `override` names the dpars whose *modelled intercept* row is replaced even
+ # though brms already supplied a prior for it. Auxiliary rows are always
+ # replaced - that is what the `nat` entry is for - so they need no listing.
++#
++# `free_slopes` names the dpars whose slopes are left to brms, flat, rather
++# than given the family's `slope` or the blanket default - the treatment `mu`
++# gets everywhere, for the same reason: they are the effects the model is
++# being fitted to estimate.
+ #' @keywords internal
+ .PRIORS_PLAIN <- list(
+   # cogmod_exgaussian() has no ndt and no poutlier, but it does have two
+@@ -805,6 +816,40 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
+                 slope = "normal(0, 0.5)")
+     ),
+     override = "phi"
++  ),
++
++  # cogmod_gaussbit() is the default analysis - gaussian() on the RTs,
++  # bernoulli("probit") on the choices - plus a correlation, and its priors are
++  # that analysis's priors plus one for the correlation, so that at `rho = 0`
++  # the two fits are the same model, priors included (see
++  # ?rcogmod_gaussbit).
++  #
++  # `mu` and `sigma` are therefore left to brms, which gives them exactly what
++  # it gives gaussian(): a student_t(3, median(y), 2.5) intercept on `mu` - on
++  # an identity link brms centres it on the data, so the ex-Gaussian's
++  # zero-seconds problem does not arise - and student_t(3, 0, 2.5) on `sigma`,
++  # half on the natural scale when it is omitted, on the log scale when it is
++  # modelled.
++  #
++  # `mudec` is a custom name, so brms leaves it flat in both forms. It gets the
++  # student_t(3, 0, 2.5) bernoulli() gives its intercept, and its slopes stay
++  # flat, as bernoulli()'s do. Being on an identity link, the modelled and the
++  # omitted forms are on one scale and carry one prior.
++  #
++  # `rho` is the one addition. It is the Fisher z of a correlation, and a flat
++  # prior is improper wherever the likelihood cannot see it - with no errors in
++  # a cell, say. normal(0, 0.5) centres it on independence, the nested default
++  # analysis, and puts 95% of the correlation within tanh(0.98) = +/-0.75:
++  # wide enough for the conditional accuracy functions real tasks produce, and
++  # it keeps the sampler off the |rho| -> 1 edge, where the choice becomes a
++  # step function of the RT. Identity link, so again one scale.
++  cogmod_gaussbit = list(
++    prior = list(
++      mudec = c(link = "student_t(3, 0, 2.5)", nat = "student_t(3, 0, 2.5)"),
++      rho = c(link = "normal(0, 0.5)", nat = "normal(0, 0.5)",
++              slope = "normal(0, 0.5)")
++    ),
++    free_slopes = "mudec"
+   )
+ )
+ 
+@@ -879,7 +924,8 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
+ # with any of `link`, `nat` and `slope`. See .PRIORS_PLAIN above.
+ #' @keywords internal
+ .priors_dpars <- function(formula, data, family, own, override = character(0),
+-                          ..., slope_default = "normal(0, 0.2)") {
++                          ..., slope_default = "normal(0, 0.2)",
++                          free_slopes = character(0)) {
+   p <- brms::get_prior(formula, data = data, family = family, ...)
+   # Kept whole: once `p` has been filtered down to the rows being set, there is
+   # no way left to tell "this blanket row covers a coefficient we left alone"
+@@ -931,6 +977,10 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
+   # family put there on purpose. The response's own smooth (`dpar == ""`) is
+   # not touched, for the same reason its slopes are not.
+   link <- link | (p$dpar %in% dpars & p$class == "sds" & !nzchar(p$coef))
++  # Slopes the family leaves to brms, blanket row included. `b` on a coefficient
++  # named "Intercept" is the intercept under `0 + Intercept`, and stays.
++  link <- link & !(p$dpar %in% free_slopes & p$class == "b" &
++                     p$coef != "Intercept")
+ 
+   # `mu` is the response's own linear predictor, so brms reports it with an
+   # EMPTY dpar - class "Intercept", or class "b" with coef "Intercept" under
+diff --git a/R/cogmod_stanvars.R b/R/cogmod_stanvars.R
+index a10c7d5..f9a2651 100644
+--- a/R/cogmod_stanvars.R
++++ b/R/cogmod_stanvars.R
+@@ -96,7 +96,7 @@ cogmod_stanvars <- function(formula, ...) {
+   unique(c(
+     "cogmod_betadiscrete", "cogmod_betagate", "cogmod_choco", "cogmod_ddm",
+     "cogmod_lba2", "cogmod_lnr", "cogmod_rdm", "cogmod_exgaussian",
+-    "cogmod_geg",
++    "cogmod_geg", "cogmod_gaussbit",
+     .OUTLIER_FAMILIES
+   ))
+ }
+diff --git a/R/model_gaussbit.R b/R/model_gaussbit.R
+new file mode 100644
+index 0000000..35f7f7a
+--- /dev/null
++++ b/R/model_gaussbit.R
+@@ -0,0 +1,405 @@
++#' @title Gaussbit (Gaussian-Probit) Model of Choice and Reaction Time
++#'
++#' @description
++#' Density, random generation, and `brms` custom family for a descriptive joint
++#' model of a reaction time and a binary choice: the RT is **Gaussian**, the
++#' choice is a **probit**, and the two are linked by a trial-level correlation
++#' `rho`. It is the choice-and-RT counterpart of fitting `brms::gaussian()` to
++#' the RTs and `brms::bernoulli("probit")` to the choices, and it reduces to
++#' exactly that at `rho = 0`. The name is the two halves run together:
++#' **Gauss**ian + pro**bit**.
++#'
++#' It is not a process model. It is the baseline the process models
++#' ([cogmod_lnr()], [cogmod_rdm()], [cogmod_ddm()], [cogmod_lba2()]) can be
++#' measured against: it takes the same `rt | dec(response)` data, so
++#' `brms::loo_compare()` puts it side by side with them, and the difference
++#' says how much a sequential sampling model gains over the analysis most
++#' people run by default.
++#'
++#' Functions:
++#' - `rcogmod_gaussbit()`: Simulates random draws.
++#' - `dcogmod_gaussbit()`: Computes the density (likelihood).
++#' - `cogmod_gaussbit()`: Creates a `brms::custom_family()`.
++#' - `cogmod_gaussbit_stanvars()`: Generates the `stanvars` to pass to `brm()`.
++#'
++#' @details
++#' # Parameterization
++#'
++#' On every trial the reaction time is `t = mu + sigma * u`, with `u` a standard
++#' Normal, and the choice is `dec = 1` whenever a latent decision variable
++#' `w ~ Normal(mudec, 1)` is positive. `u` and `w` are bivariate Normal with
++#' correlation `tanh(rho)`. The joint density of a response is then the
++#' Gaussian density of `t` times the probit probability of the choice given `t`:
++#'
++#' \deqn{f(t, 1) = \frac{1}{\sigma} \phi(u) \, \Phi\left(\frac{mudec + r u}{\sqrt{1 - r^2}}\right), \quad r = \tanh(rho)}
++#'
++#' and `f(t, 0)` the same with the argument of `Phi` negated. Two things follow
++#' from the construction, whatever `rho` is:
++#'
++#' - The **marginal RT distribution is exactly** `Normal(mu, sigma)`. `mu` is
++#'   the mean RT and `sigma` its SD, as in `brms::gaussian()`.
++#' - The **marginal choice probability is exactly** `pnorm(mudec)`. `mudec` is
++#'   the probit of `P(dec = 1)`, as in `brms::bernoulli("probit")`, so its
++#'   coefficients are the same quantities a probit regression reports.
++#'
++#' `rho` changes neither marginal. What it moves is how the choice depends on
++#' the time, which is the pattern the process models are built to explain:
++#' the probit of `P(dec = 1 | t)` is linear in `t`, with a slope set by `rho`.
++#' With `dec` coding errors, `rho > 0` gives **slow errors** - the slower the
++#' trial, the more likely an error - and `rho < 0` **fast errors**. Recoding
++#' `dec` the other way round flips the sign of both `mudec` and `rho` and leaves
++#' the likelihood unchanged.
++#'
++#' # `rho` is on the Fisher-z scale
++#'
++#' `brms` has no link onto `(-1, 1)`, so the correlation is estimated as its
++#' Fisher-z transform: the correlation itself is `tanh(rho)`, and `rho` is free
++#' on the whole real line behind an `identity` link. The two are close for
++#' small values (`tanh(0.3) = 0.29`) and part company above that
++#' (`tanh(0.5) = 0.46`, `tanh(1) = 0.76`); report `tanh()` of the estimate.
++#'
++#' There is only one scale to think about: `rho` means the same thing whether
++#' it is modelled in `bf()` or left out and estimated as a constant, which is
++#' not true of any dpar behind a non-identity link. `rho = 0` is independence
++#' either way.
++#'
++#' The Stan code never forms `tanh(rho)` at all. Since `sqrt(1 - tanh(z)^2) =
++#' 1 / cosh(z)`, the argument of `Phi` above is `mudec * cosh(rho) + u *
++#' sinh(rho)`: no division, no square root, and no loss of precision as the
++#' correlation approaches one.
++#'
++#' # The same model as `gaussian()` + `bernoulli("probit")`
++#'
++#' With `rho` fixed at zero this family *is* the multivariate model below, with
++#' the same likelihood, observation by observation:
++#'
++#' ```r
++#' # these two are the same model
++#' brms::bf(RT | dec(Error) ~ Condition, mudec ~ Condition, rho = 0,
++#'          family = cogmod_gaussbit())
++#' brms::bf(RT ~ Condition) +
++#'   brms::bf(Error ~ Condition, family = brms::bernoulli("probit")) +
++#'   brms::set_rescor(FALSE)
++#' ```
++#'
++#' The priors match too. `sigma` has the `log` link `brms::gaussian()` gives it,
++#' and [cogmod_priors()] leaves `mu` and `sigma` to the `brms` defaults, gives
++#' `mudec` the `student_t(3, 0, 2.5)` intercept `brms::bernoulli()` would, and
++#' leaves its slopes flat as `brms` does. The one prior it adds is on `rho`.
++#'
++#' Freeing `rho` (`rho ~ 1`, or leaving it out of `bf()`) therefore adds exactly
++#' one thing to the default analysis - the trial-level coupling of speed and
++#' accuracy - and the difference in `elpd` between the two fits measures what
++#' that coupling alone is worth, with the RT distribution held Gaussian. A
++#' process model's gain over the `rho = 0` fit is what it adds over the
++#' default analysis; its gain over the free-`rho` fit is what it adds beyond a
++#' linear speed-accuracy dependence.
++#'
++#' The multivariate form is worth knowing about, but it is not a substitute
++#' once `rho` is free. `brms::bf(Error ~ Condition + RT, family =
++#' brms::bernoulli("probit"))` reaches the same likelihood by entering the RT
++#' as a predictor, but `posterior_predict()` then simulates the choices from
++#' the *observed* RTs, so its posterior predictive checks are not joint, and its
++#' choice coefficients become effects conditional on the RT rather than the
++#' marginal ones above.
++#'
++#' # What it does not do
++#'
++#' - **No `ndt`.** The Gaussian's location is free, so a shift of the whole
++#'   distribution is `mu` itself: a non-decision time could not be told apart
++#'   from it at all, not even weakly.
++#' - **No outlier component.** The Gaussian has support on the whole real line
++#'   and needs no floor, and the baseline is meant to be the plain default
++#'   analysis.
++#' - **Negative reaction times have density**, as they do under
++#'   `brms::gaussian()`. The mass involved is small for ordinary RT data -
++#'   `pnorm(0, 0.6, 0.15)` is 3e-5 - and truncating at zero would cost a
++#'   normal tail per observation and break the exact correspondence above.
++#' - **No `cens()`.** The choice is already modelled, through `dec()`.
++#'
++#' # Fitting
++#'
++#' ```r
++#' f <- brms::bf(RT | dec(Error) ~ Condition, mudec ~ Condition, rho ~ 1,
++#'               family = cogmod_gaussbit())
++#' brms::brm(f, data = df,
++#'           prior    = cogmod_priors(f, df),
++#'           stanvars = cogmod_stanvars(f))
++#' ```
++#'
++#' `sigma` left out of `bf()` is a constant SD; `sigma ~ Condition` models it,
++#' on the log scale.
++#'
++#' `posterior_predict()` returns simulated reaction times and choices jointly, a
++#' draws x 2 matrix as for the other choice families, and `posterior_epred()`
++#' the expected reaction time, which is `mu`.
++#'
++#' @param n Number of simulated trials. If `length(n) > 1`, the length is taken
++#'   to be the number required.
++#' @param mu Mean reaction time, in seconds. Unbounded, being a location.
++#' @param sigma SD of the reaction time, in seconds. Must be positive.
++#' @param mudec The probit of the probability of choosing option 1: that
++#'   probability is `pnorm(mudec)`. Unbounded.
++#' @param rho The trial-level correlation between the reaction time and the
++#'   latent decision variable, on the **Fisher-z** scale: the correlation is
++#'   `tanh(rho)`. Unbounded; `0` is independence.
++#'
++#' @return `rcogmod_gaussbit()` returns a data frame with `n` rows and two
++#'   columns:
++#'   \item{rt}{The simulated reaction time.}
++#'   \item{response}{The choice, coded `0` or `1`, matching the `dec()` coding
++#'     used by the `brms` family.}
++#'
++#'   `dcogmod_gaussbit()` returns the joint density of each reaction time and
++#'   choice - the log density if `log = TRUE` - recycled to the length of the
++#'   longest argument. `cogmod_gaussbit()` returns a `brms::custom_family`
++#'   object, to put on a `brms::bf()` formula. `cogmod_gaussbit_stanvars()`
++#'   returns a `brms::stanvars` object holding the family's Stan `functions`
++#'   block, to pass to `brms::brm()`, and `cogmod_gaussbit_lpdf_expose()`
++#'   compiles that Stan code and returns it as an R function, for checking the
++#'   density outside of a model. The remaining functions are `brms`
++#'   post-processing methods, called by `brms` rather than directly:
++#'   `log_lik_cogmod_gaussbit()` returns a numeric vector holding one
++#'   log-likelihood value per posterior draw for observation `i`,
++#'   `posterior_predict_cogmod_gaussbit()` a draws x 2 matrix of reaction
++#'   times and choices simulated for observation `i`, and
++#'   `posterior_epred_cogmod_gaussbit()` a draws x observations matrix of
++#'   expected reaction times.
++#'
++#' @seealso [rcogmod_lnr()], [rcogmod_rdm()], [rcogmod_ddm()], [rcogmod_lba2()]
++#'
++#' @examples
++#' # 10% errors (dec = 1), slower trials more error-prone
++#' d <- rcogmod_gaussbit(5000, mu = 0.6, sigma = 0.15, mudec = -1.3,
++#'                       rho = 0.4)
++#' mean(d$response)
++#' tapply(d$rt, d$response, mean)
++#'
++#' # The correlation itself is tanh(rho)
++#' tanh(0.4)
++#'
++#' # At rho = 0 the density is a Gaussian times a probit
++#' dcogmod_gaussbit(0.7, mu = 0.6, sigma = 0.15, mudec = -1.3, rho = 0,
++#'                  response = 1)
++#' dnorm(0.7, 0.6, 0.15) * pnorm(-1.3)
++#'
++#' @export
++rcogmod_gaussbit <- function(n, mu = 0.6, sigma = 0.15, mudec = -1.3,
++                             rho = 0) {
++  p <- .prepare_gaussbit(n = n, mu = mu, sigma = sigma, mudec = mudec,
++                         rho = rho)
++  m <- p$ndraws
++  u <- stats::rnorm(m)
++  # w = mudec + tanh(rho) * u + sqrt(1 - tanh(rho)^2) * e, the last factor
++  # written as 1 / cosh(rho), which is the same number without the cancellation
++  # as the correlation approaches one.
++  w <- p$mudec + tanh(p$rho) * u + stats::rnorm(m) / cosh(p$rho)
++  data.frame(rt = p$mu + p$sigma * u, response = as.numeric(w > 0))
++}
++
++
++#' @rdname rcogmod_gaussbit
++#' @param x The observed reaction time.
++#' @param response The observed choice, 0 or 1.
++#' @param log Logical; if TRUE, returns the log-density. Default: FALSE.
++#' @export
++dcogmod_gaussbit <- function(x, mu = 0.6, sigma = 0.15, mudec = -1.3,
++                             rho = 0, response, log = FALSE) {
++  p <- .prepare_gaussbit(x = x, response = response, mu = mu, sigma = sigma,
++                         mudec = mudec, rho = rho)
++  ld <- .gaussbit_ldens(p$x, p$response, p$mu, p$sigma, p$mudec, p$rho)
++  if (log) ld else exp(ld)
++}
++
++
++# Internals ---------------------------------------------------------------
++
++# Log-density of (t, k), elementwise. The mirror of cogmod_gaussbit_lpdf()
++# below, line for line: the Gaussian log-density of t, plus the log probit of
++# the choice given t, whose argument mudec * cosh(rho) + u * sinh(rho) is
++# (mudec + r * u) / sqrt(1 - r^2) at r = tanh(rho).
++#
++# A time or a parameter that is not a finite number gives -Inf rather than NA,
++# the convention of the mixture densities (see .dens_mask() in core_shifted.R):
++# an infinite time has zero density, and NA * 0 would otherwise leak a NaN
++# out of the u * sinh(rho) term at rho = 0.
++#' @keywords internal
++.gaussbit_ldens <- function(t, k, mu, sigma, mudec, rho) {
++  u <- (t - mu) / sigma
++  a <- mudec * cosh(rho) + u * sinh(rho)
++  # (2k - 1) rather than ifelse(k == 1, a, -a), whose result takes the length
++  # of `k` rather than of `a`.
++  ld <- -0.5 * u^2 - log(sigma) - 0.5 * log(2 * pi) +
++    stats::pnorm((2 * k - 1) * a, log.p = TRUE)
++  ld[!is.finite(ld)] <- -Inf
++  ld
++}
++
++
++# Validate and recycle. `mu`, `mudec` and `rho` are locations on the whole real
++# line and are not checked; only `sigma` has a bound, and the response must be
++# one of the two options.
++#' @keywords internal
++.prepare_gaussbit <- function(x = NULL, n = NULL, response = NULL, mu, sigma,
++                              mudec, rho) {
++  if (any(sigma <= 0, na.rm = TRUE)) stop("`sigma` must be positive.", call. = FALSE)
++  if (!is.null(response) && any(!response %in% c(0, 1), na.rm = TRUE)) {
++    stop("`response` must be 0 or 1.", call. = FALSE)
++  }
++  lens <- c(length(mu), length(sigma), length(mudec), length(rho))
++  if (!is.null(x)) {
++    if (is.null(response)) {
++      stop("`response` must be provided alongside `x`.", call. = FALSE)
++    }
++    # A zero-length quantile gives a zero-length answer, as in base R.
++    m <- if (length(x) == 0L) 0L else max(length(x), length(response), lens)
++  } else {
++    if (length(n) > 1) n <- length(n)
++    if (length(n) != 1 || n < 0 || n != floor(n)) {
++      stop("n must be a single non-negative integer.", call. = FALSE)
++    }
++    m <- if (n == 0) 0L else max(n, lens)
++  }
++  p <- list(mu = rep_len(mu, m), sigma = rep_len(sigma, m),
++            mudec = rep_len(mudec, m), rho = rep_len(rho, m), ndraws = m)
++  if (!is.null(x)) {
++    p$x <- rep_len(x, m)
++    p$response <- rep_len(response, m)
++  }
++  p
++}
++
++
++# Family ------------------------------------------------------------------
++
++#' @rdname rcogmod_gaussbit
++#' @param link_mu,link_sigma,link_mudec,link_rho Link functions for the
++#'   parameters. `sigma` defaults to `"log"`, the link `brms::gaussian()` uses,
++#'   so that the family matches the default analysis exactly. `rho` is on the
++#'   Fisher-z scale behind its `"identity"` link; see Details.
++#' @export
++cogmod_gaussbit <- function(link_mu = "identity", link_sigma = "log",
++                            link_mudec = "identity", link_rho = "identity") {
++  brms::custom_family(
++    name = "cogmod_gaussbit",
++    dpars = c("mu", "sigma", "mudec", "rho"),
++    links = c(link_mu, link_sigma, link_mudec, link_rho),
++    lb = c(NA, 0, NA, NA),
++    ub = c(NA, NA, NA, NA),
++    type = "real",
++    vars = "dec[n]"
++  )
++}
++
++
++# Stanvars ----------------------------------------------------------------
++
++#' @keywords internal
++.cogmod_gaussbit_lpdf <- function() {
++  paste0(.LOG_PHI_STAN_PRELUDE, "
++// Log-likelihood for one observation from the Gaussian-probit model of choice
++// and RT: a Gaussian reaction time and a probit choice, correlated tanh(rho)
++// at the trial level. dcogmod_gaussbit() in R, line for line.
++// Y: observed reaction time.
++// mu, sigma: mean and SD of the reaction time (sigma > 0).
++// mudec: probit of P(dec = 1), marginally over the reaction time.
++// rho: Fisher-z of the correlation between the reaction time and the latent
++//      decision variable.
++// dec: the observed choice, 0 or 1.
++//
++// The choice term is Phi((mudec + r u) / sqrt(1 - r^2)) at r = tanh(rho),
++// written as Phi(mudec * cosh(rho) + u * sinh(rho)) - the same number, since
++// 1 / sqrt(1 - tanh(z)^2) = cosh(z), with no division, no square root and no
++// cancellation as the correlation approaches one. The tail goes through
++// cogmod_log_Phi(), not std_normal_lcdf(), whose partials are approximate:
++// a slow response at a large rho puts the argument far out in either tail.
++//
++// The Gaussian term is written out rather than left to normal_lpdf() so that
++// the standardized time is formed once and shared with the choice term.
++real cogmod_gaussbit_lpdf(real Y, real mu, real sigma, real mudec, real rho,
++                          int dec) {
++    if (sigma <= 0) return negative_infinity();
++    if (dec < 0 || dec > 1) return negative_infinity();
++    real u = (Y - mu) / sigma;
++    real a = mudec * cosh(rho) + u * sinh(rho);
++    return -0.5 * square(u) - log(sigma) - 0.91893853320467274
++           + cogmod_log_Phi(dec == 1 ? a : -a);
++}
++")
++}
++
++
++#' @rdname rcogmod_gaussbit
++#' @examples
++#' \dontrun{
++#' # Needs cmdstanr and a CmdStan toolchain, which live outside CRAN - see the
++#' # package website to install them. Not run under R CMD check, which executes
++#' # every example in one R session: once brms has fitted a model there (the
++#' # cogmod_inits() and p_outlier() examples do), rstan is live in the process
++#' # and loading an exposed Stan function next to it segfaults on Linux.
++#' lpdf <- cogmod_gaussbit_lpdf_expose()
++#' lpdf(Y = 0.7, mu = 0.6, sigma = 0.15, mudec = -1.3, rho = 0.4, dec = 1)
++#' }
++#'
++#' @export
++cogmod_gaussbit_lpdf_expose <- function() {
++  insight::check_if_installed("cmdstanr")
++  stancode <- paste0("functions {\n", .cogmod_gaussbit_lpdf(), "\n}")
++  mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(stancode))
++  mod$expose_functions()
++  mod$functions$cogmod_gaussbit_lpdf
++}
++
++
++#' @rdname rcogmod_gaussbit
++#' @export
++cogmod_gaussbit_stanvars <- function() {
++  brms::stanvar(scode = .cogmod_gaussbit_lpdf(), block = "functions")
++}
++
++
++# brms methods ------------------------------------------------------------
++
++#' @rdname rcogmod_gaussbit
++#' @inheritParams rcogmod_betagate
++#' @export
++log_lik_cogmod_gaussbit <- function(i, prep) {
++  y <- prep$data$Y[i]
++  if (is.na(y)) return(NA_real_)
++  mu <- brms::get_dpar(prep, "mu", i = i)
++  sigma <- brms::get_dpar(prep, "sigma", i = i)
++  mudec <- brms::get_dpar(prep, "mudec", i = i)
++  rho <- brms::get_dpar(prep, "rho", i = i)
++  n_draws <- max(length(mu), length(sigma), length(mudec), length(rho))
++  if (n_draws == 0) return(numeric(0))
++  k <- .dec_from_prep(prep, i)
++  .gaussbit_ldens(rep_len(y, n_draws), rep_len(k, n_draws),
++                  rep_len(mu, n_draws), rep_len(sigma, n_draws),
++                  rep_len(mudec, n_draws), rep_len(rho, n_draws))
++}
++
++
++#' @rdname rcogmod_gaussbit
++#' @inheritParams rcogmod_betagate
++#' @export
++posterior_predict_cogmod_gaussbit <- function(i, prep, ...) {
++  mu <- brms::get_dpar(prep, "mu", i = i)
++  sigma <- brms::get_dpar(prep, "sigma", i = i)
++  mudec <- brms::get_dpar(prep, "mudec", i = i)
++  rho <- brms::get_dpar(prep, "rho", i = i)
++  n_draws <- max(length(mu), length(sigma), length(mudec), length(rho))
++  # A plain matrix rather than rcogmod_gaussbit()'s data frame: brms calls
++  # this once per observation, and building a data frame only to convert it
++  # back is most of the cost of the call (see .rchoice() in core_choice.R).
++  u <- stats::rnorm(n_draws)
++  w <- mudec + tanh(rho) * u + stats::rnorm(n_draws) / cosh(rho)
++  cbind(rt = mu + sigma * u, response = as.numeric(w > 0))
++}
++
++
++#' @rdname rcogmod_gaussbit
++#' @export
++posterior_epred_cogmod_gaussbit <- function(prep) {
++  # The marginal RT distribution is exactly Normal(mu, sigma), whatever rho is.
++  brms::get_dpar(prep, "mu")
++}
+diff --git a/_pkgdown.yml b/_pkgdown.yml
+index 1ccac63..3dc5574 100644
+--- a/_pkgdown.yml
++++ b/_pkgdown.yml
+@@ -37,6 +37,7 @@ reference:
+           - rcogmod_lba2
+           - rcogmod_ddm
+           - rcogmod_rdm
++          - rcogmod_gaussbit
+     - title: "RT-only Models"
+       contents:
+           - rcogmod_lognormal
+diff --git a/man/cogmod_inits.Rd b/man/cogmod_inits.Rd
+index 5e99745..c1c3190 100644
+--- a/man/cogmod_inits.Rd
++++ b/man/cogmod_inits.Rd
+@@ -144,7 +144,8 @@ scale behind a \code{softplus} link and so are equally badly served by starting
+ at \code{log(2)}.
+ 
+ The two bounded-scale families for subjective ratings, \code{\link[=cogmod_choco]{cogmod_choco()}} and
+-\code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}, are covered as well to help with warmup.
++\code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}, are covered as well to help with warmup, as is the
++Gaussian-probit baseline \code{\link[=cogmod_gaussbit]{cogmod_gaussbit()}}.
+ }
+ 
+ \examples{
+diff --git a/man/cogmod_priors.Rd b/man/cogmod_priors.Rd
+index 880078f..ae5e5d4 100644
+--- a/man/cogmod_priors.Rd
++++ b/man/cogmod_priors.Rd
+@@ -144,7 +144,10 @@ choice-and-RT models, \code{\link[=cogmod_lnr]{cogmod_lnr()}}, \code{\link[=cogm
+ \code{\link[=cogmod_ddm]{cogmod_ddm()}}. \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} and \code{\link[=cogmod_geg]{cogmod_geg()}} are edited too,
+ although they are not built on that parameterization - see their own section
+ below - as are the three bounded-scale families for subjective ratings,
+-\code{\link[=cogmod_choco]{cogmod_choco()}}, \code{\link[=cogmod_betagate]{cogmod_betagate()}} and \code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}. Any other
++\code{\link[=cogmod_choco]{cogmod_choco()}}, \code{\link[=cogmod_betagate]{cogmod_betagate()}} and \code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}, and the
++Gaussian-probit baseline \code{\link[=cogmod_gaussbit]{cogmod_gaussbit()}}, whose priors are the \code{brms}
++defaults for \code{gaussian()} plus \code{bernoulli("probit")} with one added for its
++correlation \code{rho} (see \code{\link[=cogmod_gaussbit]{cogmod_gaussbit()}}). Any other
+ family, or a formula carrying none, is passed through: you get a message and
+ \code{brms}'s own defaults, unchanged, so the call is always safe to leave in a
+ script.
+@@ -400,6 +403,8 @@ lives on:\tabular{lll}{
+    \code{mu} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(0.4, 0.25)} \tab - (always modelled) \cr
+    \code{sigma} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(-2.3, 0.7)} \tab \code{lognormal(-2.3, 0.7)} \cr
+    \code{tau} (\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}) \tab \code{normal(-1.5, 0.7)} \tab \code{lognormal(-1.5, 0.7)} \cr
++   \code{mudec} (\code{\link[=cogmod_gaussbit]{cogmod_gaussbit()}}; slopes left flat) \tab \code{student_t(3, 0, 2.5)} \tab \code{student_t(3, 0, 2.5)} \cr
++   \code{rho} (\code{\link[=cogmod_gaussbit]{cogmod_gaussbit()}}) \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \cr
+    \code{confright}, \code{confleft} (\code{\link[=cogmod_choco]{cogmod_choco()}}), \code{bex} \tab \code{normal(0, 1)} \tab \code{beta(2, 2)} \cr
+    \code{precright}, \code{precleft} (\code{\link[=cogmod_choco]{cogmod_choco()}}), \code{phi} (\code{\link[=cogmod_betagate]{cogmod_betagate()}}) \tab \code{normal(2, 1.5)} \tab \code{lognormal(0.7, 0.7)} \cr
+    \code{phi} (\code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}) \tab \code{normal(0.7, 0.8)} \tab \code{lognormal(0.7, 0.8)} \cr
+diff --git a/man/rcogmod_gaussbit.Rd b/man/rcogmod_gaussbit.Rd
+new file mode 100644
+index 0000000..6570c26
+--- /dev/null
++++ b/man/rcogmod_gaussbit.Rd
+@@ -0,0 +1,257 @@
++% Generated by roxygen2: do not edit by hand
++% Please edit documentation in R/model_gaussbit.R
++\name{rcogmod_gaussbit}
++\alias{rcogmod_gaussbit}
++\alias{dcogmod_gaussbit}
++\alias{cogmod_gaussbit}
++\alias{cogmod_gaussbit_lpdf_expose}
++\alias{cogmod_gaussbit_stanvars}
++\alias{log_lik_cogmod_gaussbit}
++\alias{posterior_predict_cogmod_gaussbit}
++\alias{posterior_epred_cogmod_gaussbit}
++\title{Gaussbit (Gaussian-Probit) Model of Choice and Reaction Time}
++\usage{
++rcogmod_gaussbit(n, mu = 0.6, sigma = 0.15, mudec = -1.3, rho = 0)
++
++dcogmod_gaussbit(
++  x,
++  mu = 0.6,
++  sigma = 0.15,
++  mudec = -1.3,
++  rho = 0,
++  response,
++  log = FALSE
++)
++
++cogmod_gaussbit(
++  link_mu = "identity",
++  link_sigma = "log",
++  link_mudec = "identity",
++  link_rho = "identity"
++)
++
++cogmod_gaussbit_lpdf_expose()
++
++cogmod_gaussbit_stanvars()
++
++log_lik_cogmod_gaussbit(i, prep)
++
++posterior_predict_cogmod_gaussbit(i, prep, ...)
++
++posterior_epred_cogmod_gaussbit(prep)
++}
++\arguments{
++\item{n}{Number of simulated trials. If \code{length(n) > 1}, the length is taken
++to be the number required.}
++
++\item{mu}{Mean reaction time, in seconds. Unbounded, being a location.}
++
++\item{sigma}{SD of the reaction time, in seconds. Must be positive.}
++
++\item{mudec}{The probit of the probability of choosing option 1: that
++probability is \code{pnorm(mudec)}. Unbounded.}
++
++\item{rho}{The trial-level correlation between the reaction time and the
++latent decision variable, on the \strong{Fisher-z} scale: the correlation is
++\code{tanh(rho)}. Unbounded; \code{0} is independence.}
++
++\item{x}{The observed reaction time.}
++
++\item{response}{The observed choice, 0 or 1.}
++
++\item{log}{Logical; if TRUE, returns the log-density. Default: FALSE.}
++
++\item{link_mu, link_sigma, link_mudec, link_rho}{Link functions for the
++parameters. \code{sigma} defaults to \code{"log"}, the link \code{brms::gaussian()} uses,
++so that the family matches the default analysis exactly. \code{rho} is on the
++Fisher-z scale behind its \code{"identity"} link; see Details.}
++
++\item{i, prep}{For brms' functions to run: index of the observation and a \code{brms} preparation object.}
++
++\item{...}{Additional arguments.}
++}
++\value{
++\code{rcogmod_gaussbit()} returns a data frame with \code{n} rows and two
++columns:
++\item{rt}{The simulated reaction time.}
++\item{response}{The choice, coded \code{0} or \code{1}, matching the \code{dec()} coding
++used by the \code{brms} family.}
++
++\code{dcogmod_gaussbit()} returns the joint density of each reaction time and
++choice - the log density if \code{log = TRUE} - recycled to the length of the
++longest argument. \code{cogmod_gaussbit()} returns a \code{brms::custom_family}
++object, to put on a \code{brms::bf()} formula. \code{cogmod_gaussbit_stanvars()}
++returns a \code{brms::stanvars} object holding the family's Stan \code{functions}
++block, to pass to \code{brms::brm()}, and \code{cogmod_gaussbit_lpdf_expose()}
++compiles that Stan code and returns it as an R function, for checking the
++density outside of a model. The remaining functions are \code{brms}
++post-processing methods, called by \code{brms} rather than directly:
++\code{log_lik_cogmod_gaussbit()} returns a numeric vector holding one
++log-likelihood value per posterior draw for observation \code{i},
++\code{posterior_predict_cogmod_gaussbit()} a draws x 2 matrix of reaction
++times and choices simulated for observation \code{i}, and
++\code{posterior_epred_cogmod_gaussbit()} a draws x observations matrix of
++expected reaction times.
++}
++\description{
++Density, random generation, and \code{brms} custom family for a descriptive joint
++model of a reaction time and a binary choice: the RT is \strong{Gaussian}, the
++choice is a \strong{probit}, and the two are linked by a trial-level correlation
++\code{rho}. It is the choice-and-RT counterpart of fitting \code{brms::gaussian()} to
++the RTs and \code{brms::bernoulli("probit")} to the choices, and it reduces to
++exactly that at \code{rho = 0}. The name is the two halves run together:
++\strong{Gauss}ian + pro\strong{bit}.
++
++It is not a process model. It is the baseline the process models
++(\code{\link[=cogmod_lnr]{cogmod_lnr()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}}, \code{\link[=cogmod_ddm]{cogmod_ddm()}}, \code{\link[=cogmod_lba2]{cogmod_lba2()}}) can be
++measured against: it takes the same \code{rt | dec(response)} data, so
++\code{brms::loo_compare()} puts it side by side with them, and the difference
++says how much a sequential sampling model gains over the analysis most
++people run by default.
++
++Functions:
++\itemize{
++\item \code{rcogmod_gaussbit()}: Simulates random draws.
++\item \code{dcogmod_gaussbit()}: Computes the density (likelihood).
++\item \code{cogmod_gaussbit()}: Creates a \code{brms::custom_family()}.
++\item \code{cogmod_gaussbit_stanvars()}: Generates the \code{stanvars} to pass to \code{brm()}.
++}
++}
++\section{Parameterization}{
++On every trial the reaction time is \code{t = mu + sigma * u}, with \code{u} a standard
++Normal, and the choice is \code{dec = 1} whenever a latent decision variable
++\code{w ~ Normal(mudec, 1)} is positive. \code{u} and \code{w} are bivariate Normal with
++correlation \code{tanh(rho)}. The joint density of a response is then the
++Gaussian density of \code{t} times the probit probability of the choice given \code{t}:
++
++\deqn{f(t, 1) = \frac{1}{\sigma} \phi(u) \, \Phi\left(\frac{mudec + r u}{\sqrt{1 - r^2}}\right), \quad r = \tanh(rho)}
++
++and \code{f(t, 0)} the same with the argument of \code{Phi} negated. Two things follow
++from the construction, whatever \code{rho} is:
++\itemize{
++\item The \strong{marginal RT distribution is exactly} \code{Normal(mu, sigma)}. \code{mu} is
++the mean RT and \code{sigma} its SD, as in \code{brms::gaussian()}.
++\item The \strong{marginal choice probability is exactly} \code{pnorm(mudec)}. \code{mudec} is
++the probit of \code{P(dec = 1)}, as in \code{brms::bernoulli("probit")}, so its
++coefficients are the same quantities a probit regression reports.
++}
++
++\code{rho} changes neither marginal. What it moves is how the choice depends on
++the time, which is the pattern the process models are built to explain:
++the probit of \code{P(dec = 1 | t)} is linear in \code{t}, with a slope set by \code{rho}.
++With \code{dec} coding errors, \code{rho > 0} gives \strong{slow errors} - the slower the
++trial, the more likely an error - and \code{rho < 0} \strong{fast errors}. Recoding
++\code{dec} the other way round flips the sign of both \code{mudec} and \code{rho} and leaves
++the likelihood unchanged.
++}
++
++\section{\code{rho} is on the Fisher-z scale}{
++\code{brms} has no link onto \verb{(-1, 1)}, so the correlation is estimated as its
++Fisher-z transform: the correlation itself is \code{tanh(rho)}, and \code{rho} is free
++on the whole real line behind an \code{identity} link. The two are close for
++small values (\code{tanh(0.3) = 0.29}) and part company above that
++(\code{tanh(0.5) = 0.46}, \code{tanh(1) = 0.76}); report \code{tanh()} of the estimate.
++
++There is only one scale to think about: \code{rho} means the same thing whether
++it is modelled in \code{bf()} or left out and estimated as a constant, which is
++not true of any dpar behind a non-identity link. \code{rho = 0} is independence
++either way.
++
++The Stan code never forms \code{tanh(rho)} at all. Since \code{sqrt(1 - tanh(z)^2) = 1 / cosh(z)}, the argument of \code{Phi} above is \code{mudec * cosh(rho) + u * sinh(rho)}: no division, no square root, and no loss of precision as the
++correlation approaches one.
++}
++
++\section{The same model as \code{gaussian()} + \code{bernoulli("probit")}}{
++With \code{rho} fixed at zero this family \emph{is} the multivariate model below, with
++the same likelihood, observation by observation:
++
++\if{html}{\out{<div class="sourceCode r">}}\preformatted{# these two are the same model
++brms::bf(RT | dec(Error) ~ Condition, mudec ~ Condition, rho = 0,
++         family = cogmod_gaussbit())
++brms::bf(RT ~ Condition) +
++  brms::bf(Error ~ Condition, family = brms::bernoulli("probit")) +
++  brms::set_rescor(FALSE)
++}\if{html}{\out{</div>}}
++
++The priors match too. \code{sigma} has the \code{log} link \code{brms::gaussian()} gives it,
++and \code{\link[=cogmod_priors]{cogmod_priors()}} leaves \code{mu} and \code{sigma} to the \code{brms} defaults, gives
++\code{mudec} the \code{student_t(3, 0, 2.5)} intercept \code{brms::bernoulli()} would, and
++leaves its slopes flat as \code{brms} does. The one prior it adds is on \code{rho}.
++
++Freeing \code{rho} (\code{rho ~ 1}, or leaving it out of \code{bf()}) therefore adds exactly
++one thing to the default analysis - the trial-level coupling of speed and
++accuracy - and the difference in \code{elpd} between the two fits measures what
++that coupling alone is worth, with the RT distribution held Gaussian. A
++process model's gain over the \code{rho = 0} fit is what it adds over the
++default analysis; its gain over the free-\code{rho} fit is what it adds beyond a
++linear speed-accuracy dependence.
++
++The multivariate form is worth knowing about, but it is not a substitute
++once \code{rho} is free. \code{brms::bf(Error ~ Condition + RT, family = brms::bernoulli("probit"))} reaches the same likelihood by entering the RT
++as a predictor, but \code{posterior_predict()} then simulates the choices from
++the \emph{observed} RTs, so its posterior predictive checks are not joint, and its
++choice coefficients become effects conditional on the RT rather than the
++marginal ones above.
++}
++
++\section{What it does not do}{
++\itemize{
++\item \strong{No \code{ndt}.} The Gaussian's location is free, so a shift of the whole
++distribution is \code{mu} itself: a non-decision time could not be told apart
++from it at all, not even weakly.
++\item \strong{No outlier component.} The Gaussian has support on the whole real line
++and needs no floor, and the baseline is meant to be the plain default
++analysis.
++\item \strong{Negative reaction times have density}, as they do under
++\code{brms::gaussian()}. The mass involved is small for ordinary RT data -
++\code{pnorm(0, 0.6, 0.15)} is 3e-5 - and truncating at zero would cost a
++normal tail per observation and break the exact correspondence above.
++\item \strong{No \code{cens()}.} The choice is already modelled, through \code{dec()}.
++}
++}
++
++\section{Fitting}{
++\if{html}{\out{<div class="sourceCode r">}}\preformatted{f <- brms::bf(RT | dec(Error) ~ Condition, mudec ~ Condition, rho ~ 1,
++              family = cogmod_gaussbit())
++brms::brm(f, data = df,
++          prior    = cogmod_priors(f, df),
++          stanvars = cogmod_stanvars(f))
++}\if{html}{\out{</div>}}
++
++\code{sigma} left out of \code{bf()} is a constant SD; \code{sigma ~ Condition} models it,
++on the log scale.
++
++\code{posterior_predict()} returns simulated reaction times and choices jointly, a
++draws x 2 matrix as for the other choice families, and \code{posterior_epred()}
++the expected reaction time, which is \code{mu}.
++}
++
++\examples{
++# 10\% errors (dec = 1), slower trials more error-prone
++d <- rcogmod_gaussbit(5000, mu = 0.6, sigma = 0.15, mudec = -1.3,
++                      rho = 0.4)
++mean(d$response)
++tapply(d$rt, d$response, mean)
++
++# The correlation itself is tanh(rho)
++tanh(0.4)
++
++# At rho = 0 the density is a Gaussian times a probit
++dcogmod_gaussbit(0.7, mu = 0.6, sigma = 0.15, mudec = -1.3, rho = 0,
++                 response = 1)
++dnorm(0.7, 0.6, 0.15) * pnorm(-1.3)
++
++\dontrun{
++# Needs cmdstanr and a CmdStan toolchain, which live outside CRAN - see the
++# package website to install them. Not run under R CMD check, which executes
++# every example in one R session: once brms has fitted a model there (the
++# cogmod_inits() and p_outlier() examples do), rstan is live in the process
++# and loading an exposed Stan function next to it segfaults on Linux.
++lpdf <- cogmod_gaussbit_lpdf_expose()
++lpdf(Y = 0.7, mu = 0.6, sigma = 0.15, mudec = -1.3, rho = 0.4, dec = 1)
++}
++
++}
++\seealso{
++\code{\link[=rcogmod_lnr]{rcogmod_lnr()}}, \code{\link[=rcogmod_rdm]{rcogmod_rdm()}}, \code{\link[=rcogmod_ddm]{rcogmod_ddm()}}, \code{\link[=rcogmod_lba2]{rcogmod_lba2()}}
++}
+diff --git a/tests/testthat/helper-stan.R b/tests/testthat/helper-stan.R
+index 5e31588..430faa9 100644
+--- a/tests/testthat/helper-stan.R
++++ b/tests/testthat/helper-stan.R
+@@ -24,7 +24,7 @@
+   "cogmod_invgamma", "cogmod_weibull", "cogmod_invweibull", "cogmod_logweibull",
+   "cogmod_exwald", "cogmod_bisa", "cogmod_lba1", "cogmod_lnr", "cogmod_rdm", "cogmod_ddm", "cogmod_lba2",
+   "cogmod_betagate", "cogmod_choco", "cogmod_exgaussian", "cogmod_geg",
+-  "cogmod_betadiscrete"
++  "cogmod_gaussbit", "cogmod_betadiscrete"
+ )
+ 
+ # The cache lives in an option rather than in this file's environment, because
+diff --git a/tests/testthat/test-model_gaussbit.R b/tests/testthat/test-model_gaussbit.R
+new file mode 100644
+index 0000000..50ee490
+--- /dev/null
++++ b/tests/testthat/test-model_gaussbit.R
+@@ -0,0 +1,347 @@
++context("Gaussian-probit - joint Gaussian RT and probit choice")
++
++# Reference density, written out from the bivariate Normal it is built on: the
++# RT is Normal(mu, sigma), the latent w is Normal(mudec, 1), the two correlate
++# r = tanh(rho), and dec = 1 when w > 0. Given the standardized RT u, w is
++# Normal(mudec + r u, 1 - r^2). The family evaluates the same probability as
++# Phi(mudec cosh(rho) + u sinh(rho)); this keeps the textbook form, division
++# and square root included, so the two are independent derivations.
++#
++# `response` is a scalar here, so the tail is picked with `if`, not ifelse() -
++# which returns the length of its test and would recycle the first time's
++# probability over every other.
++ref_ldens <- function(y, mu, sigma, mudec, rho, response) {
++  r <- tanh(rho)
++  u <- (y - mu) / sigma
++  z <- (mudec + r * u) / sqrt(1 - r^2)
++  stats::dnorm(y, mu, sigma, log = TRUE) +
++    stats::pnorm(z, lower.tail = response == 1, log.p = TRUE)
++}
++
++make_prep <- function(y, dec, mu, sigma, mudec, rho, n_draws = 10) {
++  structure(
++    list(
++      data = list(Y = y, dec = dec),
++      family = cogmod_gaussbit(),
++      dpars = list(
++        mu = rep(mu, n_draws), sigma = rep(sigma, n_draws),
++        mudec = rep(mudec, n_draws), rho = rep(rho, n_draws)
++      )
++    ),
++    class = "brmsprep"
++  )
++}
++
++gp_pars <- list(
++  list(mu = 0.6, sigma = 0.15, mudec = -1.3, rho = 0.4),
++  list(mu = 0.5, sigma = 0.3, mudec = 0.7, rho = -1.2),
++  list(mu = 1, sigma = 0.1, mudec = 2.5, rho = 2.5)
++)
++
++
++# dcogmod_gaussbit ------------------------------------------------------
++
++test_that("dcogmod_gaussbit matches the bivariate Normal construction", {
++  y <- c(0.1, 0.45, 0.6, 0.9, 1.6)
++  for (p in gp_pars) {
++    for (k in 0:1) {
++      expect_equal(
++        do.call(dcogmod_gaussbit, c(list(x = y, response = k, log = TRUE), p)),
++        do.call(ref_ldens, c(list(y = y, response = k), p)),
++        # the reference's sqrt(1 - r^2) loses a few digits at rho = 2.5
++        tolerance = 1e-10
++      )
++    }
++  }
++})
++
++
++test_that("the density integrates to one and both marginals are exact", {
++  # The two properties the family's whole case rests on: whatever rho is, the
++  # RT is exactly Normal(mu, sigma) and P(dec = 1) is exactly pnorm(mudec).
++  for (p in gp_pars) {
++    f <- function(t, k) do.call(dcogmod_gaussbit, c(list(x = t, response = k), p))
++    lo <- p$mu - 12 * p$sigma
++    hi <- p$mu + 12 * p$sigma
++    i0 <- stats::integrate(f, lo, hi, k = 0, rel.tol = 1e-10)$value
++    i1 <- stats::integrate(f, lo, hi, k = 1, rel.tol = 1e-10)$value
++    expect_equal(i0 + i1, 1, tolerance = 1e-9)
++    expect_equal(i1, stats::pnorm(p$mudec), tolerance = 1e-9)
++    tt <- p$mu + p$sigma * c(-2, -0.3, 0, 1.1, 3)
++    expect_equal(f(tt, 0) + f(tt, 1), stats::dnorm(tt, p$mu, p$sigma),
++                 tolerance = 1e-12)
++  }
++})
++
++
++test_that("rho = 0 is exactly a Gaussian times a probit", {
++  # The identity behind "rho = 0 is the default analysis": the same likelihood
++  # as gaussian() on the RT plus bernoulli("probit") on the choice.
++  y <- c(0.2, 0.55, 1.3)
++  for (k in 0:1) {
++    expect_equal(
++      dcogmod_gaussbit(y, mu = 0.6, sigma = 0.2, mudec = -0.8, rho = 0,
++                       response = k, log = TRUE),
++      stats::dnorm(y, 0.6, 0.2, log = TRUE) +
++        stats::pnorm(if (k == 1) -0.8 else 0.8, log.p = TRUE),
++      tolerance = 1e-14
++    )
++  }
++})
++
++
++test_that("recoding dec flips mudec and rho and nothing else", {
++  y <- c(0.3, 0.6, 1.1)
++  for (k in 0:1) {
++    expect_equal(
++      dcogmod_gaussbit(y, 0.6, 0.2, -1, 0.7, response = k, log = TRUE),
++      dcogmod_gaussbit(y, 0.6, 0.2, 1, -0.7, response = 1 - k, log = TRUE),
++      tolerance = 1e-14
++    )
++  }
++})
++
++
++test_that("rho > 0 makes slow trials more likely to be dec = 1", {
++  # With dec coding errors, that is slow errors - the sign the docs promise.
++  cond1 <- function(t, rho) {
++    exp(dcogmod_gaussbit(t, 0.6, 0.15, -1.3, rho, response = 1, log = TRUE) -
++          stats::dnorm(t, 0.6, 0.15, log = TRUE))
++  }
++  expect_gt(cond1(0.9, 0.5), cond1(0.3, 0.5))
++  expect_lt(cond1(0.9, -0.5), cond1(0.3, -0.5))
++  expect_equal(cond1(0.9, 0), cond1(0.3, 0), tolerance = 1e-14)
++})
++
++
++test_that("the far tails stay finite", {
++  # A 12 s trial at a large rho puts the probit argument ~ 540 units out, which
++  # cogmod_log_Phi() and pnorm(log.p = TRUE) both carry.
++  for (k in 0:1) {
++    expect_true(is.finite(dcogmod_gaussbit(12, response = k, rho = 1.5, log = TRUE)))
++    expect_true(is.finite(dcogmod_gaussbit(-3, response = k, rho = -1.5, log = TRUE)))
++  }
++})
++
++
++test_that("missing, infinite and empty input", {
++  expect_equal(
++    dcogmod_gaussbit(c(NA, Inf, -Inf), response = c(1, 1, 0), log = TRUE),
++    rep(-Inf, 3)
++  )
++  expect_equal(dcogmod_gaussbit(c(NA, Inf), response = 0), c(0, 0))
++  expect_length(dcogmod_gaussbit(numeric(0), response = numeric(0)), 0)
++  expect_equal(nrow(rcogmod_gaussbit(0)), 0)
++})
++
++
++test_that("invalid parameters are rejected", {
++  expect_error(dcogmod_gaussbit(0.5, sigma = 0, response = 1), "sigma")
++  expect_error(dcogmod_gaussbit(0.5, response = 2), "response")
++  expect_error(dcogmod_gaussbit(0.5), "response")
++  expect_error(rcogmod_gaussbit(10, sigma = -1), "sigma")
++  # the locations are unbounded
++  expect_true(is.finite(dcogmod_gaussbit(0.5, mu = -2, mudec = -9, rho = -4,
++                                         response = 0, log = TRUE)))
++})
++
++
++test_that("dcogmod_gaussbit is vectorized over every argument", {
++  args <- list(x = c(0.4, 0.7), mu = c(0.5, 0.6), sigma = c(0.1, 0.2),
++               mudec = c(-1, 0.5), rho = c(0.3, -0.2), response = c(0, 1))
++  vec <- do.call(dcogmod_gaussbit, args)
++  one <- vapply(1:2, function(i) {
++    do.call(dcogmod_gaussbit, lapply(args, `[`, i))
++  }, numeric(1))
++  expect_equal(vec, one)
++})
++
++
++# rcogmod_gaussbit ------------------------------------------------------
++
++test_that("rcogmod_gaussbit reproduces its own density", {
++  set.seed(11)
++  d <- rcogmod_gaussbit(2e5, mu = 0.6, sigma = 0.15, mudec = -1.3, rho = 0.4)
++  expect_named(d, c("rt", "response"))
++  expect_setequal(unique(d$response), c(0, 1))
++  expect_equal(mean(d$response), stats::pnorm(-1.3), tolerance = 0.02)
++  expect_equal(mean(d$rt), 0.6, tolerance = 0.002)
++  expect_equal(stats::sd(d$rt), 0.15, tolerance = 0.005)
++  # the conditional mean RT of each response, by integrating the density
++  for (k in 0:1) {
++    f <- function(t) dcogmod_gaussbit(t, 0.6, 0.15, -1.3, 0.4, response = k)
++    e <- stats::integrate(function(t) t * f(t), -1, 2)$value /
++      stats::integrate(f, -1, 2)$value
++    expect_equal(mean(d$rt[d$response == k]), e, tolerance = 0.005)
++  }
++})
++
++
++# brms methods ------------------------------------------------------------
++
++test_that("log_lik_cogmod_gaussbit matches dcogmod_gaussbit", {
++  prep <- make_prep(y = c(0.5, 0.9), dec = c(0, 1), mu = 0.6, sigma = 0.15,
++                    mudec = -1.3, rho = 0.4)
++  for (i in 1:2) {
++    expect_equal(
++      log_lik_cogmod_gaussbit(i, prep),
++      rep(dcogmod_gaussbit(prep$data$Y[i], 0.6, 0.15, -1.3, 0.4,
++                           response = prep$data$dec[i], log = TRUE), 10)
++    )
++  }
++  prep$data$Y[1] <- NA
++  expect_true(is.na(log_lik_cogmod_gaussbit(1, prep)))
++  prep$data$dec <- NULL
++  expect_error(log_lik_cogmod_gaussbit(2, prep), "dec")
++})
++
++
++test_that("posterior_predict_cogmod_gaussbit simulates both columns jointly", {
++  set.seed(12)
++  prep <- make_prep(y = 0.5, dec = 0, mu = 0.6, sigma = 0.15, mudec = -1.3,
++                    rho = 0.6, n_draws = 4e4)
++  out <- posterior_predict_cogmod_gaussbit(1, prep)
++  expect_equal(dim(out), c(4e4, 2))
++  expect_equal(colnames(out), c("rt", "response"))
++  expect_equal(mean(out[, "response"]), stats::pnorm(-1.3), tolerance = 0.05)
++  # Joint, not conditional on the observed RT: the simulated errors are slow.
++  expect_gt(mean(out[out[, 2] == 1, 1]), mean(out[out[, 2] == 0, 1]) + 0.05)
++})
++
++
++test_that("posterior_epred_cogmod_gaussbit is the mean RT", {
++  prep <- structure(list(dpars = list(mu = matrix(c(0.5, 0.7), 1))),
++                    class = "brmsprep")
++  expect_equal(posterior_epred_cogmod_gaussbit(prep), matrix(c(0.5, 0.7), 1))
++})
++
++
++# family ------------------------------------------------------------------
++
++test_that("cogmod_gaussbit() builds a valid brms custom family", {
++  fam <- cogmod_gaussbit()
++  expect_s3_class(fam, "customfamily")
++  # Order matters: brms passes the dpars to cogmod_gaussbit_lpdf in this one.
++  expect_equal(fam$dpars, c("mu", "sigma", "mudec", "rho"))
++  expect_equal(unname(cogmod:::.family_links(fam)),
++               c("identity", "log", "identity", "identity"))
++  expect_equal(fam$vars, "dec[n]")
++  expect_true("cogmod_gaussbit" %in% cogmod:::.cogmod_families())
++  expect_false("cogmod_gaussbit" %in% cogmod:::.OUTLIER_FAMILIES)
++  expect_equal(cogmod:::.checkdata_class("cogmod_gaussbit"), "choice")
++})
++
++
++test_that("cens() is refused, the choice being modelled already", {
++  f <- brms::bf(RT | cens(Error) ~ 1, family = cogmod_gaussbit())
++  expect_error(cogmod_stanvars(f), "already models the errors")
++})
++
++
++# Stan code ---------------------------------------------------------------
++
++test_that("stanvars carry the likelihood through cogmod_log_Phi()", {
++  code <- cogmod_gaussbit_stanvars()[[1]]$scode
++  expect_true(grepl("real cogmod_gaussbit_lpdf", code))
++  expect_true(grepl("int dec", code))
++  expect_true(grepl("real cogmod_log_Phi", code))
++  expect_true(grepl("mudec * cosh(rho) + u * sinh(rho)", code, fixed = TRUE))
++  # No normal tail other than cogmod_log_Phi(), comments aside (they name the
++  # built-ins to say why they are not used).
++  body <- gsub("cogmod_log_Phi", "", gsub("//[^\n]*", "", code))
++  expect_false(grepl("normal_lcdf|normal_lccdf|Phi", body))
++})
++
++
++test_that("Stan cogmod_gaussbit_lpdf matches dcogmod_gaussbit", {
++  skip_on_cran()
++  skip_if_not_installed("cmdstanr")
++
++  lpdf <- stan_fun("cogmod_gaussbit")
++  grid <- covering_grid(
++    Y = c(-0.2, 0.05, 0.4, 0.6, 1.2, 4, 12),
++    mu = c(0.3, 0.6, 1.5),
++    sigma = c(0.02, 0.15, 0.6),
++    mudec = c(-3, -1.3, 0, 2),
++    rho = c(-2.5, -0.4, 0, 0.3, 1.5),
++    dec = 0:1,
++    # the far tail at a strong correlation sends the probit argument through
++    # cogmod_log_Phi()'s asymptotic branch, so that slice is swept in full
++    always = function(g) g$sigma == 0.02 & g$mu == 0.6
++  )
++  for (i in seq_len(nrow(grid))) {
++    g <- grid[i, ]
++    stan <- lpdf(g$Y, g$mu, g$sigma, g$mudec, g$rho, as.integer(g$dec))
++    r <- dcogmod_gaussbit(g$Y, g$mu, g$sigma, g$mudec, g$rho,
++                          response = g$dec, log = TRUE)
++    # Relative: the far-tail log-densities run to 1e5 and beyond.
++    expect_lt(abs(stan - r) / max(1, abs(r)), 1e-12)
++  }
++
++  expect_equal(lpdf(0.5, 0.6, 0, -1, 0, 0L), -Inf)
++  expect_equal(lpdf(0.5, 0.6, 0.15, -1, 0, 2L), -Inf)
++})
++
++
++# priors and inits --------------------------------------------------------
++
++test_that("at rho = 0 the priors are those of gaussian() + bernoulli('probit')", {
++  set.seed(13)
++  sim <- rcogmod_gaussbit(200, rho = 0.3)
++  d <- data.frame(RT = sim$rt, Error = sim$response,
++                  Condition = rep(c("a", "b"), length.out = 200))
++  f_gp <- brms::bf(RT | dec(Error) ~ Condition, mudec ~ Condition, rho = 0,
++                   family = cogmod_gaussbit())
++  f_mv <- brms::bf(RT ~ Condition) +
++    brms::bf(Error ~ Condition, family = brms::bernoulli("probit")) +
++    brms::set_rescor(FALSE)
++  gp <- cogmod_priors(f_gp, d)
++  mv <- brms::get_prior(f_mv, data = d)
++
++  # Rename the multivariate model's rows into the family's terms: the RT
++  # response is the family's own linear predictor, the choice is `mudec`.
++  mv$dpar[mv$resp == "Error"] <- "mudec"
++  key <- function(p) {
++    p <- as.data.frame(p)[, c("prior", "class", "coef", "dpar")]
++    p <- p[order(p$dpar, p$class, p$coef), ]
++    rownames(p) <- NULL
++    p
++  }
++  expect_equal(key(gp), key(mv))
++})
++
++
++test_that("cogmod_priors adds a prior on rho, on one scale in both forms", {
++  sim <- rcogmod_gaussbit(200, rho = 0.3)
++  d <- data.frame(RT = sim$rt, Error = sim$response, x = rnorm(200))
++  modelled <- as.data.frame(cogmod_priors(
++    brms::bf(RT | dec(Error) ~ 1, rho ~ x, family = cogmod_gaussbit()), d
++  ))
++  omitted <- as.data.frame(cogmod_priors(
++    brms::bf(RT | dec(Error) ~ 1, family = cogmod_gaussbit()), d
++  ))
++  expect_equal(modelled$prior[modelled$dpar == "rho" & modelled$class == "Intercept"],
++               "normal(0, 0.5)")
++  expect_true(all(modelled$prior[modelled$dpar == "rho" & modelled$class == "b" &
++                                   !nzchar(modelled$coef)] == "normal(0, 0.5)"))
++  expect_equal(omitted$prior[omitted$class == "rho"], "normal(0, 0.5)")
++  expect_equal(omitted$prior[omitted$class == "mudec"], "student_t(3, 0, 2.5)")
++})
++
++
++test_that("cogmod_inits covers the declared parameters", {
++  sim <- rcogmod_gaussbit(150)
++  d <- data.frame(RT = sim$rt, Error = sim$response,
++                  Condition = rep(c("a", "b"), length.out = 150))
++  f <- brms::bf(RT | dec(Error) ~ Condition, sigma ~ 1, mudec ~ Condition,
++                rho ~ 1, family = cogmod_gaussbit())
++  vals <- cogmod_inits(f, d)(1)
++  code <- brms::make_stancode(f, data = d, stanvars = cogmod_stanvars(f))
++  declared <- vapply(cogmod:::.stan_param_decls(code), `[[`, character(1), "name")
++  expect_setequal(names(vals), declared)
++
++  v0 <- cogmod_inits(f, d, jitter = 0)(1)
++  expect_equal(v0$Intercept, 0.6, tolerance = 1e-8)
++  expect_equal(exp(v0$Intercept_sigma), 0.2, tolerance = 1e-8)
++  expect_equal(v0$Intercept_rho, 0, tolerance = 1e-8)
++})
+diff --git a/vignettes/articles/decision_making.qmd b/vignettes/articles/decision_making.qmd
+index 0a9f8cd..6f7e43d 100644
+--- a/vignettes/articles/decision_making.qmd
++++ b/vignettes/articles/decision_making.qmd
+@@ -94,21 +94,106 @@ condition), which can be problematic for accurate estimations.
+ 
+ ## Models
+ 
+-All five models below use `dec(Error)` to indicate the two-choice
+-outcome (`0` = Correct, `1` = Error), and all five share the parameterization
+-used by the RT-only families (see `vignette("outliers")`): `ndt` is estimated
+-directly, in seconds, and a `poutlier` parameter mixes in an outlier process so
+-that `ndt` is not capped at the fastest observed response. The outlier
+-component is a half Normal with a fixed scale of 0.2 s, so **reaction times
+-must be in seconds**.
+-
+-`cogmod_priors()` and `cogmod_inits()` read the family off the formula, so the
+-same three lines set up any of them. Both are worth using rather than
++All six models below use `dec(Error)` to indicate the two-choice
++outcome (`0` = Correct, `1` = Error), and `cogmod_priors()`, `cogmod_inits()`
++and `cogmod_stanvars()` read the family off the formula, so the same three
++lines set up any of them. The first one is not an evidence accumulation model
++at all but the baseline the others are measured against.
++
++The five accumulation models share the parameterization used by the RT-only
++families (see `vignette("outliers")`): `ndt` is estimated directly, in seconds,
++and a `poutlier` parameter mixes in an outlier process so that `ndt` is not
++capped at the fastest observed response. The outlier component is a half
++Normal with a fixed scale of 0.2 s, so **reaction times must be in seconds**.
++`cogmod_priors()` and `cogmod_inits()` are worth using rather than
+ hand-written priors and `init = 0`: on a log link `init = 0` starts `ndt` at
+ `exp(0) = 1` second, above nearly every observed RT, and each of these families
+ has at least one direction the likelihood is flat in that `brms` would otherwise
+ leave improper.
+ 
++### Gaussian + Probit (Gaussbit)
++
++The analysis most people run on these data is two separate regressions: a
++**linear model** on the RTs, and a **logistic regression** on the accuracy.
++`cogmod_gaussbit()` is essentially that analysis, done as one model. Its RT
++half is a Gaussian regression - `mu` is the mean RT and `sigma` its SD, exactly
++as in `brms::gaussian()` - and its choice half is a probit regression, `mudec`
++being the probit of the probability of an error. A probit is the logistic
++regression's close cousin: the two curves are nearly the same shape, and
++probit coefficients are about the logit ones divided by 1.7.
++
++What makes it one model rather than two is `rho`, a **trial-level
++correlation** between the RT and the choice. With the errors coded `1`,
++`rho > 0` means the slower a trial, the more likely it is to be an error
++(*slow errors*), and `rho < 0` the reverse (*fast errors*). It changes neither
++half on its own: whatever `rho` is, the RTs are exactly `Normal(mu, sigma)` and
++the error rate exactly `pnorm(mudec)`. `rho` lives on the Fisher-z scale, and
++the correlation itself is `tanh(rho)`.
++
++At `rho = 0` the family *is* the two separate regressions, likelihood and
++priors included, so the two formulas below fit the same model:
++
++```{r}
++#| eval: false
++#| code-fold: false
++
++bf(RT | dec(Error) ~ Condition, mudec ~ Condition, rho = 0,
++   family = cogmod_gaussbit())
++
++bf(RT ~ Condition) +
++  bf(Error ~ Condition, family = bernoulli("probit")) +
++  set_rescor(FALSE)
++```
++
++This is what makes it a useful baseline. It knows nothing about the
++decision process: the RT distribution is a symmetric Gaussian with no
++right skew, no non-decision time (the location is free, so a shift *is* `mu`)
++and no outlier component. The difference in `elpd` between it and an
++accumulation model is what the process assumptions buy over the default
++analysis, measured on the same data and the same scale.
++
++Here we let `rho` vary with `Condition`: errors are slower than correct
++responses in the `Accuracy` condition but not in the `Speed` one (see the
++figure above), which is the kind of pattern `rho` is there to pick up.
++
++```{r}
++#| eval: false
++#| code-fold: false
++
++f <- bf(
++  RT | dec(Error) ~ Condition,
++  sigma ~ Condition,
++  mudec ~ Condition,
++  rho ~ Condition,
++  family = cogmod_gaussbit()
++)
++
++m_gaussbit <- brm(f,
++  data = df,
++  prior = cogmod_priors(f, df),
++  init = cogmod_inits(f, df),
++  stanvars = cogmod_stanvars(f),
++  chains = 4, iter = 500, backend = "cmdstanr"
++)
++
++m_gaussbit <- brms::add_criterion(m_gaussbit, "loo")  # Add model performance criterion
++```
++```{r}
++#| eval: false
++#| echo: false
++
++saveRDS(m_gaussbit, file = "../models/m_gaussbit.rds")
++```
++
++The coefficients read the way the two separate regressions would. The
++RT half says a mean RT of 0.69 s in `Accuracy` and 0.14 s faster in `Speed`,
++with an SD (`exp()` of `sigma`) of 0.24 s and 0.15 s. The choice half says
++`pnorm(-1.68)` = 4.6% errors in `Accuracy` and `pnorm(-1.68 + 0.39)` = 9.9% in
++`Speed`. `rho` comes out close to zero in both conditions (0.06, 95% CI -0.03
++to 0.14 in `Accuracy`). The errors in `Accuracy` *are* slower, but only by
++about 30 ms, which is small next to an SD of 0.24 s, so a Gaussian barely
++registers it.
++
+ ### Drift Diffusion Model (DDM)
+ 
+ The DDM assumes that evidence accumulates towards one of two boundaries at
+@@ -452,6 +537,7 @@ race.
+ 
+ path <- "https://raw.github.com/DominiqueMakowski/cogmod/main/vignettes/models/"
+ 
++m_gaussbit <- readRDS(url(paste0(path, "m_gaussbit.rds")))
+ m_ddm <- readRDS(url(paste0(path, "m_ddm.rds")))
+ m_ddm5 <- readRDS(url(paste0(path, "m_ddm5.rds")))
+ m_lba <- readRDS(url(paste0(path, "m_lba2.rds")))
+@@ -462,10 +548,19 @@ m_rdm <- readRDS(url(paste0(path, "m_rdm.rds")))
+ ```{r}
+ #| code-fold: false
+ 
+-loo::loo_compare(m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
++loo::loo_compare(m_gaussbit, m_ddm, m_ddm5, m_lba, m_lnr, m_rdm) |>
+   parameters(include_ENP = TRUE)
+ ```
+ 
++The Gaussbit baseline comes last, about 1300 points of `elpd` behind the
++others, which differ among themselves by at most about 120. Most of that gap
++is likely the shape of the RT distribution rather than anything specific to
++one accumulation process (the posterior predictive check below shows it): RTs are right-skewed and bounded below by the time it
++takes to respond at all, and a Gaussian is neither. So when a psychologist
++fits a linear model to the RTs and a logistic regression to the accuracy, the
++first thing an evidence accumulation model gains over that analysis is a
++plausible RT distribution.
++
+ 
+ ### Sampling Duration
+ 
+@@ -477,10 +572,12 @@ three races, the LNR is by far the cheapest, since its density and survival
+ are just LogNormal ones, while the RDM and the LBA are much slower.
+ Freeing `sigmadrift` is not free either: DDM-5 costs is significantly slower than the
+ simple DDM, though it remains cheaper than either of the two slow races.
++Gaussbit is the cheapest of all, under a minute per chain, since its
++likelihood is one Normal density and one Normal CDF per trial.
+ 
+ ```{r}
+ models <- list(
+-  DDM = m_ddm, `DDM-5` = m_ddm5, LNR = m_lnr, LBA = m_lba, RDM = m_rdm
++  Gaussbit = m_gaussbit, DDM = m_ddm, `DDM-5` = m_ddm5, LNR = m_lnr, LBA = m_lba, RDM = m_rdm
+ )
+ model_levels <- names(models)
+ 
+@@ -526,7 +623,7 @@ returns them in a `Component` column (`"rt"` and `"response"`), which we pivot
+ back into two columns.
+ 
+ Correct responses are drawn upwards and errors downwards, with the observed
+-data as histograms and the five models as overlaid density lines (faint: one
++data as histograms and the six models as overlaid density lines (faint: one
+ per posterior draw; bold: pooled over draws). Rather than normalizing each
+ half separately, both are scaled by the **proportion** of that response, so
+ that the area under each curve equals its predicted frequency - which is why
+@@ -540,6 +637,10 @@ distributions right.
+ #| code-fold: true
+ 
+ pred <- rbind(
++  estimate_prediction(m_gaussbit, data = df, iterations = 50, 
++                      keep_iterations = TRUE, ci = NULL) |>
++    reshape_iterations() |>
++    data_modify(Model = "Gaussbit"),
+   estimate_prediction(m_ddm, data = df, iterations = 50, 
+                       keep_iterations = TRUE, ci = NULL) |>
+     reshape_iterations() |>
+@@ -563,7 +664,7 @@ pred <- rbind(
+ ) |>
+   datawizard::data_select(select = c("Row", "Component", "Condition", "iter_value", "iter_group", "iter_index", "Model")) |>
+   datawizard::data_to_wide(id_cols = c("Row", "iter_group", "Model", "Condition"), values_from = "iter_value", names_from = "Component") |> 
+-  data_modify(Model = factor(Model, levels = c("DDM", "DDM-5", "LNR", "LBA", "RDM")))
++  data_modify(Model = factor(Model, levels = c("Gaussbit", "DDM", "DDM-5", "LNR", "LBA", "RDM")))
+ 
+ # The LBA occasionally predicts enormous RTs (a near-zero drift rate takes a
+ # very long time to reach the threshold). `stat_density()` spreads its
+@@ -621,12 +722,19 @@ p
+ ![](../man/figures/decision_making1.png)
+ 
+ The mismatch discussed above is visible in the lower half: the **DDM**
+-(purple) places its error density well to the left of the observed errors,
+-while the three races put theirs on top of them. **DDM-5** (blue) sits
++(blue) places its error density well to the left of the observed errors,
++while the three races put theirs on top of them. **DDM-5** (green) sits
+ between the two - it recovers the average error timing but spreads the
+-errors too widely. In the upper half all five are close, which is the point
+-worth taking away: a model's problem can be invisible if one only looks at
+-the RTs of correct responses.
++errors too widely. In the upper half the five accumulation models are close,
++which is the point worth taking away: a model's problem can be invisible if
++one only looks at the RTs of correct responses.
++
++**Gaussbit** (purple) is the one that stands apart, and it shows where its
++`elpd` went. Being symmetric, it puts density below 0.35 s, where there are no
++responses at all, peaks too late and too low, and spreads the `Accuracy`
++distribution out to match a long right tail it cannot bend to follow. Its error
++rate is right - that half is a probit regression and fits as well as one does -
++but the RT half is exactly the Gaussian a linear model assumes.
+ 
+ ```{r}
+ #| echo: false
