@@ -47,7 +47,11 @@
 #' generic values that are at least as good as Stan's own `U(-2, 2)`: slopes and
 #' standardized effects start at zero, positive parameters just above their
 #' lower bound, bounded ones at the midpoint, and Cholesky factors at the
-#' identity.
+#' identity. A smooth's SD (`sds`) starts where its smooth is nearly flat, at
+#' 0.1 link units of wiggle. That is a different value of `sds` on every
+#' basis: about 1 for a `t2(x, z, k = c(5, 5), bs = c("cr", "cr"))` and 0.017
+#' for an `s(x, bs = "cr")`. The scale comes from the same `make_standata()`
+#' output; see the *Smooth terms* section of [cogmod_priors()].
 #'
 #' The family-specific values go to the intercept of each distributional
 #' parameter, and to any dpar left out of the formula (which `brms` declares as
@@ -62,7 +66,13 @@
 #' scale - additive for a free parameter, multiplicative for a positive one,
 #' on the logit scale for a doubly bounded one - so a jittered value can never
 #' land outside its own bounds, and the chains still start dispersed enough for
-#' `Rhat` to mean something.
+#' `Rhat` to mean something. The noise on a regression coefficient reaches the
+#' linear predictor multiplied by its design column, so a block of slopes, or
+#' the unpenalised part of a smooth, has its jitter SD divided by the largest
+#' row norm of its columns wherever that exceeds 1: at no row does the SD of
+#' what reaches the predictor exceed the jitter itself. This bounds the SD, not
+#' any one draw - the noise is Normal. A slope on age in years would otherwise
+#' have an SD of six link units at the oldest participant.
 #'
 #' `ndt` starts deliberately **below the data**: at half the first percentile
 #' of the observed response times (0.16 s for responses whose fastest
@@ -85,6 +95,12 @@
 #' `driftone` direction in its very first trajectory - far enough down it, on
 #' real data, for the step size to collapse and the chain to freeze for the
 #' rest of warmup.
+#'
+#' [cogmod_lba2()] follows suit, with `driftone` at 1 against `mu`'s 3, which
+#' starts the race at 11% errors rather than 50%. On simulated data with error
+#' rates from 3% to 43%, the old equal start was the costliest of 3, 2, 1 and 0
+#' every time, and moving it to 1 took 2,400-3,800 log-likelihood units per
+#' 2,000 trials off the shortfall of the whole start.
 #'
 #' # Supported families
 #'
@@ -112,7 +128,8 @@
 #'   when `warmstart` is a `brmsfit`, whose data are then used.
 #' @param jitter SD of the noise added on the unconstrained scale, so that
 #'   chains start at different points. One number is the SD for the
-#'   population-level blocks, the intercepts and slopes; the group-level and
+#'   population-level blocks, the intercepts and slopes (for a slope, divided
+#'   by how far its design columns reach; see Details); the group-level and
 #'   smooth blocks - the standardized effects `z_*` and `zs_*` and their scales
 #'   `sd_*` and `sds_*` - get a fifth of it, because a unit of noise there is
 #'   multiplied through a scale and a design column before it reaches the
@@ -304,7 +321,9 @@ cogmod_inits <- function(
     out <- lapply(plan, function(e) {
       v <- e$value
       j <- jitter[[e$tier]]
-      if (j > 0) {
+      # per element, for a coefficient block whose design reaches past 1
+      if (!is.null(e$scale)) j <- j * e$scale
+      if (any(j > 0)) {
         v <- switch(
           e$kind,
           bounds = .jitter_bounded(v, e$lower, e$upper, j),
@@ -544,9 +563,82 @@ cogmod_inits <- function(
     }
 
     entry$value <- .init_value(d, n, lower, upper, targets, links, sdata)
+    entry$scale <- .jitter_scale(d, n, sdata)
     entry
   })
   plan[!vapply(plan, is.null, logical(1))]
+}
+
+
+# How far the jitter on a block of regression coefficients may move the
+# linear predictor. The population tier's 0.25 is argued as "a quarter of a
+# link unit", which is true of an intercept and of a slope on a column that
+# stays within +-1, and false of anything wider: the noise on a coefficient is
+# multiplied by its design column, and at the row where the columns reach
+# furthest the block moves the predictor with SD jitter * ||X[i, ]||. So the
+# block's jitter is divided by its largest row norm wherever that exceeds 1,
+# which keeps the SD at or under the tier's value at every row, and leaves a
+# dummy column or a standardized covariate where it was.
+#
+# Measured where it bit (2026-10-02, the IGC Muller-Lyer models). The
+# unpenalised part of their t2(..., bs = c("cr", "cr")) smooths, `bs_*`, has
+# three columns with SDs of 0.7-1.1 that reach +-2 to +-3.3. At 0.25 each the
+# start tilted every smoothed dpar by a median of 2.3 link units across the
+# rows (95th percentile 4.2), and for `ndt` 30% of chains started with more
+# than 1% of rows below their own non-decision time, against 0.075% untilted.
+# Divided by the largest row norm (4.2) the jitter is 0.059: a median tilt of
+# 0.5 and 0.7% of chains past 1%. Chains shed the tilt within about ten
+# iterations, so this is about not starting in a bad region rather than speed.
+# The same rule covers ordinary slopes: on age in years, centred by brms to
+# +-25, 0.25 tilted `ndt ~ age` by about six log units at the youngest and
+# oldest participants, and now by a quarter of one. Dividing by the column SD
+# instead would do nothing here, or the reverse: these columns have SDs under
+# 1, and it is the extreme rows that put responses below `ndt`.
+#
+# `b` is matched to the matrix brms builds from `X`: centred and without its
+# Intercept column when the formula has an intercept (the parameter is then
+# one shorter than `X`), as it stands otherwise, where an `Intercept` column
+# under `0 + Intercept` keeps the full jitter. `bs` is matched to `Xs`, which
+# mgcv has already centred. Returns one factor per element, or NULL for
+# anything else, which keeps the tier's jitter as it is.
+#' @keywords internal
+.jitter_scale <- function(d, n, sdata) {
+  if (!identical(d$type, "vector") || length(d$dims) != 1) return(NULL)
+  nm <- d$name
+  design <- if (identical(nm, "b")) {
+    "X"
+  } else if (startsWith(nm, "b_")) {
+    sub("^b_", "X_", nm)
+  } else if (identical(nm, "bs")) {
+    "Xs"
+  } else if (startsWith(nm, "bs_")) {
+    sub("^bs_", "Xs_", nm)
+  } else {
+    return(NULL)
+  }
+  X <- sdata[[design]]
+  if (is.null(X)) return(NULL)
+  X <- as.matrix(X)
+  icpt <- if (is.null(colnames(X))) {
+    rep(FALSE, ncol(X))
+  } else {
+    colnames(X) %in% "Intercept"
+  }
+  out <- rep(1, n)
+  if (any(icpt) && n == ncol(X) - sum(icpt)) {
+    slope <- rep(TRUE, n)
+    Z <- X[, !icpt, drop = FALSE]
+    Z <- sweep(Z, 2, colMeans(Z))
+  } else if (n == ncol(X)) {
+    slope <- !icpt
+    Z <- X[, slope, drop = FALSE]
+  } else {
+    return(NULL)
+  }
+  if (!any(slope) || !nrow(Z)) return(NULL)
+  reach <- max(sqrt(rowSums(Z^2)))
+  if (is.finite(reach) && reach > 1) out[slope] <- 1 / reach
+  out
 }
 
 
@@ -602,12 +694,25 @@ cogmod_inits <- function(
   }
 
   # A smooth's wiggliness scale starts near flat. The generic lower-bound
-  # default of 0.25 is a plausible group-level SD but a lot of wiggle for a
-  # spline: multiplied into jittered coefficients and tensor-product basis
-  # values in the tens, it is what bent one production model's ndt smooth up to
+  # default of 0.25 is a plausible group-level SD but can be a lot of wiggle
+  # for a spline: it is what bent one production model's ndt smooth up to
   # 0.89 s at a participant whose trials sat below 0.5 s. Penalised smoothers
   # start flat and let the data buy curvature; so does this.
+  #
+  # "Flat" is stated in link units, 0.1 of them, because a number for `sds`
+  # itself means a different amount of wiggle on every basis (.zs_scales()).
+  # The fixed 0.05 this replaces was 0.3 link units on s(x, bs = "cr") and
+  # 0.004 on the t2(..., bs = c("cr", "cr")) smooths of the IGC Muller-Lyer
+  # models, where the posterior `sds` sat at 0.4-37 - five or six log units
+  # above the start. 0.1 / scale comes to about 1.2 there and 0.017 on
+  # s(x, bs = "cr"). The coefficients `zs` still start at zero with the
+  # hierarchical jitter, which moves the predictor by 0.1 x 0.05 = 0.005 link
+  # units per smooth on any basis, so the starting smooth stays flat. Each
+  # penalty gets its own scale. 0.05 remains as the fallback for a block
+  # whose scale cannot be read.
   if (startsWith(d$name, "sds_")) {
+    sc <- .zs_scales(sdata, sub("^sds_", "", d$name))
+    if (length(sc) == n && !anyNA(sc)) return(unname(0.1 / sc))
     return(rep(0.05, n))
   }
 
@@ -658,16 +763,20 @@ cogmod_inits <- function(
 # `zs_<k>_<j>`, and their scales `sd_<k>` and `sds_<k>_<j>`; Gaussian processes
 # follow the pattern with `zgp_`, `sdgp_` and `lscale_`. A unit of noise on one
 # of those is not a unit on the linear predictor: it is multiplied by the scale
-# and by a design column - tensor-product basis values reach tens - and every
-# participant and every basis function draws its own, so the predictor at any
-# one row moves by the sum of many. Measured on a production model (a Muller-
+# and by a design column - whose entries reach tens on some bases, see
+# .zs_scales() - and every participant and every basis function draws its own,
+# so the predictor at any one row moves by the sum of many. Measured on a
+# production model (a Muller-
 # Lyer study: a tensor smooth on five dpars, a participant intercept on six),
 # 0.25 there moved the linear predictors by one to two and a half link units,
 # which put one participant's ndt start above 98 of their 128 trials and a
 # sigma start at 0.07 s where 0.5 was intended; at 0.05 the same model started
 # where the targets say. Intercepts and population-level slopes keep the full
 # jitter: that is where between-chain dispersion makes Rhat mean something,
-# and a quarter of a link unit there is a quarter.
+# and a quarter of a link unit there is a quarter - for a slope, once
+# .jitter_scale() has divided it by how far its design columns reach. Until
+# 2026-10-02 it was not, and the unpenalised part of a smooth (`bs_*`), whose
+# columns reach +-3, carried 0.25 of noise straight into the predictor.
 #' @keywords internal
 .init_tier <- function(name) {
   if (grepl("^(z|zs|sd|sds|zgp|sdgp|lscale)_", name)) {

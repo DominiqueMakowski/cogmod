@@ -1,3 +1,91 @@
+# cogmod 0.3.4
+
+## Breaking changes
+
+* **`cogmod_priors()` now states the SD of a smooth term (`sds`) in link
+  units, whatever the basis.** One unit of `sds` moves the linear predictor
+  by an amount set by the basis `mgcv` builds: about 0.45 link units for
+  `s(x)`, 6 for `s(x, bs = "cr")` and 0.1 for
+  `t2(x, z, k = c(5, 5), bs = c("cr", "cr"))`, almost regardless of the number
+  of rows or the units of the covariates. The fixed `exponential(1)` of 0.3.3
+  therefore allowed a median of 4 link units of wiggle on the second of those
+  and 0.07 on the third, and it applied only to the parameters a family names,
+  the rest keeping `brms`'s equally basis-blind `student_t(3, 0, 2.5)`. Each
+  smooth term now gets `exponential(rate)` with the rate set to its own scale,
+  read off `brms::make_standata()`, which is `exponential(1)` on the wiggle
+  measured in link units. It applies to every smooth in the model, the
+  response's own included; the response's slopes are still left to `brms`. On
+  the tensor smooths of a 324,000-trial study the posterior `sds` ran from 0.4
+  to 37 (median 7) across four families, where `exponential(1)` puts 0.1% of
+  its mass above 7. Any model with a smooth gets different priors from 0.3.3.
+  `cogmod_priors()` now builds the basis of each distinct smooth term once
+  (1.8 s for a `t2()` on 324,000 rows). See the *Smooth terms* section of
+  `?cogmod_priors`.
+
+* **The unpenalised part of a smooth on a dpar the family names gets the
+  dpar's slope prior stated in link units.** `brms` reports those
+  coefficients (`bs_*`: the linear trend of an `s(x)`, the marginal trends of
+  a `t2()`) under class `b`, so until now they took the dpar's blanket slope
+  prior, `normal(0, 0.2)` on `ndt`. `mgcv` sets the scale of those columns,
+  not the user: their root mean square is about 0.16 for `s(x)` whatever the
+  units of `x`, 0.8 to 1 for a `t2()`, 2 for `s(x, bs = "cr")`. On the default
+  `s(x)` that prior was `normal(0, 0.03)` on the trend at a typical row, which
+  pinned `ndt`'s linear trend to about 0.1 link units across its range while
+  the penalty left that part of the smooth free, and on `s(x, bs = "cr")` it
+  allowed 0.4. Each such column now gets `normal(0, s / rms)`, with `s` the
+  dpar's slope SD, as its own `b` row. The response's keep `brms`'s default,
+  as its slopes do. Any model with a smooth on `ndt`, `poutlier` or another
+  family-named dpar gets different priors from 0.3.3.
+
+* **In `cogmod_lnr()`, `cogmod_rdm()` and `cogmod_lba2()`, `mu`'s group-level
+  SD gets the same prior as the other accumulator's.** In a race `mu` is the
+  rate of accumulator 0, and the `dec()` coding decides which accumulator that
+  is, so `brms`'s `student_t(3, 0, 2.5)` on one accumulator's SD against
+  `exponential(1)` on the other's changed whenever the coding did. Both now
+  get `exponential(1)`. `mu`'s intercept and slopes are still left to `brms`.
+
+## Changes to starting values
+
+* **`cogmod_inits()` starts a smooth's SD at 0.1 link units of wiggle**
+  instead of `sds = 0.05`, for the reason above: 0.05 was 0.3 link units on
+  `s(x, bs = "cr")` and 0.004 on the `t2()`, where the posterior `sds` sat
+  five or six log units above the start. The smooth coefficients still start
+  at zero, so the starting smooth stays flat.
+
+* **`cogmod_inits()` scales the jitter on regression coefficients by how far
+  their design columns reach.** The noise that disperses the chains is 0.25 on
+  every population-level parameter, argued as "a quarter of a link unit".
+  For a slope it reaches the linear predictor multiplied by its column, so on
+  a column that spans +-3 it was three quarters, and the start tilted the
+  whole surface. The unpenalised part of a `t2(..., bs = c("cr", "cr"))`
+  smooth (`bs_*`) is such a block: on the Illusion Game's Muller-Lyer models
+  it tilted every smoothed parameter by a median of 2.3 link units across the
+  rows, and 30% of chains started with more than 1% of their responses below
+  their own `ndt`. Each block's jitter SD is now divided by the largest row
+  norm of its design wherever that exceeds 1, which keeps the SD of what
+  reaches the predictor at or under 0.25 link units at every row (the noise is
+  Normal, so a single draw can still exceed that): a median tilt of 0.5 there,
+  and 0.7% of chains past 1%. A dummy column or a standardised covariate keeps
+  its 0.25; a slope on an unstandardised one (age in years) no longer has an
+  SD of six link units at the extremes.
+
+* **`cogmod_lba2()`'s error accumulator starts slower than the correct one,**
+  at `driftone = 1` against `mu = 3`, as `cogmod_rdm()`'s has since 0.3.2. The
+  old equal start was a 50/50 race. On simulated data with error rates from 3%
+  to 43% it was the costliest of the starts 3, 2, 1 and 0 every time, and
+  moving it to 1 took 2,400-3,800 log-likelihood units per 2,000 trials off
+  the shortfall of the whole start. Starting values do not change a
+  posterior, so no fitted model needs revisiting for this.
+
+## Documentation
+
+* `?rcogmod_lba2` now opens its *Negative drift rates* section with the
+  advice the rest of it explains: wherever one response is rare in some
+  condition, keep the drift SD of its accumulator free of predictors
+  (`sigmaone ~ 1`, or a participant intercept only). A condition-varying SD
+  gives every such condition a direction of its own along which drift and SD
+  slide together without changing the fit.
+
 # cogmod 0.3.3
 
 ## New features

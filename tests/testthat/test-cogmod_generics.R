@@ -140,6 +140,45 @@ test_that("cogmod_inits jitters without leaving the bounds", {
 })
 
 
+# The noise on a coefficient reaches the predictor multiplied by its design
+# column, so a block whose columns reach past 1 has its jitter divided by its
+# largest row norm: at no row does it move the predictor by more than the
+# tier's SD. A 0.25 on a slope in years was six link units at the extremes.
+test_that("cogmod_inits scales a coefficient block's jitter by its reach", {
+  set.seed(5)
+  dd <- cbind(d_ig, age = round(runif(nrow(d_ig), 20, 70)),
+              x = runif(nrow(d_ig), -1, 1),
+              grp = factor(rep(c("a", "b", "c"), length.out = nrow(d_ig))))
+  sd_of <- function(f, name, k = 1) {
+    inits <- cogmod_inits(f, dd)
+    stats::sd(replicate(400, inits(1)[[name]][k]))
+  }
+
+  # a slope in years, which brms centres to about +-25
+  f <- brms::bf(RT ~ 1, ndt ~ age, family = cogmod_invgaussian())
+  age <- brms::make_standata(f, data = dd)$X_ndt[, "age"]
+  reach <- max(abs(age - mean(age)))
+  expect_gt(reach, 20)
+  expect_equal(sd_of(f, "b_ndt"), 0.25 / reach, tolerance = 0.15)
+
+  # a factor's centred dummies stay inside the unit ball, so keep the 0.25
+  g <- brms::bf(RT ~ 1, ndt ~ grp, family = cogmod_invgaussian())
+  expect_equal(sd_of(g, "b_ndt"), 0.25, tolerance = 0.15)
+
+  # the unpenalised part of a smooth, against the Xs brms builds for it
+  h <- brms::bf(RT ~ s(x, bs = "cr"), family = cogmod_invgaussian())
+  # (brms's default uniform(0, min_Y) on the omitted ndt warns; irrelevant here)
+  xs <- suppressWarnings(brms::make_standata(h, data = dd))$Xs
+  expect_equal(sd_of(h, "bs"), 0.25 / max(1, max(sqrt(rowSums(xs^2)))),
+               tolerance = 0.15)
+
+  # under 0 + Intercept nothing is centred, and the intercept keeps 0.25
+  k <- brms::bf(RT ~ 1, ndt ~ 0 + Intercept + age, family = cogmod_invgaussian())
+  expect_equal(sd_of(k, "b_ndt", 1), 0.25, tolerance = 0.15)
+  expect_equal(sd_of(k, "b_ndt", 2), 0.25 / max(dd$age), tolerance = 0.15)
+})
+
+
 test_that("cogmod_inits jitters the hierarchical blocks less", {
   # A unit of noise on a standardized group effect or a smooth coefficient is
   # multiplied through a scale and a design column before it reaches the
@@ -158,9 +197,15 @@ test_that("cogmod_inits jitters the hierarchical blocks less", {
   # the scales are jittered on the log scale, where the tier's SD applies
   expect_equal(stats::sd(log(first("sd_1"))), 0.05, tolerance = 0.15)
 
-  # a smooth starts near flat; a group-level SD keeps the generic start
+  # a smooth starts near flat, at 0.1 link units of wiggle; a group-level SD
+  # keeps the generic start. brms declares the smooth's SD as one vector per
+  # term, `sds_1`; this read `sds_1_1` until 2026-10-01, which is NULL, so it
+  # had been checking nothing.
   fixed <- cogmod_inits(f, dd, jitter = 0)(1)
-  expect_true(all(fixed$sds_1_1 == 0.05))
+  sdata <- brms::make_standata(f, data = dd)
+  scale <- sqrt(mean(rowSums(sdata$Zs_1_1^2)))
+  expect_length(fixed$sds_1, 1)
+  expect_equal(fixed$sds_1, 0.1 / scale)
   expect_true(all(fixed$sd_1 == 0.25))
 
   # two numbers set the tiers directly
@@ -285,29 +330,162 @@ test_that("cogmod_priors returns rows that match real parameters", {
 
 # brms fills the blanket `sds` row of a smooth itself and leaves the per-term
 # rows empty, so filling only what arrives empty never reached it: a smooth on
-# `ndt` kept student_t(3, 0, 2.5) on its wiggliness scale - the loosest prior
-# in the model, on the link scale of a parameter whose intercept had been fenced
-# on purpose - while ?cogmod_priors promised exponential(1).
-test_that("cogmod_priors sets sds for a smooth on a dpar and leaves mu's alone", {
+# `ndt` kept student_t(3, 0, 2.5) on its wiggliness scale. Since 0.3.4 every
+# smooth, the response's included, gets exponential(<its basis scale>), which
+# is exponential(1) on the wiggle in link units: one unit of `sds` is worth
+# about 0.45 link units on s(x) and 6 on s(x, bs = "cr"), so a fixed number
+# means a different prior on every basis.
+term_scale <- function(term, data) {
+  data$.y <- 0
+  sdata <- brms::make_standata(stats::as.formula(paste(".y ~", term)), data = data)
+  z <- names(sdata)[startsWith(names(sdata), "Zs_")]
+  exp(mean(log(vapply(z, function(b) sqrt(mean(rowSums(sdata[[b]]^2))), 1))))
+}
+rate_of <- function(prior) as.numeric(sub("^exponential\\((.*)\\)$", "\\1", prior))
+
+test_that("cogmod_priors sets every sds by its basis scale, the response's too", {
   set.seed(4)
   dd <- transform(d_ig, x = runif(nrow(d_ig)))
   f <- brms::bf(RT ~ s(x), ndt ~ s(x), poutlier ~ 1, family = cogmod_lognormal())
   p <- cogmod_priors(f, dd)
   sds <- p[p$class == "sds", ]
-  # the blanket row is the one brms uses, and it is the one set
-  expect_equal(sds$prior[sds$dpar == "ndt" & sds$coef == ""], "exponential(1)")
-  expect_true(all(sds$prior[sds$dpar == "ndt" & nzchar(sds$coef)] == ""))
-  # the response's own smooth keeps brms's default, like its slopes do
-  expect_equal(sds$prior[sds$dpar == "" & sds$coef == ""], "student_t(3, 0, 2.5)")
-  # and a grouping term on the same dpar still gets its per-group row
-  g <- brms::bf(RT ~ 1, ndt ~ s(x) + (1 | id), poutlier ~ 1,
-                family = cogmod_lognormal())
-  q <- cogmod_priors(g, dd)
+  want <- signif(term_scale("s(x)", dd), 3)
+  # the blanket row is the one brms uses, and it is the one set, on both
+  expect_equal(rate_of(sds$prior[sds$dpar == "ndt" & sds$coef == ""]), want)
+  expect_equal(rate_of(sds$prior[sds$dpar == "" & sds$coef == ""]), want)
+  expect_false(any(nzchar(sds$prior[nzchar(sds$coef)])))
+
+  # two bases on one dpar: the blanket takes one term's prior, the other term
+  # keeps a row of its own, and brms does not warn that the blanket row went
+  # unused. Which term the blanket takes is the code's business, not the
+  # test's: get_prior() orders its rows in the session's collation, and the
+  # two labels sort the other way round on Linux than on Windows.
+  g <- brms::bf(RT ~ 1, ndt ~ s(x) + s(x, bs = "cr", k = 5) + (1 | id),
+                poutlier ~ 1, family = cogmod_lognormal())
+  expect_no_warning(q <- cogmod_priors(g, dd))
+  qs <- q[q$class == "sds" & q$dpar == "ndt", ]
+  tp <- signif(term_scale("s(x)", dd), 3)
+  cr <- signif(term_scale('s(x, bs = "cr", k = 5)', dd), 3)
+  expect_gt(cr / tp, 2)
+  blanket <- rate_of(qs$prior[qs$coef == ""])
+  own <- rate_of(qs$prior[nzchar(qs$coef)])
+  names(own) <- qs$coef[nzchar(qs$coef)]
+  expect_true(blanket %in% c(tp, cr))
+  # the term the blanket covers is left empty; the other carries its own rate
+  covered <- if (blanket == tp) "s(x)" else 's(x, bs = "cr", k = 5)'
+  expect_true(is.na(own[[covered]]))
+  expect_equal(unname(own[names(own) != covered]), setdiff(c(tp, cr), blanket))
+  expect_no_warning(code <- brms::make_stancode(g, data = dd, prior = q,
+                                                stanvars = cogmod_stanvars(g)))
+  expect_match(code, "exponential_lpdf\\(sds_ndt_1 \\| ")
+  expect_match(code, "exponential_lpdf\\(sds_ndt_2 \\| ")
+  # a grouping term on the same dpar still gets its per-group row, and the
+  # response's group-level SD stays with brms outside the race families
   expect_equal(q$prior[q$class == "sd" & q$dpar == "ndt" & q$group == "id" &
                          q$coef == ""], "exponential(1)")
-  expect_equal(q$prior[q$class == "sds" & q$dpar == "ndt" & q$coef == ""],
-               "exponential(1)")
+  h <- brms::bf(RT ~ s(x) + (1 | id), poutlier ~ 1, family = cogmod_lognormal())
+  r <- cogmod_priors(h, dd)
+  expect_false(any(nzchar(r$prior[r$class == "sd" & r$dpar == "" &
+                                    nzchar(r$group)])))
 })
+
+# The unpenalised part of a smooth (`bs`) is reported under class `b`, so it
+# used to take the dpar's blanket slope prior. mgcv scales those columns by
+# basis, not by the covariate: an RMS of about 0.16 on s(x), 2 on
+# s(x, bs = "cr"). Each column now gets the slope prior divided by its RMS,
+# on the dpars the family names; the response's stays with brms.
+test_that("cogmod_priors states a smooth's unpenalised slope prior per column", {
+  set.seed(4)
+  dd <- transform(d_ig, x = runif(nrow(d_ig)), w = runif(nrow(d_ig)))
+  xs_rms <- function(term) {
+    dd$.y <- 0
+    sdata <- brms::make_standata(stats::as.formula(paste(".y ~", term)), data = dd)
+    sqrt(colMeans(sdata$Xs^2))
+  }
+  normal_sd <- function(prior) as.numeric(sub("^normal\\(0, (.*)\\)$", "\\1", prior))
+  b_rows <- function(p, dp) {
+    r <- p[p$class == "b" & p$dpar == dp, ]
+    # the blanket row has an empty coef, which `[[` cannot look up by name
+    stats::setNames(r$prior, ifelse(nzchar(r$coef), r$coef, "(blanket)"))
+  }
+
+  # an ordinary slope keeps the blanket; the smooth's column gets its own row
+  f <- brms::bf(RT ~ s(x) + w, ndt ~ s(x) + w, poutlier ~ t2(x, w, k = c(4, 4)),
+                family = cogmod_lognormal())
+  expect_no_warning(p <- cogmod_priors(f, dd))
+  ndt <- b_rows(p, "ndt")
+  expect_equal(ndt[["(blanket)"]], "normal(0, 0.2)")
+  expect_equal(ndt[["w"]], "")
+  expect_equal(normal_sd(ndt[["sx_1"]]), signif(0.2 / xs_rms("s(x)")[["sx_1"]], 3))
+  expect_gt(normal_sd(ndt[["sx_1"]]), 1) # 0.2 on the coefficient was 0.03 on the trend
+  # three marginal trends of a t2, each by its own column
+  pout <- b_rows(p, "poutlier")
+  want <- 0.2 / xs_rms("t2(x, w, k = c(4, 4))")
+  for (nm in names(want)) {
+    expect_equal(normal_sd(pout[[nm]]), signif(want[[nm]], 3), label = nm)
+  }
+  # the response's smooth is left to brms, like its slopes
+  expect_false(any(nzchar(b_rows(p, ""))))
+  # and every row reaches the Stan program on the right coefficient
+  expect_no_warning(code <- brms::make_stancode(f, data = dd, prior = p,
+                                                stanvars = cogmod_stanvars(f)))
+  expect_match(code, sprintf("normal_lpdf\\(bs_ndt\\[1\\] \\| 0, %s\\)",
+                             normal_sd(ndt[["sx_1"]])))
+  expect_match(code, "normal_lpdf\\(bs_poutlier\\[3\\] \\| 0, ")
+
+  # a dpar with nothing but a smooth: the blanket row would cover nothing,
+  # so it goes, and brms does not warn
+  g <- brms::bf(RT ~ 1, ndt ~ s(x), poutlier ~ 1, family = cogmod_lognormal())
+  expect_no_warning(q <- cogmod_priors(g, dd))
+  expect_equal(b_rows(q, "ndt")[["(blanket)"]], "")
+  expect_no_warning(brms::make_stancode(g, data = dd, prior = q,
+                                        stanvars = cogmod_stanvars(g)))
+
+  # two smooths of one covariate share the column name `sx_1`, which brms
+  # reports as one coefficient: left to the blanket rather than guessed
+  h <- brms::bf(RT ~ 1, ndt ~ s(x) + s(x, bs = "cr", k = 5), poutlier ~ 1,
+                family = cogmod_lognormal())
+  expect_no_warning(r <- cogmod_priors(h, dd))
+  expect_equal(b_rows(r, "ndt")[["(blanket)"]], "normal(0, 0.2)")
+  expect_equal(b_rows(r, "ndt")[["sx_1"]], "")
+
+  # a family's own wider slope prior is what gets scaled
+  sim <- rcogmod_lba2(nrow(dd), driftzero = 3, driftone = 1, ndt = 0.2)
+  d2 <- data.frame(RT = sim$rt, Error = sim$response, x = dd$x)
+  k <- brms::bf(RT | dec(Error) ~ 1, driftone ~ s(x), sigmaone ~ 1, sigmazero = 1,
+                ndt ~ 1, family = cogmod_lba2())
+  drift <- b_rows(cogmod_priors(k, d2), "driftone")
+  expect_equal(normal_sd(drift[["sx_1"]]), signif(1.5 / xs_rms("s(x)")[["sx_1"]], 3))
+})
+
+# In a race `mu` is accumulator 0's rate and the dec() coding decides which
+# accumulator that is, so swapping the coding must not change the prior on how
+# much the rates vary across participants.
+test_that("the race families give mu's group-level SD the other accumulator's", {
+  set.seed(8)
+  sim <- rcogmod_lba2(120, driftzero = 3, driftone = 1, ndt = 0.2)
+  d <- data.frame(RT = sim$rt, Error = sim$response, id = rep(1:10, 12))
+  pick <- function(p, dp) {
+    p$prior[p$class == "sd" & p$dpar == dp & p$group == "id" & !nzchar(p$coef)]
+  }
+  sibling <- c(cogmod_lnr = "nuone", cogmod_rdm = "driftone",
+               cogmod_lba2 = "driftone")
+  for (fam in names(sibling)) {
+    f <- brms::bf(RT | dec(Error) ~ 1 + (1 | id),
+                  stats::as.formula(paste(sibling[[fam]], "~ 1 + (1 | id)")),
+                  family = get(fam)())
+    p <- cogmod_priors(f, d)
+    expect_equal(pick(p, ""), "exponential(1)", label = fam)
+    expect_equal(pick(p, ""), pick(p, sibling[[fam]]), label = fam)
+    # the intercept stays with brms, as the response's always does
+    expect_match(p$prior[p$class == "Intercept" & p$dpar == ""], "student_t",
+                 label = fam)
+  }
+  # the DDM is not a race: its `mu` is the one drift, left to brms
+  g <- brms::bf(RT | dec(Error) ~ 1 + (1 | id), family = cogmod_ddm())
+  expect_equal(pick(cogmod_priors(g, d), ""), "")
+})
+
 
 # cogmod_exgaussian is not on the ndt + poutlier mixture, but `sigma` and `tau`
 # are still lengths of time in seconds behind a softplus link. `tau` arrives from

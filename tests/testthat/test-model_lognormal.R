@@ -487,11 +487,19 @@ test_that("cogmod_priors survives arbitrary formula shapes", {
     expect_s3_class(p, "brmsprior")
     # No ndt or poutlier row is left flat unless a blanket row covers it -
     # brms reports a blanket row plus one per coefficient, and filling the
-    # blanket is what makes the per-coefficient ones proper.
+    # blanket is what makes the per-coefficient ones proper. A flat blanket
+    # row is fine when every coefficient under it has a prior of its own:
+    # `ndt ~ s(x)` has only the smooth's rescaled `sx_1` under `b`, and
+    # filling the blanket as well would make brms warn that it covers nothing.
     np <- p[p$dpar %in% c("ndt", "poutlier") & !nzchar(p$prior), ]
     covered <- vapply(seq_len(nrow(np)), function(i) {
-      any(!nzchar(p$coef) & nzchar(p$prior) & p$class == np$class[i] &
-            p$dpar == np$dpar[i] & p$group == np$group[i])
+      same <- p$class == np$class[i] & p$dpar == np$dpar[i] &
+        p$group == np$group[i]
+      if (!nzchar(np$coef[i])) {
+        under <- same & nzchar(p$coef)
+        return(any(under) && all(nzchar(p$prior[under])))
+      }
+      any(same & !nzchar(p$coef) & nzchar(p$prior))
     }, logical(1))
     expect_true(all(covered), label = nm)
     expect_gt(sum(p$dpar %in% c("ndt", "poutlier") & nzchar(p$prior)), 0)
