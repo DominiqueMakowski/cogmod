@@ -5,7 +5,8 @@ cores, 12 threads), CmdStan 2.38, cmdstanr 0.9.0, brms 2.23.1, stanli 0.18.1.
 Harness in `bench.R` (steps described at its top), the cost bisection in
 `bisect.R`, a stanli-only reproducer for upstream in `repro_issue.R`, the rewritten likelihoods in
 `lnr_select_functions.stan` and `lnr_branchfree_functions.stan`, raw numbers
-in `results/`, a draft issue for seantalts/stanli in `issue_draft.md`.
+in `results/`. Reported upstream as
+[seantalts/stanli#422](https://github.com/seantalts/stanli/issues/422).
 
 ## The question
 
@@ -248,13 +249,16 @@ copy of every family's Stan code for an unmerged backend.
 
 ## Upstream
 
-`repro_issue.R` (stanli only, no cogmod) and `issue_draft.md` report the
-`log_mix()` gap, comparisons as values and the cost of a never-taken branch,
-with the LNR numbers as the motivating case. They ask for `log_mix()` in
-regions and for small pure branches to be if-converted to a select, as above,
-so that code written the ordinary way would not need `sel`'s rewriting. No
-existing issue covered it as of 2026-10-02; the closest are #374 (brms
-sampling performance) and PR #223 (more ops in parameter-dependent regions).
+[seantalts/stanli#422](https://github.com/seantalts/stanli/issues/422)
+(2026-10-02), with `repro_issue.R` (stanli only, no cogmod) as its
+reproducer, reports the `log_mix()` gap, comparisons as values and the cost
+of a never-taken branch, with the LNR numbers as the motivating case. Its
+main ask is for small pure branches to be if-converted to a select, as above,
+so that code written the ordinary way would not need `sel`'s rewriting; then
+`log_mix()` in regions. It offers testing against this harness and a PR for
+the `log_mix()` part (PR #223, which added ops to parameter-dependent
+regions, is the pattern to follow). Related: #374 (brms sampling
+performance).
 
 ## Status
 
