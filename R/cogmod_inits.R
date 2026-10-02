@@ -68,10 +68,11 @@
 #' land outside its own bounds, and the chains still start dispersed enough for
 #' `Rhat` to mean something. The noise on a regression coefficient reaches the
 #' linear predictor multiplied by its design column, so a block of slopes, or
-#' the unpenalised part of a smooth, has its noise divided by the largest
-#' row norm of its columns wherever that exceeds 1: at no row does it move the
-#' predictor by more than the jitter itself. A slope on age in years would
-#' otherwise tilt the start by six link units at the oldest participant.
+#' the unpenalised part of a smooth, has its jitter SD divided by the largest
+#' row norm of its columns wherever that exceeds 1: at no row does the SD of
+#' what reaches the predictor exceed the jitter itself. This bounds the SD, not
+#' any one draw - the noise is Normal. A slope on age in years would otherwise
+#' have an SD of six link units at the oldest participant.
 #'
 #' `ndt` starts deliberately **below the data**: at half the first percentile
 #' of the observed response times (0.16 s for responses whose fastest

@@ -416,6 +416,24 @@ Expect this prior to matter however much data there is. A smooth's SD is
 informed by the handful of coefficients behind each penalty - 6 to 9 for the
 \code{t2()} above - the way a group-level SD is informed by the number of groups,
 and not by the number of rows.
+
+\strong{The unpenalised part of a smooth} - the linear trend of an \code{s(x)}, the
+marginal trends of a \code{t2()} - has the same problem one level down. \code{brms}
+reports its coefficients (\code{bs}) under class \code{b} with the dpar's other
+slopes, so they would take the dpar's blanket slope prior, \code{normal(0, 0.2)}
+on \code{ndt}. But \code{mgcv} sets the scale of those columns, not the user, and
+differently on every basis: the root mean square of the column is about
+0.16 for \code{s(x)} whatever the units of \code{x}, 0.8 to 1 for a \code{t2()} or an
+\code{s(x, bs = "cr", k = 5)}, and 2 for \code{s(x, bs = "cr")}. On the default
+\code{s(x)}, \code{normal(0, 0.2)} on the coefficient was \code{normal(0, 0.03)} on the
+trend at a typical row, pinning \code{ndt}'s linear trend to about 0.1 link units
+across its range, and the \code{tp} and \code{cr} penalties leave the linear part
+alone, so nothing else in the smooth could make up the difference. So on
+the dpars a family names, each such column gets \code{normal(0, s / rms)}, the
+dpar's slope prior stated on the trend in link units. The response's keep
+\code{brms}'s default, as its slopes do. A column name two smooths share - two
+smooths of the same covariate on one dpar - is left to the blanket, since
+\code{brms} reports the pair as one coefficient.
 }
 
 \section{Parameters left out of the formula}{

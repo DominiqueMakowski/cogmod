@@ -88,7 +88,7 @@
 }
 
 
-# The scale of one smooth term, as get_prior() labels it in `coef`, from a
+# The scales of one smooth term, as get_prior() labels it in `coef`, from a
 # model holding that term alone. brms builds each smooth's basis on its own,
 # so the blocks come out as they do in the full model, give or take rows the
 # full model drops for missing values in other variables. Building the term
@@ -96,27 +96,51 @@
 # them in term order with a `by` factor expanded, while get_prior() sorts its
 # rows by label. On the IGC Muller-Lyer data (324,000 rows) a t2() takes 1.8 s.
 #
-# The geometric mean over the term's blocks, because brms takes one sds prior
-# per term for all of them: the three penalties of the t2() above differ by
-# about 20%.
+# Two scales come back, or NULL when the term cannot be built:
+#
+# `sds`: the geometric mean over the term's Zs blocks of .zs_scales(), because
+# brms takes one sds prior per term for all of them (the three penalties of
+# the t2() above differ by about 20%). NA if any block has no scale.
+#
+# `bs`: the root mean square over rows of each column of the term's
+# UNPENALISED part, `Xs` - the linear trend of an s(x) or the marginal trends
+# of a t2() - named as brms names the columns and as get_prior() labels the
+# matching `b` rows (`sx_1`, `t2xw_1`, `sw:ga_1`). mgcv scales these columns
+# without regard to the covariate's units and differently on every basis:
+# measured with x on [-1, 1] (2026-10-02), 0.16 for s(x) and for s(age) alike,
+# 0.11 per column for s(x, w), 0.8-1.0 for a t2(..., bs = c("cr", "cr")),
+# 1.0 for s(x, bs = "cr", k = 5) and 2.0 for s(x, bs = "cr"). So a prior
+# stated on the coefficient means a different amount of trend on every basis,
+# twentyfold between the ends, and for a tp or cr basis the penalised part has
+# no linear component to make up the difference. A column whose scale is not
+# a positive finite number is NA.
 #' @keywords internal
-.smooth_term_scale <- function(term, formula, data, ...) {
+.smooth_term_scales <- function(term, formula, data, ...) {
   f <- if (inherits(formula, "brmsformula")) formula$formula else formula
   env <- if (inherits(f, "formula")) environment(f) else NULL
   if (is.null(env)) env <- globalenv()
   y <- ".cogmod_scale_y"
   one <- tryCatch(stats::as.formula(paste(y, "~", term), env = env),
                   error = function(e) NULL)
-  if (is.null(one)) return(NA_real_)
+  if (is.null(one)) return(NULL)
   data[[y]] <- 0
   sdata <- tryCatch(
     suppressWarnings(brms::make_standata(one, data = data, ...)),
     error = function(e) NULL
   )
-  if (is.null(sdata)) return(NA_real_)
+  if (is.null(sdata)) return(NULL)
   s <- .zs_scales(sdata)
-  if (!length(s) || anyNA(s)) return(NA_real_)
-  exp(mean(log(s)))
+  sds <- if (!length(s) || anyNA(s)) NA_real_ else exp(mean(log(s)))
+  Xs <- sdata$Xs
+  bs <- if (is.null(Xs) || !length(Xs)) {
+    numeric(0)
+  } else {
+    Xs <- as.matrix(Xs)
+    r <- sqrt(colMeans(Xs^2))
+    r[!is.finite(r) | r <= 0] <- NA_real_
+    r
+  }
+  list(sds = sds, bs = bs)
 }
 
 

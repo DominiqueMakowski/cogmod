@@ -63,9 +63,14 @@ cat("cogmod", as.character(packageVersion("cogmod")), "from",
 cat("brms", as.character(packageVersion("brms")), "| cmdstanr",
     as.character(packageVersion("cmdstanr")), "| CmdStan",
     as.character(cmdstan_version()), "\n")
-if (new_defaults != (cell$defaults == "0.3.4")) {
-  stop("arm ", cell$arm, " wants the ", cell$defaults, " defaults but got a ",
-       "cogmod ", if (new_defaults) "with" else "without", " them")
+# Both the version string and the symbol: the production library path can
+# drift, and any pre-0.3.4 cogmod lacks .zs_scales() while any later one has
+# it, so the symbol alone cannot tell 0.3.3 from 0.3.2 or 0.3.4 from 0.3.5.
+version <- as.character(packageVersion("cogmod"))
+if (!identical(version, cell$defaults) ||
+    new_defaults != identical(cell$defaults, "0.3.4")) {
+  stop("arm ", cell$arm, " wants cogmod ", cell$defaults, " but loaded cogmod ",
+       version, if (new_defaults) " with" else " without", " the 0.3.4 defaults")
 }
 
 
@@ -125,12 +130,18 @@ f <- switch(cell$model,
 
 # cogmod's priors plus normal(0, 1) on the slopes brms leaves flat, as
 # fit_model.R does. A dpar with no population-level slope (`~ 1 + (1 | P)`)
-# has no blanket `b` row, and a prior on one is an error.
+# has no blanket `b` row, and a prior on one is an error. Since 0.3.4 the
+# smooths' unpenalised columns (`bs_*`) carry a row each on the dpars cogmod
+# names, which leaves the blanket covering nothing; a prior on it is then a
+# brms warning, so those dpars are skipped too. The response's `bs` still
+# arrive flat and still get the normal(0, 1).
 priors <- cogmod_priors(f, data)
 for (par in c("", setdiff(unique(priors$dpar), c("poutlier", "")))) {
-  blanket <- priors$class == "b" & priors$dpar == par &
-    !nzchar(priors$coef) & !nzchar(priors$group)
+  rows <- priors$class == "b" & priors$dpar == par & !nzchar(priors$group)
+  blanket <- rows & !nzchar(priors$coef)
+  coefs <- rows & nzchar(priors$coef)
   if (!any(blanket) || any(blanket & nzchar(priors$prior))) next
+  if (any(coefs) && all(nzchar(priors$prior[coefs]))) next
   priors <- c(priors, brms::prior_string("normal(0, 1)", class = "b", dpar = par),
               replace = TRUE)
 }

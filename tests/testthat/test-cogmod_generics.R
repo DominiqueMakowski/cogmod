@@ -355,20 +355,30 @@ test_that("cogmod_priors sets every sds by its basis scale, the response's too",
   expect_equal(rate_of(sds$prior[sds$dpar == "" & sds$coef == ""]), want)
   expect_false(any(nzchar(sds$prior[nzchar(sds$coef)])))
 
-  # two bases on one dpar: the blanket takes one, the other keeps its own row,
-  # and brms does not warn that the blanket row went unused
+  # two bases on one dpar: the blanket takes one term's prior, the other term
+  # keeps a row of its own, and brms does not warn that the blanket row went
+  # unused. Which term the blanket takes is the code's business, not the
+  # test's: get_prior() orders its rows in the session's collation, and the
+  # two labels sort the other way round on Linux than on Windows.
   g <- brms::bf(RT ~ 1, ndt ~ s(x) + s(x, bs = "cr", k = 5) + (1 | id),
                 poutlier ~ 1, family = cogmod_lognormal())
   expect_no_warning(q <- cogmod_priors(g, dd))
   qs <- q[q$class == "sds" & q$dpar == "ndt", ]
-  expect_equal(rate_of(qs$prior[qs$coef == ""]),
-               signif(term_scale("s(x)", dd), 3))
-  cr <- qs$prior[qs$coef == 's(x, bs = "cr", k = 5)']
-  expect_equal(rate_of(cr), signif(term_scale('s(x, bs = "cr", k = 5)', dd), 3))
-  expect_gt(rate_of(cr) / rate_of(qs$prior[qs$coef == ""]), 2)
+  tp <- signif(term_scale("s(x)", dd), 3)
+  cr <- signif(term_scale('s(x, bs = "cr", k = 5)', dd), 3)
+  expect_gt(cr / tp, 2)
+  blanket <- rate_of(qs$prior[qs$coef == ""])
+  own <- rate_of(qs$prior[nzchar(qs$coef)])
+  names(own) <- qs$coef[nzchar(qs$coef)]
+  expect_true(blanket %in% c(tp, cr))
+  # the term the blanket covers is left empty; the other carries its own rate
+  covered <- if (blanket == tp) "s(x)" else 's(x, bs = "cr", k = 5)'
+  expect_true(is.na(own[[covered]]))
+  expect_equal(unname(own[names(own) != covered]), setdiff(c(tp, cr), blanket))
   expect_no_warning(code <- brms::make_stancode(g, data = dd, prior = q,
                                                 stanvars = cogmod_stanvars(g)))
-  expect_match(code, "exponential_lpdf\\(sds_ndt_2")
+  expect_match(code, "exponential_lpdf\\(sds_ndt_1 \\| ")
+  expect_match(code, "exponential_lpdf\\(sds_ndt_2 \\| ")
   # a grouping term on the same dpar still gets its per-group row, and the
   # response's group-level SD stays with brms outside the race families
   expect_equal(q$prior[q$class == "sd" & q$dpar == "ndt" & q$group == "id" &
@@ -377,6 +387,75 @@ test_that("cogmod_priors sets every sds by its basis scale, the response's too",
   r <- cogmod_priors(h, dd)
   expect_false(any(nzchar(r$prior[r$class == "sd" & r$dpar == "" &
                                     nzchar(r$group)])))
+})
+
+# The unpenalised part of a smooth (`bs`) is reported under class `b`, so it
+# used to take the dpar's blanket slope prior. mgcv scales those columns by
+# basis, not by the covariate: an RMS of about 0.16 on s(x), 2 on
+# s(x, bs = "cr"). Each column now gets the slope prior divided by its RMS,
+# on the dpars the family names; the response's stays with brms.
+test_that("cogmod_priors states a smooth's unpenalised slope prior per column", {
+  set.seed(4)
+  dd <- transform(d_ig, x = runif(nrow(d_ig)), w = runif(nrow(d_ig)))
+  xs_rms <- function(term) {
+    dd$.y <- 0
+    sdata <- brms::make_standata(stats::as.formula(paste(".y ~", term)), data = dd)
+    sqrt(colMeans(sdata$Xs^2))
+  }
+  normal_sd <- function(prior) as.numeric(sub("^normal\\(0, (.*)\\)$", "\\1", prior))
+  b_rows <- function(p, dp) {
+    r <- p[p$class == "b" & p$dpar == dp, ]
+    # the blanket row has an empty coef, which `[[` cannot look up by name
+    stats::setNames(r$prior, ifelse(nzchar(r$coef), r$coef, "(blanket)"))
+  }
+
+  # an ordinary slope keeps the blanket; the smooth's column gets its own row
+  f <- brms::bf(RT ~ s(x) + w, ndt ~ s(x) + w, poutlier ~ t2(x, w, k = c(4, 4)),
+                family = cogmod_lognormal())
+  expect_no_warning(p <- cogmod_priors(f, dd))
+  ndt <- b_rows(p, "ndt")
+  expect_equal(ndt[["(blanket)"]], "normal(0, 0.2)")
+  expect_equal(ndt[["w"]], "")
+  expect_equal(normal_sd(ndt[["sx_1"]]), signif(0.2 / xs_rms("s(x)")[["sx_1"]], 3))
+  expect_gt(normal_sd(ndt[["sx_1"]]), 1) # 0.2 on the coefficient was 0.03 on the trend
+  # three marginal trends of a t2, each by its own column
+  pout <- b_rows(p, "poutlier")
+  want <- 0.2 / xs_rms("t2(x, w, k = c(4, 4))")
+  for (nm in names(want)) {
+    expect_equal(normal_sd(pout[[nm]]), signif(want[[nm]], 3), label = nm)
+  }
+  # the response's smooth is left to brms, like its slopes
+  expect_false(any(nzchar(b_rows(p, ""))))
+  # and every row reaches the Stan program on the right coefficient
+  expect_no_warning(code <- brms::make_stancode(f, data = dd, prior = p,
+                                                stanvars = cogmod_stanvars(f)))
+  expect_match(code, sprintf("normal_lpdf\\(bs_ndt\\[1\\] \\| 0, %s\\)",
+                             normal_sd(ndt[["sx_1"]])))
+  expect_match(code, "normal_lpdf\\(bs_poutlier\\[3\\] \\| 0, ")
+
+  # a dpar with nothing but a smooth: the blanket row would cover nothing,
+  # so it goes, and brms does not warn
+  g <- brms::bf(RT ~ 1, ndt ~ s(x), poutlier ~ 1, family = cogmod_lognormal())
+  expect_no_warning(q <- cogmod_priors(g, dd))
+  expect_equal(b_rows(q, "ndt")[["(blanket)"]], "")
+  expect_no_warning(brms::make_stancode(g, data = dd, prior = q,
+                                        stanvars = cogmod_stanvars(g)))
+
+  # two smooths of one covariate share the column name `sx_1`, which brms
+  # reports as one coefficient: left to the blanket rather than guessed
+  h <- brms::bf(RT ~ 1, ndt ~ s(x) + s(x, bs = "cr", k = 5), poutlier ~ 1,
+                family = cogmod_lognormal())
+  expect_no_warning(r <- cogmod_priors(h, dd))
+  expect_equal(b_rows(r, "ndt")[["(blanket)"]], "normal(0, 0.2)")
+  expect_equal(b_rows(r, "ndt")[["sx_1"]], "")
+
+  # a family's own wider slope prior is what gets scaled
+  sim <- rcogmod_lba2(nrow(dd), driftzero = 3, driftone = 1, ndt = 0.2)
+  d2 <- data.frame(RT = sim$rt, Error = sim$response, x = dd$x)
+  k <- brms::bf(RT | dec(Error) ~ 1, driftone ~ s(x), sigmaone ~ 1, sigmazero = 1,
+                ndt ~ 1, family = cogmod_lba2())
+  drift <- b_rows(cogmod_priors(k, d2), "driftone")
+  expect_equal(normal_sd(drift[["sx_1"]]), signif(1.5 / xs_rms("s(x)")[["sx_1"]], 3))
 })
 
 # In a race `mu` is accumulator 0's rate and the dec() coding decides which

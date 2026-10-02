@@ -22,6 +22,21 @@
   (1.8 s for a `t2()` on 324,000 rows). See the *Smooth terms* section of
   `?cogmod_priors`.
 
+* **The unpenalised part of a smooth on a dpar the family names gets the
+  dpar's slope prior stated in link units.** `brms` reports those
+  coefficients (`bs_*`: the linear trend of an `s(x)`, the marginal trends of
+  a `t2()`) under class `b`, so until now they took the dpar's blanket slope
+  prior, `normal(0, 0.2)` on `ndt`. `mgcv` sets the scale of those columns,
+  not the user: their root mean square is about 0.16 for `s(x)` whatever the
+  units of `x`, 0.8 to 1 for a `t2()`, 2 for `s(x, bs = "cr")`. On the default
+  `s(x)` that prior was `normal(0, 0.03)` on the trend at a typical row, which
+  pinned `ndt`'s linear trend to about 0.1 link units across its range while
+  the penalty left that part of the smooth free, and on `s(x, bs = "cr")` it
+  allowed 0.4. Each such column now gets `normal(0, s / rms)`, with `s` the
+  dpar's slope SD, as its own `b` row. The response's keep `brms`'s default,
+  as its slopes do. Any model with a smooth on `ndt`, `poutlier` or another
+  family-named dpar gets different priors from 0.3.3.
+
 * **In `cogmod_lnr()`, `cogmod_rdm()` and `cogmod_lba2()`, `mu`'s group-level
   SD gets the same prior as the other accumulator's.** In a race `mu` is the
   rate of accumulator 0, and the `dec()` coding decides which accumulator that
@@ -46,12 +61,13 @@
   smooth (`bs_*`) is such a block: on the Illusion Game's Muller-Lyer models
   it tilted every smoothed parameter by a median of 2.3 link units across the
   rows, and 30% of chains started with more than 1% of their responses below
-  their own `ndt`. Each block's jitter is now divided by the largest row norm
-  of its design wherever that exceeds 1, which keeps it at or under 0.25 link
-  units at every row: a median tilt of 0.5 there, and 0.7% of chains past
-  1%. A dummy column or a standardised covariate keeps its 0.25; a slope on an
-  unstandardised one (age in years) no longer starts the predictor six link
-  units out at the extremes.
+  their own `ndt`. Each block's jitter SD is now divided by the largest row
+  norm of its design wherever that exceeds 1, which keeps the SD of what
+  reaches the predictor at or under 0.25 link units at every row (the noise is
+  Normal, so a single draw can still exceed that): a median tilt of 0.5 there,
+  and 0.7% of chains past 1%. A dummy column or a standardised covariate keeps
+  its 0.25; a slope on an unstandardised one (age in years) no longer has an
+  SD of six link units at the extremes.
 
 * **`cogmod_lba2()`'s error accumulator starts slower than the correct one,**
   at `driftone = 1` against `mu = 3`, as `cogmod_rdm()`'s has since 0.3.2. The

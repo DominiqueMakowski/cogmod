@@ -390,6 +390,24 @@
 #' `t2()` above - the way a group-level SD is informed by the number of groups,
 #' and not by the number of rows.
 #'
+#' **The unpenalised part of a smooth** - the linear trend of an `s(x)`, the
+#' marginal trends of a `t2()` - has the same problem one level down. `brms`
+#' reports its coefficients (`bs`) under class `b` with the dpar's other
+#' slopes, so they would take the dpar's blanket slope prior, `normal(0, 0.2)`
+#' on `ndt`. But `mgcv` sets the scale of those columns, not the user, and
+#' differently on every basis: the root mean square of the column is about
+#' 0.16 for `s(x)` whatever the units of `x`, 0.8 to 1 for a `t2()` or an
+#' `s(x, bs = "cr", k = 5)`, and 2 for `s(x, bs = "cr")`. On the default
+#' `s(x)`, `normal(0, 0.2)` on the coefficient was `normal(0, 0.03)` on the
+#' trend at a typical row, pinning `ndt`'s linear trend to about 0.1 link units
+#' across its range, and the `tp` and `cr` penalties leave the linear part
+#' alone, so nothing else in the smooth could make up the difference. So on
+#' the dpars a family names, each such column gets `normal(0, s / rms)`, the
+#' dpar's slope prior stated on the trend in link units. The response's keep
+#' `brms`'s default, as its slopes do. A column name two smooths share - two
+#' smooths of the same covariate on one dpar - is left to the blanket, since
+#' `brms` reports the pair as one coefficient.
+#'
 #' # Parameters left out of the formula
 #'
 #' Writing `ndt ~ 1` and omitting `ndt` entirely are not the same thing to
@@ -936,11 +954,17 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
   # no way left to tell "this blanket row covers a coefficient we left alone"
   # from "this blanket row covers nothing at all".
   all_rows <- p
-  # Smooth SDs follow a rule of their own, on every dpar: see .priors_sds().
-  sds <- .priors_sds(all_rows, formula, data, ...)
-
   dpars <- names(own)
   if (is.null(override)) override <- character(0)
+
+  # Smooths: the SDs follow a rule of their own, on every dpar (.priors_sds()),
+  # and the unpenalised columns of a smooth on a dpar the family names get the
+  # dpar's slope prior scaled to their basis (.bs_scales()). One
+  # make_standata() per distinct term feeds both.
+  scales <- .smooth_scales(all_rows, formula, data, ...)
+  sds <- .priors_sds(all_rows, scales)
+  bs_rms <- .bs_scales(all_rows, scales, dpars)
+  bs_row <- p$class == "b" & paste(p$dpar, p$coef, sep = "|") %in% names(bs_rms)
 
   # A dpar reaches get_prior() in one of two forms, depending on whether it
   # appears in the formula at all.
@@ -1006,6 +1030,7 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
   target[resp] <- "mu"
   target <- target[fill]
   aux <- aux[fill]
+  bs_row <- bs_row[fill]
   p <- p[fill, , drop = FALSE]
 
   p$prior <- vapply(
@@ -1020,7 +1045,16 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
       } else if (cls == "b") {
         # a family may widen the blanket slope prior for a dpar of its own
         slope <- .own_prior(own, target[i], "slope")
-        if (nzchar(slope)) slope else slope_default
+        if (!nzchar(slope)) slope <- slope_default
+        if (bs_row[i]) {
+          # the unpenalised column of a smooth: the same slope prior, stated
+          # on the trend in link units rather than on the coefficient
+          rms <- bs_rms[[paste(p$dpar[i], p$coef[i], sep = "|")]]
+          scaled <- .scale_slope_prior(slope, rms)
+          if (nzchar(scaled)) scaled else slope
+        } else {
+          slope
+        }
       } else if (cls == "sd") {
         "exponential(1)"
       } else {
@@ -1029,15 +1063,18 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
     },
     character(1)
   )
-  p <- p[nzchar(p$prior), , drop = FALSE]
+  keep <- nzchar(p$prior)
+  bs_row <- bs_row[keep]
+  p <- p[keep, , drop = FALSE]
 
   # get_prior() reports a blanket row (empty coef) alongside one row per
   # coefficient. Setting both makes brms warn that the blanket one is unused, so
-  # keep the blanket row and drop what it subsumes. `b` on a coefficient named
-  # "Intercept" is the exception: under `0 + Intercept` that IS the intercept and
-  # carries a different location from the slopes.
+  # keep the blanket row and drop what it subsumes. Two exceptions: `b` on a
+  # coefficient named "Intercept", which under `0 + Intercept` IS the intercept
+  # and carries a different location from the slopes, and the unpenalised
+  # column of a smooth, whose slope prior has been rescaled to its basis.
   drop <- vapply(seq_len(nrow(p)), .covered_by_blanket, logical(1), p = p)
-  drop <- drop & !(p$class == "b" & p$coef == "Intercept")
+  drop <- drop & !(p$class == "b" & p$coef == "Intercept") & !bs_row
   kept <- p[!drop, , drop = FALSE]
 
   # The exception can empty the blanket row out. `ndt ~ 0 + Intercept` has one
@@ -1080,17 +1117,24 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
 #
 # brms takes one sds prior per term, for all of that term's penalties and
 # `by` levels, and warns whenever its own non-empty blanket row ends up
-# covering nothing. So each dpar's blanket row takes the prior of its first
-# term, and only the terms whose prior differs get a row of their own. A term
-# whose scale cannot be computed - make_standata() failing on it alone, say -
-# falls back to exponential(1).
+# covering nothing. So each dpar's blanket row takes the prior of one of its
+# terms, and only the terms whose prior differs get a row of their own. Which
+# term is arbitrary - brms uses the rows the same way whichever it is - so it
+# is the first label in byte order, not the first row get_prior() returns:
+# get_prior() sorts its rows in the session's collation, and `s(x)` comes
+# before `s(x, bs = "cr")` under ICU on Windows but after it under glibc's
+# en_US.UTF-8, which is what failed CI on 2026-10-02. A term whose scale
+# cannot be computed - make_standata() failing on it alone, say - falls back
+# to exponential(1).
 #' @keywords internal
-.priors_sds <- function(p, formula, data, ...) {
+.priors_sds <- function(p, scales) {
   s <- p[p$class == "sds" & !nzchar(p$resp), , drop = FALSE]
   terms <- unique(s$coef[nzchar(s$coef)])
   if (!length(terms)) return(NULL)
-  rate <- vapply(terms, .smooth_term_scale, numeric(1),
-                 formula = formula, data = data, ...)
+  rate <- vapply(terms, function(tm) {
+    v <- scales[[tm]]$sds
+    if (is.null(v)) NA_real_ else v
+  }, numeric(1))
   prior <- ifelse(is.finite(rate),
                   sprintf("exponential(%s)", .num_str(signif(rate, 3))),
                   "exponential(1)")
@@ -1101,11 +1145,89 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
     r$prior[term] <- unname(prior[r$coef[term]])
     blanket <- !term
     if (!any(blanket) || !any(term)) return(r[term, , drop = FALSE])
-    first <- r$prior[term][1]
+    first <- r$prior[term][order(r$coef[term], method = "radix")][1]
     r$prior[blanket] <- first
     r[blanket | (term & r$prior != first), , drop = FALSE]
   })
   do.call(rbind, rows)
+}
+
+
+# The scales of every distinct smooth term in a get_prior() table, keyed by
+# the label get_prior() gives it, from .smooth_term_scales(). NULL when the
+# model has no smooth; a term that cannot be built is NULL in the list. Built
+# once per call, since each term costs a make_standata() of its own.
+#' @keywords internal
+.smooth_scales <- function(p, formula, data, ...) {
+  s <- p[p$class == "sds" & !nzchar(p$resp), , drop = FALSE]
+  terms <- unique(s$coef[nzchar(s$coef)])
+  if (!length(terms)) return(NULL)
+  stats::setNames(
+    lapply(terms, .smooth_term_scales, formula = formula, data = data, ...),
+    terms
+  )
+}
+
+
+# The unpenalised columns of the smooths on the dpars a family names, as
+# "<dpar>|<coef>" -> root mean square of the column, for the `b` rows that
+# carry them. These are the trend an s(x) or t2() can fit outside its penalty,
+# and brms reports them under class `b` with the dpar's other slopes, so they
+# arrive under the dpar's blanket slope prior - normal(0, 0.2) on `ndt`, say.
+# mgcv sets the scale of those columns, not the user, and it differs twentyfold
+# between bases (see .smooth_term_scales()): on the default s(x) the column
+# has an RMS of 0.16, so normal(0, 0.2) on the coefficient was normal(0, 0.03)
+# on the trend at a typical row and pinned `ndt`'s linear trend to about 0.1
+# link units across its range, while on s(x, bs = "cr") the same prior allowed
+# 0.4. The tp and cr penalties leave the linear part untouched, so nothing
+# else in the smooth could make up the difference. .priors_dpars() therefore
+# gives each such column normal(0, s / rms), the dpar's slope prior stated on
+# the trend in link units, as .priors_sds() states the wiggle.
+#
+# Only the dpars the family names, as for slopes: the response's are the
+# effects being estimated and stay with brms. A column name two terms share -
+# two smooths of the same covariate on one dpar both produce `sx_1`, and
+# get_prior() reports the pair as one row - is left to the blanket, since brms
+# cannot tell the two apart either. So is a column whose term could not be
+# built alone.
+#' @keywords internal
+.bs_scales <- function(p, scales, dpars) {
+  if (is.null(scales)) return(numeric(0))
+  s <- p[p$class == "sds" & !nzchar(p$resp) & nzchar(p$coef) &
+           p$dpar %in% dpars, , drop = FALSE]
+  out <- numeric(0)
+  for (dp in unique(s$dpar)) {
+    cols <- unlist(lapply(unique(s$coef[s$dpar == dp]), function(tm) {
+      scales[[tm]]$bs
+    }))
+    if (!length(cols)) next
+    nm <- names(cols)
+    ok <- !is.na(cols) & !nm %in% nm[duplicated(nm)]
+    cols <- cols[ok]
+    if (!length(cols)) next
+    names(cols) <- paste(dp, names(cols), sep = "|")
+    out <- c(out, cols)
+  }
+  out
+}
+
+
+# `normal(0, s)` restated for a column of root mean square `rms`: normal(0,
+# s / rms), so that the prior on the coefficient is `normal(0, s)` on the
+# coefficient times the column at a typical row. "" if the slope prior is not
+# a zero-centred normal, which none of the registries' are, or `rms` is not a
+# positive number; the caller then keeps the prior as it stands.
+#' @keywords internal
+.scale_slope_prior <- function(prior, rms) {
+  if (!is.numeric(rms) || length(rms) != 1L || !is.finite(rms) || rms <= 0) {
+    return("")
+  }
+  m <- regmatches(prior, regexec("^normal\\(\\s*0\\s*,\\s*([0-9.eE+-]+)\\s*\\)$",
+                                 prior))[[1]]
+  if (length(m) != 2L) return("")
+  s <- suppressWarnings(as.numeric(m[2]))
+  if (!is.finite(s) || s <= 0) return("")
+  sprintf("normal(0, %s)", .num_str(signif(s / rms, 3)))
 }
 
 
