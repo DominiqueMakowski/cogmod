@@ -56,6 +56,11 @@
 #  prior             : optional, per-dpar priors for cogmod_priors() to fill,
 #                      where the likelihood has a flat direction brms would
 #                      otherwise leave improper. Same shape as in .SHIFTED
+#  race              : optional, TRUE for a race between accumulators. There
+#                      `mu` is not a location of the response but accumulator
+#                      0's rate, and the dec() coding decides which accumulator
+#                      that is, so cogmod_priors() gives `mu`'s group-level SD
+#                      the prior the other accumulator's gets
 #  label             : human-readable name, used in the generated Stan comments
 #' @keywords internal
 .CHOICE <- list(
@@ -108,7 +113,10 @@
     # `mu` - nuzero - has the mirror-image plateau, but it is the response's own
     # intercept, so brms already gives it a proper student_t default and it is
     # left alone. Model a rarely-chosen option and it is worth mirroring the
-    # `nuone` prior onto it by hand.
+    # `nuone` prior onto it by hand. Its group-level SD is a different matter:
+    # that is a statement about how much an accumulator's rate varies, the
+    # same for either accumulator, so `race` below gives it `nuone`'s.
+    race = TRUE,
     prior = list(
       nuone = c(link = "normal(0.7, 1.5)", nat = "normal(0.7, 1.5)",
                 slope = "normal(0, 0.5)"),
@@ -217,13 +225,15 @@
     #
     # `mu` has the mirror-image plateau but is the response's own intercept, so
     # brms already gives it a proper student_t default and it is left alone -
-    # again as for cogmod_lnr(). Model a rarely-chosen option and it is worth
-    # mirroring the `driftone` prior onto it by hand.
+    # again as for cogmod_lnr(), including its group-level SD, which `race`
+    # gives the same prior as `driftone`'s. Model a rarely-chosen option and it
+    # is worth mirroring the `driftone` prior onto it by hand.
     #
     # The slope here is `normal(0, 2)` rather than the `normal(0, 0.5)` the two
     # threshold parameters get: a drift sits around 3 on this link, so a genuine
     # condition effect is worth a unit or two and a tighter prior would fight
     # it. It still fences the runaway, which was an order of magnitude larger.
+    race = TRUE,
     prior = list(
       driftone = c(link = "normal(3, 2)", nat = "lognormal(1, 0.75)",
                    slope = "normal(0, 2)"),
@@ -284,7 +294,20 @@
     # both. See .warn_scale_ray().
     scale_ray = c("mu", "driftone", "sigmazero", "sigmaone", "sigmabias",
                   "boundary"),
-    init = list(mu = 3, driftone = 3, sigmazero = 1, sigmaone = 1,
+    # The error accumulator starts slower than the correct one, as in
+    # cogmod_rdm() and for the same reason: a start that is too fast costs
+    # more than one that is too slow. driftone = 3, equal to `mu`, was a 50/50
+    # race, which is the error rate almost no two-choice data set has. On
+    # simulated LBA2 data at error rates of 3%, 12%, 26% and 43%, 3 was the
+    # costliest of the starts 3, 2, 1 and 0 every time; moving it to 1 took
+    # 2,400-3,800 log-likelihood units per 2,000 trials off the shortfall of
+    # the whole start against the generating values. With everything else at
+    # the truth, the 43% data set (true driftone 1.8) charged 911 units for
+    # starting 1.2 too fast and 268 for 0.8 too slow. A start of 0 was cheaper
+    # still on four data sets of five, by 170-460 units; 1 is kept because it
+    # is also the centre of the `driftone` prior below and the RDM's value.
+    # At these values the start implies 11% errors.
+    init = list(mu = 3, driftone = 1, sigmazero = 1, sigmaone = 1,
                 sigmabias = 0.5, boundary = 0.5),
     # Three flat directions here, not one.
     #
@@ -311,8 +334,16 @@
     # `sigmazero = 1` scale usually are and fences the ray; `mu` - driftzero -
     # has the same plateau, but it is the response's own intercept, so brms
     # already gives it a proper student_t default and it is left alone, exactly
-    # as for cogmod_lnr()'s `nuone`. Model a rarely-chosen option on
-    # `mu` and it is worth mirroring this prior onto it by hand.
+    # as for cogmod_lnr()'s `nuone`, its group-level SD apart (see `race`).
+    # Model a rarely-chosen option on `mu` and it is worth mirroring this prior
+    # onto it by hand.
+    #
+    # The ray is also why `sigmaone` is best kept free of predictors wherever
+    # one response is rare in some condition: a `sigmaone` that varies by
+    # condition gives every such condition a ray of its own, while one shared
+    # SD leaves a single direction, pinned as soon as any condition lets that
+    # accumulator win often enough. See ?rcogmod_lba2.
+    race = TRUE,
     prior = list(
       driftone = c(link = "normal(1, 2)", nat = "normal(1, 2)",
                    slope = "normal(0, 1.5)"),

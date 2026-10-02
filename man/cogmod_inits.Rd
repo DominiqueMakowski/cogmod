@@ -17,7 +17,8 @@ when \code{warmstart} is a \code{brmsfit}, whose data are then used.}
 
 \item{jitter}{SD of the noise added on the unconstrained scale, so that
 chains start at different points. One number is the SD for the
-population-level blocks, the intercepts and slopes; the group-level and
+population-level blocks, the intercepts and slopes (for a slope, divided
+by how far its design columns reach; see Details); the group-level and
 smooth blocks - the standardized effects \verb{z_*} and \verb{zs_*} and their scales
 \verb{sd_*} and \verb{sds_*} - get a fifth of it, because a unit of noise there is
 multiplied through a scale and a design column before it reaches the
@@ -89,7 +90,11 @@ standardized group-level effects, group-level SDs, spline coefficients - get
 generic values that are at least as good as Stan's own \code{U(-2, 2)}: slopes and
 standardized effects start at zero, positive parameters just above their
 lower bound, bounded ones at the midpoint, and Cholesky factors at the
-identity.
+identity. A smooth's SD (\code{sds}) starts where its smooth is nearly flat, at
+0.1 link units of wiggle. That is a different value of \code{sds} on every
+basis: about 1 for a \code{t2(x, z, k = c(5, 5), bs = c("cr", "cr"))} and 0.017
+for an \code{s(x, bs = "cr")}. The scale comes from the same \code{make_standata()}
+output; see the \emph{Smooth terms} section of \code{\link[=cogmod_priors]{cogmod_priors()}}.
 
 The family-specific values go to the intercept of each distributional
 parameter, and to any dpar left out of the formula (which \code{brms} declares as
@@ -104,7 +109,12 @@ Each chain gets a different draw. The noise is added on the \emph{unconstrained}
 scale - additive for a free parameter, multiplicative for a positive one,
 on the logit scale for a doubly bounded one - so a jittered value can never
 land outside its own bounds, and the chains still start dispersed enough for
-\code{Rhat} to mean something.
+\code{Rhat} to mean something. The noise on a regression coefficient reaches the
+linear predictor multiplied by its design column, so a block of slopes, or
+the unpenalised part of a smooth, has its noise divided by the largest
+row norm of its columns wherever that exceeds 1: at no row does it move the
+predictor by more than the jitter itself. A slope on age in years would
+otherwise tilt the start by six link units at the oldest participant.
 
 \code{ndt} starts deliberately \strong{below the data}: at half the first percentile
 of the observed response times (0.16 s for responses whose fastest
@@ -127,6 +137,12 @@ cold chain converts that difference into momentum along the flat
 \code{driftone} direction in its very first trajectory - far enough down it, on
 real data, for the step size to collapse and the chain to freeze for the
 rest of warmup.
+
+\code{\link[=cogmod_lba2]{cogmod_lba2()}} follows suit, with \code{driftone} at 1 against \code{mu}'s 3, which
+starts the race at 11\% errors rather than 50\%. On simulated data with error
+rates from 3\% to 43\%, the old equal start was the costliest of 3, 2, 1 and 0
+every time, and moving it to 1 took 2,400-3,800 log-likelihood units per
+2,000 trials off the shortfall of the whole start.
 }
 
 \section{Supported families}{

@@ -154,9 +154,13 @@ What gets set, on the link scale (\code{log} for \code{ndt}, \code{logit} for \c
    class \tab \code{ndt} \tab \code{poutlier} \tab \code{shape} \cr
    \code{Intercept}, or \code{b} on a coefficient named \code{Intercept} \tab \code{normal(-1.2, 0.5)} \tab \code{normal(-5, 1)} \tab \code{normal(0, 0.5)} \cr
    \code{b} (slopes) \tab \code{normal(0, 0.2)} \tab \code{normal(0, 0.2)} \tab \code{normal(0, 0.2)} \cr
-   \code{sd}, \code{sds} \tab \code{exponential(1)} \tab \code{exponential(1)} \tab \code{exponential(1)} \cr
+   \code{sd} \tab \code{exponential(1)} \tab \code{exponential(1)} \tab \code{exponential(1)} \cr
 }
 
+
+The SDs of smooth terms (\code{sds}) follow a rule of their own, on every
+distributional parameter including the response's: see \emph{Smooth terms}
+below.
 
 \code{normal(-1.2, 0.5)} centres \code{ndt} on 0.30 s, with 95\% of its mass between
 about 0.11 and 0.80 s: wide enough for the non-decision times of slower
@@ -244,6 +248,14 @@ variability.
 LNR's (the LNR races two of these accumulators), with the same rows.
 }
 
+In the three race families - \code{\link[=cogmod_lnr]{cogmod_lnr()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}} and
+\code{\link[=cogmod_lba2]{cogmod_lba2()}} - \code{mu} is not a location of the response but the rate of
+accumulator 0, and the \code{dec()} coding decides which accumulator that is. Its
+intercept and slopes are left to \code{brms}, as the response's always are, but
+its group-level SD gets the \code{exponential(1)} the other accumulator's gets,
+so that swapping the coding does not change what the priors say about how
+much the rates vary.
+
 All of them are the same failure as \code{ndt} and \code{poutlier}: an infinite flat
 region under a flat prior. See \code{\link[=cogmod_lba1]{cogmod_lba1()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}},
 \code{\link[=cogmod_lba2]{cogmod_lba2()}}, \code{\link[=cogmod_ddm]{cogmod_ddm()}} and \code{\link[=cogmod_lnr]{cogmod_lnr()}}.
@@ -264,7 +276,7 @@ All three intercepts are set.\tabular{lll}{
    class \tab \code{sigma} \tab \code{tau} \cr
    \code{Intercept}, or \code{b} on a coefficient named \code{Intercept} \tab \code{normal(-2.3, 0.7)} \tab \code{normal(-1.5, 0.7)} \cr
    \code{b} (slopes) \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \cr
-   \code{sd}, \code{sds} \tab \code{exponential(1)} \tab \code{exponential(1)} \cr
+   \code{sd} \tab \code{exponential(1)} \tab \code{exponential(1)} \cr
 }
 
 
@@ -305,7 +317,7 @@ different parameterization.\tabular{llllll}{
    class \tab \code{pmid}, \code{pzero} \tab \code{pex} \tab \code{bex}, \code{confright}, \code{confleft} \tab \code{precright}, \code{precleft}, \code{phi} (softplus) \tab \code{phi} (\code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}, \code{log}) \cr
    \code{Intercept} \tab \code{normal(-2.5, 1)} \tab \code{normal(-2, 1)} \tab \code{normal(0, 1)} \tab \code{normal(2, 1.5)} \tab \code{normal(0.7, 0.8)} \cr
    \code{b} (slopes) \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \cr
-   \code{sd}, \code{sds} \tab \code{exponential(1)} \tab \code{exponential(1)} \tab \code{exponential(1)} \tab \code{exponential(1)} \tab \code{exponential(1)} \cr
+   \code{sd} \tab \code{exponential(1)} \tab \code{exponential(1)} \tab \code{exponential(1)} \tab \code{exponential(1)} \tab \code{exponential(1)} \cr
 }
 
 
@@ -363,11 +375,47 @@ category and every other category's probability has underflowed.
 \code{precright} and \code{precleft}, which \code{brms} does not recognise, so they arrive
 flat instead.
 
-\code{mu} is left to \code{brms} in all three. It is the response's own predictor, and
+\code{mu} is left to \code{brms} in all three, apart from the SD of any smooth on it
+(see \emph{Smooth terms}). It is the response's own predictor, and
 on a \code{logit} link \code{student_t(3, 0, 2.5)} is the standard weakly informative
 choice for exactly that - unlike \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}}'s \code{mu}, which needed
 overriding only because an \code{identity} link made the same prior a statement
 about seconds.
+}
+
+\section{Smooth terms}{
+A smooth's SD, \code{sds}, is not measured in link units. \code{brms} writes the
+penalised part of an \code{s()} or \code{t2()} term as random effects,
+\code{sds * Zs \%*\% zs} with \code{zs ~ N(0, 1)}, and how far one unit of \code{sds} moves
+the linear predictor depends on the basis \code{mgcv} builds. With covariates on
+\verb{[-1, 1]} it is about 0.45 link units for \code{s(x)}, 6 for \code{s(x, bs = "cr")} and
+0.1 for \code{t2(x, z, k = c(5, 5), bs = c("cr", "cr"))}. The number of rows
+and the units of the covariates make almost no difference. A fixed prior on
+\code{sds} therefore means something different on every basis:
+\code{exponential(1)} would allow a median of 4 link units of wiggle on the
+second of those and 0.07 on the third.
+
+So each smooth term gets \code{exponential(rate)}, with the rate set to that
+term's own scale: the root mean square over rows of \verb{||Zs[i, ]||}, read off
+\code{brms::make_standata()} and averaged geometrically over the term's penalties
+and \code{by} levels. That is \code{exponential(1)} on the wiggle measured in link
+units - median 0.69, 95\% below 3 - on whatever link the parameter has. For
+the \code{t2()} above the prior comes to about \code{exponential(0.1)}, for
+\code{s(x, bs = "cr")} about \code{exponential(6)}. A term whose scale cannot be
+computed gets \code{exponential(1)}.
+
+This applies to every smooth in the model, the response's own included. The
+response's slopes are left to \code{brms} because they are the effects being
+estimated; \code{sds} is a hyperparameter whose unit depends on the basis, and the
+\code{brms} default \code{student_t(3, 0, 2.5)} ignores the basis as completely as a
+fixed \code{exponential(1)} would. A group-level SD needs no such treatment: the
+design column of a group-level intercept is 1, so its SD is already in link
+units.
+
+Expect this prior to matter however much data there is. A smooth's SD is
+informed by the handful of coefficients behind each penalty - 6 to 9 for the
+\code{t2()} above - the way a group-level SD is informed by the number of groups,
+and not by the number of rows.
 }
 
 \section{Parameters left out of the formula}{
@@ -459,7 +507,8 @@ over \verb{[0, 1]} by \code{brms}, which is proper but puts half its mass above 
 an omitted \code{shape} or \code{tau} is flat over the whole real line, which is not
 proper at all.
 
-Slope and group-level priors are deliberately narrow. On a log or a logit
+Slope and group-level priors are deliberately narrow, smooth SDs aside (see
+\emph{Smooth terms}). On a log or a logit
 link a flat slope prior is not as harmless as it looks, and a group-level SD
 with no prior can wander far enough for individual groups to reach the flat
 regions above even when the population intercept is well behaved.
