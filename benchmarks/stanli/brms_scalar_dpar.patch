@@ -1,22 +1,22 @@
 diff --git a/NEWS.md b/NEWS.md
-index 00c2b6c..b33da16 100644
+index 00c2b6cd..63c1772f 100644
 --- a/NEWS.md
 +++ b/NEWS.md
 @@ -101,6 +101,9 @@ matrices. (#1939)
  
  ### Other Changes
  
-+* Compute intercept-only distributional parameters (e.g., `sigma ~ 1`) 
++* Compute intercept-only distributional parameters (e.g., `sigma ~ 1`)
 +once as scalars in the Stan code rather than as vectors over observations,
 +which reduces the cost per gradient evaluation of such models.
  * Improve sampling efficiency of `beta_binomial` models. (#1703)
  * Improve efficiency of non-factorizable log-likelihoods 
  for Student-t models thanks to Seth Axen. (#1820)
 diff --git a/R/brmsterms.R b/R/brmsterms.R
-index 2470533..f073ea3 100644
+index 2470533f..6090cc9a 100644
 --- a/R/brmsterms.R
 +++ b/R/brmsterms.R
-@@ -847,6 +847,34 @@ is_nlpar <- function(x) {
+@@ -847,6 +847,40 @@ is_nlpar <- function(x) {
    isTRUE(nzchar(x[["nlpar"]]))
  }
  
@@ -32,9 +32,10 @@ index 2470533..f073ea3 100644
 +# for intercept-only parameters, except in models where the parameter is
 +# indexed by observation somewhere other than in the likelihood call
 +# (mixtures, skew-normal and logistic-normal transforms, residual
-+# correlations, autocorrelation) or where the type of the parameter is
-+# part of a user-facing contract (vectorized custom families receive
-+# predicted parameters as vectors)
++# correlations, autocorrelation, user code in the likelihood block that
++# mentions the parameter) or where the type of the parameter is part of
++# a user-facing contract (vectorized custom families receive predicted
++# parameters as vectors)
 +is_scalar_dpar <- function(bterms, dpar) {
 +  stopifnot(is.brmsterms(bterms))
 +  dpar <- as_one_character(dpar)
@@ -45,6 +46,11 @@ index 2470533..f073ea3 100644
 +      isTRUE(bterms$rescor) || has_ac_subset(bterms)) {
 +    return(FALSE)
 +  }
++  # 'lik_scode' is set in stan_predictor.brmsframe from the stanvars
++  stan_name <- paste0(dpar, usc(bterms$resp))
++  if (any(grepl(paste0("\\b", stan_name, "\\b"), bterms$lik_scode, perl = TRUE))) {
++    return(FALSE)
++  }
 +  dpar_class(dpar, family) != "mu" && is_intercept_only(bterms$dpars[[dpar]])
 +}
 +
@@ -52,7 +58,7 @@ index 2470533..f073ea3 100644
  no_int <- function(x) {
    isFALSE(attr(x, "int", exact = TRUE))
 diff --git a/R/stan-likelihood.R b/R/stan-likelihood.R
-index 991ddbe..602535d 100644
+index 991ddbe8..602535dc 100644
 --- a/R/stan-likelihood.R
 +++ b/R/stan-likelihood.R
 @@ -303,7 +303,9 @@ stan_log_lik_dpars <- function(bterms, reqn = stan_log_lik_adj(bterms),
@@ -78,10 +84,20 @@ index 991ddbe..602535d 100644
    p <- stan_log_lik_dpars(bterms, reqn = reqn)
    sdist("inv_gaussian", p$mu, p$shape, vec = FALSE)
 diff --git a/R/stan-predictor.R b/R/stan-predictor.R
-index 5913baa..ce8a62e 100644
+index 5913baaf..2596ced2 100644
 --- a/R/stan-predictor.R
 +++ b/R/stan-predictor.R
-@@ -59,6 +59,7 @@ stan_predictor.brmsframe <- function(x, prior, normalize, ...) {
+@@ -50,6 +50,9 @@ stan_predictor.brmsframe <- function(x, prior, normalize, ...) {
+   }
+   args <- nlist(prior, normalize, nlpars = names(x$nlpars), ...)
+   args$primitive <- use_glm_primitive(x) || use_glm_primitive_categorical(x)
++  # user code placed in the likelihood block shares scope with the
++  # distributional parameters; see is_scalar_dpar
++  x$lik_scode <- collapse_stanvars(list(...)$stanvars, block = "likelihood")
+   for (nlp in names(x$nlpars)) {
+     nlp_args <- list(x$nlpars[[nlp]])
+     str_add_list(out) <- do_call(stan_predictor, c(nlp_args, args))
+@@ -59,6 +62,7 @@ stan_predictor.brmsframe <- function(x, prior, normalize, ...) {
      dp_comment <- stan_dpar_comments(dp, family = x$family)
      if (is.btl(dp_terms) || is.btnl(dp_terms)) {
        # distributional parameter is predicted
@@ -89,7 +105,7 @@ index 5913baa..ce8a62e 100644
        str_add_list(out) <- do_call(stan_predictor, c(list(dp_terms), args))
      } else if (is.numeric(x$fdpars[[dp]]$value)) {
        # distributional parameter is fixed to constant
-@@ -2032,7 +2033,8 @@ stan_Xme <- function(bframe, prior, threads, normalize) {
+@@ -2032,7 +2036,8 @@ stan_Xme <- function(bframe, prior, threads, normalize) {
  # @param primitive use Stan's GLM likelihood primitives?
  # @param ... currently unused
  # @return list of character strings containing Stan code
@@ -99,7 +115,7 @@ index 5913baa..ce8a62e 100644
    stopifnot(is.btl(bframe), is.list(out))
    if (primitive && !has_special_terms(bframe)) {
      # only overall effects and perhaps an intercept are present
-@@ -2043,10 +2045,21 @@ stan_eta_combine <- function(bframe, out, threads, primitive, ...) {
+@@ -2043,10 +2048,21 @@ stan_eta_combine <- function(bframe, out, threads, primitive, ...) {
    resp <- usc(bframe$resp)
    eta <- combine_prefix(px, keep_mu = TRUE, nlp = TRUE)
    out$eta <- sub("^[ \t\r\n]+\\+", "", out$eta, perl = TRUE)
@@ -126,7 +142,7 @@ index 5913baa..ce8a62e 100644
      str_add(out$model_comp_eta_basic) <- glue("  {eta} +={out$eta};\n")
    }
 diff --git a/tests/testthat/tests.stancode.R b/tests/testthat/tests.stancode.R
-index 6191c7e..c180fb6 100644
+index 6191c7e1..ade6528a 100644
 --- a/tests/testthat/tests.stancode.R
 +++ b/tests/testthat/tests.stancode.R
 @@ -1446,6 +1446,9 @@ test_that("weighted, censored, and truncated likelihoods are correct", {
@@ -139,7 +155,7 @@ index 6191c7e..c180fb6 100644
    expect_match2(scode, "target += gamma_lpdf(Y[Jevent[1:Nevent]] | shape[Jevent[1:Nevent]], shape[Jevent[1:Nevent]] ./ mu[Jevent[1:Nevent]]);")
  
    dat$x[1] <- 2
-@@ -2892,3 +2895,61 @@ test_that("Grouping prior weights are added to the Stan code", {
+@@ -2892,3 +2895,69 @@ test_that("Grouping prior weights are added to the Stan code", {
    expect_match2(scode, "vector[N_1] PW_1;  // weights for group contribution to the prior")
    expect_match2(scode, "target += PW_1[j] * std_normal_lpdf(z_1[, j]);")
  })
@@ -188,6 +204,14 @@ index 6191c7e..c180fb6 100644
 +  expect_match2(scode, "vector[N] sigma1 = rep_vector(0.0, N);")
 +  scode <- stancode(bf(y ~ x, sigma ~ 1) + bf(x ~ y, sigma ~ 1) + set_rescor(TRUE), dat)
 +  expect_match2(scode, "vector[N_y] sigma_y = rep_vector(0.0, N_y);")
++
++  # user code in the likelihood block that mentions the parameter keeps the vector
++  sv <- stanvar(scode = "sigma[1] += 0;", block = "likelihood", position = "start")
++  scode <- stancode(bf(y ~ x, sigma ~ 1), dat, stanvars = sv)
++  expect_match2(scode, "vector[N] sigma = rep_vector(0.0, N);")
++  sv <- stanvar(scode = "mu[1] += 0;", block = "likelihood", position = "start")
++  scode <- stancode(bf(y ~ x, sigma ~ 1), dat, stanvars = sv)
++  expect_match2(scode, "real sigma = 0;")
 +
 +  # vectorized custom families receive predicted parameters as vectors
 +  cfam <- custom_family("cfam", dpars = c("mu", "sigma"), links = c("identity", "log"),

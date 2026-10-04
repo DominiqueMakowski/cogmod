@@ -23,8 +23,9 @@ maintainer posted as [cogmod#5](https://github.com/DominiqueMakowski/cogmod/issu
 | `repro_parallel_init.R` | stanli-only reproducer: chains run serially when given inits |
 | `lnr_select_functions.stan`, `lnr_branchfree_functions.stan` | the rewritten likelihoods |
 | `lnr_rewrite.stan` | cogmod#5's whole program, verbatim (variant `rw`) |
-| `scalar_dpar.R` | brms's `sigma ~ 1` as a vector against a real, on a built-in family (gaussian) |
-| `reply_draft.md`, `reply_cogmod5_draft.md`, `brms_issue_draft.md` | drafts for stanli#422, cogmod#5 and a brms issue; deleted once posted |
+| `scalar_dpar.R` | brms's `sigma ~ 1` as a vector against a real, on a built-in family (gaussian); the script behind brms#1945 |
+| `brms_scalar_dpar.patch` | the change as submitted in brms#1946, against brms f131ef1 |
+| `brms_scalar_dpar/` | its harness: `smoke.R` (generated code per formula), `emit.R` and `compile_check.R` (eleven models, installed brms against the patched checkout) |
 | `hpc/` | the same runs on Artemis: `run.sh`, `task.slurm`, `install.R`, `summarise.R` |
 | `results/` | Windows numbers; `results/hpc/` the Linux ones (`fit_<seed>/`, `grad_<task>/`) |
 
@@ -577,27 +578,45 @@ inits (our misuse: `sample_model()` takes unconstrained values, not lists),
 and asked which families failed to compile. Their reply (2026-10-03 evening)
 announced 0.19.0, declined if-conversion with reasons, listed where `sel`
 differs (all confirmed, two fixed), and asked for the variants behind the
-full-program cliffs. Our reply with the 0.19.0 results is drafted in
-`reply_draft.md`, not posted, and now out of date: it predates 0.19.1 and
-cogmod#5, and its per-chain-process numbers were never obtained.
+full-program cliffs. Our reply with the 0.19.1 results
+([comment](https://github.com/seantalts/stanli/issues/422#issuecomment-5978573943),
+2026-10-04): the exactness, cost and sampling figures above, the serial
+chains with `init` (reproducer `repro_parallel_init.R`, offered as its own
+issue), the `bisect.R` variants they asked for, the SIGILL node, and yes to
+keeping the families in their corpus. Every reply draft was deleted once
+posted.
 
 2026-10-04: 0.19.1 released with #429, announced on #422, and
 [cogmod#5](https://github.com/DominiqueMakowski/cogmod/issues/5) opened with
-the rewrite (section above). Not yet answered.
+the rewrite (section above). Answered the same morning
+([comment](https://github.com/DominiqueMakowski/cogmod/issues/5#issuecomment-5978542829)):
+exact as claimed; on CmdStan the gain is the sigmas (0.70-0.85), the
+likelihood rewrite 0.92-1.10, the two multiplicative; the sigmas sent to
+brms (below), the looped likelihood kept.
+
+2026-10-04, brms: the scalar intercept-only dpars went upstream as
+[brms#1945](https://github.com/paul-buerkner/brms/issues/1945) (issue: the
+0.41x and 0.70-0.85x figures above, `scalar_dpar.R` as the script) and
+[brms#1946](https://github.com/paul-buerkner/brms/pull/1946) (PR, see
+Status). Both drafts deleted once posted, as with the others.
 
 ## Status
 
-Exploratory; nothing outside this folder and `.gitignore` changed. Open:
-answering #422 and cogmod#5 (the serial chains with `init` are still
-unreported), and the brms suggestion. The latter is prototyped
-(2026-10-04): `brms_scalar_dpar.patch` against brms f131ef1 declares an
-intercept-only dpar as `real` and drops its `[n]` in the likelihood, gated
-off mixtures, skew-normal, logistic-normal, `rescor`, autocorrelation and
-`loop = FALSE` custom families (57 lines of R, one updated and one new
-test; brms's stancode suite passes). `brms_scalar_dpar/` has the harness
+Exploratory; nothing outside this folder and `.gitignore` changed. #422
+and cogmod#5 are answered (the serial chains with `init` are now reported
+on #422); cogmod#5 can be closed by its author. The brms suggestion is posted and under review:
+[brms#1945](https://github.com/paul-buerkner/brms/issues/1945) (issue) and
+[brms#1946](https://github.com/paul-buerkner/brms/pull/1946) (PR, from the
+`scalar-intercept-only-dpars` branch of the fork at `../brms`, base
+f131ef1). It declares an intercept-only dpar as `real` and drops its `[n]`
+in the likelihood, gated off mixtures, skew-normal, logistic-normal,
+`rescor`, autocorrelation, `loop = FALSE` custom families and
+likelihood-block `stanvars` that mention the parameter (66 lines of R, one
+updated and one new test; brms's stancode suite passes).
+`brms_scalar_dpar.patch` is the diff as submitted; the PR branch is the
+live version if review changes it. `brms_scalar_dpar/` has the harness
 (`smoke.R`, `emit.R`, `compile_check.R`): eleven affected models compile
-from both versions with the same log density and gradient. Issue and PR
-text in `brms_issue_draft.md` and `brms_pr_draft.md`; neither posted.
+from both versions with the same log density and gradient.
 Next, if stanli fixes parallel chains with inits: rerun `fit` locally and on
 Artemis (`hpc/run.sh`) for end-to-end wall times, then run a few other
 families through the same harness.
