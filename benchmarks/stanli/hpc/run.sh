@@ -80,11 +80,24 @@ cmd_push() {
   tar -C "$tmp" -cf - . | remote "mkdir -p '${REMOTE}' '${SCRATCH}' && rm -rf '${REMOTE}/tree' '${REMOTE}'/stanli_*.tar.gz && tar -C '${REMOTE}' -xf - && chmod +x '${REMOTE}'/*.slurm && ls -la '${REMOTE}'"
 }
 
+# The R module's Makeconf has -march=native, the library is on Lustre, and
+# srun lands on whatever node is free: on 2026-10-03 that was an EPYC 9355,
+# so stanli's small R bridge (stanli.so) got an AVX-512 instruction
+# (vcvttsd2usi, the seed cast in stanli_r_model_new) and every task on a
+# node without AVX-512 - the EPYC-Genoa VM, the EPYC 7513 nodes - died with
+# SIGILL in stanli_model(). A Makevars with a fixed -march, put first via
+# R_MAKEVARS_USER, makes whatever this installs run on every node.
+# x86-64-v3 (AVX2) is what the VM and the 7513s have; nothing compiled here
+# is on a hot path. The file is written on the login side so that no quoting
+# happens inside the srun command.
 cmd_install() {
   info "installing brms + stanli into ${LIB} (compute node, a few minutes)"
+  printf 'CFLAGS = -O2 -march=x86-64-v3\nCXXFLAGS = -O2 -march=x86-64-v3\nCXX11FLAGS = -O2 -march=x86-64-v3\nCXX14FLAGS = -O2 -march=x86-64-v3\nCXX17FLAGS = -O2 -march=x86-64-v3\n' \
+    | remote "cat > '${REMOTE}/Makevars.portable'"
   remote "cd '${REMOTE}' && srun --partition=short --time=00:45:00 --cpus-per-task=4 --mem=8G --job-name=cogmod_stanli_install bash -c '
     . /etc/profile.d/lmod.sh; module use \"${EB_MODULES}\"; module load \"${R_MODULE}\"
     export STANLI_LIB=\"${LIB}\" STANLI_DIR=\"${REMOTE}\" MAKEFLAGS=-j4; export R_LIBS=\"${LIB}:${PROD_LIB}\"
+    export R_MAKEVARS_USER=\"${REMOTE}/Makevars.portable\"
     Rscript install.R'"
 }
 

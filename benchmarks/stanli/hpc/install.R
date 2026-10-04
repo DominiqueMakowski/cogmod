@@ -24,7 +24,12 @@ if (have("brms") != "2.23.1") {
 }
 tarball <- Sys.glob("stanli_*.tar.gz")
 stopifnot(length(tarball) == 1)
-cat("installing", tarball, "\n")
+# Compiles the R bridge (src/bridge.c) with the flags run.sh put in
+# R_MAKEVARS_USER: a fixed -march, because this runs on one node and the
+# library serves them all (see cmd_install in run.sh for the SIGILL this
+# caused). stanli_install() then downloads the prebuilt runtime, which is
+# baseline x86-64 and was never the problem.
+cat("installing", tarball, "with R_MAKEVARS_USER =", Sys.getenv("R_MAKEVARS_USER", "(unset)"), "\n")
 install.packages(tarball, repos = NULL, type = "source", lib = lib)
 stanli::stanli_install()
 

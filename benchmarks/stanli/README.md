@@ -26,7 +26,8 @@ maintainer posted as [cogmod#5](https://github.com/DominiqueMakowski/cogmod/issu
 | `scalar_dpar.R` | brms's `sigma ~ 1` as a vector against a real, on a built-in family (gaussian); the script behind brms#1945 |
 | `brms_scalar_dpar.patch` | the change as submitted in brms#1946, against brms f131ef1 |
 | `brms_scalar_dpar/` | its harness: `smoke.R` (generated code per formula), `emit.R` and `compile_check.R` (eleven models, installed brms against the patched checkout) |
-| `hpc/` | the same runs on Artemis: `run.sh`, `task.slurm`, `install.R`, `summarise.R` |
+| `hpc/` | the same runs on Artemis: `run.sh`, `task.slurm`, `install.R`, `summarise.R`; `sigill_probe.R` is the per-node probe behind the SIGILL diagnosis |
+| `reply_draft.md` | draft reply for stanli#422 (the SIGILL diagnosis); deleted once posted, as the others were |
 | `results/` | Windows numbers: `check`, `tail`, `time` (and their `_0.19.1` reruns), `bisect.csv` from `bisect.R`, `fit_*.csv` from `fit`, `repro_issue.txt`; the three `fit_*_smoke.csv` are the seed-11 smoke run behind the ridge paragraph under "Parallel chains and inits" |
 | `results/hpc/` | the Linux ones: `fit_<seed>/`, `grad_<task>/`, `grad_0.19.1_<task>/`, each with a `node.txt` |
 
@@ -482,11 +483,10 @@ family).
 
 The workaround arms (`fit --arms ...,stanli_orig_proc,stanli_sel_proc`, one
 process per chain) have not produced a result. On the cluster
-(`run.sh submit fitpar 16`, 2026-10-03 22:37, stanli 0.19.0) all 16 tasks
-exited 132 within 13-22 s on EPYC 7513 nodes (`artemis-a40-14`, `-15`); the
-same nodes ran `grad` under 0.19.1 the next morning without a fault, and
-the cause was not chased because the workaround itself was dropped once the
-bug was reported on #422. The empty result directories were deleted. On
+(`run.sh submit fitpar 16`, 2026-10-03 22:37) all 16 tasks exited 132
+within 13-22 s on EPYC 7513 nodes: the AVX-512 bridge of the cluster
+section, not the workaround. The empty result directories were deleted and
+the arms were not rerun, since the bug they work around is reported. On
 Windows, seed 11, the
 chain at stanli seed 1101 from `cogmod_inits()` row 1 goes onto a
 slow-accumulator ridge (`b_nuone_Intercept` about -2.4 +- 2.4, R-hat 1.6 in
@@ -510,7 +510,7 @@ benchmarks/stanli/hpc/run.sh pull          # -> results/hpc/
 Rscript benchmarks/stanli/hpc/summarise.R
 
 # a rerun on a new stanli, kept apart from the old results:
-STANLI_TAG=0.19.1 benchmarks/stanli/hpc/run.sh submit grad 4 --exclude=artemis-general-02
+STANLI_TAG=0.19.1 benchmarks/stanli/hpc/run.sh submit grad 4
 Rscript benchmarks/stanli/hpc/summarise.R --tag 0.19.1
 ```
 
@@ -523,13 +523,34 @@ is never written to. Each task works in its own copy of the tree on scratch.
 Wall time on a shared node is noise, so the fit's comparisons are within a
 seed, and ESS per leapfrog step needs no clock.
 
-`artemis-general-02`, a VM whose CPU reads "AMD EPYC-Genoa Processor",
-killed R with SIGILL (exit 132) in `stanli_model()` on all three seeds it
-got, while the EPYC 9334 and 9355 nodes ran stanli without a fault. Seeds
-10-12 were rerun with `--exclude=artemis-general-02`. stanli's Linux runtime
-needs glibc 2.28 at most; the nodes have 2.34. The `fitpar` tasks also
-exited 132, on bare-metal EPYC 7513 nodes under 0.19.0 (see "Parallel
-chains and inits"), so the VM is not the only way to get there.
+**The SIGILL (2026-10-03), diagnosed 2026-10-04.** `artemis-general-02`, a
+VM whose CPU reads "AMD EPYC-Genoa Processor", killed R with SIGILL (exit
+132, R's handler: `cause 'illegal operand'`) in `stanli_model()` on all
+three `fit` seeds it got, and that evening all 16 `fitpar` tasks died the
+same way on the bare-metal EPYC 7513 nodes, while the EPYC 9334 and 9355
+nodes never faulted. Seeds 10-12 were rerun with
+`--exclude=artemis-general-02`. The maintainer asked for the VM's CPU
+flags and `R CMD config CFLAGS`, and the second question was the answer:
+the R module's Makeconf has `-march=native`, the library is on Lustre and
+shared by every node, and `sacct` shows the 0.19.0 install job ran on
+`artemis-rtx-01`, an EPYC 9355 (znver4). stanli's R bridge, `stanli.so`,
+came out with one AVX-512F instruction, `vcvttsd2usi %xmm0,%r14d` at file
+offset 0x2e2f, the `(uint32_t) Rf_asReal(seed)` cast in
+`stanli_r_model_new`; every fault address R printed ends in `e2f`. The VM
+and the 7513s have AVX2 but no AVX-512 (x86-64-v3; the 9355 is v4). The
+0.19.1 reinstall landed on a 7513, so the current bridge is portable, which
+is why both runtimes (the v0.19.0 asset re-downloaded, same bytes) build
+and sample the LNR on all three node types today, and why `grad` under
+0.19.1 ran on a 7513 without a fault. Rebuilding the bridge on `rtx-01`
+and running `hpc/sigill_probe.R` against it on the VM or a 7513 reproduces
+exit 132 at the same offset on demand; the same build on the VM has no
+`zmm`/EVEX instruction. The runtime `.so` (both releases) has no AVX-512
+and no AVX at all, so it was never the cause. `dmesg` on those nodes
+carries no `traps:` line despite `debug.exception-trace = 1`, and the
+journal is not readable, so R's address was the evidence. Fix in
+`run.sh install`: a `Makevars.portable` with `-march=x86-64-v3` through
+`R_MAKEVARS_USER`; `--exclude` is no longer needed. stanli's Linux runtime
+needs glibc 2.28 at most; the nodes have 2.34.
 
 ## What the light route needs
 
@@ -592,8 +613,11 @@ full-program cliffs. Our reply with the 0.19.1 results
 2026-10-04): the exactness, cost and sampling figures above, the serial
 chains with `init` (reproducer `repro_parallel_init.R`, offered as its own
 issue), the `bisect.R` variants they asked for, the SIGILL node, and yes to
-keeping the families in their corpus. Every reply draft was deleted once
-posted.
+keeping the families in their corpus. The maintainer's two follow-ups the
+same day asked for the VM's CPU flags, the runtime it loaded, the kernel's
+trap line and `R CMD config CFLAGS`, and noted the runtime scans as
+baseline x86-64; the diagnosis (cluster section: the bridge compiled with
+`-march=native` on a Genoa node, not stanli) is drafted in `reply_draft.md`.
 
 2026-10-04: 0.19.1 released with #429, announced on #422, and
 [cogmod#5](https://github.com/DominiqueMakowski/cogmod/issues/5) opened with
@@ -612,8 +636,8 @@ Status). Both drafts deleted once posted, as with the others.
 ## Status
 
 Exploratory; nothing outside this folder and `.gitignore` changed. #422
-and cogmod#5 are answered (the serial chains with `init` are now reported
-on #422); cogmod#5 can be closed by its author. The brms suggestion is posted and under review:
+is answered up to the SIGILL diagnosis, which is drafted in
+`reply_draft.md`; cogmod#5 is answered and can be closed by its author. The brms suggestion is posted and under review:
 [brms#1945](https://github.com/paul-buerkner/brms/issues/1945) (issue) and
 [brms#1946](https://github.com/paul-buerkner/brms/pull/1946) (PR, from the
 `scalar-intercept-only-dpars` branch of the fork at `../brms`, base
