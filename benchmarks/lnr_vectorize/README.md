@@ -176,3 +176,12 @@ normal tails (safe here only because of the z = 25 guard).
 Reopen it if a Linux measurement (where libm is cheaper and the tape a larger
 share) shows more than the 10% ceiling seen here, or if stanc starts applying
 struct-of-arrays to user-defined function arguments.
+
+2026-10-04: the Linux measurement, on a better vectorised likelihood than
+`v2` (stanli's maintainer's hand-written program, cogmod#5: rows split by
+`dec` once in transformed data, branches as 0/1 blends, exact to the bit):
+0.92-1.02 against the looped program on Artemis (EPYC 7513 and 9355),
+1.05-1.10 on this laptop, with the sigmas the same way in both. Under the
+ceiling; the decision stands. Its program also passes the sigmas as reals,
+worth 0.80-0.85 on Linux and 0.70 here, as `scalars` found.
+`benchmarks/stanli/README.md` ("0.19.1, and the rewrite from cogmod#5").

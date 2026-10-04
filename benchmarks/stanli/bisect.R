@@ -32,7 +32,7 @@ lpdf <- function(ret, phi = "naive", pre = character(), tclamp = "1e-300") c(
   "  real nu_l = dec == 0 ? nuone : mu;", "  real s_l = dec == 0 ? sigmaone : sigmazero;",
   sprintf("  real t = fmax(Y - ndt, %s);", tclamp),
   sprintf("  real lp_dec = lognormal_lpdf(t | -nu_w, s_w) + %s_log_Phi((-nu_l - log(t)) / s_l);", phi),
-  "  real w = step(Y - ndt);",
+  "  real w = 1 - step(ndt - Y);  // 0 at Y = ndt, as orig's t_adj <= 0",
   paste0("  return ", ret, ";"), "}", "}")
 
 MIX <- "log_mix(poutlier, lp_out, lp_dec)"
@@ -40,7 +40,10 @@ MASK <- "log_mix(poutlier, lp_out, lp_dec + (w - 1) * 1e300)"
 BLEND <- paste0("w * ", MIX, " + (1 - w) * (log(poutlier) + lp_out)")
 CHECKS <- c("  if (dec < 0 || dec > 1) return negative_infinity();",
             "  if (Y <= 0) return negative_infinity();")
+# `orig` is the program brms writes, unchanged: stanli 0.18.1 refused it,
+# 0.19.0 builds it.
 variants <- list(
+  orig = NULL,
   bf = lpdf(MIX),
   sel_phi = lpdf(MIX, phi = "sel"),
   sel = lpdf(MASK, phi = "sel"),
@@ -49,13 +52,19 @@ variants <- list(
   bf_blend = lpdf(BLEND),
   sel_phi_blend = lpdf(BLEND, phi = "sel")
 )
-build <- function(funs) {
-  y <- c(x[seq_len(a - 1)], funs, x[b:length(x)])
-  y <- sub("sigmaone[n], sigmabias, ndt[n]", "sigmaone[n], ndt[n]", y, fixed = TRUE)
+# Each full program is also written to DIR as bisect_<variant>.stan, so the
+# variants can be shared on their own (stanli#422 asked for them).
+build <- function(funs, nm) {
+  y <- x
+  if (!is.null(funs)) {
+    y <- c(x[seq_len(a - 1)], funs, x[b:length(x)])
+    y <- sub("sigmaone[n], sigmabias, ndt[n]", "sigmaone[n], ndt[n]", y, fixed = TRUE)
+  }
+  writeLines(y, file.path(opt$out, paste0("bisect_", nm, ".stan")))
   stanli_model(code = paste(y, collapse = "\n"), data = inp$sdat)
 }
 
-ms <- lapply(variants, build)
+ms <- Map(build, variants, names(variants))
 q0 <- unconstrain(ms$bf, inp$init)
 K <- 100
 set.seed(3)

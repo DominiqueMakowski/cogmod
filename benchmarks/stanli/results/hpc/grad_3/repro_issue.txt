@@ -1,0 +1,21 @@
+stanli 0.19.0 
+
+1. log_mix() in a parameter-dependent branch
+  log_mix(), no branch               compiles
+  log_mix(), inside `if (y - mu <= 0)` compiles
+  log_sum_exp() written out, same `if` compiles
+
+2. A comparison as a value
+  log(y > mu)                        compiles
+  y > mu ? 0 : -1e3                  compiles
+  step(y - mu)                       compiles
+
+3. Cost of a parameter-dependent branch, N = 5000, per gradient
+  same lp: TRUE (-11930.5317978376 vs -11930.5317978376); same gradient: TRUE
+  no branch 660 us, branch 600 us: 0.9x
+
+4. Same value, no parameter-dependent branch, N = 5000, per gradient
+  same lp: TRUE
+  log_mix                645 us  (1.0x)
+  log_sum_exp            595 us  (0.9x)
+  log_mix_data_check     645 us  (1.0x)
