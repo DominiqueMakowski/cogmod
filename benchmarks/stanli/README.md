@@ -27,7 +27,8 @@ maintainer posted as [cogmod#5](https://github.com/DominiqueMakowski/cogmod/issu
 | `brms_scalar_dpar.patch` | the change as submitted in brms#1946, against brms f131ef1 |
 | `brms_scalar_dpar/` | its harness: `smoke.R` (generated code per formula), `emit.R` and `compile_check.R` (eleven models, installed brms against the patched checkout) |
 | `hpc/` | the same runs on Artemis: `run.sh`, `task.slurm`, `install.R`, `summarise.R` |
-| `results/` | Windows numbers; `results/hpc/` the Linux ones (`fit_<seed>/`, `grad_<task>/`) |
+| `results/` | Windows numbers: `check`, `tail`, `time` (and their `_0.19.1` reruns), `bisect.csv` from `bisect.R`, `fit_*.csv` from `fit`, `repro_issue.txt`; the three `fit_*_smoke.csv` are the seed-11 smoke run behind the ridge paragraph under "Parallel chains and inits" |
+| `results/hpc/` | the Linux ones: `fit_<seed>/`, `grad_<task>/`, `grad_0.19.1_<task>/`, each with a `node.txt` |
 
 ## The question
 
@@ -480,7 +481,13 @@ poor start for some families (`R/cogmod_inits.R` gives the reasons family by
 family).
 
 The workaround arms (`fit --arms ...,stanli_orig_proc,stanli_sel_proc`, one
-process per chain) have not produced a result yet. On Windows, seed 11, the
+process per chain) have not produced a result. On the cluster
+(`run.sh submit fitpar 16`, 2026-10-03 22:37, stanli 0.19.0) all 16 tasks
+exited 132 within 13-22 s on EPYC 7513 nodes (`artemis-a40-14`, `-15`); the
+same nodes ran `grad` under 0.19.1 the next morning without a fault, and
+the cause was not chased because the workaround itself was dropped once the
+bug was reported on #422. The empty result directories were deleted. On
+Windows, seed 11, the
 chain at stanli seed 1101 from `cogmod_inits()` row 1 goes onto a
 slow-accumulator ridge (`b_nuone_Intercept` about -2.4 +- 2.4, R-hat 1.6 in
 a short smoke run) under both `orig` and `sel`, with the same leapfrog
@@ -520,7 +527,9 @@ seed, and ESS per leapfrog step needs no clock.
 killed R with SIGILL (exit 132) in `stanli_model()` on all three seeds it
 got, while the EPYC 9334 and 9355 nodes ran stanli without a fault. Seeds
 10-12 were rerun with `--exclude=artemis-general-02`. stanli's Linux runtime
-needs glibc 2.28 at most; the nodes have 2.34.
+needs glibc 2.28 at most; the nodes have 2.34. The `fitpar` tasks also
+exited 132, on bare-metal EPYC 7513 nodes under 0.19.0 (see "Parallel
+chains and inits"), so the VM is not the only way to get there.
 
 ## What the light route needs
 
