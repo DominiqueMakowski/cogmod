@@ -130,7 +130,11 @@
 #' | --- | --- | --- | --- |
 #' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2, 0.5)` | `normal(-5, 1)` | `normal(0, 0.5)` |
 #' | `b` (slopes) | `normal(0, 0.2)` | `normal(0, 0.2)` | `normal(0, 0.2)` |
-#' | `sd`, `sds` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
+#' | `sd` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
+#'
+#' The SDs of smooth terms (`sds`) follow a rule of their own, on every
+#' distributional parameter including the response's: see *Smooth terms*
+#' below.
 #'
 #' `normal(-1.2, 0.5)` centres `ndt` on 0.30 s, with 95% of its mass between
 #' about 0.11 and 0.80 s: wide enough for the non-decision times of slower
@@ -217,6 +221,14 @@
 #' - [cogmod_lognormal()]: `sigmabias`, the same start-point range as the
 #'   LNR's (the LNR races two of these accumulators), with the same rows.
 #'
+#' In the three race families - [cogmod_lnr()], [cogmod_rdm()] and
+#' [cogmod_lba2()] - `mu` is not a location of the response but the rate of
+#' accumulator 0, and the `dec()` coding decides which accumulator that is. Its
+#' intercept and slopes are left to `brms`, as the response's always are, but
+#' its group-level SD gets the `exponential(1)` the other accumulator's gets,
+#' so that swapping the coding does not change what the priors say about how
+#' much the rates vary.
+#'
 #' All of them are the same failure as `ndt` and `poutlier`: an infinite flat
 #' region under a flat prior. See [cogmod_lba1()], [cogmod_rdm()],
 #' [cogmod_lba2()], [cogmod_ddm()] and [cogmod_lnr()].
@@ -239,7 +251,7 @@
 #' | --- | --- | --- |
 #' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-2.3, 0.7)` | `normal(-1.5, 0.7)` |
 #' | `b` (slopes) | `normal(0, 0.5)` | `normal(0, 0.5)` |
-#' | `sd`, `sds` | `exponential(1)` | `exponential(1)` |
+#' | `sd` | `exponential(1)` | `exponential(1)` |
 #'
 #' On the `softplus` scale `normal(-2.3, 0.7)` puts `sigma` - the SD of the
 #' Gaussian component - between roughly 25 and 330 ms with a median of 96 ms,
@@ -280,7 +292,7 @@
 #' | --- | --- | --- | --- | --- | --- |
 #' | `Intercept` | `normal(-2.5, 1)` | `normal(-2, 1)` | `normal(0, 1)` | `normal(2, 1.5)` | `normal(0.7, 0.8)` |
 #' | `b` (slopes) | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` |
-#' | `sd`, `sds` | `exponential(1)` | `exponential(1)` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
+#' | `sd` | `exponential(1)` | `exponential(1)` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
 #'
 #' **The point masses.** `pmid` is the probability of landing exactly on the
 #' midpoint of the scale and `pzero` the probability of an extra category
@@ -336,11 +348,65 @@
 #' `precright` and `precleft`, which `brms` does not recognise, so they arrive
 #' flat instead.
 #'
-#' `mu` is left to `brms` in all three. It is the response's own predictor, and
+#' `mu` is left to `brms` in all three, apart from the SD of any smooth on it
+#' (see *Smooth terms*). It is the response's own predictor, and
 #' on a `logit` link `student_t(3, 0, 2.5)` is the standard weakly informative
 #' choice for exactly that - unlike [cogmod_exgaussian()]'s `mu`, which needed
 #' overriding only because an `identity` link made the same prior a statement
 #' about seconds.
+#'
+#' # Smooth terms
+#'
+#' A smooth's SD, `sds`, is not measured in link units. `brms` writes the
+#' penalised part of an `s()` or `t2()` term as random effects,
+#' `sds * Zs %*% zs` with `zs ~ N(0, 1)`, and how far one unit of `sds` moves
+#' the linear predictor depends on the basis `mgcv` builds. With covariates on
+#' `[-1, 1]` it is about 0.45 link units for `s(x)`, 6 for `s(x, bs = "cr")` and
+#' 0.1 for `t2(x, z, k = c(5, 5), bs = c("cr", "cr"))`. The number of rows
+#' and the units of the covariates make almost no difference. A fixed prior on
+#' `sds` therefore means something different on every basis:
+#' `exponential(1)` would allow a median of 4 link units of wiggle on the
+#' second of those and 0.07 on the third.
+#'
+#' So each smooth term gets `exponential(rate)`, with the rate set to that
+#' term's own scale: the root mean square over rows of `||Zs[i, ]||`, read off
+#' `brms::make_standata()` and averaged geometrically over the term's penalties
+#' and `by` levels. That is `exponential(1)` on the wiggle measured in link
+#' units - median 0.69, 95% below 3 - on whatever link the parameter has. For
+#' the `t2()` above the prior comes to about `exponential(0.1)`, for
+#' `s(x, bs = "cr")` about `exponential(6)`. A term whose scale cannot be
+#' computed gets `exponential(1)`.
+#'
+#' This applies to every smooth in the model, the response's own included. The
+#' response's slopes are left to `brms` because they are the effects being
+#' estimated; `sds` is a hyperparameter whose unit depends on the basis, and the
+#' `brms` default `student_t(3, 0, 2.5)` ignores the basis as completely as a
+#' fixed `exponential(1)` would. A group-level SD needs no such treatment: the
+#' design column of a group-level intercept is 1, so its SD is already in link
+#' units.
+#'
+#' Expect this prior to matter however much data there is. A smooth's SD is
+#' informed by the handful of coefficients behind each penalty - 6 to 9 for the
+#' `t2()` above - the way a group-level SD is informed by the number of groups,
+#' and not by the number of rows.
+#'
+#' **The unpenalised part of a smooth** - the linear trend of an `s(x)`, the
+#' marginal trends of a `t2()` - has the same problem one level down. `brms`
+#' reports its coefficients (`bs`) under class `b` with the dpar's other
+#' slopes, so they would take the dpar's blanket slope prior, `normal(0, 0.2)`
+#' on `ndt`. But `mgcv` sets the scale of those columns, not the user, and
+#' differently on every basis: the root mean square of the column is about
+#' 0.16 for `s(x)` whatever the units of `x`, 0.8 to 1 for a `t2()` or an
+#' `s(x, bs = "cr", k = 5)`, and 2 for `s(x, bs = "cr")`. On the default
+#' `s(x)`, `normal(0, 0.2)` on the coefficient was `normal(0, 0.03)` on the
+#' trend at a typical row, pinning `ndt`'s linear trend to about 0.1 link units
+#' across its range, and the `tp` and `cr` penalties leave the linear part
+#' alone, so nothing else in the smooth could make up the difference. So on
+#' the dpars a family names, each such column gets `normal(0, s / rms)`, the
+#' dpar's slope prior stated on the trend in link units. The response's keep
+#' `brms`'s default, as its slopes do. A column name two smooths share - two
+#' smooths of the same covariate on one dpar - is left to the blanket, since
+#' `brms` reports the pair as one coefficient.
 #'
 #' # Parameters left out of the formula
 #'
@@ -432,7 +498,8 @@
 #' an omitted `shape` or `tau` is flat over the whole real line, which is not
 #' proper at all.
 #'
-#' Slope and group-level priors are deliberately narrow. On a log or a logit
+#' Slope and group-level priors are deliberately narrow, smooth SDs aside (see
+#' *Smooth terms*). On a log or a logit
 #' link a flat slope prior is not as harmless as it looks, and a group-level SD
 #' with no prior can wander far enough for individual groups to reach the flat
 #' regions above even when the population intercept is well behaved.
@@ -861,12 +928,14 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
 # itself in the registry's `prior` slot.
 #' @keywords internal
 .priors_shifted <- function(formula, data, family, ...) {
-  own <- .mixture_spec(.family_name(family))$prior
+  spec <- .mixture_spec(.family_name(family))
+  own <- spec$prior
   if (is.null(own)) own <- list()
   # The base entries win, but no family names one of them, so this only decides
   # a collision that cannot currently happen.
   own[names(.SHIFTED_BASE_PRIORS)] <- .SHIFTED_BASE_PRIORS
-  .priors_dpars(formula, data, family, own, override = "shape", ...)
+  .priors_dpars(formula, data, family, own, override = "shape", ...,
+                race = isTRUE(spec$race))
 }
 
 
@@ -879,15 +948,23 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
 # with any of `link`, `nat` and `slope`. See .PRIORS_PLAIN above.
 #' @keywords internal
 .priors_dpars <- function(formula, data, family, own, override = character(0),
-                          ..., slope_default = "normal(0, 0.2)") {
+                          ..., slope_default = "normal(0, 0.2)", race = FALSE) {
   p <- brms::get_prior(formula, data = data, family = family, ...)
   # Kept whole: once `p` has been filtered down to the rows being set, there is
   # no way left to tell "this blanket row covers a coefficient we left alone"
   # from "this blanket row covers nothing at all".
   all_rows <- p
-
   dpars <- names(own)
   if (is.null(override)) override <- character(0)
+
+  # Smooths: the SDs follow a rule of their own, on every dpar (.priors_sds()),
+  # and the unpenalised columns of a smooth on a dpar the family names get the
+  # dpar's slope prior scaled to their basis (.bs_scales()). One
+  # make_standata() per distinct term feeds both.
+  scales <- .smooth_scales(all_rows, formula, data, ...)
+  sds <- .priors_sds(all_rows, scales)
+  bs_rms <- .bs_scales(all_rows, scales, dpars)
+  bs_row <- p$class == "b" & paste(p$dpar, p$coef, sep = "|") %in% names(bs_rms)
 
   # A dpar reaches get_prior() in one of two forms, depending on whether it
   # appears in the formula at all.
@@ -912,25 +989,21 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
   aux <- p$class %in% dpars & !nzchar(p$dpar)
 
   link <- p$dpar %in% dpars & !nzchar(p$prior)
+  # In a race `mu` is accumulator 0's rate, not a location of the response,
+  # and the dec() coding decides which accumulator that is. Its intercept and
+  # slopes stay with brms, as the response's always do. Its group-level SD is
+  # a statement about how much an accumulator's rate varies, the same for
+  # either accumulator, so it gets what the other accumulator's gets rather
+  # than brms's student_t(3, 0, 2.5). Swap the coding and nothing about the
+  # spread of the rates should change with it.
+  if (isTRUE(race)) {
+    link <- link | (!nzchar(p$dpar) & p$class == "sd" & !nzchar(p$prior))
+  }
   # ...unless a proper blanket row already covers them, as brms gives smooths.
   link <- link & !vapply(seq_len(nrow(p)), .covered_by_blanket, logical(1), p = p)
   # The modelled counterpart of the auxiliary override: these rows arrive
   # non-empty, so they have to be replaced rather than filled.
   link <- link | (p$dpar %in% override & p$class == "Intercept")
-  # A smooth's wiggliness scale (`sds`) arrives the other way round from a
-  # group-level `sd`: brms fills the BLANKET row itself, student_t(3, 0, 2.5),
-  # and leaves the per-term rows empty. The empty rows are then covered and the
-  # filled one was never a candidate, so until 0.3.3 an `sds` on a dpar kept
-  # brms's default while the table in ?cogmod_priors said exponential(1). (The
-  # `sd` rows escape because brms's blanket there has an empty group and the
-  # rows it sets have the grouping factor's, so the two never match.) The
-  # blanket is the row brms will use, so take it and replace it. On a logit- or
-  # log-linked dpar a half-t(3, 0, 2.5), median 1.9 on the link scale, lets
-  # the smooth alone walk a `sigmabias` across its whole range or move a
-  # `sigmandt` by a factor of seven - which undoes the tight intercept the
-  # family put there on purpose. The response's own smooth (`dpar == ""`) is
-  # not touched, for the same reason its slopes are not.
-  link <- link | (p$dpar %in% dpars & p$class == "sds" & !nzchar(p$coef))
 
   # `mu` is the response's own linear predictor, so brms reports it with an
   # EMPTY dpar - class "Intercept", or class "b" with coef "Intercept" under
@@ -947,9 +1020,9 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
   resp <- ("mu" %in% dpars) & !nzchar(p$dpar) &
     (p$class == "Intercept" | (p$class == "b" & p$coef == "Intercept"))
 
-  fill <- aux | link | resp
+  fill <- (aux | link | resp) & p$class != "sds"
   if (!any(fill)) {
-    return(brms::empty_prior())
+    return(if (is.null(sds)) brms::empty_prior() else sds)
   }
   # The dpar to look the prior up under. It is `p$dpar` for everything except
   # the response rows above, whose dpar is empty by construction.
@@ -957,6 +1030,7 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
   target[resp] <- "mu"
   target <- target[fill]
   aux <- aux[fill]
+  bs_row <- bs_row[fill]
   p <- p[fill, , drop = FALSE]
 
   p$prior <- vapply(
@@ -971,8 +1045,17 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
       } else if (cls == "b") {
         # a family may widen the blanket slope prior for a dpar of its own
         slope <- .own_prior(own, target[i], "slope")
-        if (nzchar(slope)) slope else slope_default
-      } else if (cls %in% c("sd", "sds")) {
+        if (!nzchar(slope)) slope <- slope_default
+        if (bs_row[i]) {
+          # the unpenalised column of a smooth: the same slope prior, stated
+          # on the trend in link units rather than on the coefficient
+          rms <- bs_rms[[paste(p$dpar[i], p$coef[i], sep = "|")]]
+          scaled <- .scale_slope_prior(slope, rms)
+          if (nzchar(scaled)) scaled else slope
+        } else {
+          slope
+        }
+      } else if (cls == "sd") {
         "exponential(1)"
       } else {
         "" # cor, and anything else brms already gives a proper default
@@ -980,15 +1063,18 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
     },
     character(1)
   )
-  p <- p[nzchar(p$prior), , drop = FALSE]
+  keep <- nzchar(p$prior)
+  bs_row <- bs_row[keep]
+  p <- p[keep, , drop = FALSE]
 
   # get_prior() reports a blanket row (empty coef) alongside one row per
   # coefficient. Setting both makes brms warn that the blanket one is unused, so
-  # keep the blanket row and drop what it subsumes. `b` on a coefficient named
-  # "Intercept" is the exception: under `0 + Intercept` that IS the intercept and
-  # carries a different location from the slopes.
+  # keep the blanket row and drop what it subsumes. Two exceptions: `b` on a
+  # coefficient named "Intercept", which under `0 + Intercept` IS the intercept
+  # and carries a different location from the slopes, and the unpenalised
+  # column of a smooth, whose slope prior has been rescaled to its basis.
   drop <- vapply(seq_len(nrow(p)), .covered_by_blanket, logical(1), p = p)
-  drop <- drop & !(p$class == "b" & p$coef == "Intercept")
+  drop <- drop & !(p$class == "b" & p$coef == "Intercept") & !bs_row
   kept <- p[!drop, , drop = FALSE]
 
   # The exception can empty the blanket row out. `ndt ~ 0 + Intercept` has one
@@ -997,7 +1083,151 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
   # warns about in turn. So the pair is checked in both directions.
   gone <- vapply(seq_len(nrow(kept)), .blanket_now_unused, logical(1),
                  p = kept, all_rows = all_rows)
-  kept[!gone, , drop = FALSE]
+  kept <- kept[!gone, , drop = FALSE]
+  if (is.null(sds)) kept else rbind(kept, sds)
+}
+
+
+# The wiggliness scale of every smooth (`sds`), on every dpar, as
+# exponential(<that term's scale>). That is exponential(1) on the wiggle
+# measured in link units - median 0.69, 95% below 3 - whatever basis mgcv
+# built, where a fixed exponential(1) on `sds` itself meant a median of 4 link
+# units on s(x, bs = "cr") and 0.05 on a t2(); see .zs_scales(). Until 0.3.3
+# this set exponential(1), and only on the dpars a family names. The comment
+# that chose it argued from "a half-t(3, 0, 2.5), median 1.9 on the link
+# scale", treating `sds` as if it were in link units, which holds only for a
+# basis whose scale is near 1. On the IGC Muller-Lyer fits (four families, 22
+# t2 smooths, 324,000 rows) the posterior `sds` on the largest penalty ran
+# from 0.4 to 37, median 7; exponential(1) puts 0.1% of its mass above 7. On
+# that basis this rule gives about exponential(0.084): median 8, 95% below 36.
+#
+# The rows do not swamp this prior, however many there are. A smooth's SD is
+# informed by its handful of coefficients - 6 to 9 per penalty for that t2() -
+# as a group-level SD is by its number of groups. With six coefficients at an
+# RMS of 31, exponential(1) halves the posterior mode of `sds`, from 34 to 16.
+# The smooth itself hardly moves, since the rows pin it; zs = s / sds has to
+# stretch to twice its prior scale instead.
+#
+# The response's own smooth is included, unlike the response's slopes. Those
+# are left to brms because they are the effects being estimated; `sds` is a
+# hyperparameter whose unit is set by the basis, and brms's student_t(3, 0,
+# 2.5) on it is as blind to that as a fixed exponential. A group-level `sd`
+# needs none of this: the Z column of a group-level intercept is 1, so its SD
+# is already in link units.
+#
+# brms takes one sds prior per term, for all of that term's penalties and
+# `by` levels, and warns whenever its own non-empty blanket row ends up
+# covering nothing. So each dpar's blanket row takes the prior of one of its
+# terms, and only the terms whose prior differs get a row of their own. Which
+# term is arbitrary - brms uses the rows the same way whichever it is - so it
+# is the first label in byte order, not the first row get_prior() returns:
+# get_prior() sorts its rows in the session's collation, and `s(x)` comes
+# before `s(x, bs = "cr")` under ICU on Windows but after it under glibc's
+# en_US.UTF-8, which is what failed CI on 2026-10-02. A term whose scale
+# cannot be computed - make_standata() failing on it alone, say - falls back
+# to exponential(1).
+#' @keywords internal
+.priors_sds <- function(p, scales) {
+  s <- p[p$class == "sds" & !nzchar(p$resp), , drop = FALSE]
+  terms <- unique(s$coef[nzchar(s$coef)])
+  if (!length(terms)) return(NULL)
+  rate <- vapply(terms, function(tm) {
+    v <- scales[[tm]]$sds
+    if (is.null(v)) NA_real_ else v
+  }, numeric(1))
+  prior <- ifelse(is.finite(rate),
+                  sprintf("exponential(%s)", .num_str(signif(rate, 3))),
+                  "exponential(1)")
+  names(prior) <- terms
+  rows <- lapply(unique(s$dpar), function(dp) {
+    r <- s[s$dpar == dp, , drop = FALSE]
+    term <- nzchar(r$coef)
+    r$prior[term] <- unname(prior[r$coef[term]])
+    blanket <- !term
+    if (!any(blanket) || !any(term)) return(r[term, , drop = FALSE])
+    first <- r$prior[term][order(r$coef[term], method = "radix")][1]
+    r$prior[blanket] <- first
+    r[blanket | (term & r$prior != first), , drop = FALSE]
+  })
+  do.call(rbind, rows)
+}
+
+
+# The scales of every distinct smooth term in a get_prior() table, keyed by
+# the label get_prior() gives it, from .smooth_term_scales(). NULL when the
+# model has no smooth; a term that cannot be built is NULL in the list. Built
+# once per call, since each term costs a make_standata() of its own.
+#' @keywords internal
+.smooth_scales <- function(p, formula, data, ...) {
+  s <- p[p$class == "sds" & !nzchar(p$resp), , drop = FALSE]
+  terms <- unique(s$coef[nzchar(s$coef)])
+  if (!length(terms)) return(NULL)
+  stats::setNames(
+    lapply(terms, .smooth_term_scales, formula = formula, data = data, ...),
+    terms
+  )
+}
+
+
+# The unpenalised columns of the smooths on the dpars a family names, as
+# "<dpar>|<coef>" -> root mean square of the column, for the `b` rows that
+# carry them. These are the trend an s(x) or t2() can fit outside its penalty,
+# and brms reports them under class `b` with the dpar's other slopes, so they
+# arrive under the dpar's blanket slope prior - normal(0, 0.2) on `ndt`, say.
+# mgcv sets the scale of those columns, not the user, and it differs twentyfold
+# between bases (see .smooth_term_scales()): on the default s(x) the column
+# has an RMS of 0.16, so normal(0, 0.2) on the coefficient was normal(0, 0.03)
+# on the trend at a typical row and pinned `ndt`'s linear trend to about 0.1
+# link units across its range, while on s(x, bs = "cr") the same prior allowed
+# 0.4. The tp and cr penalties leave the linear part untouched, so nothing
+# else in the smooth could make up the difference. .priors_dpars() therefore
+# gives each such column normal(0, s / rms), the dpar's slope prior stated on
+# the trend in link units, as .priors_sds() states the wiggle.
+#
+# Only the dpars the family names, as for slopes: the response's are the
+# effects being estimated and stay with brms. A column name two terms share -
+# two smooths of the same covariate on one dpar both produce `sx_1`, and
+# get_prior() reports the pair as one row - is left to the blanket, since brms
+# cannot tell the two apart either. So is a column whose term could not be
+# built alone.
+#' @keywords internal
+.bs_scales <- function(p, scales, dpars) {
+  if (is.null(scales)) return(numeric(0))
+  s <- p[p$class == "sds" & !nzchar(p$resp) & nzchar(p$coef) &
+           p$dpar %in% dpars, , drop = FALSE]
+  out <- numeric(0)
+  for (dp in unique(s$dpar)) {
+    cols <- unlist(lapply(unique(s$coef[s$dpar == dp]), function(tm) {
+      scales[[tm]]$bs
+    }))
+    if (!length(cols)) next
+    nm <- names(cols)
+    ok <- !is.na(cols) & !nm %in% nm[duplicated(nm)]
+    cols <- cols[ok]
+    if (!length(cols)) next
+    names(cols) <- paste(dp, names(cols), sep = "|")
+    out <- c(out, cols)
+  }
+  out
+}
+
+
+# `normal(0, s)` restated for a column of root mean square `rms`: normal(0,
+# s / rms), so that the prior on the coefficient is `normal(0, s)` on the
+# coefficient times the column at a typical row. "" if the slope prior is not
+# a zero-centred normal, which none of the registries' are, or `rms` is not a
+# positive number; the caller then keeps the prior as it stands.
+#' @keywords internal
+.scale_slope_prior <- function(prior, rms) {
+  if (!is.numeric(rms) || length(rms) != 1L || !is.finite(rms) || rms <= 0) {
+    return("")
+  }
+  m <- regmatches(prior, regexec("^normal\\(\\s*0\\s*,\\s*([0-9.eE+-]+)\\s*\\)$",
+                                 prior))[[1]]
+  if (length(m) != 2L) return("")
+  s <- suppressWarnings(as.numeric(m[2]))
+  if (!is.finite(s) || s <= 0) return("")
+  sprintf("normal(0, %s)", .num_str(signif(s / rms, 3)))
 }
 
 

@@ -42,6 +42,108 @@
 }
 
 
+# How far one unit of a smooth's SD moves the linear predictor
+# ============================================================
+#
+# brms writes the penalised part of a smooth as random effects: it adds
+# `sds * Zs %*% zs` to the linear predictor with zs ~ N(0, 1), which has SD
+# `sds * ||Zs[i, ]||` at row i. The size of ||Zs[i, ]|| is set by the basis mgcv
+# builds, and it varies a lot. Measured with covariates uniform on [-1, 1]
+# (2026-10-01), the root mean square over rows is about 0.45 for s(x), 0.26 for
+# s(x, k = 5), 0.6 for s(x, y), 1.75 for s(x, bs = "cr", k = 5), 6 for
+# s(x, bs = "cr") and 0.08-0.12 for t2(x, z, k = c(5, 5), bs = c("cr", "cr")).
+# Covariates on a coarse grid or skewed move each of these by a factor of up
+# to two. The number of rows barely matters (within 15% from 1,000 to 100,000)
+# and the units of the covariates not at all. So a fixed number for `sds`, as
+# a prior or as a start, is a different amount of wiggle on every basis: 70
+# times more on that s(x, bs = "cr") than on that t2. Dividing by this scale
+# converts it to link units, which is what cogmod_priors() and cogmod_inits()
+# do.
+#
+# One value per Zs block, i.e. per penalty, and per level of a `by` factor,
+# which brms numbers as a term of its own. `stem` picks out the blocks behind
+# one `sds` parameter ("1" for mu's first smooth, "ndt_1" for ndt's) in penalty
+# order. NULL takes every block. A block that gives no positive finite scale
+# comes back NA.
+#' @keywords internal
+.zs_scales <- function(sdata, stem = NULL) {
+  nm <- names(sdata)
+  if (is.null(stem)) {
+    blocks <- nm[startsWith(nm, "Zs_")]
+  } else if (paste0("Zs_", stem) %in% nm) {
+    # Older brms declared one scalar `sds_<k>_<j>` per penalty, which names its
+    # block exactly.
+    blocks <- paste0("Zs_", stem)
+  } else {
+    prefix <- paste0("Zs_", stem, "_")
+    rest <- substring(nm, nchar(prefix) + 1L)
+    hit <- startsWith(nm, prefix) & grepl("^[0-9]+$", rest)
+    blocks <- nm[hit][order(as.integer(rest[hit]))]
+  }
+  vapply(blocks, function(b) {
+    z <- as.matrix(sdata[[b]])
+    s <- if (length(z)) sqrt(mean(rowSums(z^2))) else NA_real_
+    if (is.finite(s) && s > 0) s else NA_real_
+  }, numeric(1))
+}
+
+
+# The scales of one smooth term, as get_prior() labels it in `coef`, from a
+# model holding that term alone. brms builds each smooth's basis on its own,
+# so the blocks come out as they do in the full model, give or take rows the
+# full model drops for missing values in other variables. Building the term
+# alone avoids reconstructing which `Zs_<k>` blocks belong to it: brms numbers
+# them in term order with a `by` factor expanded, while get_prior() sorts its
+# rows by label. On the IGC Muller-Lyer data (324,000 rows) a t2() takes 1.8 s.
+#
+# Two scales come back, or NULL when the term cannot be built:
+#
+# `sds`: the geometric mean over the term's Zs blocks of .zs_scales(), because
+# brms takes one sds prior per term for all of them (the three penalties of
+# the t2() above differ by about 20%). NA if any block has no scale.
+#
+# `bs`: the root mean square over rows of each column of the term's
+# UNPENALISED part, `Xs` - the linear trend of an s(x) or the marginal trends
+# of a t2() - named as brms names the columns and as get_prior() labels the
+# matching `b` rows (`sx_1`, `t2xw_1`, `sw:ga_1`). mgcv scales these columns
+# without regard to the covariate's units and differently on every basis:
+# measured with x on [-1, 1] (2026-10-02), 0.16 for s(x) and for s(age) alike,
+# 0.11 per column for s(x, w), 0.8-1.0 for a t2(..., bs = c("cr", "cr")),
+# 1.0 for s(x, bs = "cr", k = 5) and 2.0 for s(x, bs = "cr"). So a prior
+# stated on the coefficient means a different amount of trend on every basis,
+# twentyfold between the ends, and for a tp or cr basis the penalised part has
+# no linear component to make up the difference. A column whose scale is not
+# a positive finite number is NA.
+#' @keywords internal
+.smooth_term_scales <- function(term, formula, data, ...) {
+  f <- if (inherits(formula, "brmsformula")) formula$formula else formula
+  env <- if (inherits(f, "formula")) environment(f) else NULL
+  if (is.null(env)) env <- globalenv()
+  y <- ".cogmod_scale_y"
+  one <- tryCatch(stats::as.formula(paste(y, "~", term), env = env),
+                  error = function(e) NULL)
+  if (is.null(one)) return(NULL)
+  data[[y]] <- 0
+  sdata <- tryCatch(
+    suppressWarnings(brms::make_standata(one, data = data, ...)),
+    error = function(e) NULL
+  )
+  if (is.null(sdata)) return(NULL)
+  s <- .zs_scales(sdata)
+  sds <- if (!length(s) || anyNA(s)) NA_real_ else exp(mean(log(s)))
+  Xs <- sdata$Xs
+  bs <- if (is.null(Xs) || !length(Xs)) {
+    numeric(0)
+  } else {
+    Xs <- as.matrix(Xs)
+    r <- sqrt(colMeans(Xs^2))
+    r[!is.finite(r) | r <= 0] <- NA_real_
+    r
+  }
+  list(sds = sds, bs = bs)
+}
+
+
 # Warning when the evidence scale is left free
 # ===========================================
 #

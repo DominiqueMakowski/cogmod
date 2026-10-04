@@ -1,0 +1,227 @@
+diff --git a/NEWS.md b/NEWS.md
+index 00c2b6cd..63c1772f 100644
+--- a/NEWS.md
++++ b/NEWS.md
+@@ -101,6 +101,9 @@ matrices. (#1939)
+ 
+ ### Other Changes
+ 
++* Compute intercept-only distributional parameters (e.g., `sigma ~ 1`)
++once as scalars in the Stan code rather than as vectors over observations,
++which reduces the cost per gradient evaluation of such models.
+ * Improve sampling efficiency of `beta_binomial` models. (#1703)
+ * Improve efficiency of non-factorizable log-likelihoods 
+ for Student-t models thanks to Seth Axen. (#1820)
+diff --git a/R/brmsterms.R b/R/brmsterms.R
+index 2470533f..6090cc9a 100644
+--- a/R/brmsterms.R
++++ b/R/brmsterms.R
+@@ -847,6 +847,40 @@ is_nlpar <- function(x) {
+   isTRUE(nzchar(x[["nlpar"]]))
+ }
+ 
++# is a linear formula just a (centered) intercept? Its predictor
++# is then the same for every observation
++is_intercept_only <- function(x) {
++  is.bframel(x) && !is_nlpar(x) && !has_special_terms(x) &&
++    isTRUE(x$frame$fe$center) && !length(x$frame$fe$vars_stan)
++}
++
++# can a predicted distributional parameter be computed as a scalar in the
++# Stan code rather than as a vector over observations? This is the case
++# for intercept-only parameters, except in models where the parameter is
++# indexed by observation somewhere other than in the likelihood call
++# (mixtures, skew-normal and logistic-normal transforms, residual
++# correlations, autocorrelation, user code in the likelihood block that
++# mentions the parameter) or where the type of the parameter is part of
++# a user-facing contract (vectorized custom families receive predicted
++# parameters as vectors)
++is_scalar_dpar <- function(bterms, dpar) {
++  stopifnot(is.brmsterms(bterms))
++  dpar <- as_one_character(dpar)
++  family <- bterms$family
++  if (nzchar(dpar_id(dpar)) || is.mixfamily(family) ||
++      is.customfamily(family) && isFALSE(family$loop) ||
++      any(family_names(bterms) %in% c("skew_normal", "logistic_normal")) ||
++      isTRUE(bterms$rescor) || has_ac_subset(bterms)) {
++    return(FALSE)
++  }
++  # 'lik_scode' is set in stan_predictor.brmsframe from the stanvars
++  stan_name <- paste0(dpar, usc(bterms$resp))
++  if (any(grepl(paste0("\\b", stan_name, "\\b"), bterms$lik_scode, perl = TRUE))) {
++    return(FALSE)
++  }
++  dpar_class(dpar, family) != "mu" && is_intercept_only(bterms$dpars[[dpar]])
++}
++
+ # indicate if the intercept should be removed
+ no_int <- function(x) {
+   isFALSE(attr(x, "int", exact = TRUE))
+diff --git a/R/stan-likelihood.R b/R/stan-likelihood.R
+index 991ddbe8..602535dc 100644
+--- a/R/stan-likelihood.R
++++ b/R/stan-likelihood.R
+@@ -303,7 +303,9 @@ stan_log_lik_dpars <- function(bterms, reqn = stan_log_lik_adj(bterms),
+     pred_dpars <- unique(dpar_class(pred_dpars, bterms))
+   }
+   is_pred <- dpars %in% pred_dpars
+-  out <- paste0(dpars, resp, ifelse(reqn & is_pred, "[n]", ""))
++  # intercept-only parameters are computed as scalars (see is_scalar_dpar)
++  is_scalar <- ulapply(dpars, is_scalar_dpar, bterms = bterms)
++  out <- paste0(dpars, resp, ifelse(reqn & is_pred & !is_scalar, "[n]", ""))
+   named_list(dpars, out)
+ }
+ 
+@@ -698,7 +700,9 @@ stan_log_lik_exgaussian <- function(bterms, ...) {
+ }
+ 
+ stan_log_lik_inverse.gaussian <- function(bterms, ...) {
+-  is_pred_shape <- is_pred_dpar(bterms, "shape")
++  # the vectorized inv_gaussian_lpdf requires a scalar shape
++  is_pred_shape <- is_pred_dpar(bterms, "shape") &&
++    !is_scalar_dpar(bterms, "shape")
+   reqn <- stan_log_lik_adj(bterms) || is_pred_shape
+   p <- stan_log_lik_dpars(bterms, reqn = reqn)
+   sdist("inv_gaussian", p$mu, p$shape, vec = FALSE)
+diff --git a/R/stan-predictor.R b/R/stan-predictor.R
+index 5913baaf..2596ced2 100644
+--- a/R/stan-predictor.R
++++ b/R/stan-predictor.R
+@@ -50,6 +50,9 @@ stan_predictor.brmsframe <- function(x, prior, normalize, ...) {
+   }
+   args <- nlist(prior, normalize, nlpars = names(x$nlpars), ...)
+   args$primitive <- use_glm_primitive(x) || use_glm_primitive_categorical(x)
++  # user code placed in the likelihood block shares scope with the
++  # distributional parameters; see is_scalar_dpar
++  x$lik_scode <- collapse_stanvars(list(...)$stanvars, block = "likelihood")
+   for (nlp in names(x$nlpars)) {
+     nlp_args <- list(x$nlpars[[nlp]])
+     str_add_list(out) <- do_call(stan_predictor, c(nlp_args, args))
+@@ -59,6 +62,7 @@ stan_predictor.brmsframe <- function(x, prior, normalize, ...) {
+     dp_comment <- stan_dpar_comments(dp, family = x$family)
+     if (is.btl(dp_terms) || is.btnl(dp_terms)) {
+       # distributional parameter is predicted
++      args$scalar <- is_scalar_dpar(x, dp)
+       str_add_list(out) <- do_call(stan_predictor, c(list(dp_terms), args))
+     } else if (is.numeric(x$fdpars[[dp]]$value)) {
+       # distributional parameter is fixed to constant
+@@ -2032,7 +2036,8 @@ stan_Xme <- function(bframe, prior, threads, normalize) {
+ # @param primitive use Stan's GLM likelihood primitives?
+ # @param ... currently unused
+ # @return list of character strings containing Stan code
+-stan_eta_combine <- function(bframe, out, threads, primitive, ...) {
++stan_eta_combine <- function(bframe, out, threads, primitive,
++                             scalar = FALSE, ...) {
+   stopifnot(is.btl(bframe), is.list(out))
+   if (primitive && !has_special_terms(bframe)) {
+     # only overall effects and perhaps an intercept are present
+@@ -2043,10 +2048,21 @@ stan_eta_combine <- function(bframe, out, threads, primitive, ...) {
+   resp <- usc(bframe$resp)
+   eta <- combine_prefix(px, keep_mu = TRUE, nlp = TRUE)
+   out$eta <- sub("^[ \t\r\n]+\\+", "", out$eta, perl = TRUE)
+-  str_add(out$model_def) <- glue(
+-    "  // initialize linear predictor term\n",
+-    "  vector[N{resp}] {eta} = rep_vector(0.0, N{resp});\n"
+-  )
++  if (scalar) {
++    # the term is the same for every observation, so compute it once;
++    # vectorized lpdf functions accept a real in place of a vector
++    # (see is_scalar_dpar)
++    stopifnot(is_intercept_only(bframe))
++    str_add(out$model_def) <- glue(
++      "  // initialize linear predictor term\n",
++      "  real {eta} = 0;\n"
++    )
++  } else {
++    str_add(out$model_def) <- glue(
++      "  // initialize linear predictor term\n",
++      "  vector[N{resp}] {eta} = rep_vector(0.0, N{resp});\n"
++    )
++  }
+   if (isTRUE(nzchar(out$eta))) {
+     str_add(out$model_comp_eta_basic) <- glue("  {eta} +={out$eta};\n")
+   }
+diff --git a/tests/testthat/tests.stancode.R b/tests/testthat/tests.stancode.R
+index 6191c7e1..ade6528a 100644
+--- a/tests/testthat/tests.stancode.R
++++ b/tests/testthat/tests.stancode.R
+@@ -1446,6 +1446,9 @@ test_that("weighted, censored, and truncated likelihoods are correct", {
+   expect_match2(scode, "target += asym_laplace_lccdf(Y[n] | mu[n], sigma, quantile);")
+ 
+   scode <- stancode(bf(y | cens(x) ~ 1, shape ~ 1), dat, family = Gamma())
++  expect_match2(scode, "target += gamma_lpdf(Y[Jevent[1:Nevent]] | shape, shape ./ mu[Jevent[1:Nevent]]);")
++
++  scode <- stancode(bf(y | cens(x) ~ 1, shape ~ x), dat, family = Gamma())
+   expect_match2(scode, "target += gamma_lpdf(Y[Jevent[1:Nevent]] | shape[Jevent[1:Nevent]], shape[Jevent[1:Nevent]] ./ mu[Jevent[1:Nevent]]);")
+ 
+   dat$x[1] <- 2
+@@ -2892,3 +2895,69 @@ test_that("Grouping prior weights are added to the Stan code", {
+   expect_match2(scode, "vector[N_1] PW_1;  // weights for group contribution to the prior")
+   expect_match2(scode, "target += PW_1[j] * std_normal_lpdf(z_1[, j]);")
+ })
++
++test_that("intercept-only distributional parameters are computed as scalars", {
++  dat <- data.frame(y = rnorm(10), x = rnorm(10), g = rep(1:2, 5),
++                    cens = sample(0:1, 10, TRUE), dec = sample(0:1, 10, TRUE))
++
++  scode <- stancode(bf(y ~ x, sigma ~ 1), dat)
++  expect_match2(scode, "real sigma = 0;")
++  expect_match2(scode, "sigma += Intercept_sigma;")
++  expect_match2(scode, "sigma = exp(sigma);")
++  expect_match2(scode, "target += normal_lpdf(Y | mu, sigma);")
++
++  # looped likelihoods and censoring pass the scalar as is
++  scode <- stancode(bf(y | cens(cens) ~ x, sigma ~ 1), dat)
++  expect_match2(scode, "real sigma = 0;")
++  expect_match2(scode, "normal_lpdf(Y[Jevent[1:Nevent]] | mu[Jevent[1:Nevent]], sigma);")
++  scode <- stancode(bf(y ~ x, sigma ~ 1), dat, threads = threading(2))
++  expect_match2(scode, "real sigma = 0;")
++  expect_match2(scode, "ptarget += normal_lpdf(Y[start:end] | mu, sigma);")
++  scode <- stancode(bf(y ~ x, hu ~ 1), dat, family = hurdle_lognormal())
++  expect_match2(scode, "real hu = 0;")
++  expect_match2(scode, "hurdle_lognormal_logit_lpdf(Y[n] | mu[n], sigma, hu);")
++  dat$n <- rpois(10, 3)
++  scode <- stancode(bf(n | rate(n + 1) ~ x, shape ~ 1), dat, family = negbinomial())
++  expect_match2(scode, "real shape = 0;")
++  expect_match2(scode, "neg_binomial_2_log_lpmf(Y | mu + log_denom, shape .* denom);")
++  scode <- stancode(bf(n ~ x, shape ~ 1), dat, family = inverse.gaussian())
++  expect_match2(scode, "real shape = 0;")
++  expect_match2(scode, "target += inv_gaussian_lpdf(Y | mu, shape);")
++
++  # the response-level predictor and non-intercept-only terms stay vectors
++  scode <- stancode(bf(y ~ 1, sigma ~ 1), dat)
++  expect_match2(scode, "vector[N] mu = rep_vector(0.0, N);")
++  expect_match2(scode, "real sigma = 0;")
++  scode <- stancode(bf(y ~ x, sigma ~ 1 + (1 | g)), dat)
++  expect_match2(scode, "vector[N] sigma = rep_vector(0.0, N);")
++  scode <- stancode(bf(y ~ x, sigma ~ 0 + Intercept), dat)
++  expect_match2(scode, "vector[N] sigma = rep_vector(0.0, N);")
++
++  # models whose Stan code indexes the parameter elsewhere keep the vector
++  scode <- stancode(bf(y ~ x, sigma ~ 1), dat, family = skew_normal())
++  expect_match2(scode, "vector[N] sigma = rep_vector(0.0, N);")
++  scode <- stancode(bf(y ~ x, sigma1 ~ 1), dat, family = mixture(gaussian, gaussian))
++  expect_match2(scode, "vector[N] sigma1 = rep_vector(0.0, N);")
++  scode <- stancode(bf(y ~ x, sigma ~ 1) + bf(x ~ y, sigma ~ 1) + set_rescor(TRUE), dat)
++  expect_match2(scode, "vector[N_y] sigma_y = rep_vector(0.0, N_y);")
++
++  # user code in the likelihood block that mentions the parameter keeps the vector
++  sv <- stanvar(scode = "sigma[1] += 0;", block = "likelihood", position = "start")
++  scode <- stancode(bf(y ~ x, sigma ~ 1), dat, stanvars = sv)
++  expect_match2(scode, "vector[N] sigma = rep_vector(0.0, N);")
++  sv <- stanvar(scode = "mu[1] += 0;", block = "likelihood", position = "start")
++  scode <- stancode(bf(y ~ x, sigma ~ 1), dat, stanvars = sv)
++  expect_match2(scode, "real sigma = 0;")
++
++  # vectorized custom families receive predicted parameters as vectors
++  cfam <- custom_family("cfam", dpars = c("mu", "sigma"), links = c("identity", "log"),
++                        lb = c(NA, 0), vars = "vint1", loop = FALSE)
++  cfam_stanvar <- stanvar(block = "functions", scode = "
++    real cfam_lpdf(vector y, vector mu, vector sigma, array[] int vint1) {
++      return normal_lpdf(y | mu, sigma);
++    }")
++  scode <- stancode(bf(y | vint(dec) ~ x, sigma ~ 1), dat, family = cfam,
++                    stanvars = cfam_stanvar)
++  expect_match2(scode, "vector[N] sigma = rep_vector(0.0, N);")
++  expect_match2(scode, "cfam_lpdf(Y | mu, sigma, vint1);")
++})

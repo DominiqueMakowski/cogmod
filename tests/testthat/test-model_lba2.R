@@ -795,7 +795,11 @@ test_that("cogmod_inits covers the declared parameters", {
   expect_lt(exp(v0$Intercept_ndt), 0.3)
   expect_equal(log1p(exp(v0$Intercept_sigmazero)), 1, tolerance = 1e-8)
   expect_equal(log1p(exp(v0$Intercept_sigmabias)), 0.5, tolerance = 1e-8)
-  expect_equal(v0$Intercept_driftone, 3, tolerance = 1e-8)
+  # The error accumulator starts slower than the correct one: the old start,
+  # driftone = mu = 3, was a 50/50 race, and 1 was cheaper at every error rate
+  # from 3% to 43% (see the registry entry).
+  expect_equal(v0$Intercept, 3, tolerance = 1e-8)
+  expect_equal(v0$Intercept_driftone, 1, tolerance = 1e-8)
 })
 
 

@@ -190,6 +190,12 @@ avoids that.
 }
 
 \section{Negative drift rates}{
+\strong{Where one response is rare - a few percent of the trials in some
+condition - keep the drift SD of its accumulator free of predictors}:
+\code{sigmaone ~ 1}, or \code{sigmaone ~ 1 + (1 | participant)}, or fix it. The
+reason is the flat direction described at the end of this section, which a
+condition-varying SD multiplies.
+
 A Normal drift rate can come out negative, and such an accumulator rises
 away from the threshold and never responds. Brown and Heathcote (2008) noted
 the problem and left it; every implementation since has had to decide what
@@ -233,6 +239,15 @@ evidence scale where the correct accumulator's drift is \code{3}.
 the \emph{rarely} chosen option is the one on \code{mu}, mirror that prior onto \code{mu}
 by hand. Fixing both SDs (\verb{sigmazero = 1, sigmaone = 1}, a single \code{sv})
 removes the ray altogether and is common practice in the LBA literature.
+
+Predictors on that accumulator's SD make it worse. With \code{sigmaone}
+varying by condition, every condition in which the accumulator rarely wins
+has a ray of its own, along which its \code{driftone} and \code{sigmaone} can slide
+together without changing the fit - so an easy condition can report an
+error drift of \code{-7} or \code{-17} with the same realised behaviour, and different
+chains can settle at different points. One SD shared across conditions
+leaves a single such direction, and any condition in which the accumulator
+wins often enough then pins it.
 }
 
 \section{The evidence scale is arbitrary}{
@@ -300,6 +315,9 @@ brms::brm(f, data = df,
           init     = cogmod_inits(f, df),
           stanvars = cogmod_stanvars(f))
 }\if{html}{\out{</div>}}
+
+\code{sigmaone ~ 1} is deliberate: read \emph{Negative drift rates} before giving it
+the predictors the drifts have.
 
 The \code{brms} family names the drift of the first accumulator \code{mu} (as \code{brms}
 requires) and that of the second \code{driftone}. Use \code{\link[=cogmod_inits]{cogmod_inits()}} rather than
