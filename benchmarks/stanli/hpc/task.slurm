@@ -12,10 +12,10 @@
 # sbatch command line from run.sh.
 #
 #   STANLI_KIND=fit   bench.R's 2x2 fit at --seed = the array index
-#   STANLI_KIND=fitpar  the same seed with stanli's chains in parallel: one
-#                     process per chain, and stanli's threads from random inits
-#   STANLI_KIND=grad  bench.R grad, bisect.R and repro_issue.R: the
-#                     per-gradient checks and timings, single-threaded
+#                     (STANLI_ARMS, if set, replaces the default arms)
+#   STANLI_KIND=grad  bench.R grad, bisect.R, repro_issue.R and
+#                     repro_parallel_init.R: the per-gradient checks and
+#                     timings, single-threaded, then the parallel-chains check
 #
 # Each task works in its own copy of the pushed tree on scratch, so no two
 # tasks share an output directory or a compiled executable, and then copies
@@ -45,16 +45,16 @@ R=benchmarks/stanli
 Rscript $R/bench.R emit > "$dest/emit.log" 2>&1
 status=$?
 if [ $status -eq 0 ] && [ "$kind" = fit ]; then
-  Rscript $R/bench.R fit --seed "$idx" > "$dest/fit.log" 2>&1; status=$?
-elif [ $status -eq 0 ] && [ "$kind" = fitpar ]; then
-  # stanli with its chains actually in parallel: one process per chain, and
-  # stanli's own threads from random inits (bench.R's fit section).
-  Rscript $R/bench.R fit --seed "$idx" --tag par \
-    --arms cmdstanr_orig,stanli_orig_proc,stanli_sel_proc,stanli_orig_rand > "$dest/fit.log" 2>&1; status=$?
+  Rscript $R/bench.R fit --seed "$idx" ${tag:+--tag $tag} ${STANLI_ARMS:+--arms $STANLI_ARMS} \
+    > "$dest/fit.log" 2>&1; status=$?
 elif [ $status -eq 0 ] && [ "$kind" = grad ]; then
   Rscript $R/bench.R grad --reps 21 ${tag:+--tag $tag} > "$dest/grad.log" 2>&1; status=$?
-  Rscript $R/bisect.R > "$dest/bisect.log" 2>&1 || status=$?
+  Rscript $R/bisect.R ${tag:+--tag $tag} > "$dest/bisect.log" 2>&1 || status=$?
   Rscript $R/repro_issue.R > "$dest/repro_issue.txt" 2>&1 || status=$?
+  # Chain times are each chain's own wall clock, so four chains sharing two
+  # cores slow alike and wall/sum stays near 1/4 when they overlap; 1.0 is
+  # serial.
+  Rscript $R/repro_parallel_init.R > "$dest/repro_parallel_init.txt" 2>&1 || status=$?
 fi
 cp $R/results/* "$dest/" 2>/dev/null
 echo "finished $(date '+%Y-%m-%d %H:%M:%S') status $status" >> "$dest/node.txt"

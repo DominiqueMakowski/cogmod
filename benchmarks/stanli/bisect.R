@@ -2,14 +2,14 @@
 # select pattern". Every variant has the same log density; only the way the
 # branches, the mixture and the checks are written changes.
 #
-#   Rscript benchmarks/stanli/bisect.R [--out DIR]
+#   Rscript benchmarks/stanli/bisect.R [--out DIR] [--tag NAME]
 #
 # Run after `bench.R emit` (reads lnr_orig.stan, the data and the init from
 # DIR, default benchmarks/results/stanli). stanli only, no compiling; about a
-# minute. Writes results/bisect.csv.
+# minute. Writes results/bisect[_TAG].csv.
 
 source("benchmarks/gradient_programs.R")  # gp_args()
-opt <- gp_args(list(out = "benchmarks/results/stanli"))
+opt <- gp_args(list(out = "benchmarks/results/stanli", tag = ""))
 suppressPackageStartupMessages(library(stanli))
 inp <- readRDS(file.path(opt$out, "inputs.rds"))
 x <- readLines(file.path(opt$out, "lnr_orig.stan"))
@@ -80,4 +80,5 @@ res <- data.frame(variant = names(ms),
                   lp_init = vapply(ms, function(m) log_prob_grad(m, q0)$lp, numeric(1)),
                   us_per_grad = as.numeric(tapply(tm$us_per_grad, tm$variant, stats::median)[names(ms)]))
 print(res, digits = 10, row.names = FALSE)
-utils::write.csv(res, "benchmarks/stanli/results/bisect.csv", row.names = FALSE)
+utils::write.csv(res, paste0("benchmarks/stanli/results/bisect", if (nzchar(opt$tag)) paste0("_", opt$tag), ".csv"),
+                 row.names = FALSE)

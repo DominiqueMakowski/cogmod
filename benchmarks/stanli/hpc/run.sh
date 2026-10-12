@@ -5,19 +5,18 @@
 #   ./run.sh push               the scripts, the minimal package tree and the
 #                               stanli tarball -> the cluster (one tar pipe)
 #   ./run.sh install            brms 2.23.1 (GitHub) + stanli $STANLI_VERSION (default
-#                               0.19.1; + runtime) into the experiment's own R library,
-#                               on a compute node. STANLI_TAG=0.19.1 on submit/pull keeps
+#                               0.20.0; + runtime) into the experiment's own R library,
+#                               on a compute node. STANLI_TAG=0.20.0 on submit keeps
 #                               a rerun's results apart (results/<kind>_<tag>_<index>/)
-#   ./run.sh submit fit [n]     n seeds of bench.R's 2x2 fit, 4 CPUs each (default 16)
-#   ./run.sh submit fitpar [n]  n seeds with stanli's chains in parallel (one process
-#                               per chain; stanli's threads from random inits), 4 CPUs
-#   ./run.sh submit grad [n]    n copies of grad + bisect + repro, 2 CPUs each (default 4)
+#   ./run.sh submit fit [n]     n seeds of bench.R's 2x2 fit, 4 CPUs each (default 16);
+#                               STANLI_ARMS=a,b,... replaces the default arms
+#   ./run.sh submit grad [n]    n copies of grad + bisect + repros, 2 CPUs each (default 4)
 #                               n may be a range ("10-12") to rerun those indices;
 #                               extra args go to sbatch
 #
-# artemis-general-02 (a VM, CPU "AMD EPYC-Genoa Processor") killed stanli with
-# SIGILL (exit 132) inside stanli_model() on 2026-10-03, every time, while the
-# EPYC 9334/9355 nodes ran it; reruns there want --exclude=artemis-general-02.
+# The SIGILL of 2026-10-03 (artemis-general-02 and the EPYC 7513 nodes) was
+# stanli's R bridge compiled with -march=native on an AVX-512 node, not
+# stanli; cmd_install below pins -march, and no node needs excluding.
 #   ./run.sh queue              squeue for this user
 #   ./run.sh progress           how many tasks of each kind have finished
 #   ./run.sh log [pattern]      tail the newest .out/.err (optionally matching)
@@ -46,7 +45,7 @@ PROD_LIB="${STANLI_PROD_LIB:-/mnt/lustre/users/${GROUP_}/${USER_}/cluster_R_libs
 R_MODULE="${STANLI_R_MODULE:-CmdStanR/0.7.1-foss-2023a-R-4.3.2}"
 EB_MODULES="${STANLI_EB_MODULES:-/mnt/shared/easybuild/modules/all}"
 MAX="${STANLI_MAX:-16}"
-STANLI_VERSION="${STANLI_VERSION:-0.19.1}"
+STANLI_VERSION="${STANLI_VERSION:-0.20.0}"
 # Tasks write to results/<kind>[_<tag>]_<index>/ and bench.R grad writes its
 # files with --tag, so a rerun on a new stanli keeps the old results.
 TAG="${STANLI_TAG:-}"
@@ -59,7 +58,7 @@ fi
 die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 info() { printf '\033[36m==>\033[0m %s\n' "$*"; }
 remote() { "$SSH" -o BatchMode=yes "$ALIAS" "$@" 2> >(grep -v 'module: command not found' >&2); }
-EXPORTS="STANLI_DIR='${REMOTE}',STANLI_SCRATCH='${SCRATCH}',STANLI_LIB='${LIB}',STANLI_PROD_LIB='${PROD_LIB}',STANLI_R_MODULE='${R_MODULE}',STANLI_EB_MODULES='${EB_MODULES}',STANLI_TAG='${TAG}'"
+EXPORTS="STANLI_DIR='${REMOTE}',STANLI_SCRATCH='${SCRATCH}',STANLI_LIB='${LIB}',STANLI_PROD_LIB='${PROD_LIB}',STANLI_R_MODULE='${R_MODULE}',STANLI_EB_MODULES='${EB_MODULES}',STANLI_TAG='${TAG}',STANLI_ARMS='${STANLI_ARMS:-}'"
 
 # What load_all() and the benchmark need, nothing else: the package's R code
 # and metadata, gradient_programs.R, and benchmarks/stanli's scripts and Stan
@@ -105,7 +104,7 @@ cmd_submit() {
   local kind="${1:?usage: run.sh submit fit|grad [n] [sbatch args]}"; shift || true
   local n cpus time
   case "$kind" in
-    fit|fitpar) n="${1:-16}"; cpus=4; time="02:00:00" ;;
+    fit) n="${1:-16}"; cpus=4; time="02:00:00" ;;
     grad) n="${1:-4}";  cpus=2; time="01:30:00" ;;
     *) die "unknown kind: $kind" ;;
   esac
@@ -125,9 +124,8 @@ cmd_queue() { remote "squeue -u '${USER_}' -o '%.14i %.10P %.24j %.8T %.10M %.10
 
 cmd_progress() {
   remote "cd '${REMOTE}/results' 2>/dev/null || { echo 'no results yet'; exit 0; }
-    echo \"fit : \$(ls fit_*/fit_summary.csv 2>/dev/null | wc -l) seeds done\"
-    echo \"fitpar: \$(ls fitpar_*/fit_summary_par.csv 2>/dev/null | wc -l) seeds done\"
-    echo \"grad: \$(ls grad_*/time.csv 2>/dev/null | wc -l) done\"
+    echo \"fit${TAG:+ $TAG}: \$(ls fit_${TAG:+${TAG}_}[0-9]*/fit_summary*.csv 2>/dev/null | wc -l) seeds done\"
+    echo \"grad${TAG:+ $TAG}: \$(ls grad_${TAG:+${TAG}_}[0-9]*/time*.csv 2>/dev/null | wc -l) done\"
     echo '--- failed tasks (.err with Error):'; grep -l '^Error\|Execution halted' '${SCRATCH}'/*.err 2>/dev/null | wc -l"
 }
 
@@ -140,7 +138,9 @@ cmd_pull() {
   local dest="$HERE/../results/hpc"
   mkdir -p "$dest"
   info "pulling results into ${dest}"
-  remote "cd '${REMOTE}/results' && tar -cf - --exclude='*.log' --exclude='*.rds' ." | tar -C "$dest" -xf -
+  # fitpar_*: the 16 empty directories of the 2026-10-03 workaround run (all
+  # SIGILL), still on the cluster but deleted from the repository.
+  remote "cd '${REMOTE}/results' && tar -cf - --exclude='*.log' --exclude='*.rds' --exclude='fitpar_*' ." | tar -C "$dest" -xf -
   ls "$dest" | wc -l
 }
 

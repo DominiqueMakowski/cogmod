@@ -40,23 +40,24 @@
 #
 #   Rscript benchmarks/stanli/bench.R emit [--out DIR]
 #   Rscript benchmarks/stanli/bench.R grad [--out DIR] [--reps 21] [--tag NAME]
-#                                          [--cmdstan v,...] [--stanli v,...]
+#                                          [--cmdstan v,...] [--stanli v,...] [--fast v,...]
 #   Rscript benchmarks/stanli/bench.R fit  [--out DIR] [--rounds 1] [--iter 500] [--seed 11]
 #                                          [--arms a,b,...] [--tag NAME]
 #
 #   emit  `orig`, the variants, data and an init
 #   grad  log density and gradient of the --cmdstan variants (`orig` always)
-#         in CmdStan and of the --stanli variants in stanli, at the init, 35
-#         points around it and 9 edge points (results/check[_TAG].csv); the
-#         same at a point and a response that put log Phi far into its tail
-#         (results/tail[_TAG].csv); then the cost of one gradient,
-#         alternating blocks (results/time[_TAG].csv)
+#         in CmdStan, of the --stanli variants in stanli, and of the --fast
+#         variants in stanli with fast_math = TRUE (0.20.0 on; engine
+#         `stanli_<v>_fast`), at the init, 35 points around it and 9 edge
+#         points (results/check[_TAG].csv); the same at a point and a
+#         response that put log Phi far into its tail (results/tail[_TAG].csv);
+#         then the cost of one gradient, alternating blocks
+#         (results/time[_TAG].csv)
 #   fit   4 chains x (ITER warmup + ITER sampling) from the same inits; by
 #         default {orig, sel} x {cmdstanr, stanli}: brm(backend = "cmdstanr")
 #         on `orig`, cmdstanr on the program alone for any other variant, and
-#         the light route on each. --arms picks others, e.g. stanli with one
-#         process per chain (see the fit section). Writes
-#         results/fit_summary[_TAG].csv, fit_chains, fit_pars
+#         the light route on each. --arms picks others (see the fit section).
+#         Writes results/fit_summary[_TAG].csv, fit_chains, fit_pars
 #
 # DIR (generated programs, executables, fits) defaults to
 # benchmarks/results/stanli. Needs stanli (seantalts.r-universe.dev, then
@@ -88,7 +89,7 @@ commandArgs <- local({
 opt <- gp_args(list(out = "benchmarks/results/stanli", reps = 21L, rounds = 1L, iter = 500L,
                    seed = 11L, arms = "cmdstanr_orig,cmdstanr_sel,stanli_orig,stanli_sel",
                    tag = "", cmdstan = "orig,orig_s,rw,rw_v",
-                   stanli = "orig,orig_s,rw,rw_v,sel"))
+                   stanli = "orig,orig_s,rw,rw_v,sel", fast = "orig,orig_s"))
 out <- opt$out
 res_dir <- "benchmarks/stanli/results"
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
@@ -217,7 +218,15 @@ rewrite_vec <- function(code) {
 
 inputs <- function() readRDS(path("inputs.rds"))
 code_of <- function(v) paste(readLines(path("lnr_", v, ".stan")), collapse = "\n")
-stanli_of <- function(v, data) stanli_model(code = code_of(v), data = data, threads_per_chain = 1)
+# fast_math (stanli 0.20.0, stanli#446) turns on rewrites the default keeps
+# off to stay within 10 ULP of CmdStan: stanc's partial evaluation, merging
+# duplicate operations, fusing over shared parameters. Only passed when on, so
+# that an older stanli still builds the default.
+stanli_of <- function(v, data, fast = FALSE) {
+  a <- list(code = code_of(v), data = data, threads_per_chain = 1)
+  if (fast) a$fast_math <- TRUE
+  do.call(stanli_model, a)
+}
 init_json <- function(init, file) {
   # write_stan_json() writes a length-1 R vector as a scalar, which CmdStan
   # rejects for the vector[1] coefficients (`b`, `b_nuone`, `b_ndt`) here; a
@@ -252,7 +261,8 @@ if (mode == "grad") {
   inp <- inputs()
   cm_v <- unique(c("orig", strsplit(opt$cmdstan, ",", fixed = TRUE)[[1]]))
   sl_v <- strsplit(opt$stanli, ",", fixed = TRUE)[[1]]
-  unknown <- setdiff(c(cm_v, sl_v), names(.VARIANTS))
+  fm_v <- strsplit(opt$fast, ",", fixed = TRUE)[[1]]
+  unknown <- setdiff(c(cm_v, sl_v, fm_v), names(.VARIANTS))
   if (length(unknown)) stop("unknown variant: ", unknown[1], call. = FALSE)
   res_file <- function(stem) file.path(res_dir, paste0(stem, if (nzchar(opt$tag)) paste0("_", opt$tag), ".csv"))
   cat("stanli", as.character(utils::packageVersion("stanli")), "\n")
@@ -276,12 +286,20 @@ if (mode == "grad") {
     })
     if (!is.null(r)) cm[[v]] <- r
   }
+  # stanli programs are named by variant, "_fast" appended for fast_math.
   t0 <- Sys.time()
-  sl <- list()
-  for (v in sl_v) {
-    m <- tryCatch(stanli_of(v, inp$sdat), error = function(e) conditionMessage(e))
-    if (is.character(m)) cat("stanli on `", v, "`: ", m, "\n", sep = "") else sl[[v]] <- m
+  sl_spec <- c(setNames(as.list(rep(FALSE, length(sl_v))), sl_v),
+               setNames(as.list(rep(TRUE, length(fm_v))), paste0(fm_v, rep("_fast", length(fm_v)))))
+  sl_build <- function(data) {
+    out <- list()
+    for (nm in names(sl_spec)) {
+      m <- tryCatch(stanli_of(sub("_fast$", "", nm), data, fast = sl_spec[[nm]]),
+                    error = function(e) conditionMessage(e))
+      if (is.character(m)) cat("stanli on `", nm, "`: ", m, "\n", sep = "") else out[[nm]] <- m
+    }
+    out
   }
+  sl <- sl_build(inp$sdat)
   cat("stanli build,", length(sl), "programs:", round(as.numeric(Sys.time() - t0, units = "secs"), 1), "s\n")
 
   # One interface for both: q (unconstrained) -> list(lp, grad). stanli's lp
@@ -376,8 +394,9 @@ if (mode == "grad") {
   nu_l <- if (sd12$dec[1] == 0) init12$Intercept_nuone else init12$Intercept
   cat(sprintf("\ntail check: loser's x on the 12 s trial = %.1f\n",
               (-nu_l - log(12 - exp(init12$Intercept_ndt))) / s_l))
+  sl12 <- sl_build(sd12)
   engines <- c(setNames(lapply(cm12, function(x) lpg_cmdstan(x$fit)), paste0("cmdstan_", names(cm12))),
-               setNames(lapply(names(sl), function(v) lpg_stanli(stanli_of(v, sd12))), paste0("stanli_", names(sl))))
+               setNames(lapply(sl12, lpg_stanli), paste0("stanli_", names(sl12))))
   tail <- compare(list(tail = q12))
   print(tail[, c("engine", "lp", "lp_ulp", "grad_finite", "grad_relerr", "err")], digits = 10, row.names = FALSE)
   utils::write.csv(tail, res_file("tail"), row.names = FALSE)
@@ -417,29 +436,26 @@ if (mode == "grad") {
 }
 
 # ---- fit ---------------------------------------------------------------------
-# Sampling efficiency. An arm is <engine>_<variant>[_proc | _rand], e.g.
-# (--arms, comma-separated; the default is {orig, sel} x {cmdstanr, stanli}):
+# Sampling efficiency. An arm is <engine>_<variant>[_fast], e.g. (--arms,
+# comma-separated; the default is {orig, sel} x {cmdstanr, stanli}):
 #
 #   cmdstanr_orig     brm(backend = "cmdstanr"), the standard route
 #   cmdstanr_sel      `sel` compiled by cmdstanr, sampled, read back as a
 #                     stanfit; likewise cmdstanr_<any other variant>
 #   stanli_orig       the light route from brms#1911 on the program brms writes
 #   stanli_sel        the light route on `sel`, and so on
-#   stanli_orig_proc  as stanli_orig, but one R process per chain
-#   stanli_orig_rand  as stanli_orig, from stanli's own random inits (radius 2)
+#   stanli_orig_fast  as stanli_orig, built with fast_math = TRUE (0.20.0 on)
 #
-# Every arm but the _rand ones starts its four chains from the same
-# cogmod_inits() and the same seed (--seed, which also draws the inits);
-# stanli takes them on the unconstrained scale (unconstrain(), one row per
-# chain). Given inits, stanli 0.19.0 and 0.19.1 run the chains one after
-# another whatever parallel_chains says (repro_parallel_init.R), so the
-# plain stanli arms pay the sum of their chains. The _proc arms get round it
-# as CmdStan does, one process per chain: four PSOCK workers each sample
-# chains = 1 from their own init row, at seed 100 * --seed + chain, and
-# rstan::sflist2stanfit() merges the four. The _rand arms get round it the
-# other way, with no inits, so their chains run on stanli's own threads.
+# Every arm starts its four chains from the same cogmod_inits() and the same
+# seed (--seed, which also draws the inits); stanli takes them on the
+# unconstrained scale (unconstrain(), one row per chain). stanli 0.19.0 and
+# 0.19.1 ran the chains one after another whenever they got inits
+# (repro_parallel_init.R), so their stanli arms paid the sum of the chains;
+# 0.20.0 runs them in parallel (stanli#432). Two workaround arms for that,
+# one process per chain and stanli's own random inits, were removed with it:
+# they never produced a result (README, "Parallel chains and inits").
 #
-# Compiling and building (the workers' too) happen before the clock starts, so
+# Compiling and building happen before the clock starts, so
 # `wall_s` is sampling to brmsfit. Each round runs the arms in turn, starting
 # from a different one each round and each seed, so that across a set of seeds
 # each arm goes first equally often; the draws repeat exactly across rounds,
@@ -450,12 +466,13 @@ if (mode == "fit") {
   inp <- inputs()
   f <- inp$f; df <- inp$df; prior <- inp$prior; sv <- inp$sv
   arm_names <- strsplit(opt$arms, ",", fixed = TRUE)[[1]]
-  # "stanli_rw_v_proc" -> engine "stanli", variant "rw_v", how "_proc".
+  # "stanli_rw_v_fast" -> engine "stanli", variant "rw_v", fast_math on; the
+  # stanli model is keyed "rw_v_fast".
   arm_parts <- lapply(setNames(arm_names, arm_names), function(a) {
-    m <- regmatches(a, regexec("^(cmdstanr|stanli)_(.+?)(_proc|_rand)?$", a, perl = TRUE))[[1]]
+    m <- regmatches(a, regexec("^(cmdstanr|stanli)_(.+?)(_fast)?$", a, perl = TRUE))[[1]]
     if (!length(m) || !m[3] %in% names(.VARIANTS) || (m[2] == "cmdstanr" && nzchar(m[4])))
       stop("unknown arm: ", a, call. = FALSE)
-    list(engine = m[2], v = m[3], how = m[4])
+    list(engine = m[2], v = m[3], fast = nzchar(m[4]), key = paste0(m[3], m[4]))
   })
   variant_of <- function(a) arm_parts[[a]]$v
   set.seed(opt$seed)
@@ -486,37 +503,17 @@ if (mode == "fit") {
     build[[a]] <- timed(cmod[[v]] <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(code[[v]]), quiet = TRUE))
   }
   sm <- list()
-  sl_arms <- grep("^stanli_", arm_names, value = TRUE)
-  for (v in unique(vapply(sl_arms, variant_of, character(1)))) {
-    b <- timed(sm[[v]] <- stanli_model(code = code[[v]], data = sdat))
-    for (a in sl_arms[vapply(sl_arms, variant_of, character(1)) == v]) build[[a]] <- b
+  for (a in grep("^stanli_", arm_names, value = TRUE)) {
+    p <- arm_parts[[a]]
+    build[[a]] <- timed(sm[[p$key]] <- do.call(stanli_model, c(
+      list(code = code[[p$v]], data = sdat), if (p$fast) list(fast_math = TRUE))))
   }
   init_u <- lapply(sm, function(m) do.call(rbind, lapply(init_list, unconstrain, model = m)))
 
-  proc <- grep("_proc$", arm_names, value = TRUE)
-  if (length(proc)) {
-    cl <- parallel::makePSOCKcluster(4)
-    pv <- unique(vapply(proc, variant_of, character(1)))
-    parallel::clusterExport(cl, c("code", "sdat", "pv"), envir = environment())
-    b <- timed(parallel::clusterEvalQ(cl, {
-      suppressPackageStartupMessages(library(stanli))
-      wm <- lapply(setNames(pv, pv), function(v) stanli_model(code = code[[v]], data = sdat))
-      NULL
-    }))
-    for (a in proc) build[[a]] <- b
-  }
-
   n <- opt$iter
-  stanli_arm <- function(v, init = init_u[[v]]) function() as_brmsfit(as_stanfit(sample_model(
-    sm[[v]], chains = 4, seed = opt$seed, warmup = n, samples = n, init = init,
+  stanli_arm <- function(key) function() as_brmsfit(as_stanfit(sample_model(
+    sm[[key]], chains = 4, seed = opt$seed, warmup = n, samples = n, init = init_u[[key]],
     parallel_chains = 4, refresh = 0)))
-  proc_arm <- function(v) function() {
-    sfs <- parallel::parLapply(cl, 1:4, function(i, v, init, seed, n) {
-      stanli::as_stanfit(stanli::sample_model(wm[[v]], chains = 1, seed = 100 * seed + i,
-                                              warmup = n, samples = n, init = init[i, ], refresh = 0))
-    }, v = v, init = init_u[[v]], seed = opt$seed, n = n)
-    as_brmsfit(rstan::sflist2stanfit(sfs))
-  }
   cmdstanr_arm <- function(v) if (v == "orig") function() brms::brm(
     f, data = df, prior = prior, stanvars = sv, backend = "cmdstanr", chains = 4,
     cores = 4, warmup = n, iter = 2 * n, init = init_list, seed = opt$seed, refresh = 0,
@@ -529,10 +526,7 @@ if (mode == "fit") {
       as_brmsfit(brms:::read_csv_as_stanfit(fc$output_files(), model = cmod[[v]]))
     }
   arms <- lapply(arm_parts, function(p) {
-    if (p$engine == "cmdstanr") return(cmdstanr_arm(p$v))
-    if (p$how == "_proc") proc_arm(p$v)
-    else if (p$how == "_rand") stanli_arm(p$v, init = NULL)
-    else stanli_arm(p$v)
+    if (p$engine == "cmdstanr") cmdstanr_arm(p$v) else stanli_arm(p$key)
   })
 
   fits <- list()
@@ -557,7 +551,6 @@ if (mode == "fit") {
     }
   }
   chains <- do.call(rbind, chains)
-  if (length(proc)) parallel::stopCluster(cl)
   out_name <- function(stem, ext) paste0(stem, if (nzchar(opt$tag)) paste0("_", opt$tag), ext)
   saveRDS(fits, path(out_name("fits", ".rds")))
 
@@ -598,5 +591,5 @@ if (mode == "fit") {
   print(summ, digits = 3, row.names = FALSE)
   print(pars, digits = 4)
   # The same posterior every way: elpd differences should all be ~0.
-  print(loo::loo_compare(lapply(fits, brms::loo)))
+  if (length(fits) > 1) print(loo::loo_compare(lapply(fits, brms::loo)))
 }

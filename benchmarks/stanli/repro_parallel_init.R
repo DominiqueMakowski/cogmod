@@ -1,5 +1,5 @@
-# stanli 0.19.0 runs chains one at a time whenever sample_model() is given
-# `init`, whatever parallel_chains says. Self-contained (stanli only); run
+# stanli 0.19.0 and 0.19.1 ran chains one at a time whenever sample_model()
+# was given `init`, whatever parallel_chains said. Self-contained (stanli only); run
 # with Rscript from anywhere. Found 2026-10-03 when bench.R's fit started its
 # stanli arms from cogmod_inits(): wall time came out as the sum of the chain
 # times, on Windows and on Linux. sample_model() hands init_vec and
@@ -9,6 +9,12 @@
 #   init none   wall  2.49 s, chains max  2.48, sum  7.59: wall/sum 0.33
 #   init vector wall  8.11 s, chains max  2.59, sum  8.09: wall/sum 1.00
 #   init matrix wall  8.73 s, chains max  3.42, sum  8.70: wall/sum 1.00
+#
+# Fixed in 0.20.0 (stanli#432: the C API had its own serial loop for
+# supplied inits). The same laptop, 2026-10-12:
+#   init none   wall  2.48 s, chains max  2.47, sum  7.44: wall/sum 0.33
+#   init vector wall  2.06 s, chains max  2.05, sum  6.39: wall/sum 0.32
+#   init matrix wall  2.58 s, chains max  2.57, sum  6.80: wall/sum 0.38
 suppressPackageStartupMessages(library(stanli))
 cat("stanli", as.character(packageVersion("stanli")), "\n")
 set.seed(1)

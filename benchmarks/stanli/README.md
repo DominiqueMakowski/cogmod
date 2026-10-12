@@ -1,11 +1,11 @@
-# stanli as a backend for cogmod: exact, faster per gradient, serial chains with inits
+# stanli as a backend for cogmod: exact, and faster per gradient and end to end
 
-2026-10-02 to 04, on two platforms:
+2026-10-02 to 04 and 2026-10-12, on two platforms:
 
 - **Windows**: a laptop (i7-1265U: 2 performance + 8 efficiency cores),
   CmdStan 2.38, cmdstanr 0.9.0.9000, R 4.5.3.
-- **Linux**: Artemis, the Sussex HPC (AMD EPYC 9334 and 9355 nodes, Rocky
-  9.5), CmdStan 2.39, cmdstanr 0.9.0, R 4.3.2.
+- **Linux**: Artemis, the Sussex HPC (AMD EPYC 9334, 9355 and 7513 nodes,
+  Rocky 9.5), CmdStan 2.39, cmdstanr 0.9.0, R 4.3.2.
 
 Both run brms 2.23.1 from GitHub (`e71e9d7`; CRAN has 2.23.0), so both sample
 the same Stan program. stanli 0.18.1 first, then 0.19.0 (released 2026-10-03,
@@ -13,23 +13,24 @@ in response to [seantalts/stanli#422](https://github.com/seantalts/stanli/issues
 then 0.19.1 (2026-10-04) together with a hand-written LNR program the
 maintainer posted as [cogmod#5](https://github.com/DominiqueMakowski/cogmod/issues/5)
 (section "0.19.1, and the rewrite from cogmod#5"; on Linux these ran on EPYC
-9355 and 7513 nodes).
+9355 and 7513 nodes), then 0.20.0 (2026-10-11), which fixed what our 0.19.1
+report raised (section "0.20.0").
 
 | file | what |
 | --- | --- |
 | `bench.R` | the harness: `emit`, `grad` (exactness and cost per gradient), `fit` (sampling, 2 x 2) |
 | `bisect.R` | cost of each way of writing the likelihood, stanli only |
 | `repro_issue.R` | stanli-only reproducer of #422 |
-| `repro_parallel_init.R` | stanli-only reproducer: chains run serially when given inits |
+| `repro_parallel_init.R` | stanli-only reproducer: chains ran serially when given inits (0.19.x; fixed in 0.20.0) |
+| `postprocess.R` | which post-processing tools work on a fit through the `"mock"` route, against a cmdstanr fit (`results/postprocess_0.20.0.csv`) |
 | `lnr_select_functions.stan`, `lnr_branchfree_functions.stan` | the rewritten likelihoods |
 | `lnr_rewrite.stan` | cogmod#5's whole program, verbatim (variant `rw`) |
 | `scalar_dpar.R` | brms's `sigma ~ 1` as a vector against a real, on a built-in family (gaussian); the script behind brms#1945 |
 | `brms_scalar_dpar.patch` | the change as submitted in brms#1946, against brms f131ef1 |
 | `brms_scalar_dpar/` | its harness: `smoke.R` (generated code per formula), `emit.R` and `compile_check.R` (eleven models, installed brms against the patched checkout) |
-| `hpc/` | the same runs on Artemis: `run.sh`, `task.slurm`, `install.R`, `summarise.R`; `sigill_probe.R` is the per-node probe behind the SIGILL diagnosis |
-| `reply_draft.md` | draft reply for stanli#422 (the SIGILL diagnosis); deleted once posted, as the others were |
-| `results/` | Windows numbers: `check`, `tail`, `time` (and their `_0.19.1` reruns), `bisect.csv` from `bisect.R`, `fit_*.csv` from `fit`, `repro_issue.txt`; the three `fit_*_smoke.csv` are the seed-11 smoke run behind the ridge paragraph under "Parallel chains and inits" |
-| `results/hpc/` | the Linux ones: `fit_<seed>/`, `grad_<task>/`, `grad_0.19.1_<task>/`, each with a `node.txt` |
+| `hpc/` | the same runs on Artemis: `run.sh`, `task.slurm`, `install.R`, `summarise.R`; `sigill_probe.R` is the per-node probe behind the SIGILL diagnosis, `affinity_probe.R` the one behind the slow-CmdStan node of the 0.20.0 fit |
+| `results/` | Windows numbers: `check`, `tail`, `time` (and their `_0.19.1` and `_0.20.0` reruns; `_0.20.0_lse` is `orig` against `lse`), `bisect.csv` (0.19.0) and `bisect_0.20.0.csv` from `bisect.R`, `fit_*.csv` from `fit` (0.19.0; `fit_*_0.20.0.csv` the rerun), `repro_issue.txt`; the three `fit_*_smoke.csv` are the seed-11 smoke run behind the ridge paragraph under "Parallel chains and inits" |
+| `results/hpc/` | the Linux ones: `fit_<seed>/`, `grad_<task>/` (0.19.0), `grad_0.19.1_<task>/`, `grad_0.20.0_<task>/`, `fit_0.20.0_<seed>/`, each with a `node.txt`; `fit_0.20.0rtx01_14/` is the CmdStan-only control on the slow node |
 
 ## The question
 
@@ -53,35 +54,163 @@ cmdstanr backend? Measured on the LNR: the decision_making vignette's model
 `ndt ~ Condition`) on its data (speed_acc, participants 1-3, RT <= 2 s;
 4620 trials), the same set-up as `benchmarks/lnr_vectorize`.
 
-## Short answer (stanli 0.19.1)
+## Short answer (stanli 0.20.0)
 
 - **It runs the program brms writes, unchanged, and exactly.** The log density
   is CmdStan's to within 4 ULP (identical at most points) and the gradient
   to 2e-14, including in the far tail (x = -65) where a naive branch-free
-  copy's gradient is not finite. At the points measured on 0.19.0 the
-  gradient error is the same to every printed digit.
-- **It is faster per gradient: 0.41x CmdStan on Windows, 0.71-0.77x on
-  Linux** (0.19.0: 0.48x and 0.81-0.86x). CmdStan gains far more than stanli
-  from Linux's faster maths library, so the gap narrows there.
-- **It samples as efficiently per leapfrog step** (0.19.0, 16 seeds). Same
-  posterior, same ESS per 1000 leapfrog steps (about 22.5 in every arm), so
-  the difference is all in the cost of a step.
-- **End to end it is slower, for now.** stanli 0.19.0 and 0.19.1 run the
-  chains one at a time whenever `sample_model()` is given inits, whatever
-  `parallel_chains` says (`repro_parallel_init.R`). Started from
-  `cogmod_inits()`, a 4-chain fit took 2.3x CmdStan's wall time on Linux.
-  Without inits the chains do run in parallel. Not yet reported upstream.
+  copy's gradient is not finite. 0.20.0 gives 0.19.1's log density bit for
+  bit at every point measured.
+- **It is faster per gradient: 0.42x CmdStan on Windows, 0.75-0.77x on
+  Linux**, as on 0.19.1 (0.41x; 0.77x on the same node type). CmdStan gains
+  far more than stanli from Linux's faster maths library, so the gap
+  narrows there. 0.20.0's `fast_math` adds nothing on this model.
+- **It samples as efficiently per leapfrog step**: same posterior, same ESS
+  per 1000 leapfrog steps (about 22.5 in every arm, 16 seeds). 0.20.0
+  reproduces 0.19.0's draws exactly, seed for seed.
+- **End to end it is now faster too.** 0.19.x ran the chains one at a time
+  whenever `sample_model()` got inits, so a 4-chain fit from
+  `cogmod_inits()` took 2.3x CmdStan's wall time on Linux. We reported it;
+  0.20.0 runs them in parallel. The same fit now takes **0.74x CmdStan's
+  wall time on Linux** (1.20x the ESS per wall second, 16 seeds) **and
+  0.43-0.46x on Windows** (2.7-2.8x).
+- **The four full-program cliffs we reported are gone** (a data-only
+  return, `log_sum_exp()`, a blend, select plus blend: 4-11x on 0.19.1,
+  0.8-1.1x now). The package's own code never hit them.
 - **The maintainer's hand-written LNR (cogmod#5) is exact and faster, but
   on CmdStan the speed is not in the likelihood.** Its log density is
   brms's bit for bit. All of its CmdStan gain, and half of its stanli gain,
   comes from passing the two intercept-only sigmas as reals - one softplus
   each instead of one per trial - which brms could do for any program. The
-  rewritten likelihood itself costs CmdStan 0.92-1.10x and stanli 0.83-0.94x.
+  rewritten likelihood itself costs CmdStan 0.92-1.11x and stanli 0.83-0.97x.
 - **Hand-written selects (`sel`) are 1.3x faster than the package's code in
   stanli**, but they cost CmdStan 1.36x (Windows) to 1.9x (Linux) and are
   not quite the package's numerics. stanli will not produce them
   automatically (it is held to CmdStan's results). Not worth a second Stan
   source in every family.
+- **brms can take the result through public API** since 0.20.0:
+  `brm(..., backend = "mock", mock_fit = as_stanfit(fit))` gives the same
+  `brmsfit` as the internal `rename_pars()` route.
+
+## 0.20.0: chains in parallel, the cliffs gone
+
+stanli 0.20.0 (2026-10-11) carries
+[#432](https://github.com/seantalts/stanli/pull/432), "Follow-ups from
+#422": chains run in parallel when given inits, and the four full-program
+cliffs from `bisect.R` are fixed, both reported in our 0.19.1 reply. Also
+in it: [#452](https://github.com/seantalts/stanli/pull/452) (what a brms
+backend needs: completing a `brmsfit` through brms's `"mock"` backend,
+partial inits; see "What the light route needs"),
+[#446](https://github.com/seantalts/stanli/pull/446) (an opt-in
+`fast_math` per model, not held to CmdStan's 10 ULP), and fused densities
+(lognormal among them, #439 and #442). Rerun 2026-10-12: Windows from
+r-universe's binary, Linux from the release tarball; `grad`, `bisect.R`
+and `repro_parallel_init.R` on four tasks on one EPYC 9355 node, the fit
+on 16 seeds.
+
+`bench.R` now takes `--fast` (stanli variants also built with
+`fast_math = TRUE`, engine `stanli_<v>_fast`; `orig` and `orig_s` by
+default) and `fit` arms with a `_fast` suffix; `bisect.R` and
+`hpc/summarise.R --kind fit` take `--tag`. The workaround arms for the
+serial chains went (section "Parallel chains and inits").
+
+**End to end, stanli is now the faster backend.** The same 2 x 2 fit as
+on 0.19.0 (section "A real fit"). Linux, 16 seeds, median [10th, 90th
+percentile], ratios within seed (`results/hpc/fit_0.20.0_<seed>/`,
+`hpc/summarise.R --kind fit --tag 0.20.0`):
+
+| arm | wall | wall vs CmdStan `orig` | ESS per wall second vs CmdStan `orig` | ms per leapfrog vs CmdStan `orig` |
+| --- | ---: | ---: | ---: | ---: |
+| cmdstanr `orig` | 86 s [71, 176] | 1 | 1 | 1 |
+| cmdstanr `sel` | 135 s [113, 322] | 1.62 [1.30, 2.00] | 0.64 [0.46, 0.82] | 1.78 [1.40, 2.04] |
+| stanli `orig` | 63 s [51, 163] | **0.74 [0.59, 1.02]** | **1.20 [1.04, 1.50]** | 0.85 [0.71, 1.04] |
+| stanli `sel` | 45 s [40, 133] | 0.56 [0.47, 0.69] | 1.86 [1.26, 2.23] | 0.65 [0.51, 0.71] |
+
+On 0.19.0 the stanli arms took 2.34x and 1.41x CmdStan's wall time.
+Windows, seed 11, rounds 1 / 2 (`results/fit_*_0.20.0.csv`):
+
+| arm | wall | wall vs CmdStan `orig` | ESS per wall second vs CmdStan `orig` | ms per leapfrog |
+| --- | ---: | ---: | ---: | ---: |
+| cmdstanr `orig` | 142 / 128 s | 1 | 1 | 13.8 / 12.6 |
+| cmdstanr `sel` | 230 / 237 s | 1.62 / 1.85 | 0.66 / 0.58 | 22.8 / 23.4 |
+| stanli `orig` | 61 / 58 s | **0.43 / 0.46** | **2.83 / 2.67** | 5.9 / 5.8 |
+| stanli `sel` | 48 / 47 s | 0.34 / 0.37 | 2.71 / 2.49 | 4.9 / 4.7 |
+
+The Linux run was noisy. 13 seeds ran on one EPYC 9355 node, fully
+allocated at the time, `grad`'s tasks among the rest; on those alone
+stanli `orig` took 0.72 [0.60, 0.88] of CmdStan's wall time and `sel`
+0.53 [0.47, 0.61] (ESS per wall second 1.23 and 2.04). Seeds 14-16 first landed on a second 9355 (`rtx-01`), where
+both CmdStan arms ran 5x slower than anywhere else (30-35 ms per leapfrog)
+while stanli's ran normally. Not stanli: the node was nearly idle, stanli
+leaves the process's CPU affinity alone (`hpc/affinity_probe.R`), and
+CmdStan alone there, with no stanli model built, took 49 ms per leapfrog
+(`STANLI_ARMS=cmdstanr_orig`, `results/hpc/fit_0.20.0rtx01_14/`). Not
+chased further. Their rerun on an EPYC 7513 (`--exclude=artemis-rtx-01`)
+put two of them on a busy node, 3-4x slow in every arm; those are what the
+90th percentiles above carry.
+
+- **The same draws as on 0.19.0.** Every arm, every seed, both platforms:
+  the same leapfrog counts and ESS (on Linux even for seeds 14-16, on an
+  EPYC 9334 then and a 7513 now), and on Windows the same posterior means
+  to the last digit. #432 says the parallel path keeps the serial one's
+  draws bitwise; it does, through all the other changes in 0.20.0. So the
+  posterior and sampler-efficiency findings of the 0.19.0 fit stand
+  unchanged.
+- **Only the clock moved.** The chains overlap: summed chain time over wall
+  is 3.6-3.9 for both stanli arms, as for cmdstanr (3.1-3.9). On 0.19.x
+  it was 1.00. On Windows the stanli `orig` fit went from 195 / 169 s to
+  61 / 58 s.
+- **Per step stanli now pays for sharing the machine**, as CmdStan always
+  did: 5.9 ms per leapfrog on Windows against 4.4-5.1 ms when its chains ran
+  alone, and 0.85x CmdStan's on Linux against 0.61x on 0.19.0. That is now
+  in line with `grad` (0.42x and 0.75-0.77x per gradient), as it should be.
+
+**Per gradient nothing changed for this program.** At all 46 points of
+`grad` (36 interior, 9 edge, the tail) 0.20.0 gives 0.19.1's log density
+bit for bit, every engine, both platforms, and the same gradient errors
+(to every digit on Windows, within 5e-15 on Linux, where CmdStan's own
+entries move as much between builds on different node types), so the
+exactness tables below hold as they are. Within-block ratios to CmdStan
+`orig` (Windows one run; Linux four tasks, all on an EPYC 9355, against
+0.19.1's one task on a 9355):
+
+| program | Windows 0.19.1 | Windows 0.20.0 | Linux 0.19.1 | Linux 0.20.0 |
+| --- | ---: | ---: | ---: | ---: |
+| CmdStan `orig_s` | 0.70 | 0.68 | 0.85 | 0.82-0.84 |
+| CmdStan `rw` | 0.75 | 0.75 | 0.84 | 0.84-0.86 |
+| CmdStan `rw_v` | 1.05 | 1.09 | 1.02 | 1.05-1.06 |
+| stanli `orig` | **0.41** | **0.42** | **0.77** | **0.75-0.77** |
+| stanli `orig_s` | 0.36 | 0.35 | 0.64 | 0.63-0.64 |
+| stanli `rw_v` | 0.37 | 0.39 | 0.71 | 0.72-0.73 |
+| stanli `rw` | 0.32 | 0.32 | 0.60 | 0.60-0.61 |
+| stanli `sel` | 0.31 | 0.31 | 0.60 | 0.58-0.60 |
+| stanli `orig`, `fast_math` | | 0.41 | | 0.74-0.76 |
+| stanli `orig_s`, `fast_math` | | 0.34 | | 0.62-0.64 |
+
+The split of cogmod#5's rewrite into sigmas and likelihood comes out as
+before: on CmdStan the sigmas are 0.68-0.69 (Windows) and 0.79-0.84
+(Linux) and the rewritten likelihood 1.09-1.11 and 1.01-1.06; on stanli
+0.83-0.86 and 0.92-0.97. Absolute times on the Linux node ran about 10%
+above 0.19.1's (CmdStan `orig` 1365-1445 µs against 1275), on a node that
+was fully allocated, 13 of the fit's tasks among them; the ratios did not
+move.
+
+- **`fast_math` buys nothing here**: 1.00 against the default on Windows,
+  0.98-0.99 on Linux, with the same log density and gradient as the
+  default at every point. #446 lists what it changes (stanc's partial
+  evaluation, merging duplicate operations, fusion over shared
+  parameters); the LNR's cost is elsewhere.
+- **`log_sum_exp()` in place of `log_mix()`** in the package's program
+  (`lse`; measured because in branch-free code `log_sum_exp()` now beats
+  `log_mix()`, below; Windows, `results/*_0.20.0_lse.csv`): stanli `lse`
+  takes 0.41x CmdStan `orig` against stanli `orig`'s 0.40x, and CmdStan
+  `lse` 1.03x. The gain is in branch-free code only; the package's branchy
+  lanes are indifferent.
+- **The cliffs** are in the `bisect.R` table under "The select pattern":
+  all four gone, and in branch-free code `log_sum_exp()` and a blend now
+  beat `log_mix()` by 11-22%.
+- `repro_issue.R` (Linux): the never-taken parameter branch costs 0.5x the
+  branch-free copy (0.19.1: 0.4x).
 
 ## 0.19.1, and the rewrite from cogmod#5
 
@@ -368,20 +497,22 @@ keep a program's meaning cannot write `sel`.
 What it took for stanli to keep the select version fast (`bisect.R`, µs per
 gradient; every row has the same log density):
 
-| `log Phi` | `t <= ndt` | mixture | checks | 0.18.1 Win | 0.19.0 Win | 0.19.0 Linux | 0.19.1 Linux |
-| --- | --- | --- | --- | ---: | ---: | ---: | ---: |
-| *`orig`, unmodified* | | | | refused | 1700 | 1680 | 1760 |
-| erfc only (`bf`) | clamp to 1e-300 | `log_mix()` | none | 900 | 900 | 825 | 1070 |
-| select | clamp to 1e-300 | `log_mix()` | none | 1000 | 1100 | 1050 | 1360 |
-| select | mask | `log_mix()` | none | 1100 | 1100 | 1060 | 1370 |
-| select | mask | `log_mix()` | data only (`dec`, `Y > 0`) | 4800 | 5000 | 5070 | 6370 |
-| erfc only | clamp | `log_sum_exp()` + `log1m()` | none | 4700 | 4800 | 4075 | 5770 |
-| erfc only | blend: `w * log_mix(...) + (1 - w) * (...)` | `log_mix()` | none | 5500 | 6200 | 5060 | 6470 |
-| select | blend | `log_mix()` | none | 10900 | 11600 | 9580 | 14880 |
+| `log Phi` | `t <= ndt` | mixture | checks | 0.18.1 Win | 0.19.0 Win | 0.19.0 Linux | 0.19.1 Linux | 0.20.0 Win | 0.20.0 Linux |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| *`orig`, unmodified* | | | | refused | 1700 | 1680 | 1760 | 1400 | 1010 |
+| erfc only (`bf`) | clamp to 1e-300 | `log_mix()` | none | 900 | 900 | 825 | 1070 | 900 | 640 |
+| select | clamp to 1e-300 | `log_mix()` | none | 1000 | 1100 | 1050 | 1360 | 1000 | 770 |
+| select | mask | `log_mix()` | none | 1100 | 1100 | 1060 | 1370 | 1100 | 790 |
+| select | mask | `log_mix()` | data only (`dec`, `Y > 0`) | 4800 | 5000 | 5070 | 6370 | **1100** | **790** |
+| erfc only | clamp | `log_sum_exp()` + `log1m()` | none | 4700 | 4800 | 4075 | 5770 | **700** | **510** |
+| erfc only | blend: `w * log_mix(...) + (1 - w) * (...)` | `log_mix()` | none | 5500 | 6200 | 5060 | 6470 | **800** | **570** |
+| select | blend | `log_mix()` | none | 10900 | 11600 | 9580 | 14880 | **1100** | **790** |
 
 0.19.0 Linux is the median over four tasks on an EPYC 9334 node; 0.19.1
 Linux over the three on an EPYC 7513 (slower: the fourth task, on a 9355,
-read 0.56-0.6x these throughout). On 0.19.0 the unmodified program costs
+read 0.56-0.6x these throughout); 0.20.0 Linux over four tasks on an EPYC
+9355. Against 0.19.1's task on the same kind of node (990, 640, 760, 780,
+3280, 2620, 3860, 7450) only the four bold rows moved. On 0.19.0 the unmodified program costs
 1.6x the select version, and the cliffs in branch-free code are all still
 there: a data-only early return, `log_sum_exp()`, or a blend costs 4-6x.
 0.19.1 leaves them as they were: against the same row without the
@@ -394,6 +525,20 @@ minimal program, `log_sum_exp()` and the data check cost 0.9-1.2x
 (`repro_issue.R`, part 4), so the cliffs need the rest of the program.
 `bisect.R` writes each full program to `DIR/bisect_<variant>.stan`.
 
+**0.20.0 removes all four** ([stanli#432](https://github.com/seantalts/stanli/pull/432),
+with the two causes: stanc marks a comparison of two data values as
+autodiffable, so a data-only return made the loop count as
+parameter-controlled; and lanes reading one parameter in more than one
+place, as `log(p)` and `log1m(p)` do in every observation, were never fused
+into vector kernels). Against the same row without the construct, Windows
+then Linux: the data check costs 1.00x and 1.00x, select plus blend 1.10x
+and 1.03x, and `log_sum_exp()` and the blend are now *cheaper* than
+`log_mix()`: 0.78x and 0.80x, 0.89x and 0.89x. #432 measured 3.4-5.7x
+on the same variants against `main`; on our Linux node type it is
+4.2x (data check), 5.1x (`log_sum_exp()`), 6.8x (blend) and 9.4x (select
+plus blend). The rows without the constructs, `orig` included, are where
+0.19.1 left them.
+
 `repro_issue.R` on 0.19.0 (`results/repro_issue.txt`,
 `results/hpc/grad_*/repro_issue.txt`): every construct compiles, and the
 never-taken parameter branch costs 0.7x (Windows) and 0.9x (Linux) the
@@ -403,7 +548,9 @@ copy now runs faster than the branch-free one.
 
 ## A real fit: {orig, sel} x {cmdstanr, stanli}
 
-4 chains x (500 warmup + 500 sampling), in parallel:
+On stanli 0.19.0, whose chains ran one at a time (next section); the
+0.20.0 rerun, with the same draws and the chains in parallel, is in the
+section "0.20.0". 4 chains x (500 warmup + 500 sampling), in parallel:
 
 - `cmdstanr_orig`: `brm(backend = "cmdstanr")`, the standard route;
 - `cmdstanr_sel`: `sel` compiled by cmdstanr, read back with
@@ -452,13 +599,13 @@ Windows, seed 11, rounds 1 and 2 (the draws repeat; only timings differ):
 - **The wall time is the sum of stanli's chains.** On Linux, 4 x the mean
   chain over the wall is 1.00 for both stanli arms and 3.7 for both cmdstanr
   arms. That is the serial-chains bug below, not post-processing:
-  `as_stanfit()` and `rename_pars()` take under a second.
+  `as_stanfit()` and `rename_pars()` take under a second. Fixed in 0.20.0.
 
-## Parallel chains and inits (stanli 0.19.0 and 0.19.1)
+## Parallel chains and inits (stanli 0.19.0 and 0.19.1; fixed in 0.20.0)
 
-`sample_model()` runs the chains one after another whenever it gets `init`,
+`sample_model()` ran the chains one after another whenever it got `init`,
 a shared vector or a chains x parameters matrix, whatever `parallel_chains`
-says. Without `init` the same model runs them in parallel.
+said. Without `init` the same model ran them in parallel.
 `repro_parallel_init.R`, a toy with a `log_mix()` likelihood, N = 5000, on
 Windows, 0.19.0 (0.19.1 the same, 2026-10-04: wall/sum 0.35, 1.00, 1.00):
 
@@ -468,33 +615,38 @@ init vector wall  8.11 s, chains max  2.59, sum  8.09: wall/sum 1.00
 init matrix wall  8.73 s, chains max  3.42, sum  8.70: wall/sum 1.00
 ```
 
-It is not the model: a branch, a user function, `log_mix()`,
-`lognormal_lpdf()`, a data ternary all ran in parallel without inits.
-`sample_model()` passes the inits and `parallel_chains` to the native
-sampler unchanged, so the switch is there, and nothing in R works around it.
-The 0.18.1 fit started from stanli's random inits, so whether 0.18.1 had the
-same behaviour is unknown.
+It was not the model: a branch, a user function, `log_mix()`,
+`lognormal_lpdf()`, a data ternary all ran in parallel without inits. The
+cause was native, as `sample_model()` suggested by passing the inits and
+`parallel_chains` through unchanged: the C API handled supplied inits with
+a serial loop of its own
+([stanli#432](https://github.com/seantalts/stanli/pull/432)). On 0.20.0
+the same script, the same laptop (2026-10-12):
 
-Until it is fixed, the light route with `cogmod_inits()` costs
-`chains x` the chain time. Random inits (radius 2) were fine for this model
-on 0.18.1, but `cogmod_inits()` is there because brms's random inits are a
-poor start for some families (`R/cogmod_inits.R` gives the reasons family by
-family).
+```
+init none   wall  2.48 s, chains max  2.47, sum  7.44: wall/sum 0.33
+init vector wall  2.06 s, chains max  2.05, sum  6.39: wall/sum 0.32
+init matrix wall  2.58 s, chains max  2.57, sum  6.80: wall/sum 0.38
+```
 
-The workaround arms (`fit --arms ...,stanli_orig_proc,stanli_sel_proc`, one
-process per chain) have not produced a result. On the cluster
+#432 says the draws are bitwise those of the serial loop. The 0.18.1 fit
+started from stanli's random inits, so whether 0.18.1 had the same
+behaviour is unknown.
+
+Two workaround arms were written for it and never produced a result:
+one R process per chain (`stanli_orig_proc`, `stanli_sel_proc`) and
+stanli's own random inits (`stanli_orig_rand`). On the cluster
 (`run.sh submit fitpar 16`, 2026-10-03 22:37) all 16 tasks exited 132
 within 13-22 s on EPYC 7513 nodes: the AVX-512 bridge of the cluster
-section, not the workaround. The empty result directories were deleted and
-the arms were not rerun, since the bug they work around is reported. On
-Windows, seed 11, the
-chain at stanli seed 1101 from `cogmod_inits()` row 1 goes onto a
-slow-accumulator ridge (`b_nuone_Intercept` about -2.4 +- 2.4, R-hat 1.6 in
-a short smoke run) under both `orig` and `sel`, with the same leapfrog
-counts in the other three chains of each, so it is deterministic, not a
-hang: ~30000 leapfrog steps in the smoke run, and the full run was stopped
-after 15 minutes on that one chain (2026-10-04). Use another seed, or
-several, before reading anything into it.
+section, not the workaround. On Windows, seed 11, the chain at stanli
+seed 1101 from `cogmod_inits()` row 1 went onto a slow-accumulator ridge
+(`b_nuone_Intercept` about -2.4 +- 2.4, R-hat 1.6 in a short smoke run)
+under both `orig` and `sel`, with the same leapfrog counts in the other
+three chains of each, so deterministic, not a hang: ~30000 leapfrog steps
+in the smoke run, and the full run was stopped after 15 minutes on that one
+chain (2026-10-04). The plain stanli arms at seed 11 (stanli seed 11, four
+chains) never met that ridge. Both arms, and the `fitpar` cluster kind,
+were removed with the fix (2026-10-12).
 
 ## The cluster run
 
@@ -505,19 +657,24 @@ several, before reading anything into it.
 benchmarks/stanli/hpc/run.sh push          # scripts + minimal package tree + stanli tarball
 benchmarks/stanli/hpc/run.sh install       # brms e71e9d7, loo, posterior, stanli + runtime
 benchmarks/stanli/hpc/run.sh submit fit 16 # one seed per task, 4 CPUs
-benchmarks/stanli/hpc/run.sh submit grad 4 # grad + bisect + repro per task, 2 CPUs
+benchmarks/stanli/hpc/run.sh submit grad 4 # grad + bisect + repros per task, 2 CPUs
 benchmarks/stanli/hpc/run.sh pull          # -> results/hpc/
 Rscript benchmarks/stanli/hpc/summarise.R
 
 # a rerun on a new stanli, kept apart from the old results:
-STANLI_TAG=0.19.1 benchmarks/stanli/hpc/run.sh submit grad 4
-Rscript benchmarks/stanli/hpc/summarise.R --tag 0.19.1
+STANLI_TAG=0.20.0 benchmarks/stanli/hpc/run.sh submit grad 4
+STANLI_TAG=0.20.0 benchmarks/stanli/hpc/run.sh submit fit 16
+Rscript benchmarks/stanli/hpc/summarise.R --tag 0.20.0
+Rscript benchmarks/stanli/hpc/summarise.R --kind fit --tag 0.20.0
+
+# rerun some indices (a range, not a count), here away from one node:
+STANLI_TAG=0.20.0 benchmarks/stanli/hpc/run.sh submit fit 14-16 --exclude=artemis-rtx-01
 ```
 
 Everything goes into the experiment's own directories and R library
 (`/mnt/lustre/users/psych/dmm56/cogmod_stanli`): brms from GitHub at
 `e71e9d7` with the loo (2.10.1) and posterior (1.7.0) it needs, and stanli
-(`STANLI_VERSION`, 0.19.1 since 2026-10-04), ahead of the production library
+(`STANLI_VERSION`, 0.20.0 since 2026-10-12), ahead of the production library
 on `R_LIBS`. The production library
 is never written to. Each task works in its own copy of the tree on scratch.
 Wall time on a shared node is noise, so the fit's comparisons are within a
@@ -557,10 +714,52 @@ needs glibc 2.28 at most; the nodes have 2.34.
 - `brms:::rename_pars()` is internal. After it, `summary()`, `fixef()`,
   `loo()` and `loo_compare()` worked on the result. The comment it came from
   says refit-based functions (`reloo`, moment matching) do not.
+- **A public route since stanli 0.20.0**
+  ([stanli#452](https://github.com/seantalts/stanli/pull/452), their
+  `docs/teaching-support.md`): brms's own `"mock"` backend, which takes a
+  finished `stanfit`:
+
+  ```r
+  fit <- brm(formula, data, prior = prior, stanvars = stanvars,
+             backend = "mock", mock_fit = stanli::as_stanfit(stanli_fit))
+  ```
+
+  On the LNR (2026-10-12, 4 x 200 draws) it gives the same `brmsfit` as
+  `rename_pars()`: identical `fixef()`, variables and `loo()`, and
+  `posterior_predict()` runs on it; 0.33 s against 0.05 s. `bench.R`
+  keeps `rename_pars()` so that its wall times stay comparable with the
+  0.19.0 runs. Methods that sample again (`update()`, `kfold()`) do not
+  work either way; stanli says a `backend = "stanli"` for brms exists as a
+  branch, not opened upstream.
+- **What works on the result** (`postprocess.R`, 2026-10-12, stanli
+  0.20.0, each tool also run on a cmdstanr fit of the same model): every
+  tool that reads the draws. `loo()`, `loo_compare()`, `waic()`,
+  `log_lik()`, `posterior_predict()`, `posterior_linpred()`,
+  `hypothesis()`, `nuts_params()`/`rhat()`, `priorsense`,
+  `bayestestR::describe_posterior()`, `emmeans`, and `modelbased` and
+  `marginaleffects` (on the LNR on the link scale; on an RT-only lognormal
+  also `estimate_contrasts()`, `avg_comparisons()`, `conditional_effects()`,
+  `pp_check()` and `bayes_R2()`), with the same numbers as cmdstanr's to
+  Monte Carlo error; `loo()` works after `saveRDS()`/`readRDS()` too. The
+  LNR's `posterior_epred()`, `conditional_effects()`, `pp_check()` and
+  response-scale marginal means fail on both backends: cogmod gives a race
+  model no expectation (numerical integration per draw and observation),
+  and `posterior_predict()` returns two columns per trial (RT, choice).
+  What fails on stanli alone is what needs the model's log density at new
+  parameter values: `loo(moment_match = TRUE)` and `bridge_sampler()`
+  (both recompile with rstan, then fail), so no Bayes factors, and
+  `update()` ("'compiled_model' is not supported in the mock backend"),
+  so no `kfold()` or `reloo`. An unofficial wrapper posted on brms#1911,
+  [brm_stanli](https://github.com/StaffanBetner/brm_stanli)
+  ([comment](https://github.com/paul-buerkner/brms/pull/1911#issuecomment-5949749007)),
+  adds moment matching without an rstan recompilation and `update()`; not
+  tried here, since an official backend would replace all of this.
 - `cogmod_inits()` goes in through `unconstrain()` and
   `sample_model(init = <matrix>)`, or `sample_cstan(init = <list of lists>)`.
-  On 0.19.0 the first runs the chains serially (above); the second was not
-  tried.
+  On 0.19.x the first ran the chains serially (above); 0.20.0 runs them in
+  parallel. 0.20.0 also accepts partial inits (`unconstrain(partial =
+  TRUE)`, partial lists in `sample_cstan()`), as CmdStan does; the
+  second route was not tried.
 - Reading cmdstanr's output into a stanfit, as the `cmdstanr_sel` arm does,
   needs `brms:::read_csv_as_stanfit()`: `rstan::read_stan_csv()` cannot
   parse CmdStan 2.38's CSV header ("object 'n_kept' not found").
@@ -571,8 +770,10 @@ needs glibc 2.28 at most; the nodes have 2.34.
 ## For cogmod
 
 - **Nothing in the package needs to change.** Its own Stan code runs in
-  stanli 0.19.1 exactly and faster than in CmdStan per gradient, 2.4x on
-  Windows and 1.3-1.4x on Linux, with the same sampler efficiency (0.19.0).
+  stanli 0.20.0 exactly and faster than in CmdStan per gradient, 2.4x on
+  Windows and 1.3x on Linux, with the same sampler efficiency, and a fit
+  from `cogmod_inits()` now finishes in 0.74x CmdStan's wall time on Linux
+  and under half of it on Windows.
 - **No select source.** `sel` buys another 1.3x in stanli, but costs CmdStan
   1.36-1.9x, so it would have to be a second, stanli-only copy of every
   family's Stan code, with its own gradient checks, and it is not quite the
@@ -591,9 +792,13 @@ needs glibc 2.28 at most; the nodes have 2.34.
   dpar out of `bf()` gets the real (on its natural scale, which
   `cogmod_priors()` and `cogmod_inits()` handle; its sampling efficiency
   against the linked intercept is not measured).
-- **What decides it is upstream.** In stanli: chains in parallel with inits
-  (a blocker for real use), and the cliffs in branch-free code, which the
-  package's code does not hit. In brms: whether #1911 merges a backend.
+- **What decides it is upstream, and it is now brms's side.** stanli has
+  fixed both things we raised (chains in parallel with inits, the cliffs in
+  branch-free code), and since 0.20.0 a stanli fit becomes a `brmsfit`
+  through brms's own `"mock"` backend. What is left is whether brms merges
+  a backend (#1911; stanli keeps a `backend = "stanli"` branch of brms,
+  not opened upstream), without which `update()`, `kfold()` and moment
+  matching cannot refit.
 - Only the LNR was measured here. stanli's own corpus has all 22 families
   compiling and matching CmdStan's gradients, most of them faster.
 
@@ -616,8 +821,10 @@ issue), the `bisect.R` variants they asked for, the SIGILL node, and yes to
 keeping the families in their corpus. The maintainer's two follow-ups the
 same day asked for the VM's CPU flags, the runtime it loaded, the kernel's
 trap line and `R CMD config CFLAGS`, and noted the runtime scans as
-baseline x86-64; the diagnosis (cluster section: the bridge compiled with
-`-march=native` on a Genoa node, not stanli) is drafted in `reply_draft.md`.
+baseline x86-64. Our diagnosis
+([comment](https://github.com/seantalts/stanli/issues/422#issuecomment-5980192431),
+2026-10-04 afternoon; cluster section): the bridge compiled with
+`-march=native` on an AVX-512 node, so nothing for stanli to fix.
 
 2026-10-04: 0.19.1 released with #429, announced on #422, and
 [cogmod#5](https://github.com/DominiqueMakowski/cogmod/issues/5) opened with
@@ -631,13 +838,32 @@ brms (below), the looped likelihood kept.
 [brms#1945](https://github.com/paul-buerkner/brms/issues/1945) (issue: the
 0.41x and 0.70-0.85x figures above, `scalar_dpar.R` as the script) and
 [brms#1946](https://github.com/paul-buerkner/brms/pull/1946) (PR, see
-Status). Both drafts deleted once posted, as with the others.
+Status). Both drafts deleted once posted, as with the others. On
+2026-10-09 Paul Bürkner asked why anyone would write a formula for a
+parameter they do not predict, and whether the speed was worth the special
+case. Our answer
+([comment](https://github.com/paul-buerkner/brms/issues/1945#issuecomment-6079343933)):
+`sigma ~ 1` and no formula are not the same model (link scale and prior,
+so also what a `sigma ~ condition` against `sigma ~ 1` comparison holds
+fixed), `~ 1` is a placeholder in iterative work and a default in wrapper
+packages, and nothing tells users it costs anything. He will review the PR.
+
+2026-10-11: stanli 0.20.0, with
+[#432](https://github.com/seantalts/stanli/pull/432) (merged 2026-10-04,
+"Follow-ups from #422"): the chains run in parallel with inits, and the four
+`bisect.R` cliffs are fixed, both reported in our 0.19.1 reply. Also
+[#452](https://github.com/seantalts/stanli/pull/452) (brms support: the
+`"mock"` route, partial inits) and
+[#446](https://github.com/seantalts/stanli/pull/446) (`fast_math`). See
+the section "0.20.0". Our reply with the rerun
+([comment](https://github.com/seantalts/stanli/issues/422#issuecomment-6121453941),
+2026-10-12) closed #422.
 
 ## Status
 
 Exploratory; nothing outside this folder and `.gitignore` changed. #422
-is answered up to the SIGILL diagnosis, which is drafted in
-`reply_draft.md`; cogmod#5 is answered and can be closed by its author. The brms suggestion is posted and under review:
+is closed: 0.20.0 fixed both things our 0.19.1 reply reported (rerun
+2026-10-12, section "0.20.0"); cogmod#5 is answered and can be closed by its author. The brms suggestion is posted and under review:
 [brms#1945](https://github.com/paul-buerkner/brms/issues/1945) (issue) and
 [brms#1946](https://github.com/paul-buerkner/brms/pull/1946) (PR, from the
 `scalar-intercept-only-dpars` branch of the fork at `../brms`, base
@@ -650,6 +876,11 @@ updated and one new test; brms's stancode suite passes).
 live version if review changes it. `brms_scalar_dpar/` has the harness
 (`smoke.R`, `emit.R`, `compile_check.R`): eleven affected models compile
 from both versions with the same log density and gradient.
-Next, if stanli fixes parallel chains with inits: rerun `fit` locally and on
-Artemis (`hpc/run.sh`) for end-to-end wall times, then run a few other
-families through the same harness.
+2026-10-12: stanli 0.20.0 fixed the parallel chains with inits, and the
+end-to-end rerun is done (section "0.20.0"). Next: run a few other
+families through the same harness (the LNR is the only one measured here).
+The reply reporting the rerun and closing #422 is posted (2026-10-12; the
+draft deleted, as the others were). The performance article now has an experimental section
+on the light route (the `"mock"` backend); its figures come from this
+folder, and it is to be updated if brms#1946 (scalar intercept-only dpars)
+or a stanli backend for brms (#1911) is merged.
