@@ -235,9 +235,12 @@ accumulator in a task with a 5\% error rate is exactly such a case: left
 flat, its drift wandered to \code{-12} with an interval of \code{-23} to \code{-6.5}, on an
 evidence scale where the correct accumulator's drift is \code{3}.
 \code{\link[=cogmod_priors]{cogmod_priors()}} therefore puts \code{normal(1, 2)} on \code{driftone} and
-\code{normal(0, 1.5)} on its slopes, as it does for \code{\link[=cogmod_lnr]{cogmod_lnr()}}'s \code{nuone}. If
-the \emph{rarely} chosen option is the one on \code{mu}, mirror that prior onto \code{mu}
-by hand. Fixing both SDs (\verb{sigmazero = 1, sigmaone = 1}, a single \code{sv})
+\code{normal(0, 1.5)} on its slopes: a fence, of the kind \code{\link[=cogmod_lnr]{cogmod_lnr()}}'s \code{nuone}
+gets. Under \code{dec(Error)}, the coding every example here uses, \code{driftone} is
+the \emph{error} accumulator, and wherever errors are rare its posterior will sit
+in that prior's lower tail. As for \code{\link[=cogmod_rdm]{cogmod_rdm()}}, that is the fence working
+rather than a prior at odds with the data. If the \emph{rarely} chosen option is
+the one on \code{mu}, mirror that prior onto \code{mu} by hand. Fixing both SDs (\verb{sigmazero = 1, sigmaone = 1}, a single \code{sv})
 removes the ray altogether and is common practice in the LBA literature.
 
 Predictors on that accumulator's SD make it worse. With \code{sigmaone}

@@ -55,7 +55,9 @@
 #  init              : natural-scale starting values, for cogmod_inits()
 #  prior             : optional, per-dpar priors for cogmod_priors() to fill,
 #                      where the likelihood has a flat direction brms would
-#                      otherwise leave improper. Same shape as in .SHIFTED
+#                      otherwise leave improper, or where brms would leave a
+#                      dpar the family names flat even though the data
+#                      identify it. Same shape as in .SHIFTED
 #  race              : optional, TRUE for a race between accumulators. There
 #                      `mu` is not a location of the response but accumulator
 #                      0's rate, and the dec() coding decides which accumulator
@@ -196,7 +198,7 @@
     # handed a metric adapted to the bulk. Starting at 1 removed the cold-start
     # failures and two thirds of the transferred-metric ones; the rest were the
     # other cold start, `ndt`, which cogmod_inits() now takes from the data for
-    # the same reason (benchmarks/rdm_brittleness_report.md, section 7). When
+    # the same reason (NEWS.md, 0.3.2). When
     # the error accumulator really is as fast as the correct one the start is
     # off by a factor of three on the cheap side, which costs a few dozen units
     # and makes no difference to sampling.
@@ -210,29 +212,52 @@
     # produces divergent transitions. Same failure, and the same fix, as
     # cogmod_lba1(), which shares this parameterization. See ?rcogmod_rdm.
     #
-    # `driftone` has the retreating-accumulator plateau described under
-    # cogmod_lnr() above, and it is the same failure for the same reason: push
-    # the error accumulator's rate down far enough and it never finishes first,
-    # so the likelihood depends on it only through the loser's survival, which
-    # has already saturated at 1. The softplus link reaches zero only at minus
-    # infinity, so a flat prior over that direction is an improper posterior.
-    # It is not hypothetical - fitting the two-participant lexical decision data
-    # of vignette("decision_making"), where the Accuracy condition carries only
-    # 75 errors, ran the intercept to -9.1 (a drift of 0.0001, the floor) with
-    # the condition slope going to +8.9 to pay for it, and 49% of transitions
-    # divergent. The LNR, which fences the same direction, samples the same data
-    # without a single divergence.
+    # `driftone` has a plateau at the bottom of its link, the counterpart of the
+    # retreating accumulator described under cogmod_lnr() above. A drift of
+    # exactly zero is legitimate here - driftless Brownian motion still
+    # finishes, and still wins sometimes - but a drift of a few hundredths is
+    # already driftless for every practical purpose, so the likelihood stops
+    # changing while the softplus link puts the whole region at minus infinity.
+    # A flat prior over it is an improper posterior. It is not hypothetical -
+    # fitting the two-participant lexical decision data of
+    # vignette("decision_making"), where the Accuracy condition carries only 75
+    # errors, ran the intercept to -9.1 (a drift of 0.0001) with the condition
+    # slope going to +8.9 to pay for it, and 49% of transitions divergent. The
+    # LNR, which fences the same direction, samples the same data without a
+    # single divergence.
+    #
+    # The prior is a fence, not a guess at where the drift is, and it sits well
+    # above the floor on purpose. Under the dec() coding every example in this
+    # package uses (1 = error), `driftone` is the ERROR accumulator, and
+    # wherever errors are rare its posterior lands in the lower tail of
+    # normal(3, 2): z = -2.3 for the centred intercept of the decision_making
+    # fit, z = -3.8 to -4.5 on 324,000 Illusion Game trials, with the condition
+    # slope near the 99th percentile of normal(0, 2). That is the fence working,
+    # not the prior fighting the data. Below a drift of a few hundredths the
+    # likelihood is flat, so where on the plateau the intercept sits is the
+    # prior's to say, and nothing observable depends on it. The slope gets
+    # normal(0, 2) rather than the normal(0, 0.5) the two threshold parameters
+    # get: an error drift goes from about zero where errors are rare to a real
+    # rate where they are common, a swing of several units this close to the
+    # floor, and the runaway above, which this still fences, was larger again.
+    #
+    # Centring the prior on the error accumulator instead was measured, and
+    # rejected (2026-10-12; benchmarks/driftone_priors/). Refits of the
+    # decision_making RDM and of a 70% subset of it (71 Accuracy errors), 4
+    # seeds x 4 chains per arm, tried normal(-2, 3) with normal(0, 4) on the
+    # slopes and normal(-2, 2) with normal(0, 3). Both moved the Accuracy
+    # intercept 1.1-1.9 units further down the plateau, with the slope rising to
+    # pay for it, and both predicted the same error rates and RTs to within
+    # 0.003 and 3 ms. Neither diverged. Both cost 9-26% more leapfrog steps per
+    # draw, and 7-51% of the ESS per step. On cogmod_lba2(), where the same
+    # argument applies, they also raised the divergent transitions from 1 in
+    # 12 chains to 5 in 12 and 10 in 11.
     #
     # `mu` has the mirror-image plateau but is the response's own intercept, so
     # brms already gives it a proper student_t default and it is left alone -
     # again as for cogmod_lnr(), including its group-level SD, which `race`
     # gives the same prior as `driftone`'s. Model a rarely-chosen option and it
     # is worth mirroring the `driftone` prior onto it by hand.
-    #
-    # The slope here is `normal(0, 2)` rather than the `normal(0, 0.5)` the two
-    # threshold parameters get: a drift sits around 3 on this link, so a genuine
-    # condition effect is worth a unit or two and a tighter prior would fight
-    # it. It still fences the runaway, which was an order of magnitude larger.
     race = TRUE,
     prior = list(
       driftone = c(link = "normal(3, 2)", nat = "lognormal(1, 0.75)",
@@ -330,13 +355,32 @@
     # through that ratio and the likelihood is asymptotically flat along the
     # ray. Left flat, the vignette's error accumulator sat at a drift of -12
     # with an interval of -23 to -6.5, on an evidence scale where the correct
-    # accumulator's drift is 3. The prior is centred where LBA drifts on the
-    # `sigmazero = 1` scale usually are and fences the ray; `mu` - driftzero -
-    # has the same plateau, but it is the response's own intercept, so brms
-    # already gives it a proper student_t default and it is left alone, exactly
-    # as for cogmod_lnr()'s `nuone`, its group-level SD apart (see `race`).
-    # Model a rarely-chosen option on `mu` and it is worth mirroring this prior
-    # onto it by hand.
+    # accumulator's drift is 3. `mu` - driftzero - has the same plateau, but it
+    # is the response's own intercept, so brms already gives it a proper
+    # student_t default and it is left alone, exactly as for cogmod_lnr()'s
+    # `nuone`, its group-level SD apart (see `race`). Model a rarely-chosen
+    # option on `mu` and it is worth mirroring this prior onto it by hand.
+    #
+    # The prior is centred where LBA drifts sit on the `sigmazero = 1` scale,
+    # which is above an ERROR accumulator's: under the dec() coding of every
+    # example here (1 = error) that is what `driftone` is, and wherever errors
+    # are rare its untruncated mean drift sits well below zero. The
+    # decision_making fit puts the centred intercept at z = -1.9 and the
+    # condition slope at z = 2.5 under normal(0, 1.5); on 324,000 Illusion Game
+    # trials the intercept sat at z = -3 to -3.5, every chain below z = -2.7 in
+    # whichever of the two modes those fits split into. As for cogmod_rdm(),
+    # that is the fence working: along the ray the likelihood is flat, and no
+    # prediction depends on where on it the posterior sits. A prior centred on
+    # the error accumulator was measured (2026-10-12;
+    # benchmarks/driftone_priors/). normal(-2, 2) with normal(0, 3) on the
+    # slopes predicted the same error rates and RTs, pushed `sigmaone` up the
+    # ray (2.40 to 2.62 on its link), cost 8-37% of the ESS per leapfrog step
+    # and raised the divergent transitions from 1 in 12 chains to 5 in 12;
+    # normal(-2, 3) with normal(0, 4) took that to 10 in 11, and reached a
+    # region where cogmod_lba2_decision_lpdf() came out NaN. That was a bug in
+    # the density, since fixed (see cogmod_lba_ldens() in core_shifted.R);
+    # Stan counts a NaN proposal as a divergent transition, so part of that 10
+    # in 11 may have been the bug rather than the prior.
     #
     # The ray is also why `sigmaone` is best kept free of predictors wherever
     # one response is rare in some condition: a `sigmaone` that varies by
@@ -422,7 +466,34 @@
     # variability parameter out of bf() is the common way to write the model,
     # and brms then declares it as a plain auxiliary parameter. Fixing it
     # outright (`sigmadrift = 0` in bf()) removes it instead, and needs no prior.
+    #
+    # `boundary` and `bias` are identified - the separation to a few hundredths
+    # on a few thousand trials - so neither has a flat direction to fence. They
+    # are here because brms leaves them flat all the same: an improper prior on
+    # a softplus link, which brms itself refuses to sample from
+    # (sample_prior = "only": "some parameters have no proper priors"), and a
+    # group-level SD on either kept brms's student_t(3, 0, 2.5) where every
+    # other dpar this family names gets exponential(1). `boundary` gets the
+    # threshold rows the other families' thresholds get, scaled to a
+    # separation: normal(1, 1) puts the median at softplus(1) = 1.31 with 95%
+    # between 0.32 and 3.0, the usual range at a diffusion coefficient of 1
+    # (the decision_making fits sit at 1.1-1.7, the Illusion Game's at
+    # 1.6-2.3), and lognormal(0.27, 0.5) has the same median. Its slopes get
+    # normal(0, 0.5), the threshold slope of cogmod_lba1() and cogmod_rdm(); a
+    # speed-accuracy instruction moved the separation by -0.60 to -0.67 on this
+    # link, 1.2-1.3 SDs. `bias` keeps brms's own intercept, logistic(0, 1),
+    # uniform on the probability scale. It is written out because under
+    # `bias ~ 0 + Intercept` the intercept is a `b` coefficient and would
+    # otherwise inherit the slope prior. Its slopes get normal(0, 0.5) on the
+    # logit link; the Illusion Game's sat within +-0.6. Refitting the
+    # decision_making DDM with and without these rows, also with
+    # `bias ~ Condition` and with `poutlier ~ 1`, moved no decision parameter's
+    # posterior median by more than 0.006 on its link and cost nothing per
+    # leapfrog step (2026-10-12; benchmarks/driftone_priors/).
     prior = list(
+      boundary = c(link = "normal(1, 1)", nat = "lognormal(0.27, 0.5)",
+                   slope = "normal(0, 0.5)"),
+      bias = c(link = "logistic(0, 1)", slope = "normal(0, 0.5)"),
       sigmadrift = c(link = "normal(0, 1)", nat = "lognormal(-1, 0.75)",
                      slope = "normal(0, 0.5)"),
       sigmabias = c(link = "normal(-2, 1)", nat = "beta(1, 5)",

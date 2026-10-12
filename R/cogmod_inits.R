@@ -254,7 +254,7 @@ cogmod_inits <- function(
 # of a slow data set costs thousands of log-density units, which a cold
 # chain's first HMC trajectory turns into momentum, and for cogmod_rdm() that
 # momentum carried both drifts onto their flat regions in one transition
-# (benchmarks/rdm_brittleness_report.md, section 7). Half the first percentile
+# (NEWS.md, 0.3.2). Half the first percentile
 # is a factor of about two below where the posterior usually ends up; the
 # posterior of a data set whose non-decision time is well below its fastest
 # responses (a simulated one, say) sits below the start instead, which is the

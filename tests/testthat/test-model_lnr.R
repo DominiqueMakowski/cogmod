@@ -581,7 +581,7 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_lnr", {
   expect_true(any(p$dpar == "ndt" & p$class == "Intercept" &
                     p$prior == "normal(-1.2, 0.5)"))
   expect_true(any(p$dpar == "poutlier" & p$class == "Intercept" &
-                    p$prior == "normal(-5, 1)"))
+                    p$prior == "normal(-6, 1)"))
 
   # Omitted dpars live on the natural scale and need different priors. brms
   # recognises the name `ndt` and supplies uniform(0, min_Y) - precisely the
@@ -594,7 +594,7 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_lnr", {
   p2 <- cogmod_priors(omitted, d)
   expect_false(any(grepl("uniform", p2$prior)))
   expect_true(any(p2$class == "ndt" & p2$prior == "lognormal(-1.2, 0.5)"))
-  expect_true(any(p2$class == "poutlier" & p2$prior == "exponential(100)"))
+  expect_true(any(p2$class == "poutlier" & p2$prior == "exponential(280)"))
 
   # and a mixed formula with group-level terms still builds a Stan program
   mixed <- brms::bf(RT | dec(Error) ~ Condition + (1 | id), ndt ~ Condition,

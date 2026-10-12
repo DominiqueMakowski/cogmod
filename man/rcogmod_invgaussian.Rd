@@ -227,7 +227,9 @@ zero, and the outlier weight absorbs most of the difference. And scaling
 the reciprocal-normal (LATER) limit, where the within-trial noise stops
 mattering and \code{RT = boundary / drift} exactly - so large values of all three
 describe nearly the same distribution. \code{\link[=cogmod_priors]{cogmod_priors()}} gives \code{sigmadrift}
-a deliberately informative prior to fence off both.
+a deliberately informative prior to fence off both, and \code{boundary} a weakly
+informative one - \code{normal(0.5, 1)} on its \code{softplus} link, a median threshold
+of 0.97 - which helps hold the same ray.
 
 One consequence is worth stating plainly: with \code{sigmadrift > 0} the density
 decays as \code{t^-2}, because drifts arbitrarily close to zero take arbitrarily

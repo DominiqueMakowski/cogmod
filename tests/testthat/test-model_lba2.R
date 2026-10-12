@@ -195,14 +195,15 @@ test_that("the fabricated .Machine$double.eps floor is gone", {
                      poutlier = 0, log = TRUE)
   expect_false(any(abs(lg - log(.Machine$double.eps)) < 1e-6))
 
-  # Very close to the shift the LBA density really has underflowed - at
-  # dt = 0.01 the standardized threshold is 47, so the true density is around
-  # 1e-480 - and -Inf is the honest answer there, not a floor.
-  expect_true(all(is.infinite(lg[dt <= 1e-2])))
-  # Beyond that it is representable, and rises away from the shift.
-  live <- lg[dt >= 0.05]
-  expect_true(all(is.finite(live)))
-  expect_true(all(diff(live) > 0))
+  # Very close to the shift the LBA density is far below anything a double can
+  # hold - at dt = 0.01 the standardized threshold is 47, so the density is
+  # around 1e-480 - but its log is not, and since 0.3.5 that is what comes back:
+  # -1104.7 there rather than -Inf, and still no floor. It rises away from the
+  # shift throughout.
+  near <- lg[dt <= 1e-2]
+  expect_true(all(is.finite(near)))
+  expect_true(all(near < log(.Machine$double.xmin)))
+  expect_true(all(diff(lg) > 0))
 
   # And the mixture is finite throughout, which is what the outlier component
   # is for: the sampler never sees a -Inf log-likelihood.
@@ -376,16 +377,94 @@ test_that("the truncated survival is exact in both tails", {
     for (t in c(0.1, 0.5, 2, 20)) {
       st <- max(s * t, 1e-10)
       lsurv <- cogmod:::.lba_lsurv_trunc(v, s, (k - v * t) / st, A / st)
+      # .lba_ldens() is already conditional on v > 0
       dens <- function(u) {
         stu <- pmax(s * u, 1e-10)
-        cogmod:::.lba_dens_over_A(v, s, stu, (k - v * u) / stu, A / stu)
+        exp(cogmod:::.lba_ldens(v, s, stu, (k - v * u) / stu, A / stu))
       }
       num <- 1 - stats::integrate(dens, 0, t, subdivisions = 3000,
-                                  rel.tol = 1e-12)$value / stats::pnorm(v / s)
+                                  rel.tol = 1e-12)$value
       expect_equal(lsurv, log(num), tolerance = 1e-9,
                    label = sprintf("log S at v=%g A=%g t=%g", v, A, t))
     }
   }
+})
+
+
+# The density of an accumulator on (z1, z2), integrated directly: the normal's
+# integrand scaled by its density at the end nearer zero, so that nothing
+# underflows however far out the interval is.
+lba_ldens_by_integration <- function(v, s, A, k, t) {
+  st <- s * t
+  z1 <- (k - v * t) / st
+  z2 <- z1 + A / st
+  zc <- if (z1 > 0) z1 else if (z2 < 0) z2 else 0
+  w <- 60 / max(1, abs(zc))
+  I <- stats::integrate(function(u) (v + s * u) * exp(-(u^2 - zc^2) / 2),
+                        max(z1, zc - w), min(z2, zc + w), rel.tol = 1e-13)$value
+  log(I) + stats::dnorm(zc, log = TRUE) - log(A)
+}
+
+
+test_that("the density is finite once the winner should long have finished", {
+  # Regression test. phi(z1) - phi(z2) was taken as phi(z1) * -expm1(-delta *
+  # (z1 + z2) / 2) whichever density was larger. Once the winner's drift
+  # should have carried it past the whole threshold range well before t, z1 +
+  # z2 < 0 and that expm1() overflowed to inf while phi(z1) underflowed to 0:
+  # the density was 0 * inf = NaN, in R and in Stan alike. That is what the
+  # sampler hit as `log_mix: lambda2 is -nan` (2026-10-12), and in R the NaN
+  # reached a mask in .lba2_ldens() and dcogmod_lba2() errored. Here z1 = -55
+  # and z2 = -35.
+  v <- 3; s <- 0.05; A <- 2; k <- 0.5; t <- 2
+  st <- s * t
+  expect_equal(cogmod:::.lba_ldens(v, s, st, (k - v * t) / st, A / st),
+               lba_ldens_by_integration(v, s, A, k, t) -
+                 stats::pnorm(v / s, log.p = TRUE), tolerance = 1e-12)
+  expect_true(is.finite(dcogmod_lba2(t + 0.2, driftzero = v, driftone = 1,
+                                     sigmazero = s, sigmaone = 1, sigmabias = A,
+                                     boundary = k, ndt = 0.2, response = 0,
+                                     poutlier = 0, log = TRUE)))
+
+  # Further out still the linear terms underflow altogether, and the density
+  # used to be 0. On a 12 s response that handed the trial to the outlier
+  # component - itself e^-1860 there - 1,087 log units below what the race
+  # gives it. The density is now taken again in log space instead.
+  v <- 4; s <- 0.1; A <- 0.5; k <- 0.5; t <- 12
+  st <- s * t
+  expect_equal(cogmod:::.lba_ldens(v, s, st, (k - v * t) / st, A / st),
+               lba_ldens_by_integration(v, s, A, k, t) -
+                 stats::pnorm(v / s, log.p = TRUE), tolerance = 1e-12)
+  race <- dcogmod_lba2(t + 0.2, driftzero = v, driftone = 1, sigmazero = s,
+                       sigmaone = 1, sigmabias = A, boundary = k, ndt = 0.2,
+                       response = 0, poutlier = 0.01, log = TRUE)
+  expect_equal(race, log(0.99) + lba_ldens_by_integration(v, s, A, k, t) -
+                 stats::pnorm(v / s, log.p = TRUE) +
+                 cogmod:::.lba_lsurv_trunc(1, 1, (k - t) / t, A / t),
+               tolerance = 1e-12)
+})
+
+
+test_that("the survival stays finite for a drift far below zero", {
+  # Regression test. For a negative drift the survival is ((1 - q) - F) /
+  # (1 - q), and 1 - q = Phi(drift / sigma) underflows below a ratio of about
+  # -38: the survival came back -Inf. The truncated normal is then close to an
+  # Exponential with rate |drift| / sigma^2, and with a threshold distance of
+  # a hundredth such an accumulator is about even to have finished by 1 s.
+  # Checked against integrating P(v < d / t | v > 0) over the threshold
+  # distances d, each term from the upper tail.
+  v <- -20; s <- 0.5; A <- 0.01; k <- 0.005; t <- 1   # a ratio of -40
+  st <- s * t
+  g <- function(d) {
+    -expm1(stats::pnorm(-(d / t - v) / s, log.p = TRUE) -
+             stats::pnorm(v / s, log.p = TRUE))
+  }
+  ref <- log(stats::integrate(g, k, k + A, rel.tol = 1e-13)$value / A)
+  expect_equal(cogmod:::.lba_lsurv_trunc(v, s, (k - v * t) / st, A / st), ref,
+               tolerance = 1e-9)
+  expect_true(is.finite(dcogmod_lba2(t + 0.2, driftzero = 3, driftone = v,
+                                     sigmazero = 1, sigmaone = s, sigmabias = A,
+                                     boundary = k, ndt = 0.2, response = 0,
+                                     poutlier = 0, log = TRUE)))
 })
 
 
@@ -421,9 +500,9 @@ test_that("dcogmod_lba2 reproduces rtdists::dLBA", {
 test_that("the shared kernels are the ones cogmod_lba1() uses", {
   # cogmod_lba1() and cogmod_lba2() differ in how many accumulators they run,
   # not in the per-accumulator arithmetic, so they share one implementation.
-  expect_true(is.function(cogmod:::.lba_dens_over_A))
+  expect_true(is.function(cogmod:::.lba_ldens))
   expect_true(is.function(cogmod:::.lba_lsurv_trunc))
-  expect_true(grepl("cogmod_lba_dens_over_A", cogmod:::.LBA_STAN_PRELUDE))
+  expect_true(grepl("cogmod_lba_ldens", cogmod:::.LBA_STAN_PRELUDE))
   expect_true(grepl("cogmod_lba_lsurv_trunc", cogmod:::.LBA_STAN_PRELUDE))
   # ... and cogmod_lba2()'s prelude is that one plus its own race on top
   expect_true(startsWith(cogmod:::.LBA2_STAN_PRELUDE,
@@ -543,11 +622,15 @@ test_that("stanvars carry the likelihood with the outlier component", {
   expect_true(grepl("log_mix\\(poutlier", code))
   expect_true(grepl("half Normal with scale 0.2", code))
   # the shared kernels and the race built on them
-  expect_true(grepl("real cogmod_lba_dens_over_A", code))
+  expect_true(grepl("real cogmod_lba_ldens", code))
   expect_true(grepl("real cogmod_lba_lsurv_trunc", code))
   expect_true(grepl("real cogmod_lba2_decision_lpdf", code))
-  # the truncation: the winner is normalised by its own P(v > 0)
-  expect_true(grepl("std_normal_lcdf\\(v_win / s_win\\)", code))
+  # the truncation: each accumulator is normalised by its own P(v > 0), through
+  # cogmod_log_Phi() rather than std_normal_lcdf(), whose partials are
+  # approximate
+  expect_true(grepl("real lpos = cogmod_log_Phi\\(ratio\\)", code))
+  # (the prelude's comments name it, to say why it is not used)
+  expect_false(grepl("std_normal_lcdf\\(", gsub("//[^\n]*", "", code)))
   expect_false(grepl("log1m_exp\\(lq\\)", code))
   # the old parameterization is gone
   expect_false(grepl("real tau", code))
@@ -618,6 +701,108 @@ test_that("Stan cogmod_lba2_lpdf matches dcogmod_lba2", {
 })
 
 
+test_that("Stan and R agree out in the tails, where the old kernels failed", {
+  # Regression test. In 0.3.4 the first, second and last rows made the Stan
+  # density NaN - log_mix() then threw `lambda2 is -nan`, which is how the
+  # sampler met it - and the other three came back -inf where the race density
+  # is finite. The last row is one of those the sweep found around the
+  # decision_making fit: an error accumulator with a positive drift and a
+  # small SD, winning after its drift should already have carried it past the
+  # threshold. poutlier = 0 so that the decision component is all there is.
+  skip_on_cran()
+  skip_if_not_installed("cmdstanr")
+
+  lpdf <- stan_fun("cogmod_lba2")
+  pts <- data.frame(
+    Y = c(2.2, 2.2, 1.2, 12.2, 6.2, 0.49),
+    mu = c(3, 1, 3, 4, 30, 6.005),
+    driftone = c(1, 3, -20, 1, 0.5, 10.539),
+    sigmazero = c(0.05, 1, 1, 0.1, 0.5, 1),
+    sigmaone = c(1, 0.05, 0.5, 1, 1, 0.0060755),
+    sigmabias = c(2, 2, 0.01, 0.5, 0.5, 0.30555),
+    boundary = c(0.5, 0.5, 0.005, 0.5, 0.5, 0.67085),
+    dec = c(0L, 1L, 0L, 0L, 1L, 1L)
+  )
+  for (i in seq_len(nrow(pts))) {
+    g <- pts[i, ]
+    stan <- lpdf(g$Y, g$mu, g$driftone, g$sigmazero, g$sigmaone, g$sigmabias,
+                 g$boundary, 0.2, 0, g$dec)
+    r <- dcogmod_lba2(g$Y, g$mu, g$driftone, g$sigmazero, g$sigmaone,
+                      g$sigmabias, g$boundary, 0.2, response = g$dec,
+                      poutlier = 0, log = TRUE)
+    expect_true(is.finite(stan), label = paste("Stan, row", i))
+    expect_lt(abs(stan - r) / max(1, abs(r)), 1e-9)
+  }
+})
+
+
+test_that("the Stan gradient stays finite out in the tails", {
+  # Regression test, the LBA2's counterpart of the LNR's. The winner's
+  # overflow showed in the value as NaN, but just short of it the value was
+  # -inf with an infinite partial behind it, and reverse mode multiplies the
+  # zero adjoint log_mix() gives that component into it: 0 * inf is NaN, for
+  # the gradient of the whole model. Only a compiled model with model methods
+  # sees the gradient - stan_fun() exposes values - hence the slow gate. The
+  # three parameter sets put each accumulator in turn past where the overflow
+  # was, and the error accumulator where its P(v > 0) underflows, over decision
+  # times from a millisecond to 12 s, both responses at each.
+  skip_if_not_slow()
+  skip_on_cran()
+  skip_if_not_installed("cmdstanr")
+
+  code <- paste0(
+    "functions {\n", .cogmod_lba2_lpdf(), "}\n",
+    "data { int N; vector[N] Y; array[N] int dec; }\n",
+    "parameters {\n",
+    "  real mu; real driftone; real<lower=0> sigmazero; real<lower=0> sigmaone;\n",
+    "  real<lower=0> sigmabias; real<lower=0> boundary; real<lower=0> ndt;\n",
+    "  real<lower=0, upper=1> poutlier;\n",
+    "}\n",
+    "model {\n",
+    "  for (n in 1:N) {\n",
+    "    target += cogmod_lba2_lpdf(Y[n] | mu, driftone, sigmazero, sigmaone,\n",
+    "                               sigmabias, boundary, ndt, poutlier, dec[n]);\n",
+    "  }\n",
+    "}\n"
+  )
+  # Compiled once, outside the loop: cmdstan_model() on an executable that
+  # already exists returns a pre-compiled model, which has no model methods.
+  mod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(code),
+                                 compile_model_methods = TRUE)
+  dt <- c(1e-3, 0.02, 0.1, 0.5, 2, 6, 12)
+  sets <- list(
+    list(mu = 3, driftone = 1, sigmazero = 0.05, sigmaone = 1, sigmabias = 2,
+         boundary = 0.5, ndt = 0.2, poutlier = 0.02),
+    list(mu = 1, driftone = 3, sigmazero = 1, sigmaone = 0.05, sigmabias = 2,
+         boundary = 0.5, ndt = 0.2, poutlier = 0.02),
+    list(mu = 3, driftone = -20, sigmazero = 1, sigmaone = 0.5,
+         sigmabias = 0.01, boundary = 0.005, ndt = 0.2, poutlier = 0.02)
+  )
+  for (k in seq_along(sets)) {
+    pars <- sets[[k]]
+    d <- list(N = 2L * length(dt), Y = pars$ndt + rep(dt, 2),
+              dec = rep(0:1, each = length(dt)))
+    fit <- mod$sample(data = d, init = list(pars), chains = 1, iter_warmup = 1,
+                      iter_sampling = 1, fixed_param = TRUE, refresh = 0,
+                      show_messages = FALSE)
+    fit$init_model_methods(verbose = FALSE)
+    up <- fit$unconstrain_variables(pars)
+
+    expect_true(is.finite(fit$log_prob(up)), label = paste("log_prob, set", k))
+    g <- fit$grad_log_prob(up)
+    expect_true(all(is.finite(g)), label = paste("gradient, set", k))
+
+    # And it is the right gradient, not merely a finite one.
+    h <- 1e-6
+    fd <- vapply(seq_along(up), function(j) {
+      e <- replace(numeric(length(up)), j, h)
+      (fit$log_prob(up + e) - fit$log_prob(up - e)) / (2 * h)
+    }, numeric(1))
+    expect_equal(as.numeric(g), fd, tolerance = 1e-4)
+  }
+})
+
+
 # priors and inits --------------------------------------------------------
 
 test_that("cogmod_priors fills ndt and poutlier for cogmod_lba2", {
@@ -634,7 +819,7 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_lba2", {
   expect_true(any(p$dpar == "ndt" & p$class == "Intercept" &
                     p$prior == "normal(-1.2, 0.5)"))
   expect_true(any(p$dpar == "poutlier" & p$class == "Intercept" &
-                    p$prior == "normal(-5, 1)"))
+                    p$prior == "normal(-6, 1)"))
 
   omitted <- brms::bf(RT | dec(Error) ~ 1, family = cogmod_lba2())
   expect_true(any(grepl("uniform",
@@ -643,7 +828,7 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_lba2", {
   p2 <- cogmod_priors(omitted, d)
   expect_false(any(grepl("uniform", p2$prior)))
   expect_true(any(p2$class == "ndt" & p2$prior == "lognormal(-1.2, 0.5)"))
-  expect_true(any(p2$class == "poutlier" & p2$prior == "exponential(100)"))
+  expect_true(any(p2$class == "poutlier" & p2$prior == "exponential(280)"))
 
   mixed <- brms::bf(RT | dec(Error) ~ Condition + (1 | id), ndt ~ Condition,
                     sigmazero = 1, family = cogmod_lba2())
@@ -692,12 +877,16 @@ test_that("cogmod_priors fences off the scale ray and the threshold ridge", {
     expect_equal(pick(dp, "Intercept"), "normal(0, 1)", label = dp)
     expect_equal(pick(dp, "b"), "normal(0, 0.5)", label = paste(dp, "slope"))
   }
+  # the error accumulator's drift, on an identity link: one row for both forms
+  expect_equal(pick("driftone", "Intercept"), "normal(1, 2)")
+  expect_equal(pick("driftone", "b"), "normal(0, 1.5)")
 
   f2 <- brms::bf(RT | dec(Error) ~ 1, family = cogmod_lba2())
   p2 <- cogmod_priors(f2, d)
   for (dp in c("sigmazero", "sigmaone", "sigmabias", "boundary")) {
     expect_equal(p2$prior[p2$class == dp], "lognormal(-0.7, 0.75)", label = dp)
   }
+  expect_equal(p2$prior[p2$class == "driftone"], "normal(1, 2)")
 
   for (form in list(f, f2)) {
     # Both leave the evidence scale free, which is the whole point of this

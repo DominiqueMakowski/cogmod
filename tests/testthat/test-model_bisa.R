@@ -152,14 +152,21 @@ test_that("the family, its priors and its epred are wired up", {
   )
   f <- brms::bf(RT ~ Condition, boundary ~ Condition, ndt ~ 1, poutlier ~ 1,
                 family = cogmod_bisa())
-  # Two identified parameters and no flat direction, so unlike
-  # cogmod_invgaussian()'s sigmadrift neither decision dpar needs a prior of its
-  # own; cogmod_priors() fills ndt and poutlier and leaves the rest blanket.
+  # Two identified parameters and no flat direction, but brms would leave
+  # `boundary` flat, so it gets cogmod_invgaussian()'s threshold rows; `mu` is
+  # the response's and stays with brms.
   p <- expect_silent(cogmod_priors(f, d))
   expect_equal(p$prior[p$class == "Intercept" & p$dpar == "ndt"],
                "normal(-1.2, 0.5)")
   expect_equal(p$prior[p$class == "Intercept" & p$dpar == "poutlier"],
-               "normal(-5, 1)")
+               "normal(-6, 1)")
+  expect_equal(p$prior[p$class == "Intercept" & p$dpar == "boundary"],
+               "normal(0.5, 1)")
+  expect_equal(p$prior[p$class == "b" & p$dpar == "boundary" & p$coef == ""],
+               "normal(0, 0.5)")
+  omitted <- brms::bf(RT ~ Condition, family = cogmod_bisa())
+  p2 <- cogmod_priors(omitted, d)
+  expect_equal(p2$prior[p2$class == "boundary"], "lognormal(0, 0.6)")
 
   expect_silent(
     brms::make_stancode(f, data = d, family = f$family, prior = p,

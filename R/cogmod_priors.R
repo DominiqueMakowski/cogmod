@@ -128,7 +128,7 @@
 #'
 #' | class | `ndt` | `poutlier` | `shape` |
 #' | --- | --- | --- | --- |
-#' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2, 0.5)` | `normal(-5, 1)` | `normal(0, 0.5)` |
+#' | `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2, 0.5)` | `normal(-6, 1)` | `normal(0, 0.5)` |
 #' | `b` (slopes) | `normal(0, 0.2)` | `normal(0, 0.2)` | `normal(0, 0.2)` |
 #' | `sd` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
 #'
@@ -142,18 +142,25 @@
 #' `ndt -> 0` direction the likelihood cannot close on its own. Like everything
 #' else in these families it is stated in **seconds**, which is the unit the
 #' package expects throughout. `poutlier` is a proportion and
-#' does not move: `normal(-5, 1)` is centred at about 0.7% and puts roughly 95%
-#' of its mass between 0.1% and 5%. That is where the empirical estimates sit -
-#' pooling across four lexical-decision megastudies, Miller (2024) puts the
+#' does not move: `normal(-6, 1)` is centred at 0.25% and puts roughly 95% of
+#' its mass between 0.035% and 1.7%. That is where the empirical estimates sit.
+#' Pooling across four lexical-decision megastudies, Miller (2024) puts the
 #' outlier proportion below 0.5% and argues that the 5-10% assumed in most
-#' simulation work is unrealistically large.
+#' simulation work is unrealistically large. The untrimmed Illusion Game data
+#' of the [outliers article](https://dominiquemakowski.github.io/cogmod/articles/outliers.html),
+#' 2,215 participants, say the same: the share of responses below 0.30 s,
+#' where accuracy is at chance, sits at -6.2 on the logit scale for the typical
+#' participant and at -5.3 pooled over everyone. The first is what the
+#' intercept of `poutlier ~ 1 + (1 | Participant)` estimates and the second what
+#' `poutlier ~ 1` does; the prior covers both.
 #'
 #' `shape` exists only for [cogmod_loggamma()]. `normal(0, 0.5)` is centred on the
 #' LogNormal shape and keeps the sampler clear of `sigma * shape >= 1`, where the
 #' decision density becomes unbounded at the shift and the likelihood with it.
 #'
-#' A family may add rows of its own where its likelihood has a flat direction
-#' that `brms` would leave improper. Seven do:
+#' A family may add rows of its own: where its likelihood has a flat direction
+#' that `brms` would leave improper, and where `brms` would leave a parameter the
+#' family names flat although the data identify it. These do:
 #'
 #' - [cogmod_logstudent()]: `dof`. The LogNormal is only reached as `dof -> Inf`,
 #'   and it is approached slowly - at `dof = 100` the density still differs from
@@ -168,19 +175,30 @@
 #'   way to know, and it shares a ridge with `ndt` - both delay the response,
 #'   and only the shape of the leading edge tells them apart.
 #'   `normal(-1.5, 0.7)` is the same statement [cogmod_exgaussian()] gets for the
-#'   same quantity: roughly 55 to 630 ms.
+#'   same quantity: roughly 55 to 630 ms. `boundary` gets the rows
+#'   [cogmod_invgaussian()]'s does, for the threshold of the same Wald stage.
 #' - [cogmod_lba1()]: `sigmabias` and `boundary`. As the start-point range
 #'   approaches zero the LBA converges to the recinormal and the likelihood
 #'   stops depending on it, and a `softplus` link reaches zero only at minus
 #'   infinity. Without those rows `sigmabias` runs off - `softplus(-10.4)`,
 #'   `Rhat` 1.69.
-#' - [cogmod_rdm()]: `sigmabias` and `boundary`, for exactly the reason
-#'   [cogmod_lba1()] needs them - the two enter the threshold only through the
-#'   sum `b = boundary + sigmabias` and trade off along a ridge worth a handful
-#'   of log units, and the `softplus` link reaches zero only at minus infinity.
-#'   The drift rates are left alone: a zero-drift accumulator still finishes,
-#'   and still wins sometimes, so there is no plateau at the bottom of that
-#'   direction the way there is for [cogmod_lnr()]'s `nuone`.
+#' - [cogmod_rdm()]: `driftone`, `sigmabias` and `boundary`. The last two are
+#'   there for exactly the reason [cogmod_lba1()] needs them - they enter the
+#'   threshold only through the sum `b = boundary + sigmabias` and trade off
+#'   along a ridge worth a handful of log units, and the `softplus` link reaches
+#'   zero only at minus infinity. `driftone` has a plateau at the bottom of its
+#'   link. A zero-drift accumulator still finishes, and still wins sometimes, but
+#'   once the drift is a few hundredths the likelihood stops changing, while the
+#'   link puts that whole region at minus infinity: left flat, a condition with
+#'   75 errors ran the drift down to 0.0001 with half of the transitions
+#'   divergent. `normal(3, 2)`, with `normal(0, 2)` on its slopes, fences that
+#'   plateau from well above it. Under the `dec(Error)` coding every example
+#'   here uses, `driftone` is the *error* accumulator, so wherever errors are
+#'   rare expect its posterior in the lower tail of that prior: that is the
+#'   fence working, and no prediction depends on where on the plateau the drift
+#'   sits. Priors centred on an error accumulator's drift were measured: they
+#'   predicted the same error rates and RTs and cost 9-26% more gradient
+#'   evaluations per draw. See [cogmod_rdm()].
 #' - [cogmod_lba2()]: `driftone`, `sigmazero`, `sigmaone`, `sigmabias` and
 #'   `boundary`. The last two share the threshold ridge above; the two drift SDs
 #'   are worse. The evidence scale of an LBA is arbitrary - multiply the drifts,
@@ -192,19 +210,30 @@
 #'   at zero: once an accumulator rarely wins, its drift and SD are identified
 #'   only through `|drift| / sigma^2`, and a flat prior lets the drift run off
 #'   to `-12` and beyond. `normal(1, 2)` is centred where LBA drifts sit on the
-#'   `sigmazero = 1` scale. See [cogmod_lba2()].
+#'   `sigmazero = 1` scale, above an error accumulator's, and for the reason
+#'   [cogmod_rdm()]'s is: expect an error accumulator's posterior in its lower
+#'   tail wherever errors are rare. See [cogmod_lba2()].
 #' - [cogmod_ddm()]: `sigmadrift`, `sigmabias` and `sigmandt`, the three
 #'   between-trial variability parameters. Each has a floor at zero that its link
 #'   reaches only at minus infinity, and the likelihood stops changing well
 #'   before then. They are also the parameters a DDM is least able to recover, so
 #'   these priors are deliberately tighter than the rest. Fixing the ones a
 #'   design cannot identify (`sigmadrift = 0` in `bf()`) is usually better than
-#'   estimating them behind a prior.
+#'   estimating them behind a prior. Also `boundary` and `bias`, which the data
+#'   identify but `brms` would leave flat: `boundary` gets `normal(1, 1)` on its
+#'   `softplus` link - a median separation of 1.31, with 95% between 0.32 and
+#'   3.0, the usual range at a diffusion coefficient of 1 - and `normal(0, 0.5)`
+#'   on its slopes; `bias` keeps `brms`'s `logistic(0, 1)` intercept, uniform on
+#'   the probability scale, and gets `normal(0, 0.5)` on its slopes.
 #' - [cogmod_invgaussian()]: `sigmadrift` and `sigmandt`, for the same reasons
 #'   as the DDM's, with `sigmandt` taking the DDM's prior for the same quantity
 #'   verbatim. Both should be fixed at zero unless the design can identify
 #'   them; `sigmandt` in particular needs a lot of data, a strong prior, or
-#'   both.
+#'   both. Also `boundary`, which the data identify but `brms` would leave flat:
+#'   `normal(0.5, 1)` on its `softplus` link puts the median threshold at 0.97,
+#'   with 95% between 0.21 and 2.5, and its slopes get `normal(0, 0.5)`.
+#' - [cogmod_bisa()]: `boundary`, with [cogmod_invgaussian()]'s rows, the
+#'   threshold meaning the same thing in both.
 #' - [cogmod_lnr()]: `nuone`, `sigmazero` and `sigmaone`. Push an accumulator's
 #'   rate far enough down and it never finishes first, so the density depends on
 #'   it only through a survival term that has already saturated at 1; past about
@@ -229,8 +258,9 @@
 #' so that swapping the coding does not change what the priors say about how
 #' much the rates vary.
 #'
-#' All of them are the same failure as `ndt` and `poutlier`: an infinite flat
-#' region under a flat prior. See [cogmod_lba1()], [cogmod_rdm()],
+#' Apart from the thresholds of the Wald families and the DDM's `boundary` and
+#' `bias`, all of them are the same failure as `ndt` and `poutlier`: an infinite
+#' flat region under a flat prior. See [cogmod_lba1()], [cogmod_rdm()],
 #' [cogmod_lba2()], [cogmod_ddm()] and [cogmod_lnr()].
 #'
 #' Note that no prior is set on the shape of [cogmod_weibull()] or
@@ -424,15 +454,19 @@
 #' | dpar | in `bf()` (link scale) | omitted (natural scale) |
 #' | --- | --- | --- |
 #' | `ndt` | `normal(-1.2, 0.5)` | `lognormal(-1.2, 0.5)` |
-#' | `poutlier` | `normal(-5, 1)` | `exponential(100)` |
+#' | `poutlier` | `normal(-6, 1)` | `exponential(280)` |
 #' | `shape` | `normal(0, 0.5)` | `normal(0, 0.5)` |
 #' | `sigmabias`, `boundary` ([cogmod_lba1()], [cogmod_rdm()], [cogmod_lba2()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
+#' | `driftone` ([cogmod_rdm()]) | `normal(3, 2)` | `lognormal(1, 0.75)` |
 #' | `sigmazero`, `sigmaone` ([cogmod_lba2()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 #' | `driftone` ([cogmod_lba2()]) | `normal(1, 2)` | `normal(1, 2)` |
+#' | `boundary` ([cogmod_ddm()]) | `normal(1, 1)` | `lognormal(0.27, 0.5)` |
+#' | `bias` ([cogmod_ddm()]) | `logistic(0, 1)` (`brms`'s own) | `beta(1, 1)` (`brms`'s own) |
 #' | `sigmadrift` ([cogmod_ddm()]) | `normal(0, 1)` | `lognormal(-1, 0.75)` |
 #' | `sigmabias` ([cogmod_ddm()]) | `normal(-2, 1)` | `beta(1, 5)` |
 #' | `sigmandt` ([cogmod_ddm()], [cogmod_invgaussian()]) | `normal(-3, 1)` | `lognormal(-3, 1)` |
 #' | `sigmadrift` ([cogmod_invgaussian()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
+#' | `boundary` ([cogmod_invgaussian()], [cogmod_exwald()], [cogmod_bisa()]) | `normal(0.5, 1)` | `lognormal(0, 0.6)` |
 #' | `nuone` ([cogmod_lnr()]) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` |
 #' | `sigmazero`, `sigmaone` ([cogmod_lnr()]) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
 #' | `sigmabias` ([cogmod_lnr()], [cogmod_lognormal()]) | `normal(0, 1)` | `lognormal(-0.35, 0.75)` |
@@ -464,6 +498,12 @@
 #' that shows the rule, being on a `log` link, where the pair really is one
 #' distribution and carries the same two numbers.
 #'
+#' The thresholds near `x = 0`, [cogmod_ddm()]'s and the Wald families'
+#' `boundary`, are matched on the median the same way: `lognormal(0.27, 0.5)`
+#' has median 1.31 against `softplus(1) = 1.31`, and `lognormal(0, 0.6)` 1.00
+#' against `softplus(0.5) = 0.97`; so is [cogmod_rdm()]'s `driftone`,
+#' `lognormal(1, 0.75)` having median 2.72 against `softplus(3) = 3.05`.
+#'
 #' If the data were trimmed before fitting, tighten this rather than removing
 #' it: `normal(-7, 0.5)` asserts essentially no contamination while keeping the
 #' density positive below `ndt`. Fixing `poutlier = 0` outright reinstates the
@@ -474,7 +514,7 @@
 #' formula is itself information - you either trimmed the data already or do not
 #' expect outliers - so the omitted form puts its **mode at zero**, which a
 #' logit-scale prior cannot do at any location. The centre is unchanged:
-#' `exponential(100)` has median 0.0069 against `plogis(-5) = 0.0067`. It is
+#' `exponential(280)` has median 0.0025 against `plogis(-6) = 0.0025`. It is
 #' still a prior rather than a constraint, so a genuine spike of fast responses
 #' will still pull the rate up; to switch the parameter off entirely, trim the
 #' data and it will simply sit near zero.
@@ -891,18 +931,33 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
 # time is about 0.6 s - 3.5 SDs from the centre under that prior - the RDM
 # produced divergent transitions in every run, the reference included, and
 # widening the SD to 0.5 removed them (Rhat 1.06 and a minimum ESS of 67
-# became 1.01 and 392; benchmarks/rdm_brittleness_report.md). The prior's job
+# became 1.01 and 392; NEWS.md, 0.3.2). The prior's job
 # is to fence the `ndt -> 0` direction, where the likelihood goes flat and a
 # flat prior would make the posterior improper; at 0.5 it still does that
 # (log(0.01 s) is 6.8 SDs out) without telling the data where in 0.1 to 0.8 s
 # the non-decision time is.
 #
+# poutlier is centred at logit -6, 0.25%, with 95% of the mass between 0.035%
+# and 1.7%. Until 0.3.5 the centre was -5 (0.7%), and every estimate since has
+# come in below it. Miller (2024) puts the outlier proportion below 0.5%.
+# On the untrimmed Illusion Game data of vignette("outliers"), 2,215
+# participants, the share of responses below 0.30 s (where accuracy is at
+# chance) is -5.3 on the logit scale pooled, but -6.2 for the typical
+# participant (zeros capped at half a trial, so if anything high) - and with
+# `poutlier ~ 1 + (1 | Participant)`, which that vignette recommends, the
+# intercept is the typical participant. On 18 such hierarchical fits of
+# 324,000 trials each (cogmod 0.3.3-0.3.4, data with the fast-guessing blocks
+# dropped), the posterior sat at -6.0 to -8.2, below -5 every time and past
+# its 1st percentile in nine, with a contraction of 0.95-0.99: data that
+# dominate, pulled the same way in every fit. -6 is where the hierarchical
+# estimates on untrimmed data sit, and a pooled -5.3 is still 0.7 SDs in.
+#
 # poutlier is deliberately NOT the same belief twice. Leaving it out of the
 # formula is itself information: the user either trimmed the data already or does
 # not expect outliers. So the `nat` form puts its mode at zero, which a
 # logit-scale prior cannot do at any location. The median matches regardless -
-# exponential(100) has median 0.0069 against plogis(-5) = 0.0067 - so the centre
-# is unchanged, only the shape. Truncation at 1 is negligible: exp(-100) of the
+# exponential(280) has median 0.0025 against plogis(-6) = 0.0025 - so the centre
+# is unchanged, only the shape. Truncation at 1 is negligible: exp(-280) of the
 # mass is above it. brms's own default here is flat over [0, 1] - proper, but it
 # puts half its mass above 0.5.
 #
@@ -918,7 +973,7 @@ cogmod_priors <- function(formula, data, ..., warmstart = NULL, prior_scale = 3)
 #' @keywords internal
 .SHIFTED_BASE_PRIORS <- list(
   ndt = c(link = "normal(-1.2, 0.5)", nat = "lognormal(-1.2, 0.5)"),
-  poutlier = c(link = "normal(-5, 1)", nat = "exponential(100)"),
+  poutlier = c(link = "normal(-6, 1)", nat = "exponential(280)"),
   shape = c(link = "normal(0, 0.5)", nat = "normal(0, 0.5)")
 )
 

@@ -1079,8 +1079,9 @@ test_that("milliseconds are caught from the median, not from one slow trial", {
 test_that("the tails are judged against what poutlier can absorb", {
   # rcogmod_lognormal(200, ndt = 0.2, poutlier = 0.02) puts a response at 81 ms
   # all by itself, so a count-based test fires on the package's own generator.
-  # The outlier component reaches about 2% below 0.1 s at the top of its default
-  # prior, so a handful passes and a fifth of the data does not.
+  # The outlier component puts under 1% below 0.1 s at the top of its default
+  # prior, and 2% at poutlier = 0.05, so a handful passes and a fifth of the
+  # data does not.
   few <- transform(d_chk, RT = replace(RT, 1:6, 0.05))   # 3%
   many <- transform(d_chk, RT = replace(RT, 1:40, 0.05)) # 20%
   expect_silent(cogmod:::.cogmod_checkdata(f_chk, few))

@@ -152,7 +152,7 @@ script.
 What gets set, on the link scale (\code{log} for \code{ndt}, \code{logit} for \code{poutlier},
 \code{identity} for \code{shape}):\tabular{llll}{
    class \tab \code{ndt} \tab \code{poutlier} \tab \code{shape} \cr
-   \code{Intercept}, or \code{b} on a coefficient named \code{Intercept} \tab \code{normal(-1.2, 0.5)} \tab \code{normal(-5, 1)} \tab \code{normal(0, 0.5)} \cr
+   \code{Intercept}, or \code{b} on a coefficient named \code{Intercept} \tab \code{normal(-1.2, 0.5)} \tab \code{normal(-6, 1)} \tab \code{normal(0, 0.5)} \cr
    \code{b} (slopes) \tab \code{normal(0, 0.2)} \tab \code{normal(0, 0.2)} \tab \code{normal(0, 0.2)} \cr
    \code{sd} \tab \code{exponential(1)} \tab \code{exponential(1)} \tab \code{exponential(1)} \cr
 }
@@ -168,18 +168,25 @@ populations and more demanding responses, and still a fence against the
 \code{ndt -> 0} direction the likelihood cannot close on its own. Like everything
 else in these families it is stated in \strong{seconds}, which is the unit the
 package expects throughout. \code{poutlier} is a proportion and
-does not move: \code{normal(-5, 1)} is centred at about 0.7\% and puts roughly 95\%
-of its mass between 0.1\% and 5\%. That is where the empirical estimates sit -
-pooling across four lexical-decision megastudies, Miller (2024) puts the
+does not move: \code{normal(-6, 1)} is centred at 0.25\% and puts roughly 95\% of
+its mass between 0.035\% and 1.7\%. That is where the empirical estimates sit.
+Pooling across four lexical-decision megastudies, Miller (2024) puts the
 outlier proportion below 0.5\% and argues that the 5-10\% assumed in most
-simulation work is unrealistically large.
+simulation work is unrealistically large. The untrimmed Illusion Game data
+of the \href{https://dominiquemakowski.github.io/cogmod/articles/outliers.html}{outliers article},
+2,215 participants, say the same: the share of responses below 0.30 s,
+where accuracy is at chance, sits at -6.2 on the logit scale for the typical
+participant and at -5.3 pooled over everyone. The first is what the
+intercept of \code{poutlier ~ 1 + (1 | Participant)} estimates and the second what
+\code{poutlier ~ 1} does; the prior covers both.
 
 \code{shape} exists only for \code{\link[=cogmod_loggamma]{cogmod_loggamma()}}. \code{normal(0, 0.5)} is centred on the
 LogNormal shape and keeps the sampler clear of \code{sigma * shape >= 1}, where the
 decision density becomes unbounded at the shift and the likelihood with it.
 
-A family may add rows of its own where its likelihood has a flat direction
-that \code{brms} would leave improper. Seven do:
+A family may add rows of its own: where its likelihood has a flat direction
+that \code{brms} would leave improper, and where \code{brms} would leave a parameter the
+family names flat although the data identify it. These do:
 \itemize{
 \item \code{\link[=cogmod_logstudent]{cogmod_logstudent()}}: \code{dof}. The LogNormal is only reached as \code{dof -> Inf},
 and it is approached slowly - at \code{dof = 100} the density still differs from
@@ -194,19 +201,30 @@ a length of time in seconds behind a \code{softplus} link, which \code{brms} has
 way to know, and it shares a ridge with \code{ndt} - both delay the response,
 and only the shape of the leading edge tells them apart.
 \code{normal(-1.5, 0.7)} is the same statement \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} gets for the
-same quantity: roughly 55 to 630 ms.
+same quantity: roughly 55 to 630 ms. \code{boundary} gets the rows
+\code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}'s does, for the threshold of the same Wald stage.
 \item \code{\link[=cogmod_lba1]{cogmod_lba1()}}: \code{sigmabias} and \code{boundary}. As the start-point range
 approaches zero the LBA converges to the recinormal and the likelihood
 stops depending on it, and a \code{softplus} link reaches zero only at minus
 infinity. Without those rows \code{sigmabias} runs off - \code{softplus(-10.4)},
 \code{Rhat} 1.69.
-\item \code{\link[=cogmod_rdm]{cogmod_rdm()}}: \code{sigmabias} and \code{boundary}, for exactly the reason
-\code{\link[=cogmod_lba1]{cogmod_lba1()}} needs them - the two enter the threshold only through the
-sum \code{b = boundary + sigmabias} and trade off along a ridge worth a handful
-of log units, and the \code{softplus} link reaches zero only at minus infinity.
-The drift rates are left alone: a zero-drift accumulator still finishes,
-and still wins sometimes, so there is no plateau at the bottom of that
-direction the way there is for \code{\link[=cogmod_lnr]{cogmod_lnr()}}'s \code{nuone}.
+\item \code{\link[=cogmod_rdm]{cogmod_rdm()}}: \code{driftone}, \code{sigmabias} and \code{boundary}. The last two are
+there for exactly the reason \code{\link[=cogmod_lba1]{cogmod_lba1()}} needs them - they enter the
+threshold only through the sum \code{b = boundary + sigmabias} and trade off
+along a ridge worth a handful of log units, and the \code{softplus} link reaches
+zero only at minus infinity. \code{driftone} has a plateau at the bottom of its
+link. A zero-drift accumulator still finishes, and still wins sometimes, but
+once the drift is a few hundredths the likelihood stops changing, while the
+link puts that whole region at minus infinity: left flat, a condition with
+75 errors ran the drift down to 0.0001 with half of the transitions
+divergent. \code{normal(3, 2)}, with \code{normal(0, 2)} on its slopes, fences that
+plateau from well above it. Under the \code{dec(Error)} coding every example
+here uses, \code{driftone} is the \emph{error} accumulator, so wherever errors are
+rare expect its posterior in the lower tail of that prior: that is the
+fence working, and no prediction depends on where on the plateau the drift
+sits. Priors centred on an error accumulator's drift were measured: they
+predicted the same error rates and RTs and cost 9-26\% more gradient
+evaluations per draw. See \code{\link[=cogmod_rdm]{cogmod_rdm()}}.
 \item \code{\link[=cogmod_lba2]{cogmod_lba2()}}: \code{driftone}, \code{sigmazero}, \code{sigmaone}, \code{sigmabias} and
 \code{boundary}. The last two share the threshold ridge above; the two drift SDs
 are worse. The evidence scale of an LBA is arbitrary - multiply the drifts,
@@ -218,19 +236,30 @@ formula (\code{sigmazero = 1}) identifies the scale. \code{driftone} has the pla
 at zero: once an accumulator rarely wins, its drift and SD are identified
 only through \verb{|drift| / sigma^2}, and a flat prior lets the drift run off
 to \code{-12} and beyond. \code{normal(1, 2)} is centred where LBA drifts sit on the
-\code{sigmazero = 1} scale. See \code{\link[=cogmod_lba2]{cogmod_lba2()}}.
+\code{sigmazero = 1} scale, above an error accumulator's, and for the reason
+\code{\link[=cogmod_rdm]{cogmod_rdm()}}'s is: expect an error accumulator's posterior in its lower
+tail wherever errors are rare. See \code{\link[=cogmod_lba2]{cogmod_lba2()}}.
 \item \code{\link[=cogmod_ddm]{cogmod_ddm()}}: \code{sigmadrift}, \code{sigmabias} and \code{sigmandt}, the three
 between-trial variability parameters. Each has a floor at zero that its link
 reaches only at minus infinity, and the likelihood stops changing well
 before then. They are also the parameters a DDM is least able to recover, so
 these priors are deliberately tighter than the rest. Fixing the ones a
 design cannot identify (\code{sigmadrift = 0} in \code{bf()}) is usually better than
-estimating them behind a prior.
+estimating them behind a prior. Also \code{boundary} and \code{bias}, which the data
+identify but \code{brms} would leave flat: \code{boundary} gets \code{normal(1, 1)} on its
+\code{softplus} link - a median separation of 1.31, with 95\% between 0.32 and
+3.0, the usual range at a diffusion coefficient of 1 - and \code{normal(0, 0.5)}
+on its slopes; \code{bias} keeps \code{brms}'s \code{logistic(0, 1)} intercept, uniform on
+the probability scale, and gets \code{normal(0, 0.5)} on its slopes.
 \item \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}: \code{sigmadrift} and \code{sigmandt}, for the same reasons
 as the DDM's, with \code{sigmandt} taking the DDM's prior for the same quantity
 verbatim. Both should be fixed at zero unless the design can identify
 them; \code{sigmandt} in particular needs a lot of data, a strong prior, or
-both.
+both. Also \code{boundary}, which the data identify but \code{brms} would leave flat:
+\code{normal(0.5, 1)} on its \code{softplus} link puts the median threshold at 0.97,
+with 95\% between 0.21 and 2.5, and its slopes get \code{normal(0, 0.5)}.
+\item \code{\link[=cogmod_bisa]{cogmod_bisa()}}: \code{boundary}, with \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}'s rows, the
+threshold meaning the same thing in both.
 \item \code{\link[=cogmod_lnr]{cogmod_lnr()}}: \code{nuone}, \code{sigmazero} and \code{sigmaone}. Push an accumulator's
 rate far enough down and it never finishes first, so the density depends on
 it only through a survival term that has already saturated at 1; past about
@@ -256,8 +285,9 @@ its group-level SD gets the \code{exponential(1)} the other accumulator's gets,
 so that swapping the coding does not change what the priors say about how
 much the rates vary.
 
-All of them are the same failure as \code{ndt} and \code{poutlier}: an infinite flat
-region under a flat prior. See \code{\link[=cogmod_lba1]{cogmod_lba1()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}},
+Apart from the thresholds of the Wald families and the DDM's \code{boundary} and
+\code{bias}, all of them are the same failure as \code{ndt} and \code{poutlier}: an infinite
+flat region under a flat prior. See \code{\link[=cogmod_lba1]{cogmod_lba1()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}},
 \code{\link[=cogmod_lba2]{cogmod_lba2()}}, \code{\link[=cogmod_ddm]{cogmod_ddm()}} and \code{\link[=cogmod_lnr]{cogmod_lnr()}}.
 
 Note that no prior is set on the shape of \code{\link[=cogmod_weibull]{cogmod_weibull()}} or
@@ -449,15 +479,19 @@ Both forms are filled, with priors on whichever scale the parameter actually
 lives on:\tabular{lll}{
    dpar \tab in \code{bf()} (link scale) \tab omitted (natural scale) \cr
    \code{ndt} \tab \code{normal(-1.2, 0.5)} \tab \code{lognormal(-1.2, 0.5)} \cr
-   \code{poutlier} \tab \code{normal(-5, 1)} \tab \code{exponential(100)} \cr
+   \code{poutlier} \tab \code{normal(-6, 1)} \tab \code{exponential(280)} \cr
    \code{shape} \tab \code{normal(0, 0.5)} \tab \code{normal(0, 0.5)} \cr
    \code{sigmabias}, \code{boundary} (\code{\link[=cogmod_lba1]{cogmod_lba1()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}}, \code{\link[=cogmod_lba2]{cogmod_lba2()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
+   \code{driftone} (\code{\link[=cogmod_rdm]{cogmod_rdm()}}) \tab \code{normal(3, 2)} \tab \code{lognormal(1, 0.75)} \cr
    \code{sigmazero}, \code{sigmaone} (\code{\link[=cogmod_lba2]{cogmod_lba2()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
    \code{driftone} (\code{\link[=cogmod_lba2]{cogmod_lba2()}}) \tab \code{normal(1, 2)} \tab \code{normal(1, 2)} \cr
+   \code{boundary} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}) \tab \code{normal(1, 1)} \tab \code{lognormal(0.27, 0.5)} \cr
+   \code{bias} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}) \tab \code{logistic(0, 1)} (\code{brms}'s own) \tab \code{beta(1, 1)} (\code{brms}'s own) \cr
    \code{sigmadrift} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-1, 0.75)} \cr
    \code{sigmabias} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}) \tab \code{normal(-2, 1)} \tab \code{beta(1, 5)} \cr
    \code{sigmandt} (\code{\link[=cogmod_ddm]{cogmod_ddm()}}, \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}) \tab \code{normal(-3, 1)} \tab \code{lognormal(-3, 1)} \cr
    \code{sigmadrift} (\code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
+   \code{boundary} (\code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}, \code{\link[=cogmod_exwald]{cogmod_exwald()}}, \code{\link[=cogmod_bisa]{cogmod_bisa()}}) \tab \code{normal(0.5, 1)} \tab \code{lognormal(0, 0.6)} \cr
    \code{nuone} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}) \tab \code{normal(0.7, 1.5)} \tab \code{normal(0.7, 1.5)} \cr
    \code{sigmazero}, \code{sigmaone} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.7, 0.75)} \cr
    \code{sigmabias} (\code{\link[=cogmod_lnr]{cogmod_lnr()}}, \code{\link[=cogmod_lognormal]{cogmod_lognormal()}}) \tab \code{normal(0, 1)} \tab \code{lognormal(-0.35, 0.75)} \cr
@@ -491,6 +525,12 @@ link form stops at 4.9. \code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}
 that shows the rule, being on a \code{log} link, where the pair really is one
 distribution and carries the same two numbers.
 
+The thresholds near \code{x = 0}, \code{\link[=cogmod_ddm]{cogmod_ddm()}}'s and the Wald families'
+\code{boundary}, are matched on the median the same way: \code{lognormal(0.27, 0.5)}
+has median 1.31 against \code{softplus(1) = 1.31}, and \code{lognormal(0, 0.6)} 1.00
+against \code{softplus(0.5) = 0.97}; so is \code{\link[=cogmod_rdm]{cogmod_rdm()}}'s \code{driftone},
+\code{lognormal(1, 0.75)} having median 2.72 against \code{softplus(3) = 3.05}.
+
 If the data were trimmed before fitting, tighten this rather than removing
 it: \code{normal(-7, 0.5)} asserts essentially no contamination while keeping the
 density positive below \code{ndt}. Fixing \code{poutlier = 0} outright reinstates the
@@ -501,7 +541,7 @@ data} section of \code{\link[=cogmod_lognormal]{cogmod_lognormal()}}.
 formula is itself information - you either trimmed the data already or do not
 expect outliers - so the omitted form puts its \strong{mode at zero}, which a
 logit-scale prior cannot do at any location. The centre is unchanged:
-\code{exponential(100)} has median 0.0069 against \code{plogis(-5) = 0.0067}. It is
+\code{exponential(280)} has median 0.0025 against \code{plogis(-6) = 0.0025}. It is
 still a prior rather than a constraint, so a genuine spike of fast responses
 will still pull the rate up; to switch the parameter off entirely, trim the
 data and it will simply sit near zero.
