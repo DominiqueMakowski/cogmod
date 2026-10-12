@@ -133,7 +133,7 @@ returns a number - unlike \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}
 Both delay the response, and they are separated only by shape: \code{ndt} is a
 hard floor, \code{tau} a variable stage with an exponential spread. That makes
 them a ridge rather than a flat direction - the leading edge of the
-distribution identifies \code{ndt} - but a ridge all the same. The \code{normal(-1.2, 0.2)} that \code{\link[=cogmod_priors]{cogmod_priors()}} puts on \code{ndt} is what holds it; widen it and
+distribution identifies \code{ndt} - but a ridge all the same. The \code{normal(-1.2, 0.5)} that \code{\link[=cogmod_priors]{cogmod_priors()}} puts on \code{ndt} is what holds it; widen it and
 expect the two to trade off. Schwarz's own model has no \code{ndt} at all, the
 exponential stage being the whole of the residual time, and fixing \code{ndt = 0}
 in \code{bf()} recovers exactly that.
@@ -141,6 +141,30 @@ in \code{bf()} recovers exactly that.
 There is deliberately no \code{sigmadrift}. It and \code{tau} both fatten the right
 tail and are very hard to tell apart; \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}} is where the
 drift-variability route lives.
+}
+
+\section{Two ways to make a right tail}{
+The skew can come from either stage. In one solution the Wald carries it, at
+a low drift with a short \code{tau}. In the other the Wald is nearly Gaussian, at
+a high drift and threshold, and a long \code{tau} carries it. That second
+solution is an ex-Gaussian with a shift, and its \code{mu} and \code{boundary} no
+longer read as a drift and a threshold. The two predict almost the same
+response times: on the RT article's data their quantiles agree within 8 ms
+from the 1st to the 95th percentile. About 2,000 trials per condition do not
+reliably tell them apart, even when the data are simulated from the ex-Wald
+itself.
+
+More data does not remove the other solution. The posterior keeps a mode at
+each, and the valley between them deepens as trials are added. Chains
+started far from both, as \code{\link[=cogmod_inits]{cogmod_inits()}} starts them, can settle in
+either, and chains that agree have not necessarily found the more probable
+one. If the estimates matter, start a few chains at a high drift and
+threshold with a long \code{tau} and see where they end. If the exponential
+stage is not the question, \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}} has none to trade against.
+
+The valley lies along the seam between the density's two branches (see
+below), where the right tail passes from one stage to the other. Both
+branches are exact there, so it is not a numerical effect.
 }
 
 \section{How the density is computed}{
