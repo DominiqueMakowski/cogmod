@@ -245,7 +245,15 @@ if (mode == "emit") {
   sv <- cogmod_stanvars(f)
   code <- as.character(brms::make_stancode(f, data = df, prior = prior, stanvars = sv))
   sdat <- lapply(unclass(brms::make_standata(f, data = df, prior = prior, stanvars = sv)), identity)
-  for (v in names(.VARIANTS)) writeLines(.VARIANTS[[v]](code), path("lnr_", v, ".stan"))
+  # A variant whose source no longer fits brms's program is skipped, not
+  # fatal: cogmod#5's `rw` (and `rw_v`) carry brms's blocks as of 0.3.4, and
+  # 0.3.5's priors changed them (2026-10-12), which only `grad` needs.
+  for (v in names(.VARIANTS)) {
+    x <- tryCatch(.VARIANTS[[v]](code), error = function(e) {
+      cat("variant `", v, "` skipped: ", conditionMessage(e), "\n", sep = ""); NULL
+    })
+    if (!is.null(x)) writeLines(x, path("lnr_", v, ".stan"))
+  }
   cmdstanr::write_stan_json(sdat, path("lnr.data.json"))
   init <- cogmod_inits(f, df, jitter = 0)(1)
   init_json(init, path("lnr.init.json"))

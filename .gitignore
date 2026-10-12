@@ -113,8 +113,9 @@ benchmarks/gaussbit/results/*.stan
 benchmarks/gaussbit/results/run.log
 # stanli backend trial (benchmarks/stanli/bench.R): only its CSVs, under
 # benchmarks/stanli/results/, are kept; the generated programs, executables,
-# fits and logs are regenerable.
+# fits and logs are regenerable. Likewise multilevel.R's and chains_probe.R's.
 benchmarks/results/stanli/
+benchmarks/results/stanli_ml/
 
 # The animation scripts import a shared module, which leaves one of these.
 __pycache__/

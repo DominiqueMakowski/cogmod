@@ -11,6 +11,13 @@
 #   ./run.sh submit fit [n]     n seeds of bench.R's 2x2 fit, 4 CPUs each (default 16);
 #                               STANLI_ARMS=a,b,... replaces the default arms
 #   ./run.sh submit grad [n]    n copies of grad + bisect + repros, 2 CPUs each (default 4)
+#   ./run.sh submit ml [n]      multilevel.R, one (model, seed) per task, 4 CPUs each
+#                               (default 28 = 4 seeds x the 7 models in STANLI_ML_MODELS,
+#                               colon-separated: sbatch --export splits at commas;
+#                               task k is model k mod 7, seed (k - 1) div 7 + 1);
+#                               STANLI_ML_ARGS goes to `fit` (e.g. "--iter 300"),
+#                               STANLI_TIME replaces the 08:00:00 limit
+#   ./run.sh submit mlchains [n]  chains_probe.R, mapped as ml (default 12), 4 CPUs each
 #                               n may be a range ("10-12") to rerun those indices;
 #                               extra args go to sbatch
 #
@@ -58,7 +65,7 @@ fi
 die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 info() { printf '\033[36m==>\033[0m %s\n' "$*"; }
 remote() { "$SSH" -o BatchMode=yes "$ALIAS" "$@" 2> >(grep -v 'module: command not found' >&2); }
-EXPORTS="STANLI_DIR='${REMOTE}',STANLI_SCRATCH='${SCRATCH}',STANLI_LIB='${LIB}',STANLI_PROD_LIB='${PROD_LIB}',STANLI_R_MODULE='${R_MODULE}',STANLI_EB_MODULES='${EB_MODULES}',STANLI_TAG='${TAG}',STANLI_ARMS='${STANLI_ARMS:-}'"
+EXPORTS="STANLI_DIR='${REMOTE}',STANLI_SCRATCH='${SCRATCH}',STANLI_LIB='${LIB}',STANLI_PROD_LIB='${PROD_LIB}',STANLI_R_MODULE='${R_MODULE}',STANLI_EB_MODULES='${EB_MODULES}',STANLI_TAG='${TAG}',STANLI_ARMS='${STANLI_ARMS:-}',STANLI_ML_MODELS='${STANLI_ML_MODELS:-lnr:lnr6:ddm4:ddm5:ddm7:lba:rdm}',STANLI_ML_ARGS='${STANLI_ML_ARGS:-}'"
 
 # What load_all() and the benchmark need, nothing else: the package's R code
 # and metadata, gradient_programs.R, and benchmarks/stanli's scripts and Stan
@@ -101,11 +108,13 @@ cmd_install() {
 }
 
 cmd_submit() {
-  local kind="${1:?usage: run.sh submit fit|grad [n] [sbatch args]}"; shift || true
+  local kind="${1:?usage: run.sh submit fit|grad|ml|mlchains [n] [sbatch args]}"; shift || true
   local n cpus time
   case "$kind" in
     fit) n="${1:-16}"; cpus=4; time="02:00:00" ;;
     grad) n="${1:-4}";  cpus=2; time="01:30:00" ;;
+    ml)   n="${1:-28}"; cpus=4; time="${STANLI_TIME:-08:00:00}" ;;
+    mlchains) n="${1:-12}"; cpus=4; time="${STANLI_TIME:-02:00:00}" ;;
     *) die "unknown kind: $kind" ;;
   esac
   shift || true
@@ -126,6 +135,7 @@ cmd_progress() {
   remote "cd '${REMOTE}/results' 2>/dev/null || { echo 'no results yet'; exit 0; }
     echo \"fit${TAG:+ $TAG}: \$(ls fit_${TAG:+${TAG}_}[0-9]*/fit_summary*.csv 2>/dev/null | wc -l) seeds done\"
     echo \"grad${TAG:+ $TAG}: \$(ls grad_${TAG:+${TAG}_}[0-9]*/time*.csv 2>/dev/null | wc -l) done\"
+    echo \"ml${TAG:+ $TAG}: \$(ls ml_${TAG:+${TAG}_}*/ml_time_*.csv 2>/dev/null | wc -l) done, \$(ls ml_${TAG:+${TAG}_}*/ml_fit_*.csv 2>/dev/null | wc -l) fitted\"
     echo '--- failed tasks (.err with Error):'; grep -l '^Error\|Execution halted' '${SCRATCH}'/*.err 2>/dev/null | wc -l"
 }
 
