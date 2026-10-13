@@ -102,6 +102,9 @@
 #' every time, and moving it to 1 took 2,400-3,800 log-likelihood units per
 #' 2,000 trials off the shortfall of the whole start.
 #'
+#' [cogmod_lnr()] matches them, with `nuone` at 0 against `mu`'s 0.7: 16%
+#' errors rather than 50%. Its reason is consistency.
+#'
 #' # Supported families
 #'
 #' The family is read off `formula`, so build it with
@@ -322,7 +325,9 @@ cogmod_inits <- function(
       v <- e$value
       j <- jitter[[e$tier]]
       # per element, for a coefficient block whose design reaches past 1
-      if (!is.null(e$scale)) j <- j * e$scale
+      if (!is.null(e$scale)) {
+        j <- j * e$scale
+      }
       if (any(j > 0)) {
         v <- switch(
           e$kind,
@@ -603,7 +608,9 @@ cogmod_inits <- function(
 # anything else, which keeps the tier's jitter as it is.
 #' @keywords internal
 .jitter_scale <- function(d, n, sdata) {
-  if (!identical(d$type, "vector") || length(d$dims) != 1) return(NULL)
+  if (!identical(d$type, "vector") || length(d$dims) != 1) {
+    return(NULL)
+  }
   nm <- d$name
   design <- if (identical(nm, "b")) {
     "X"
@@ -617,7 +624,9 @@ cogmod_inits <- function(
     return(NULL)
   }
   X <- sdata[[design]]
-  if (is.null(X)) return(NULL)
+  if (is.null(X)) {
+    return(NULL)
+  }
   X <- as.matrix(X)
   icpt <- if (is.null(colnames(X))) {
     rep(FALSE, ncol(X))
@@ -635,9 +644,13 @@ cogmod_inits <- function(
   } else {
     return(NULL)
   }
-  if (!any(slope) || !nrow(Z)) return(NULL)
+  if (!any(slope) || !nrow(Z)) {
+    return(NULL)
+  }
   reach <- max(sqrt(rowSums(Z^2)))
-  if (is.finite(reach) && reach > 1) out[slope] <- 1 / reach
+  if (is.finite(reach) && reach > 1) {
+    out[slope] <- 1 / reach
+  }
   out
 }
 
@@ -712,7 +725,9 @@ cogmod_inits <- function(
   # whose scale cannot be read.
   if (startsWith(d$name, "sds_")) {
     sc <- .zs_scales(sdata, sub("^sds_", "", d$name))
-    if (length(sc) == n && !anyNA(sc)) return(unname(0.1 / sc))
+    if (length(sc) == n && !anyNA(sc)) {
+      return(unname(0.1 / sc))
+    }
     return(rep(0.05, n))
   }
 

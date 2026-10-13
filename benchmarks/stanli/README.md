@@ -1071,7 +1071,25 @@ folder, and it is to be updated if brms#1946 (scalar intercept-only dpars)
 or a stanli backend for brms (#1911) is merged.
 2026-10-12 evening: seven multilevel decision models (section "Multilevel
 decision models"): per gradient faster on five of six, per fit about
-even. `issue_draft_multilevel.md` is a draft for stanli (the gap inside
-the sampler, cost per trial growing with N, the DDM kernel), not posted;
-delete it once posted. The DDM-7 (tag `nosmt`, 4 seeds on `long`, job
+even. Posted as [seantalts/stanli#455](https://github.com/seantalts/stanli/issues/455)
+(the headline that stanli is no faster end to end on these models, the
+measurements, and a checklist of leads); the draft is deleted. The DDM-7 (tag `nosmt`, 4 seeds on `long`, job
 11595009) was still running.
+2026-10-13: the maintainer reproduced most of #455. Their causes: brms's
+per-trial `mu[n] +=` random-effect loops are not vectorized, and their
+bookkeeping fills the L3, which drives the 4-chain cost and the growth with
+N; the `wiener_lpdf()` wrapper evaluated the density twice; and
+`threading()` missed the fast path. Four fixes are written, not yet
+released. Our answers are
+[posted](https://github.com/seantalts/stanli/issues/455#issuecomment-6152132971):
+cluster glibc and caches, node sharing, and the threaded runs (the
+"retained reductions" line is not in the 0.20.0 runtime). The same reply concedes
+one thing we got wrong. **Every Linux CmdStan per-gradient figure in this
+folder is suspect:** `compile_model_methods` builds through
+`Rcpp::sourceCpp()`, so R's `CXX14FLAGS` (`-O2 -ftree-vectorize
+-march=native -fno-math-errno` on Artemis) come after CmdStan's `-O3`,
+while the fits' executables are baseline `-O3`. On Windows both builds are
+baseline. This, not libm, is the likely reason stanli's lead shrinks from
+Windows to Linux. It is not yet measured; the A/B would rebuild the methods
+with `R_MAKEVARS_USER` at CmdStan's flags. Next: rerun `multilevel.R` when
+the four fixes ship (we offered EPYC runs of the branch).

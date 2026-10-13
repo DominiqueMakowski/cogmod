@@ -101,6 +101,17 @@ under 0.3.5 is not the model it was under 0.3.4.
   is now `pnorm(drift / sigma, log.p = TRUE)`. `cogmod_lba1()` puts a
   `softplus` link on the drift, so fitted models were not affected.
 
+## Changes to starting values
+
+* **`cogmod_lnr()`'s error accumulator starts slower than the correct one,**
+  at `nuone = 0` against `mu = 0.7`, as `cogmod_rdm()`'s and `cogmod_lba2()`'s
+  already do. The old equal start was a 50/50 race; the new one implies 16%
+  errors. This is for consistency, not speed: refitted cold on three models,
+  4 seeds each, the closer start changed the median warmup cost by 8% or less
+  (cheaper on one model, dearer on another), with no divergences or stuck
+  chains under either start. The `nuone` prior is unchanged, and starting
+  values do not change a posterior, so no fitted model needs revisiting.
+
 ## Documentation
 
 * `?cogmod_priors` said the RDM's drift rates were left alone, which stopped

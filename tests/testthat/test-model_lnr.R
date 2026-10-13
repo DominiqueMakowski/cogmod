@@ -693,7 +693,13 @@ test_that("cogmod_inits covers the declared parameters", {
   expect_setequal(names(vals), declared)
   expect_true(all(vapply(vals, function(v) all(is.finite(v)), logical(1))))
   # ndt starts small rather than at exp(0) = 1s, which is the point
-  expect_lt(exp(cogmod_inits(f, d, jitter = 0)(1)$Intercept_ndt), 0.3)
+  v0 <- cogmod_inits(f, d, jitter = 0)(1)
+  expect_lt(exp(v0$Intercept_ndt), 0.3)
+  # The error accumulator starts slower than the correct one, as in the RDM
+  # and the LBA2: 16% errors rather than the 50/50 race nuone = mu = 0.7 was
+  # (see the registry entry).
+  expect_equal(v0$Intercept, 0.7, tolerance = 1e-8)
+  expect_equal(v0$Intercept_nuone, 0, tolerance = 1e-8)
 })
 
 

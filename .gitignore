@@ -78,6 +78,12 @@ paper/paper_cache/
 paper/wagenmakers2008.csv
 paper/reviewers.txt
 
+# Benchmark CSVs are not committed (from 2026-10-13): they are regenerable
+# from the scripts, or from the cluster's copies for the HPC runs, and each
+# benchmark's README carries the numbers a decision rests on. The CSVs
+# committed before then stay tracked until removed with git rm --cached.
+benchmarks/**/*.csv
+
 # Compiled Stan executables produced by benchmarks/*.R
 benchmarks/results/exe/
 # Output of the two gradient scripts (benchmarks/gradient_check.R and

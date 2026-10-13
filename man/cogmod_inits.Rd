@@ -144,6 +144,12 @@ starts the race at 11\% errors rather than 50\%. On simulated data with error
 rates from 3\% to 43\%, the old equal start was the costliest of 3, 2, 1 and 0
 every time, and moving it to 1 took 2,400-3,800 log-likelihood units per
 2,000 trials off the shortfall of the whole start.
+
+\code{\link[=cogmod_lnr]{cogmod_lnr()}} matches them, with \code{nuone} at 0 against \code{mu}'s 0.7: 16\%
+errors rather than 50\%. Its reason is consistency, not speed. A lognormal
+race has no thin side, so a start too fast or too slow costs about the
+same, and in cold refits of three models the closer start changed the
+median warmup cost by 8\% or less, in both directions.
 }
 
 \section{Supported families}{

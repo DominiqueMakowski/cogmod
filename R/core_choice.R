@@ -98,7 +98,23 @@
     prelude = ".LNR_STAN_PRELUDE",
     ldens = function(t, k, p) .lnr_ldens(t, k, p),
     rng = function(n, p) .lnr_rng(n, p),
-    init = list(mu = 0.7, nuone = 0.7, sigmazero = 0.5, sigmaone = 0.5,
+    # The error accumulator starts slower than the correct one, as in
+    # cogmod_rdm() and cogmod_lba2(): nuone = 0 against mu = 0.7 starts the
+    # race at 16% errors (both sigmas at 0.5) where the equal start was a 50/50
+    # race. The reason is consistency with those two and the error rates real
+    # data have, not speed. The LNR lacks their asymmetry - a lognormal is not
+    # thin on one side - so a wrong start costs about the same either way:
+    # against the generating values, at error rates of 3-26% 0 took 20-1,600
+    # log-likelihood units per 2,000 trials off the whole start's shortfall,
+    # and at 43% it added 440-1,200. And refitted cold, 4 seeds x 3 models
+    # (the decision_making article's data with sigmabias fixed and free, and
+    # a hierarchical simulation), the head start did not reach the sampler:
+    # warmup leapfrog 0.92x, 1.08x and 1.03x the equal start's, no
+    # divergences or stuck chains in either arm, posteriors within 0.06 SD.
+    # Both arms reach the typical set within about 40 iterations.
+    # benchmarks/lnr_start/README.md has the numbers. The `nuone` prior
+    # stays centred at 0.7; 0 is 0.47 SD below its centre.
+    init = list(mu = 0.7, nuone = 0, sigmazero = 0.5, sigmaone = 0.5,
                 sigmabias = 0.5),
     # Push an accumulator's rate down far enough and it stops finishing first
     # ever; the density then depends on it only through the loser's survival
