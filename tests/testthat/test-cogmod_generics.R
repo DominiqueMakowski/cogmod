@@ -278,6 +278,19 @@ test_that("cogmod_inits supports the bounded-scale families", {
   fixed <- brms::bf(rating | vint(k) ~ 1, pzero = 0,
                     family = cogmod_betadiscrete())
   expect_false("pzero" %in% names(cogmod_inits(fixed, dd, jitter = 0)(1)))
+
+  # cogmod_betagate(): `phi` (softplus) starts at the Uniform rather than the
+  # origin's U-shaped 0.69, `pex` (logit) at 0.2 rather than 0.5.
+  dg <- data.frame(y = rcogmod_betagate(150))
+  fg <- brms::bf(y ~ 1, phi ~ 1, pex ~ 1, family = cogmod_betagate())
+  vg <- cogmod_inits(fg, dg, jitter = 0)(1)
+  expect_setequal(names(vg), declared_params(fg, dg))
+  expect_equal(vg$Intercept_phi, log(expm1(1)))
+  expect_equal(vg$Intercept_pex, stats::qlogis(0.2))
+  og <- cogmod_inits(brms::bf(y ~ 1, family = cogmod_betagate()), dg,
+                     jitter = 0)(1)
+  expect_equal(og$phi, 1)
+  expect_equal(og$bex, 0.5)
 })
 
 
@@ -295,6 +308,9 @@ test_that("cogmod_inits refuses a family it has nothing to offer", {
     build <- get(fam, envir = asNamespace("cogmod"))
     expect_false(is.null(cogmod:::.init_targets(build())), label = fam)
   }
+  # ?cogmod_inits documents its families as cogmod_priors()'s, which they
+  # were not until cogmod_betagate() got its starts.
+  expect_setequal(cogmod:::.init_families(), cogmod:::.priors_families())
 })
 
 

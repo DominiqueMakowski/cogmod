@@ -172,6 +172,15 @@ cat(sprintf("compiled in %.0f s\n", t_compile))
 # from the same random stream.
 set.seed(cell$chain)
 init <- cogmod_inits(f, data)(1)
+# Off the seed again before sampling (benchmarks/lnr_start/README.md, "Two
+# earlier arrays lost chains"). processx < 3.9, the R module's copy, tags
+# each chain process with an id drawn by sample() plus the current second,
+# and cmdstanr's cleanup SIGKILLs every process on the node carrying that
+# tag. Chain k of every arm draws from the same stream, so two of them that
+# started sampling on one node in the same second would share the tag, and
+# the first to finish would kill the other: a lost chain, here a lost task.
+# CmdStan's seed is passed explicitly, so the draws do not change.
+set.seed(NULL)
 row <- data.frame(cell, participants = n_part, rows = nrow(data),
                   warmup = n_warm, samples = n_samp, threads = threads,
                   node = Sys.info()[["nodename"]], status = "ok",

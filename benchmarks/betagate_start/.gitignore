@@ -1,0 +1,4 @@
+# Generated programs, executables and per-run results: all regenerable from
+# the two scripts, and the README carries the numbers.
+work/
+results/

@@ -41,6 +41,8 @@ sdat <- lapply(unclass(brms::make_standata(f, data = df, prior = inp$prior, stan
 set.seed(opt$seed)
 inits <- cogmod_inits(f, df)
 init_list <- lapply(1:4, function(i) inits(i))
+# Off the seed again before sampling: see multilevel.R, `fit`.
+set.seed(NULL)
 cmod <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(code, dir = opt$out), quiet = TRUE)
 sm <- stanli_model(code = code, data = sdat)
 init_u <- do.call(rbind, lapply(init_list, unconstrain, model = sm))

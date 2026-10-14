@@ -259,6 +259,12 @@ if (mode == "fit") {
   set.seed(opt$seed)
   inits <- cogmod_inits(f, df)
   init_list <- lapply(1:4, function(i) inits(i))
+  # Off the seed again before sampling (benchmarks/lnr_start/README.md, "Two
+  # earlier arrays lost chains"): with processx < 3.9 two tasks of one seed
+  # on one node, as two tagged arrays running at once can put there, would
+  # draw the same chain-process tags and kill each other's chains. Both
+  # engines take the seed explicitly, so the draws do not change.
+  set.seed(NULL)
 
   # backend = "cmdstanr" so that stancode() is the code cmdstanr compiles.
   dummy <- brms::brm(f, data = df, prior = prior, stanvars = sv, backend = "cmdstanr",

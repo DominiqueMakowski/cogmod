@@ -143,8 +143,26 @@ file <- cmdstanr::write_stan_file(code, dir = WORK)
 log_msg("compiling")
 mod <- cmdstanr::cmdstan_model(file, quiet = TRUE)
 log_msg("sampling")
+# The starts are drawn here, not by cmdstanr inside $sample(), so that R's
+# RNG can be taken off the seed before sampling. cmdstanr calls an init
+# function once to test it and then once per chain, so the test call is made
+# here too: the lists are identical to those the 2026-10-12 array sampled
+# from (checked on seeds 1-3 against cmdstanr:::process_init()).
 set.seed(seed)
-init <- cogmod_inits(f, d)
+initf <- cogmod_inits(f, d)
+invisible(initf(1))
+init <- lapply(1:4, initf)
+# Off the seed again before sampling (benchmarks/lnr_start/README.md, "Two
+# earlier arrays lost chains"). processx < 3.9 tags each chain process with
+# an id drawn by sample() plus the current second, and cmdstanr's cleanup
+# SIGKILLs every process on the node carrying that tag. Every arm of a seed
+# drew the same tags, and so did models whose starts use the RNG alike (rdm
+# and rdm_sub; lba2, wald4 and exwald; ddm, ddm_pout and bisa), so two cells
+# that started sampling on one node in the same second shared them. The
+# likely cause of the 2026-10-12 losses: lba2 B s1 and s2 (every chain,
+# rerun), lba2 B s3 and rdm_sub C s4 (one chain each, kept). CmdStan's seed
+# is passed explicitly, so this changes nothing in the draws.
+set.seed(NULL)
 fit <- mod$sample(
   data = unclass(sdata), seed = seed, chains = 4, parallel_chains = 4,
   iter_warmup = 250, iter_sampling = 250, init = init, refresh = 0,

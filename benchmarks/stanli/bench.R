@@ -489,6 +489,8 @@ if (mode == "fit") {
   init_files <- vapply(1:4, function(i) {
     p <- path("fit_init", i, ".json"); init_json(init_list[[i]], p); p
   }, character(1))
+  # Off the seed again before sampling: see multilevel.R, `fit`.
+  set.seed(NULL)
 
   # backend = "cmdstanr" so that stancode() is the code brm() compiles below.
   dummy <- brms::brm(f, data = df, prior = prior, stanvars = sv, backend = "cmdstanr",

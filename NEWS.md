@@ -112,7 +112,22 @@ under 0.3.5 is not the model it was under 0.3.4.
   chains under either start. The `nuone` prior is unchanged, and starting
   values do not change a posterior, so no fitted model needs revisiting.
 
+* **`cogmod_inits()` now covers `cogmod_betagate()`,** which it refused
+  ("nothing to offer") although `cogmod_priors()` covered it, so every family
+  one function supports the other now does too. `phi` starts at 1, the
+  Uniform at `mu = 0.5`, rather than the U-shaped Beta `init = 0` gives it on
+  its `softplus` link, `pex` at 0.2 rather than half of all responses on an
+  endpoint, and `mu` and `bex` at 0.5. Against simulated data in eight
+  response styles the start's worst log-likelihood shortfall is 1.23 per
+  observation, against 1.36 for `init = 0` and a median of 2.54 for Stan's
+  random start. Fitted cold, it made no difference to sampling: warmup within
+  5% of either alternative's, no divergences, the same posteriors
+  (`benchmarks/betagate_start/`).
+
 ## Documentation
+
+* New article, *Comparison with Other Packages*, setting `cogmod` beside
+  `brms`'s native families and `bmm`.
 
 * `?cogmod_priors` said the RDM's drift rates were left alone, which stopped
   being true when `driftone` got its prior; it now documents that prior, and
@@ -150,6 +165,23 @@ under 0.3.5 is not the model it was under 0.3.4.
   seam where it changes branch. On data simulated from the ex-Wald itself the
   second mode was present in every data set from 2,000 to 32,000 trials, and
   its valley grew with the data.
+
+* **`?cogmod_priors` and `?cogmod_inits` are rewritten to be read.**
+  `?cogmod_priors` now has one table of every prior it sets - the
+  parameter, its families, the prior in `bf()`, the prior when left out, and
+  the prior on its slopes, which were documented for only some parameters -
+  in place of four overlapping tables. It sorts the reasons into five kinds
+  rather than a paragraph per family, each family's own page keeping the
+  full account. It also stops saying five things that were not true: it left
+  `cogmod_lba1()` out of the families covered, sent `cogmod_geg()` readers to
+  a section that did not exist, said `shape` existed only in
+  `cogmod_loggamma()`, and said an omitted `shape` was left flat, where `brms`
+  gives it `gamma(0.01, 0.01)`, which `cogmod_priors()` replaces. With
+  `?rcogmod_exgaussian`, it also said `brms`'s default intercept for the
+  ex-Gaussian's `mu` was centred on zero seconds. It is centred on the median
+  response; the trouble is its scale of 2.5 s, and under `0 + Intercept` there
+  is no default at all. Neither function returns anything different for a
+  family it already covered.
 
 # cogmod 0.3.4
 
