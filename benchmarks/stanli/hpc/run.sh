@@ -5,7 +5,7 @@
 #   ./run.sh push               the scripts, the minimal package tree and the
 #                               stanli tarball -> the cluster (one tar pipe)
 #   ./run.sh install            brms 2.23.1 (GitHub) + stanli $STANLI_VERSION (default
-#                               0.20.0; + runtime) into the experiment's own R library,
+#                               0.21.0; + runtime) into the experiment's own R library,
 #                               on a compute node. STANLI_TAG=0.20.0 on submit keeps
 #                               a rerun's results apart (results/<kind>_<tag>_<index>/)
 #   ./run.sh submit fit [n]     n seeds of bench.R's 2x2 fit, 4 CPUs each (default 16);
@@ -18,6 +18,8 @@
 #                               STANLI_ML_ARGS goes to `fit` (e.g. "--iter 300"),
 #                               STANLI_TIME replaces the 08:00:00 limit
 #   ./run.sh submit mlchains [n]  chains_probe.R, mapped as ml (default 12), 4 CPUs each
+#   ./run.sh submit mlgrad [n]  multilevel.R inits + grad, mapped as ml (default 2), 2 CPUs
+#                               each: per gradient only, for the DDM-7
 #                               n may be a range ("10-12") to rerun those indices;
 #                               extra args go to sbatch
 #
@@ -52,7 +54,7 @@ PROD_LIB="${STANLI_PROD_LIB:-/mnt/lustre/users/${GROUP_}/${USER_}/cluster_R_libs
 R_MODULE="${STANLI_R_MODULE:-CmdStanR/0.7.1-foss-2023a-R-4.3.2}"
 EB_MODULES="${STANLI_EB_MODULES:-/mnt/shared/easybuild/modules/all}"
 MAX="${STANLI_MAX:-16}"
-STANLI_VERSION="${STANLI_VERSION:-0.20.0}"
+STANLI_VERSION="${STANLI_VERSION:-0.21.0}"
 # Tasks write to results/<kind>[_<tag>]_<index>/ and bench.R grad writes its
 # files with --tag, so a rerun on a new stanli keeps the old results.
 TAG="${STANLI_TAG:-}"
@@ -108,13 +110,14 @@ cmd_install() {
 }
 
 cmd_submit() {
-  local kind="${1:?usage: run.sh submit fit|grad|ml|mlchains [n] [sbatch args]}"; shift || true
+  local kind="${1:?usage: run.sh submit fit|grad|ml|mlchains|mlgrad [n] [sbatch args]}"; shift || true
   local n cpus time
   case "$kind" in
     fit) n="${1:-16}"; cpus=4; time="02:00:00" ;;
     grad) n="${1:-4}";  cpus=2; time="01:30:00" ;;
     ml)   n="${1:-28}"; cpus=4; time="${STANLI_TIME:-08:00:00}" ;;
     mlchains) n="${1:-12}"; cpus=4; time="${STANLI_TIME:-02:00:00}" ;;
+    mlgrad) n="${1:-2}"; cpus=2; time="${STANLI_TIME:-02:00:00}" ;;
     *) die "unknown kind: $kind" ;;
   esac
   shift || true
@@ -135,7 +138,8 @@ cmd_progress() {
   remote "cd '${REMOTE}/results' 2>/dev/null || { echo 'no results yet'; exit 0; }
     echo \"fit${TAG:+ $TAG}: \$(ls fit_${TAG:+${TAG}_}[0-9]*/fit_summary*.csv 2>/dev/null | wc -l) seeds done\"
     echo \"grad${TAG:+ $TAG}: \$(ls grad_${TAG:+${TAG}_}[0-9]*/time*.csv 2>/dev/null | wc -l) done\"
-    echo \"ml${TAG:+ $TAG}: \$(ls ml_${TAG:+${TAG}_}*/ml_time_*.csv 2>/dev/null | wc -l) done, \$(ls ml_${TAG:+${TAG}_}*/ml_fit_*.csv 2>/dev/null | wc -l) fitted\"
+    echo \"ml${TAG:+ $TAG}: \$(ls ml_${TAG:+${TAG}_}*/ml_time_*.csv 2>/dev/null | wc -l) done, \$(ls ml_${TAG:+${TAG}_}*/ml_fit_*.csv 2>/dev/null | wc -l) fitted, \$(ls ml_${TAG:+${TAG}_}*/ml_time-matched_*.csv 2>/dev/null | wc -l) matched\"
+    echo \"mlgrad${TAG:+ $TAG}: \$(ls mlgrad_${TAG:+${TAG}_}*/ml_time-matched_*.csv 2>/dev/null | wc -l) done\"
     echo '--- failed tasks (.err with Error):'; grep -l '^Error\|Execution halted' '${SCRATCH}'/*.err 2>/dev/null | wc -l"
 }
 

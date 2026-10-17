@@ -256,7 +256,7 @@ scale.
 
 There is a cost argument too, and it is a cliff rather than a slope. The
 Stan density has a closed form for \code{sigmadrift}, so estimating it costs
-about 2.8 times the classic model per gradient evaluation. \code{sigmabias} and
+about 3.5 times the classic model per gradient evaluation. \code{sigmabias} and
 \code{sigmandt} have no closed form: Stan integrates them out numerically, once
 for the density and once more for each partial derivative, at every
 observation and every leapfrog step. Measured against the \code{sigmadrift}-only

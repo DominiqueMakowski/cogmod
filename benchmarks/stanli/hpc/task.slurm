@@ -19,10 +19,15 @@
 #   STANLI_KIND=ml    multilevel.R emit, fit and grad for one (model, seed): task k
 #                     takes model k mod M of STANLI_ML_MODELS (M of them) and
 #                     seed (k - 1) div M + 1, so 1-M is one seed of every
-#                     model; STANLI_ML_ARGS is passed on to `fit`
+#                     model; STANLI_ML_ARGS is passed on to `fit`. grad runs
+#                     twice: model methods at R's flags, then at CmdStan's
+#                     own (--build matched)
 #   STANLI_KIND=mlchains  multilevel.R emit + chains_probe.R for one (model,
 #                     seed), mapped as for ml: one chain alone against four
 #                     together, as threads and as processes, in both engines
+#   STANLI_KIND=mlgrad  multilevel.R emit, inits and both grads for one (model,
+#                     seed), mapped as for ml: per gradient at starting points,
+#                     for a model too slow to fit (the DDM-7)
 #
 # Each task works in its own copy of the pushed tree on scratch, so no two
 # tasks share an output directory or a compiled executable, and then copies
@@ -35,7 +40,7 @@ kind="${STANLI_KIND:-fit}"
 tag="${STANLI_TAG:-}"
 work="${STANLI_SCRATCH}/work/${kind}_${SLURM_ARRAY_JOB_ID:-0}_${idx}"
 dest="${STANLI_DIR}/results/${kind}${tag:+_$tag}_${idx}"
-if [ "$kind" = ml ] || [ "$kind" = mlchains ]; then
+if [ "$kind" = ml ] || [ "$kind" = mlchains ] || [ "$kind" = mlgrad ]; then
   # Colon-separated: sbatch --export splits its argument at commas.
   IFS=: read -ra models <<< "${STANLI_ML_MODELS:-lnr:lnr6:ddm4:ddm5:ddm7:lba:rdm}"
   model="${models[$(( (idx - 1) % ${#models[@]} ))]}"
@@ -56,7 +61,7 @@ cd "$work" || exit 1
   echo "job: ${SLURM_ARRAY_JOB_ID:-}_${idx} started $(date '+%Y-%m-%d %H:%M:%S')"; } > "$dest/node.txt"
 
 R=benchmarks/stanli
-if [ "$kind" = ml ] || [ "$kind" = mlchains ]; then
+if [ "$kind" = ml ] || [ "$kind" = mlchains ] || [ "$kind" = mlgrad ]; then
   Rscript $R/multilevel.R emit --model "$model" > "$dest/emit.log" 2>&1
 else
   Rscript $R/bench.R emit > "$dest/emit.log" 2>&1
@@ -68,6 +73,15 @@ if [ $status -eq 0 ] && [ "$kind" = ml ]; then
     > "$dest/fit.log" 2>&1; status=$?
   [ $status -eq 0 ] && { Rscript $R/multilevel.R grad --model "$model" --seed "$seed" ${tag:+--tag $tag} \
     > "$dest/grad.log" 2>&1; status=$?; }
+  [ $status -eq 0 ] && { Rscript $R/multilevel.R grad --model "$model" --seed "$seed" ${tag:+--tag $tag} \
+    --build matched > "$dest/grad_matched.log" 2>&1; status=$?; }
+elif [ $status -eq 0 ] && [ "$kind" = mlgrad ]; then
+  Rscript $R/multilevel.R inits --model "$model" --seed "$seed" ${tag:+--tag $tag} \
+    > "$dest/inits.log" 2>&1; status=$?
+  [ $status -eq 0 ] && { Rscript $R/multilevel.R grad --model "$model" --seed "$seed" ${tag:+--tag $tag} \
+    > "$dest/grad.log" 2>&1; status=$?; }
+  [ $status -eq 0 ] && { Rscript $R/multilevel.R grad --model "$model" --seed "$seed" ${tag:+--tag $tag} \
+    --build matched > "$dest/grad_matched.log" 2>&1; status=$?; }
 elif [ $status -eq 0 ] && [ "$kind" = mlchains ]; then
   Rscript $R/chains_probe.R --model "$model" --seed "$seed" ${tag:+--tag $tag} ${STANLI_ML_ARGS:-} \
     > "$dest/chains.log" 2>&1; status=$?

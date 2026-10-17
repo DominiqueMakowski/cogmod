@@ -83,6 +83,10 @@ paper/reviewers.txt
 # benchmark's README carries the numbers a decision rests on. The CSVs
 # committed before then stay tracked until removed with git rm --cached.
 benchmarks/**/*.csv
+# Likewise the text files the benchmarks write (from 2026-10-17): node.txt,
+# which task.slurm writes per cluster task and the summarise scripts read,
+# and the repro_*.txt logs. They stay on disk for those scripts.
+benchmarks/**/*.txt
 
 # Compiled Stan executables produced by benchmarks/*.R
 benchmarks/results/exe/

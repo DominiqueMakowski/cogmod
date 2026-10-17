@@ -124,6 +124,24 @@ under 0.3.5 is not the model it was under 0.3.4.
   5% of either alternative's, no divergences, the same posteriors
   (`benchmarks/betagate_start/`).
 
+## Performance
+
+* **The classic `cogmod_ddm()` costs 0.77x what it did per gradient in
+  CmdStan, and 0.83x in stanli,** with the same log density and gradient to
+  the last bit. "Classic" means `sigmadrift`, `sigmabias` and `sigmandt` all
+  fixed at 0 in `bf()`. On every trial the Stan code chooses between two of
+  Stan's Wiener densities from an estimate of the log density. The estimate
+  only decides a branch, yet autodiff recorded it like any other expression,
+  and it was a fifth of the gradient. A few products now prove, for nearly
+  every trial, that the estimate would have chosen the faster density, and
+  the estimate runs only where they cannot. So every trial takes the branch
+  it took before. Checked at 200,000 parameter values, and at 120 points of
+  a 10-participant model in CmdStan and stanli. The ratios are from that
+  model, on two runs; `benchmarks/gradient_cost.R` gives 0.77 too
+  (`benchmarks/ddm_router/`). The cost of estimating `sigmadrift`, relative
+  to the classic model, goes from about 2.8x to about 3.5x in `?cogmod_ddm`,
+  because the classic model got cheaper.
+
 ## Documentation
 
 * New article, *Comparison with Other Packages*, setting `cogmod` beside

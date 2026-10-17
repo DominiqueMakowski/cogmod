@@ -1,6 +1,6 @@
 # stanli as a backend for cogmod: exact, and faster per gradient and end to end
 
-2026-10-02 to 04 and 2026-10-12, on two platforms:
+2026-10-02 to 04, 2026-10-12 and 2026-10-16, on two platforms:
 
 - **Windows**: a laptop (i7-1265U: 2 performance + 8 efficiency cores),
   CmdStan 2.38, cmdstanr 0.9.0.9000, R 4.5.3.
@@ -14,7 +14,8 @@ then 0.19.1 (2026-10-04) together with a hand-written LNR program the
 maintainer posted as [cogmod#5](https://github.com/DominiqueMakowski/cogmod/issues/5)
 (section "0.19.1, and the rewrite from cogmod#5"; on Linux these ran on EPYC
 9355 and 7513 nodes), then 0.20.0 (2026-10-11), which fixed what our 0.19.1
-report raised (section "0.20.0").
+report raised (section "0.20.0"), then 0.21.0 (2026-10-16), which fixed what
+#455 raised on multilevel models (section "0.21.0").
 
 | file | what |
 | --- | --- |
@@ -22,7 +23,7 @@ report raised (section "0.20.0").
 | `bisect.R` | cost of each way of writing the likelihood, stanli only |
 | `repro_issue.R` | stanli-only reproducer of #422 |
 | `repro_parallel_init.R` | stanli-only reproducer: chains ran serially when given inits (0.19.x; fixed in 0.20.0) |
-| `multilevel.R` | seven multilevel decision models (LNR, LNR-6, DDM-4/5/7, LBA, RDM) on simulated data: `emit`, `fit` (cmdstanr against stanli), `grad` (exactness and cost at posterior draws); section "Multilevel decision models" |
+| `multilevel.R` | seven multilevel decision models (LNR, LNR-6, DDM-4/5/7, LBA, RDM) on simulated data: `emit`, `fit` (cmdstanr against stanli), `inits` (starting points in place of a fit, for the DDM-7), `grad` (exactness and cost at posterior draws; `--build matched` compiles CmdStan's methods at its own flags); sections "0.21.0" and "Multilevel decision models" |
 | `chains_probe.R` | one chain against four, as threads and as processes, in both engines |
 | `probe_bottlenecks.R` | per-gradient cost of DDM-4 and LNR variants that each remove one suspect (Windows) |
 | `postprocess.R` | which post-processing tools work on a fit through the `"mock"` route, against a cmdstanr fit (`results/postprocess_0.20.0.csv`) |
@@ -33,7 +34,7 @@ report raised (section "0.20.0").
 | `brms_scalar_dpar/` | its harness: `smoke.R` (generated code per formula), `emit.R` and `compile_check.R` (eleven models, installed brms against the patched checkout) |
 | `hpc/` | the same runs on Artemis: `run.sh`, `task.slurm`, `install.R`, `summarise.R` (`summarise_ml.R` and `summarise_chains.R` for the multilevel runs); `sigill_probe.R` is the per-node probe behind the SIGILL diagnosis, `affinity_probe.R` the one behind the slow-CmdStan node of the 0.20.0 fit |
 | `results/` | Windows numbers: `check`, `tail`, `time` (and their `_0.19.1` and `_0.20.0` reruns; `_0.20.0_lse` is `orig` against `lse`), `bisect.csv` (0.19.0) and `bisect_0.20.0.csv` from `bisect.R`, `fit_*.csv` from `fit` (0.19.0; `fit_*_0.20.0.csv` the rerun), `repro_issue.txt`; the three `fit_*_smoke.csv` are the seed-11 smoke run behind the ridge paragraph under "Parallel chains and inits" |
-| `results/hpc/` | the Linux ones: `ml_<tag>_<model>_<seed>/` and `mlchains_<tag>_<model>_<seed>/` (tags `0.20.0` on two cores per task, `nosmt` on four; `zen3`, `idle`: the probe on 7513s and on an idle 9334); before them `fit_<seed>/`, `grad_<task>/` (0.19.0), `grad_0.19.1_<task>/`, `grad_0.20.0_<task>/`, `fit_0.20.0_<seed>/`, each with a `node.txt`; `fit_0.20.0rtx01_14/` is the CmdStan-only control on the slow node; `fit_0.3.5smt_<seed>/` and `fit_0.3.5nosmt_<seed>/` the same fit on the 0.3.5 program, two cores and four |
+| `results/hpc/` | the Linux ones: `ml_<tag>_<model>_<seed>/` and `mlchains_<tag>_<model>_<seed>/` (tags `0.20.0` on two cores per task, `nosmt` on four, `0.21.0` on four with stanli 0.21.0; `zen3`, `idle`: the probe on 7513s and on an idle 9334), `mlgrad_0.21.0_ddm7_<seed>/`; before them `fit_<seed>/`, `grad_<task>/` (0.19.0), `grad_0.19.1_<task>/`, `grad_0.20.0_<task>/`, `fit_0.20.0_<seed>/`, each with a `node.txt`; `fit_0.20.0rtx01_14/` is the CmdStan-only control on the slow node; `fit_0.3.5smt_<seed>/` and `fit_0.3.5nosmt_<seed>/` the same fit on the 0.3.5 program, two cores and four |
 
 ## The question
 
@@ -57,7 +58,7 @@ cmdstanr backend? Measured on the LNR: the decision_making vignette's model
 `ndt ~ Condition`) on its data (speed_acc, participants 1-3, RT <= 2 s;
 4620 trials), the same set-up as `benchmarks/lnr_vectorize`.
 
-## Short answer (stanli 0.20.0)
+## Short answer (stanli 0.20.0; multilevel models 0.21.0)
 
 - **It runs the program brms writes, unchanged, and exactly.** The log density
   is CmdStan's to within 4 ULP (identical at most points) and the gradient
@@ -91,14 +92,16 @@ cmdstanr backend? Measured on the LNR: the decision_making vignette's model
   not quite the package's numerics. stanli will not produce them
   automatically (it is held to CmdStan's results). Not worth a second Stan
   source in every family.
-- **On multilevel decision models the lead shrinks to about even**
-  (section "Multilevel decision models", seven models, 10 participants x
-  100 trials, Linux): per gradient 0.65-0.86x CmdStan on five of six, 1.79x
-  on the DDM-4 (Stan Math's `wiener_lpdf()` runs slower in stanli), but per
-  fit 0.79-1.32x cmdstanr's wall time (DDM-4 1.57x), ESS per wall second
-  0.65-1.17x: inside its sampler stanli loses 10-50% of its gradient speed,
-  CmdStan 0-10%. What stanli wins every time is the start, 1 s against
-  27-43 s of compiling. On Artemis, `--cpus-per-task=4` is two cores with
+- **On multilevel decision models, 0.21.0 is faster end to end too**
+  (section "0.21.0", six models, 10 participants x 100 trials, Linux):
+  0.53-0.75x cmdstanr's wall time and 1.38-1.65x its ESS per wall second
+  on the LNR, LNR-6, LBA and RDM, even on the DDM-5 (0.97 / 1.05), still
+  slower on the DDM-4 (1.11 / 0.93). On 0.20.0 the lead per gradient
+  shrank to about even per fit (0.79-1.57x the wall time): inside its
+  sampler stanli lost 10-50% of its gradient speed, because brms's
+  per-trial random-effect loops ran unvectorised. 0.21.0 vectorises them,
+  and that loss is gone. Before sampling starts, stanli takes about 1 s where
+  cmdstanr spends 27-46 s compiling. On Artemis, `--cpus-per-task=4` is two cores with
   two threads each, which hurts stanli more; the 0.20.0 Linux fit below
   ran that way too, and on four whole cores the LNR there takes 0.69x
   cmdstanr's wall time (0.76x on two).
@@ -106,7 +109,107 @@ cmdstanr backend? Measured on the LNR: the decision_making vignette's model
   `brm(..., backend = "mock", mock_fit = as_stanfit(fit))` gives the same
   `brmsfit` as the internal `rename_pars()` route.
 
+## 0.21.0: multilevel models faster end to end
+
+stanli 0.21.0 (2026-10-16) carries the fixes for what
+[#455](https://github.com/seantalts/stanli/issues/455) reported: brms's
+per-trial `mu[n] += r_1_1[J_1[n]] * Z_1_1[n]` loops now run vectorised
+([#456](https://github.com/seantalts/stanli/pull/456)), `wiener_lpdf()`
+computes the density once per gradient and no longer differentiates its
+data ([#457](https://github.com/seantalts/stanli/pull/457)), the reverse
+pass of a loop with branches no longer zeroes its scratch buffer (#461; the
+LNR and RDM), and `threading()` uses several cores (#464). It also gives
+`sample_model()` CmdStan's metric controls (`metric = "dense_e"`,
+`inv_metric`, `step_size`, `adapt_engaged`; #458), which
+`cogmod_warmstart()` needs. Rerun the same day: the design of the section
+below, unchanged (six models, 8 seeds each, 4 whole cores per task), tag
+`0.21.0`, `hpc/summarise_ml.R --tag 0.21.0`, `results/ml_summary_0.21.0.csv`.
+Ratios stanli / cmdstanr within seed, median [min, max]; 0.20.0's in
+parentheses:
+
+| model | per gradient | per leapfrog, in the fit | fit wall time | ESS per wall second |
+| --- | ---: | ---: | ---: | ---: |
+| `lnr` | 0.65 [0.64, 0.66] (0.86) | 0.70 [0.69, 0.75] (1.04) | **0.68** [0.63, 0.86] (1.06) | **1.45** [1.11, 1.89] (1.04) |
+| `lnr6` | 0.69 [0.69, 0.70] (0.81) | 0.71 [0.68, 0.75] (0.97) | **0.70** [0.68, 0.83] (1.01) | **1.38** [1.06, 1.52] (1.17) |
+| `ddm4` | 1.22 [0.98, 1.27] (1.79) | 1.15 [0.97, 1.22] (1.56) | 1.11 [0.87, 1.79] (1.57) | 0.93 [0.42, 1.20] (0.65) |
+| `ddm5` | 0.91 [0.89, 0.92] (1.04) | 0.95 [0.75, 1.28] (1.10) | 0.97 [0.67, 1.62] (1.17) | 1.05 [0.69, 1.62] (0.73) |
+| `ddm7` | 0.97 [0.95, 0.99] | | | |
+| `lba` | 0.72 [0.70, 0.73] (0.86) | 0.74 [0.59, 0.76] (1.16) | **0.75** [0.50, 0.85] (1.32) | **1.65** [1.30, 2.08] (0.97) |
+| `rdm` | 0.56 [0.52, 0.57] (0.65) | 0.57 [0.47, 0.71] (0.85) | **0.53** [0.46, 0.81] (0.79) | **1.43** [0.99, 2.00] (1.06) |
+
+The fits took 43-261 s (median, cmdstanr), plus 37-46 s of compiling
+against stanli's 0.8-1.3 s of building, which the wall times leave out.
+
+- **End to end, stanli is now the faster backend on four of six models**:
+  0.53-0.75x cmdstanr's wall time and 1.38-1.65x its ESS per wall second on
+  the LNR, LNR-6, LBA and RDM. The DDM-5 is even (0.97, 1.05), and the
+  DDM-4 is still slower (1.11, 0.93), though less so than before (1.57,
+  0.65).
+- **The in-fit gap is gone.** A leapfrog step inside the 4-chain fit costs
+  stanli 1.02-1.05x its single-threaded gradient (DDM-5 1.28), against
+  1.04-1.51x on 0.20.0; CmdStan's is 0.94-1.19x. `chains_probe.R` (16
+  tasks, all on 7513s; `hpc/summarise_chains.R --tag 0.21.0`) says the
+  same: four chains cost stanli 1.01-1.17x one chain alone, CmdStan
+  1.01-1.09x (medians per model), where 0.20.0 on the same CPU took 1.9x
+  on the RDM and 2.5x on the LBA.
+- **Per gradient**: 0.56-0.72x CmdStan on the four race models, 0.91x on
+  the DDM-5, 1.22x on the DDM-4 (from 1.79x). The DDM-7 (`run.sh submit
+  mlgrad`; 2 seeds, at 40 starting points, since one cmdstanr fit of it ran
+  25 h on 0.20.0 without finishing) is even at 0.97x, about 0.1 s per
+  gradient in both.
+- **Exact, as before**: within 27 ULP of CmdStan's log density at the 1920
+  posterior points (the RDM's 53000 ULP are at a log density of 0.02, 1e-13
+  absolute) and 7 ULP at the DDM-7's 80 starting points, gradients within
+  5e-12; the posteriors agree (largest mean difference 3.5 joint MCSEs).
+- **The same sampler work**: total leapfrogs per fit 0.96-1.03x. One
+  thing to watch: on the RDM the lowest-ESS parameter, always a
+  participant SD, gets 0.85x cmdstanr's ESS per leapfrog in stanli, below
+  1 in 12 of 16 seeds over both releases. Over all population-level
+  parameters it is 0.94x, so there are too few seeds to call it a
+  difference. The LBA goes the other way (1.22x).
+- **Not the node mix.** 45 of the 48 tasks ran on EPYC 7513s, against 27
+  of 52 on 0.20.0. On the 7513s alone in both runs the wall ratios go from
+  1.14 / 0.99 / 1.76 / 1.23 / 1.22 / 0.92 to 0.68 / 0.69 / 1.11 / 0.97 /
+  0.74 / 0.53 (LNR, LNR-6, DDM-4, DDM-5, LBA, RDM).
+
+**The build confound, measured.** `grad` now runs twice: CmdStan's model
+methods at R's flags, as before (`-O2 -ftree-vectorize -march=native
+-fno-math-errno` after CmdStan's `-O3`), and with `--build matched`, which
+sets R's `CXX14FLAGS` to `-O3` in a user Makevars so that the methods are
+compiled as the fits' executables are (the compiler lines on a node confirm
+both). CmdStan's own gradient moves by -4% to +7% between the two (the
+`-march=native` build is the faster one on the DDMs), so the ratios above,
+on the matched build, are within 0.02 of those at R's flags except the
+DDM-5 and DDM-7 (0.97 and 1.03 at R's flags). The confound flagged under
+"Status" was small on these nodes, so it does not explain why stanli's lead on
+the population-level LNR is larger on Windows (0.42x) than on Linux (0.75x).
+AVX-512 nodes (the 9355s, 3 tasks here) not measured.
+
+Not covered: multi-core `threading()` (#464; four chains on four cores
+leave no core for threads within a chain), the metric controls (so
+`cogmod_warmstart()` with stanli is now possible but untried), Windows, and
+the population-level LNR of `bench.R`.
+
+The first submission went mostly to `artemis-general-01` and `-02`,
+virtual machines ("AMD EPYC-Genoa Processor", 128 single-thread cores),
+where 0.20.0 never ran. The 20 tasks on `-02` were cancelled while running and the 8
+that finished on `-01` rerun on bare metal, for comparability;
+those 8 gave the same ratios (wall 0.59-1.10), and are not kept.
+
+```
+STANLI_TAG=0.21.0 STANLI_ML_MODELS=lnr:lnr6:ddm4:ddm5:lba:rdm STANLI_MAX=20 benchmarks/stanli/hpc/run.sh submit ml 48 \
+  --hint=nomultithread --exclude=artemis-rtx-01,artemis-general-01,artemis-general-02
+STANLI_TAG=0.21.0 STANLI_ML_MODELS=ddm7 benchmarks/stanli/hpc/run.sh submit mlgrad 2 \
+  --hint=nomultithread --exclude=artemis-rtx-01,artemis-general-01,artemis-general-02
+STANLI_TAG=0.21.0 STANLI_ML_MODELS=lnr:lba:rdm:ddm4 benchmarks/stanli/hpc/run.sh submit mlchains 16 \
+  --hint=nomultithread --exclude=artemis-rtx-01,artemis-general-01,artemis-general-02
+Rscript benchmarks/stanli/hpc/summarise_ml.R --tag 0.21.0 --out benchmarks/stanli/results/ml_summary_0.21.0.csv
+Rscript benchmarks/stanli/hpc/summarise_chains.R --tag 0.21.0
+```
+
 ## Multilevel decision models: faster per gradient, no faster per fit
+
+This section is the stanli 0.20.0 run; 0.21.0 is in the section above.
 
 Everything below this section is one model: the vignette's LNR, with
 population-level effects only, on 4620 trials. Users fit multilevel models
@@ -230,6 +333,10 @@ the init, `results/probe_bottlenecks_win.csv`), µs per gradient:
   still slower than CmdStan, so the gap is the `wiener_lpdf()` kernel as
   stanli runs it. The router (`cogmod_ddm_log_density_scale()`, whose value
   only decides a branch) is 22% of CmdStan's gradient and 15% of stanli's.
+  Fixed on cogmod's side on 2026-10-17 (0.3.5): a cheap certificate now
+  runs before the router and gets almost all of that back, bit for bit
+  (`benchmarks/ddm_router/`: 0.77x per gradient in CmdStan and 0.83x in stanli
+  0.21.0, Windows).
 - Random effects cost stanli +132 µs per 1000 trials and CmdStan +58:
   brms's per-trial `r_1_1[J_1[n]] * Z_1_1[n]` terms.
 - stanli's cost per trial grows with N, 0.44 to 0.66 µs from 1000 to 10000
@@ -1044,6 +1151,13 @@ the section "0.20.0". Our reply with the rerun
 ([comment](https://github.com/seantalts/stanli/issues/422#issuecomment-6121453941),
 2026-10-12) closed #422.
 
+2026-10-12/13: [#455](https://github.com/seantalts/stanli/issues/455), the
+multilevel run on 0.20.0; the maintainer reproduced most of it and found
+the causes (brms's per-trial random-effect loops, the doubled
+`wiener_lpdf()`, `threading()`'s missed fast path), and our answers went in
+the same thread. 2026-10-16: stanli 0.21.0 ships the fixes (#456-#464; section
+"0.21.0"). Not yet reported on #455.
+
 ## Status
 
 Exploratory; nothing outside this folder and `.gitignore` changed. #422
@@ -1089,7 +1203,16 @@ folder is suspect:** `compile_model_methods` builds through
 `Rcpp::sourceCpp()`, so R's `CXX14FLAGS` (`-O2 -ftree-vectorize
 -march=native -fno-math-errno` on Artemis) come after CmdStan's `-O3`,
 while the fits' executables are baseline `-O3`. On Windows both builds are
-baseline. This, not libm, is the likely reason stanli's lead shrinks from
-Windows to Linux. It is not yet measured; the A/B would rebuild the methods
-with `R_MAKEVARS_USER` at CmdStan's flags. Next: rerun `multilevel.R` when
-the four fixes ship (we offered EPYC runs of the branch).
+baseline. This, not libm, looked like the likely reason stanli's lead
+shrinks from Windows to Linux. 2026-10-16, measured (section "0.21.0",
+`grad --build matched`): the two builds differ by -4% to +7% on the 7513s,
+so it is not the reason either, and the figures stand to within that.
+2026-10-16: stanli 0.21.0 rerun of `multilevel.R` (section "0.21.0"):
+faster end to end on four of six models, even on the DDM-5, the DDM-4
+still 1.11x. Next: report it on #455 (the user's call); then perhaps the
+performance article's stanli section, which still describes the
+population-level LNR on 0.20.0 only.
+2026-10-17: the Windows library has stanli 0.21.0. The DDM-4's router is
+fixed on cogmod's side (`benchmarks/ddm_router/`). The #455 report of the
+0.21.0 rerun is drafted in `reply_draft.md`; post it, then delete the draft
+as with the others.

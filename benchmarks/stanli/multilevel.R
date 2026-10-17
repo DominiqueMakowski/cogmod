@@ -31,7 +31,8 @@
 #   Rscript benchmarks/stanli/multilevel.R emit --model lnr [--out DIR] [--trials 50]
 #   Rscript benchmarks/stanli/multilevel.R fit  --model lnr --seed 1 [--out DIR] [--iter 500] [--tag NAME]
 #   Rscript benchmarks/stanli/multilevel.R grad --model lnr --seed 1 [--out DIR] [--draws 40]
-#                                              [--reps 15] [--tag NAME]
+#                                              [--reps 15] [--tag NAME] [--build r|matched]
+#   Rscript benchmarks/stanli/multilevel.R inits --model ddm7 --seed 1 [--out DIR] [--draws 40] [--tag NAME]
 #
 #   emit  simulate the data (fixed seed, so every `fit` of a model sees the
 #         same data), write the brms program and inputs, check that stanli
@@ -42,9 +43,15 @@
 #         build timed apart from sampling. Keeps the cmdstanr CSVs for `grad`
 #   grad  at DRAWS posterior draws of that seed's cmdstanr fit, CmdStan's
 #         and stanli's log density and gradient compared, then the cost of
-#         one gradient, single-threaded, in REPS alternating blocks
+#         one gradient, single-threaded, in REPS alternating blocks.
+#         --build matched compiles CmdStan's model methods at CmdStan's own
+#         flags (README, "0.21.0"); the default, r, at R's, as until 0.20.0
+#   inits instead of `fit`, for a model too slow to fit (the DDM-7: one
+#         cmdstanr fit ran 25 h and did not finish): DRAWS + 1 rows of
+#         cogmod_inits() become `grad`'s points in place of posterior draws
 #
-# Writes benchmarks/stanli/results/ml_{fit,chains,pars,check,time}_<model>_<seed>[_<tag>].csv.
+# Writes benchmarks/stanli/results/ml_{fit,chains,pars,check,time}_<model>_<seed>[_<tag>].csv;
+# `grad --build matched` writes ml_{check,time}-matched_<...>.csv.
 #
 # Both arms of `fit` end the same way, so they pay the same overhead: the
 # draws as a stanfit (brms's own CSV reader for CmdStan, as brm(backend =
@@ -62,7 +69,7 @@
 source("benchmarks/gradient_programs.R")  # gp_args(), gp_load()
 
 mode <- commandArgs(trailingOnly = TRUE)[1]
-steps <- c("emit", "fit", "grad")
+steps <- c("emit", "fit", "inits", "grad")
 if (is.na(mode) || !mode %in% steps) {
   stop("usage: Rscript benchmarks/stanli/multilevel.R ", paste(steps, collapse = "|"),
        " --model NAME [--options]", call. = FALSE)
@@ -73,7 +80,8 @@ commandArgs <- local({
 })
 opt <- gp_args(list(out = "benchmarks/results/stanli_ml", model = "", seed = 1L,
                     iter = 500L, draws = 40L, reps = 15L, tag = "", trials = 50L,
-                    participants = 10L))
+                    participants = 10L, build = "r"))
+stopifnot(opt$build %in% c("r", "matched"))
 res_dir <- "benchmarks/stanli/results"
 dir.create(opt$out, recursive = TRUE, showWarnings = FALSE)
 dir.create(res_dir, recursive = TRUE, showWarnings = FALSE)
@@ -367,25 +375,68 @@ if (mode == "fit") {
                init = init_list[[1]], n_par = ncol(init_u)), handoff)
 }
 
+# ---- inits -------------------------------------------------------------------
+# The handoff `fit` would write, without sampling: no CSVs, and DRAWS + 1
+# starting points (the first is `grad`'s "init"). Starting points are not the
+# posterior, so a cost that depends on where the sampler sits (the DDM-7's
+# integration over sigmadrift, sigmabias, sigmandt) is measured off its mode.
+if (mode == "inits") {
+  inp <- readRDS(path("_inputs.rds"))
+  set.seed(opt$seed)
+  inits <- cogmod_inits(inp$f, inp$df)
+  init_list <- lapply(seq_len(opt$draws + 1), function(i) inits(i))
+  dummy <- brms::brm(inp$f, data = inp$df, prior = inp$prior, stanvars = inp$sv,
+                     backend = "cmdstanr", empty = TRUE)
+  code <- as.character(brms::stancode(dummy))
+  sdat <- lapply(unclass(brms::standata(dummy)), identity)
+  n_par <- length(unconstrain(init_list[[1]], model = stanli_model(code = code, data = sdat)))
+  saveRDS(list(csv = NULL, stan_file = cmdstanr::write_stan_file(code, dir = opt$out), sdat = sdat,
+               init = init_list[[1]], inits = init_list, n_par = n_par), handoff)
+  cat("inits:", length(init_list), "starting points,", n_par, "parameters\n")
+}
+
 # ---- grad --------------------------------------------------------------------
 # DRAWS draws of the cmdstanr fit spread over its chains, unconstrained by
 # CmdStan's model methods; both engines take the same vectors (the same
 # program, so the same parameter order). Plus the first chain's init. The
 # methods hang off a one-iteration fixed_param run of the same program,
 # compiled again with them, as gradient_programs.R's gp_methods() does.
+#
+# The methods are not built as the sampler's executable is. cmdstanr compiles
+# them with Rcpp::sourceCpp(), which puts R's CXX14FLAGS after CmdStan's
+# -O3: on Artemis `-O2 -ftree-vectorize -march=native -fno-math-errno`, so
+# the methods ran at -O2 with the node's own instruction set, the fits at
+# -O3 baseline. --build matched sets CXX14FLAGS to -O3 in a user Makevars,
+# which cmdstanr's withr::with_makevars() merges rather than replaces.
 if (mode == "grad") {
   h <- readRDS(handoff)
+  if (opt$build == "matched") {
+    mk <- file.path(opt$out, "Makevars.matched")
+    writeLines(paste(c("CXXFLAGS", "CXX11FLAGS", "CXX14FLAGS", "CXX17FLAGS"), "= -O3"), mk)
+    Sys.setenv(R_MAKEVARS_USER = normalizePath(mk))
+  }
+  cat("model methods built with", opt$build, "flags; R_MAKEVARS_USER =",
+      Sys.getenv("R_MAKEVARS_USER", "(unset)"), "\n")
   mod <- cmdstanr::cmdstan_model(h$stan_file, compile_model_methods = TRUE,
                                  force_recompile = TRUE, quiet = TRUE)
   fc <- mod$sample(data = h$sdat, init = list(h$init), chains = 1, iter_warmup = 1,
                    iter_sampling = 1, fixed_param = TRUE, refresh = 0, show_messages = FALSE,
                    seed = opt$seed)
   fc$init_model_methods(verbose = FALSE)
-  U <- posterior::as_draws_matrix(fc$unconstrain_draws(files = h$csv, format = "draws_matrix"))
-  rows <- round(seq(1, nrow(U), length.out = opt$draws))
-  pts <- c(list(init = as.numeric(fc$unconstrain_variables(h$init))),
-           setNames(lapply(rows, function(i) as.numeric(U[i, ])), paste0("draw", rows)))
-  stopifnot(length(pts$init) == h$n_par, ncol(U) == h$n_par)
+  if (is.null(h$csv)) {
+    # `inits`: starting points, not draws.
+    pts <- setNames(lapply(h$inits, function(i) as.numeric(fc$unconstrain_variables(i))),
+                    c("init", paste0("start", seq_along(h$inits)[-1])))
+  } else {
+    U <- posterior::as_draws_matrix(fc$unconstrain_draws(files = h$csv, format = "draws_matrix"))
+    rows <- round(seq(1, nrow(U), length.out = opt$draws))
+    pts <- c(list(init = as.numeric(fc$unconstrain_variables(h$init))),
+             setNames(lapply(rows, function(i) as.numeric(U[i, ])), paste0("draw", rows)))
+  }
+  stopifnot(all(lengths(pts) == h$n_par))
+  if (opt$build == "matched") res_file <- function(stem) {
+    file.path(res_dir, paste0("ml_", stem, "-matched_", key, ".csv"))
+  }
   # stanli single-threaded, as CmdStan's model methods are.
   sm1 <- stanli_model(code = paste(readLines(h$stan_file), collapse = "\n"), data = h$sdat,
                       threads_per_chain = 1)
