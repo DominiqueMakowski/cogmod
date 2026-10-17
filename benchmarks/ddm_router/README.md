@@ -10,7 +10,6 @@ every partial derivative is what it was, bit for bit.
 | `certificate_check.R` | the proof below, checked numerically in pure R against a transcription of the router |
 | `grid_ab.R` | function-level A/B: `cogmod_ddm_decision_lpdf()` from a base tree against the current one, value and partials per trial at 200,000 points |
 | `program_ab.R` | program-level A/B on `multilevel.R`'s ddm4 program: exactness at posterior draws and tail points, then the cost per gradient in CmdStan and stanli |
-| `ddm4_harness.R` | runs `benchmarks/gradient_check.R` or `gradient_cost.R` on a DDM-4 program, which the CI programs never build |
 
 ## Where the cost was
 
@@ -141,10 +140,8 @@ worktree of the base (`git worktree add --detach <tmp>/base HEAD`).
   trials), at 40 posterior draws of a short CmdStan fit and 80 points moved
   from them by N(0, 1.5) and N(0, 3) on the unconstrained scale. Log
   density and gradient identical at all 120, in CmdStan and in stanli.
-- **Gradient check** (`ddm4_harness.R benchmarks/gradient_check.R
-  --families cogmod_ddm`): 16 of 16 points ok, worst relative error against
-  central differences 5.9e-8. (Its note "drop the `.GP_KNOWN` entry" is
-  about the 7-parameter model, which this program does not build.)
+- **Gradient check** (`gradient_check.R --families cogmod_ddm4`): 16 of 16
+  points ok, worst relative error against central differences 5.9e-8.
 - `testthat::test_local(filter = 'model_ddm')`: 710 passed, 1 skipped (the
   slow fit).
 
@@ -169,8 +166,8 @@ dropping the router would, without its cost: with the router dropped, 23 of
 the 120 points have a non-finite gradient (2 in the base) and the log
 density moves by up to 355.
 
-AGENTS.md's recipe, on a DDM-4 program (`ddm4_harness.R` running
-`gradient_cost.R`: intercept-only, 5000 simulated trials, median of 21
+AGENTS.md's recipe, on the DDM-4 program (`gradient_cost.R` with
+`--families cogmod_ddm4`: intercept-only, 5000 simulated trials, median of 21
 alternating blocks): 14.61 ms per gradient in the base, 11.25 ms with the
 change, **ratio 0.77**.
 
@@ -226,13 +223,13 @@ report.
 
 ## Related, not this change
 
-- **The CI programs still miss this path.**
-  `benchmarks/gradient_programs.R` estimates every DDM dpar (`.GP_FIXED`
-  fixes nothing for `cogmod_ddm`), so `gradient_check.R` and
-  `gradient_cost.R` reach only the 7-parameter call site, never the classic
-  one, and the most common DDM configuration has no gradient check in CI.
-  `ddm4_harness.R` runs both scripts on it locally; adding a DDM-4 program to
-  the CI harness is a separate decision.
+- **The CI programs now build this path.** They used to estimate every DDM
+  dpar, so they reached only the 7-parameter call site. A local harness
+  covered the DDM-4 for the measurements above. It was then replaced by
+  `cogmod_ddm4` in `benchmarks/gradient_programs.R`'s `.GP_VARIANTS`, the
+  same program byte for byte. `gradient_check.R` now checks it on every PR,
+  and `gradient_cost.R` times it when its program changes; asking either
+  for `cogmod_ddm` brings it along.
 - **On stanli's side**, values used only in a branch condition could be
   evaluated without the tape, which CmdStan cannot do from Stan code. It is
   on the checklist of

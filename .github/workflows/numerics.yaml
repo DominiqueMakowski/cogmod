@@ -1,12 +1,14 @@
 # Numerical regressions the test suite cannot see.
 #
 # `gradient-check` runs on every pull request: one brms-generated program per
-# family, compiled with model methods, and grad_log_prob() asked to be finite
-# and to agree with central differences over a grid of parameter points, with
-# tail responses in the data. R CMD check compares R and Stan *values*; a value
-# can be finite while its gradient is NaN (see benchmarks/gradient_check.R for
-# the case that motivated this), and that shows up in a fit as divergent
-# transitions or a rejected init, never as a failed test.
+# family (plus the configurations in gradient_programs.R's .GP_VARIANTS, such
+# as the DDM-4), compiled with model methods, and grad_log_prob() asked to be
+# finite and to agree with central differences over a grid of parameter
+# points, with tail responses in the data. R CMD check compares R and Stan
+# *values*; a value can be finite while its gradient is NaN (see
+# benchmarks/gradient_check.R for the case that motivated this), and that
+# shows up in a fit as divergent transitions or a rejected init, never as a
+# failed test.
 #
 # `gradient-cost` runs when a pull request carries the `benchmark` label, or on
 # dispatch: it generates each family's program from the PR and from its base,
