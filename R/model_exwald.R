@@ -36,7 +36,7 @@
 #' hard floor, `tau` a variable stage with an exponential spread. That makes
 #' them a ridge rather than a flat direction - the leading edge of the
 #' distribution identifies `ndt` - but a ridge all the same. The `normal(-1.2,
-#' 0.2)` that [cogmod_priors()] puts on `ndt` is what holds it; widen it and
+#' 0.5)` that [cogmod_priors()] puts on `ndt` is what holds it; widen it and
 #' expect the two to trade off. Schwarz's own model has no `ndt` at all, the
 #' exponential stage being the whole of the residual time, and fixing `ndt = 0`
 #' in `bf()` recovers exactly that.
@@ -44,6 +44,24 @@
 #' There is deliberately no `sigmadrift`. It and `tau` both fatten the right
 #' tail and are very hard to tell apart; [cogmod_invgaussian()] is where the
 #' drift-variability route lives.
+#'
+#' # Two ways to make a right tail
+#'
+#' The Ex-Wald model is prone to identifiability issues.
+#' The skew can come from either stage. In one solution the Wald carries it, at
+#' a low drift with a short `tau`. In the other the Wald is nearly Gaussian, at
+#' a high drift and threshold, and a long `tau` carries it. That second
+#' solution is an ex-Gaussian with a shift, and its `mu` and `boundary` no
+#' longer read as a drift and a threshold. The two predict almost the same
+#' response times.
+#'
+#' More data does not remove the other solution. The posterior keeps a mode at
+#' each, and the valley between them deepens as trials are added. Chains
+#' started far from both, as [cogmod_inits()] starts them, can settle in
+#' either, and chains that agree have not necessarily found the more probable
+#' one. If the estimates matter, start a few chains at a high drift and
+#' threshold with a long `tau` and see where they end. If the exponential
+#' stage is not the question, then [cogmod_invgaussian()] is preferable.
 #'
 #' # How the density is computed
 #'
@@ -110,10 +128,23 @@
 #' 0.2 + 0.5 / 3 + 0.15
 #'
 #' @export
-rcogmod_exwald <- function(n, mu = 3, boundary = 0.5, tau = 0.15, ndt = 0.2,
-                           poutlier = 0) {
-  .rshifted("cogmod_exwald", n = n, ndt = ndt, poutlier = poutlier,
-            mu = mu, boundary = boundary, tau = tau)
+rcogmod_exwald <- function(
+  n,
+  mu = 3,
+  boundary = 0.5,
+  tau = 0.15,
+  ndt = 0.2,
+  poutlier = 0
+) {
+  .rshifted(
+    "cogmod_exwald",
+    n = n,
+    ndt = ndt,
+    poutlier = poutlier,
+    mu = mu,
+    boundary = boundary,
+    tau = tau
+  )
 }
 
 
@@ -121,10 +152,25 @@ rcogmod_exwald <- function(n, mu = 3, boundary = 0.5, tau = 0.15, ndt = 0.2,
 #' @param x Vector of quantiles (observed reaction times).
 #' @param log Logical; if TRUE, probabilities p are given as log(p).
 #' @export
-dcogmod_exwald <- function(x, mu = 3, boundary = 0.5, tau = 0.15, ndt = 0.2,
-                           poutlier = 0, log = FALSE) {
-  .dshifted("cogmod_exwald", x = x, ndt = ndt, poutlier = poutlier, log = log,
-            mu = mu, boundary = boundary, tau = tau)
+dcogmod_exwald <- function(
+  x,
+  mu = 3,
+  boundary = 0.5,
+  tau = 0.15,
+  ndt = 0.2,
+  poutlier = 0,
+  log = FALSE
+) {
+  .dshifted(
+    "cogmod_exwald",
+    x = x,
+    ndt = ndt,
+    poutlier = poutlier,
+    log = log,
+    mu = mu,
+    boundary = boundary,
+    tau = tau
+  )
 }
 
 
@@ -137,12 +183,19 @@ dcogmod_exwald <- function(x, mu = 3, boundary = 0.5, tau = 0.15, ndt = 0.2,
 #'   the decision process alone; the likelihood is always the full mixture
 #'   either way. See [with_outliers()].
 #' @export
-cogmod_exwald <- function(link_mu = "softplus", link_boundary = "softplus",
-                          link_tau = "softplus", link_ndt = "log",
-                          link_poutlier = "logit", predict_outliers = FALSE) {
-  .shifted_family("cogmod_exwald",
-                  links = c(link_mu, link_boundary, link_tau),
-                  predict_outliers = predict_outliers)
+cogmod_exwald <- function(
+  link_mu = "softplus",
+  link_boundary = "softplus",
+  link_tau = "softplus",
+  link_ndt = "log",
+  link_poutlier = "logit",
+  predict_outliers = FALSE
+) {
+  .shifted_family(
+    "cogmod_exwald",
+    links = c(link_mu, link_boundary, link_tau),
+    predict_outliers = predict_outliers
+  )
 }
 
 
@@ -177,8 +230,12 @@ log_lik_cogmod_exwald <- function(i, prep) {
 
 #' @rdname rcogmod_exwald
 #' @export
-posterior_predict_cogmod_exwald <- function(i, prep, predict_outliers = NULL,
-                                            ...) {
+posterior_predict_cogmod_exwald <- function(
+  i,
+  prep,
+  predict_outliers = NULL,
+  ...
+) {
   .posterior_predict_shifted("cogmod_exwald", i, prep, predict_outliers)
 }
 

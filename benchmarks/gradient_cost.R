@@ -31,8 +31,9 @@
 #   Rscript benchmarks/gradient_cost.R emit --pkg .       --out /tmp/pr
 #   Rscript benchmarks/gradient_cost.R time --base /tmp/base --pr /tmp/pr
 #
-#   emit:  --pkg (tree to load), --out (directory), --families (subset),
-#          --n (trials, default 5000)
+#   emit:  --pkg (tree to load), --out (directory), --families (subset; a
+#          family brings its .GP_VARIANTS programs along, as in
+#          gradient_check.R), --n (trials, default 5000)
 #   time:  --base, --pr (the two emitted directories), --out (report directory,
 #          default benchmarks/results/gradient_cost), --reps (alternating
 #          blocks, 7), --block (gradients per block, 25), --fail (ratio above
@@ -58,7 +59,7 @@ if (mode == "emit") {
   opt <- gp_args(list(pkg = ".", out = "", families = "", n = 5000L))
   if (!nzchar(opt$out)) stop("--out is required", call. = FALSE)
   gp_load(opt$pkg)
-  fams <- if (nzchar(opt$families)) strsplit(opt$families, ",")[[1]] else gp_families()
+  fams <- gp_programs(if (nzchar(opt$families)) strsplit(opt$families, ",")[[1]] else character(0))
   ver <- as.character(utils::packageVersion("cogmod"))
   sha <- tryCatch(system2("git", c("-C", opt$pkg, "rev-parse", "--short", "HEAD"), stdout = TRUE),
                   error = function(e) NA_character_)
@@ -183,6 +184,12 @@ if (nrow(other)) {
   unch <- other$family[other$status == "unchanged"]
   md <- c(md[!grepl("^unchanged:", md)],
           if (length(unch)) sprintf("Unchanged Stan program (not timed): %s.", paste(unch, collapse = ", ")))
+}
+# Say what a variant is wherever the report names it as more than unchanged.
+variants <- intersect(res$family[res$status != "unchanged"], names(.GP_VARIANTS))
+if (length(variants)) {
+  md <- c(md, if (nzchar(md[length(md)])) "",
+          paste0(sprintf("%s: %s.", variants, vapply(variants, gp_describe, "")), collapse = " "))
 }
 writeLines(md, file.path(opt$out, "summary.md"))
 cat("\n", paste(md, collapse = "\n"), "\n", sep = "")

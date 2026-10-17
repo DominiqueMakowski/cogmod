@@ -21,6 +21,8 @@ navbar:
                   href: articles/outliers.html
                 - text: "Performance"
                   href: articles/performance.html
+                - text: "Comparison with Other Packages"
+                  href: articles/comparison.html
 
 reference:
     - title: "Subjective Scales Data"

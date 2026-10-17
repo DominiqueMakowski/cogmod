@@ -167,6 +167,15 @@ test_that("the family, its priors and its epred are wired up", {
                "normal(-1.5, 0.7)")
   expect_equal(p$prior[p$class == "b" & p$dpar == "tau" & p$coef == ""],
                "normal(0, 0.5)")
+  # `boundary` is not modelled here, so it is the natural-scale row
+  expect_equal(p$prior[p$class == "boundary"], "lognormal(0, 0.6)")
+  g <- brms::bf(RT ~ Condition, boundary ~ Condition, ndt ~ 1, poutlier ~ 1,
+                family = cogmod_exwald())
+  q <- expect_silent(cogmod_priors(g, d))
+  expect_equal(q$prior[q$class == "Intercept" & q$dpar == "boundary"],
+               "normal(0.5, 1)")
+  expect_equal(q$prior[q$class == "b" & q$dpar == "boundary" & q$coef == ""],
+               "normal(0, 0.5)")
 
   expect_silent(
     brms::make_stancode(f, data = d, family = f$family, prior = p,

@@ -151,6 +151,24 @@
 #' more trustworthy quantity to interpret and to compare across conditions. The
 #' same caveat applies to [cogmod_lba2()].
 #'
+#' The error accumulator's drift has a flat direction of its own. A drift of
+#' zero is legitimate - driftless Brownian motion still finishes, and still
+#' wins sometimes - but once `driftone` is a few hundredths the likelihood stops
+#' changing, while the `softplus` link puts that whole region at minus
+#' infinity. Left flat, the two-participant data of the
+#' [decision-making article](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html),
+#' whose Accuracy condition carries about 75 errors, ran it down to 0.0001 with
+#' half of the transitions divergent. [cogmod_priors()] fences it with
+#' `normal(3, 2)`, and `normal(0, 2)` on its slopes. That prior sits well above
+#' the floor on purpose. Under `dec(Error)`, the coding every example here
+#' uses, `driftone` is the *error* accumulator, and wherever errors are rare
+#' its posterior will land in the prior's lower tail. That is the fence
+#' working, not a prior at odds with the data: nothing the model predicts
+#' depends on where on the plateau the drift sits, and priors centred lower
+#' were measured to cost sampling efficiency without changing the fit. If the
+#' *rarely* chosen option is the one on `mu`, mirror that prior onto `mu` by
+#' hand.
+#'
 #' # Predictions exclude the outlier component
 #'
 #' `posterior_predict()` describes the **race alone** by default, as if

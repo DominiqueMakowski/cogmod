@@ -68,6 +68,7 @@ too slow to include here:
 - [How to Properly Analyze Reaction Times Data](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html) - why linear models on mean RT mislead, and how the RT-only families compare.
 - [Decision Making Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html) - fitting and comparing DDM, LBA, RDM and LNR on choice-RT data.
 - [Assessing Reliability](https://dominiquemakowski.github.io/cogmod/articles/reliability.html) - interindividual variability and reliability of model parameters.
+- [Comparison with Other Packages](https://dominiquemakowski.github.io/cogmod/articles/comparison.html) - how `cogmod` relates to `brms`'s native families and to `bmm`, and when each is the better choice.
 
 ## Citation
 

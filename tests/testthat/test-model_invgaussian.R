@@ -522,6 +522,16 @@ test_that("the family carries sigmadrift and it can be fixed in the formula", {
   f_fixed <- brms::bf(RT ~ 1, boundary ~ 1, sigmadrift = 0, ndt ~ 1,
                       poutlier ~ 1, family = cogmod_invgaussian())
   expect_false(any(cogmod_priors(f_fixed, d)$dpar == "sigmadrift"))
+
+  # `boundary` is identified, but brms would leave it flat - an improper
+  # prior on a softplus link - so it is filled in both forms
+  raw <- brms::get_prior(f_free, d, family = cogmod_invgaussian())
+  expect_true(all(!nzchar(raw$prior[raw$dpar == "boundary"])))
+  expect_equal(pr$prior[pr$class == "Intercept" & pr$dpar == "boundary"],
+               "normal(0.5, 1)")
+  p_omit <- cogmod_priors(brms::bf(RT ~ 1, sigmadrift = 0, sigmandt = 0,
+                                   family = cogmod_invgaussian()), d)
+  expect_equal(p_omit$prior[p_omit$class == "boundary"], "lognormal(0, 0.6)")
 })
 
 

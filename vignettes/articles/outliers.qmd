@@ -479,11 +479,14 @@ produced them.
 `r sprintf("%.1f%%", 100 * il$pooled)` in the Illusion Game, and
 `r sprintf("%.2f%%", 100 * rates$lexical$pooled[rates$lexical$condition == "accuracy"])`
 to `r sprintf("%.1f%%", 100 * rates$lexical$pooled[rates$lexical$condition == "speed"])`
-in lexical decision depending on instruction. On the logit scale that is around
-`r sprintf("%.1f", qlogis(il$pooled))`, so a weakly informative prior such as
-`normal(-5, 1)` on the `poutlier` intercept is centred at about 0.7% and puts
-roughly 95% of its mass between 0.1% and 5% - tight enough to keep chains away
-from the region where half the dataset is called contamination.
+in lexical decision depending on instruction. On the logit scale the pooled
+rate is around `r sprintf("%.1f", qlogis(il$pooled))`, and the typical
+participant sits lower still, around `r sprintf("%.1f", il$logit_mean)` - the
+figure the intercept estimates once `poutlier` has a random intercept, as it
+should (see below). A weakly informative prior such as `normal(-6, 1)` on the
+`poutlier` intercept is centred at 0.25% and puts roughly 95% of its mass
+between 0.035% and 1.7%: it covers both, and it is tight enough to keep chains
+away from the region where half the dataset is called contamination.
 
 **It is extremely unevenly distributed.** The per-participant standard deviation
 (`r sprintf("%.4f", il$sd)`) is about four times the mean
@@ -615,12 +618,13 @@ knitr::kable(rbind(
   implied("mu",       -1,   1,   exp,      "median decision time (s)"),
   implied("sigma",     0,   1,   softplus, "SD of log decision time"),
   implied("ndt",      -1.2, 0.5, exp,     "non-decision time (s)"),
-  implied("poutlier", -5,   1, plogis,      "proportion of trials")
+  implied("poutlier", -6,   1, plogis,      "proportion of trials")
 ), digits = 3)
 ```
 
-**`poutlier`.** `normal(-5, 1)` is centred at about 0.7%, in line with the
-pooled rates found above, and keeps the degenerate region far into the tail.
+**`poutlier`.** `normal(-6, 1)` is centred at 0.25%, between the typical
+participant's rate and the pooled one found above, and keeps the degenerate
+region far into the tail.
 `exponential(1)`
 on the between-participant SD matches the spread observed earlier (a logit-scale
 SD of about `r sprintf("%.1f", il$logit_sd)`) while still pooling hard toward a

@@ -1,0 +1,5 @@
+node: artemis-cpu-01.local
+cpus: 2
+model name	: AMD EPYC 9334 32-Core Processor
+job: 11423390_2 started 2026-10-03 20:50:31
+finished 2026-10-03 20:59:00 status 0

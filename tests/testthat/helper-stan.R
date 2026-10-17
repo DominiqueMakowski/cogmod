@@ -73,12 +73,12 @@
     ".EXGAUSSIAN_STAN_PRELUDE"
   )
   # One level down: cogmod_log_Phi() is pasted into the front of more than one
-  # prelude (the LogNormal's, the Wald's, the RDM's and the ex-Gaussian's), so
-  # once the family preludes are deduplicated it is still defined once per
-  # family that carries it. It goes last, after the family preludes have been
-  # stripped, so that the copy kept is the one inside the first surviving
-  # prelude - and so that a prelude is still matchable in full while its own
-  # copy is intact.
+  # prelude (the LogNormal's, the Wald's, the LBA's, the RDM's and the
+  # ex-Gaussian's), so once the family preludes are deduplicated it is still
+  # defined once per family that carries it. It goes last, after the family
+  # preludes have been stripped, so that the copy kept is the one inside the
+  # first surviving prelude - and so that a prelude is still matchable in full
+  # while its own copy is intact.
   named <- c(named, ".LOG_PHI_STAN_PRELUDE")
   for (nm in unique(named[nzchar(named)])) {
     pre <- getFromNamespace(nm, "cogmod")

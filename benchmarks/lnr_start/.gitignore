@@ -1,0 +1,6 @@
+# Generated programs, their executables and CmdStan's output, and the
+# per-cell results: all regenerable (prep.R, run.sh, summarise.R), and the
+# README carries the numbers. The cluster keeps its own copies.
+work/
+push/
+results/

@@ -78,6 +78,16 @@ paper/paper_cache/
 paper/wagenmakers2008.csv
 paper/reviewers.txt
 
+# Benchmark CSVs are not committed (from 2026-10-13): they are regenerable
+# from the scripts, or from the cluster's copies for the HPC runs, and each
+# benchmark's README carries the numbers a decision rests on. The CSVs
+# committed before then stay tracked until removed with git rm --cached.
+benchmarks/**/*.csv
+# Likewise the text files the benchmarks write (from 2026-10-17): node.txt,
+# which task.slurm writes per cluster task and the summarise scripts read,
+# and the repro_*.txt logs. They stay on disk for those scripts.
+benchmarks/**/*.txt
+
 # Compiled Stan executables produced by benchmarks/*.R
 benchmarks/results/exe/
 # Output of the two gradient scripts (benchmarks/gradient_check.R and
@@ -111,6 +121,11 @@ benchmarks/gaussbit/links/results/run.log*
 benchmarks/gaussbit/results/*.exe
 benchmarks/gaussbit/results/*.stan
 benchmarks/gaussbit/results/run.log
+# stanli backend trial (benchmarks/stanli/bench.R): only its CSVs, under
+# benchmarks/stanli/results/, are kept; the generated programs, executables,
+# fits and logs are regenerable. Likewise multilevel.R's and chains_probe.R's.
+benchmarks/results/stanli/
+benchmarks/results/stanli_ml/
 
 # The animation scripts import a shared module, which leaves one of these.
 __pycache__/

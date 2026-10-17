@@ -2531,7 +2531,7 @@ normCdfUpper = function(z) { return erfc(z / Math.SQRT2) / 2; }
 ```{ojs}
 //| echo: false
 // The LBA's defective density divided by the start-point range A, which is
-// R's `.lba_dens_over_A()` term for term:
+// the linear branch of R's `.lba_ldens()` term for term:
 //
 //   [ drift * (Phi(z2) - Phi(z1)) + sigma * (phi(z1) - phi(z2)) ] / A
 //
@@ -2545,8 +2545,11 @@ normCdfUpper = function(z) { return erfc(z / Math.SQRT2) / 2; }
 // used instead, whose truncation error there is a thousandth of what the
 // direct form has already lost; above it the two differences are taken
 // tail-aware, upper tail against upper tail when both arguments are positive
-// and phi(z1) times -expm1 for the other. All exactly as in the package, and
-// for the same reasons.
+// and the larger of the two densities times expm1 of their log ratio for the
+// other - phi(z1) times -expm1 regardless overflowed to 0 * Infinity = NaN
+// once the accumulator should have finished well before t. All exactly as in
+// the package, and for the same reasons; the package also takes a density
+// below 1e-280 again in log space, which nothing on a plot can show.
 lbaDensOverA = function(drift, sigma, st, z1, delta) {
   const phi1 = normPdf(z1);
   if (delta < 1e-4) {
@@ -2559,7 +2562,8 @@ lbaDensOverA = function(drift, sigma, st, z1, delta) {
   const z2 = z1 + delta;
   const dPhi = z1 > 0 ? normCdfUpper(z1) - normCdfUpper(z2)
                       : normCdf(z2) - normCdf(z1);
-  const dphi = phi1 * -Math.expm1(-delta * (z1 + z2) / 2);
+  const e = delta * (z1 + z2) / 2;  // log phi(z1) - log phi(z2)
+  const dphi = e >= 0 ? phi1 * -Math.expm1(-e) : normPdf(z2) * Math.expm1(e);
   return (drift * dPhi + sigma * dphi) / (delta * st);
 }
 ```

@@ -359,6 +359,24 @@ which shares this parameterisation.
 The sum \code{boundary + sigmabias} is well identified either way, so it is the
 more trustworthy quantity to interpret and to compare across conditions. The
 same caveat applies to \code{\link[=cogmod_lba2]{cogmod_lba2()}}.
+
+The error accumulator's drift has a flat direction of its own. A drift of
+zero is legitimate - driftless Brownian motion still finishes, and still
+wins sometimes - but once \code{driftone} is a few hundredths the likelihood stops
+changing, while the \code{softplus} link puts that whole region at minus
+infinity. Left flat, the two-participant data of the
+\href{https://dominiquemakowski.github.io/cogmod/articles/decision_making.html}{decision-making article},
+whose Accuracy condition carries about 75 errors, ran it down to 0.0001 with
+half of the transitions divergent. \code{\link[=cogmod_priors]{cogmod_priors()}} fences it with
+\code{normal(3, 2)}, and \code{normal(0, 2)} on its slopes. That prior sits well above
+the floor on purpose. Under \code{dec(Error)}, the coding every example here
+uses, \code{driftone} is the \emph{error} accumulator, and wherever errors are rare
+its posterior will land in the prior's lower tail. That is the fence
+working, not a prior at odds with the data: nothing the model predicts
+depends on where on the plateau the drift sits, and priors centred lower
+were measured to cost sampling efficiency without changing the fit. If the
+\emph{rarely} chosen option is the one on \code{mu}, mirror that prior onto \code{mu} by
+hand.
 }
 
 \section{Predictions exclude the outlier component}{

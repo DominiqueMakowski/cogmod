@@ -1,0 +1,5 @@
+node: artemis-rtx-00.local
+cpus: 4
+model name	: AMD EPYC 9355 32-Core Processor
+job: 11594086_1 started 2026-10-12 08:10:15
+finished 2026-10-12 08:19:43 status 0

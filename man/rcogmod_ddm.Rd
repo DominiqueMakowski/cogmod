@@ -247,9 +247,16 @@ changing well before then - so \code{\link[=cogmod_priors]{cogmod_priors()}} giv
 tight priors. Fixing the ones a design cannot identify is usually better than
 estimating them behind a prior.
 
+\code{boundary} and \code{bias} have no such direction, but \code{brms} would leave them
+flat, so \code{\link[=cogmod_priors]{cogmod_priors()}} fills those too: \code{normal(1, 1)} on the \code{boundary}
+intercept, on its \code{softplus} link - a median separation of 1.31, with 95\%
+between 0.32 and 3.0 - and \code{normal(0, 0.5)} on the slopes of both. The
+\code{bias} intercept keeps \code{brms}'s \code{logistic(0, 1)}, uniform on the probability
+scale.
+
 There is a cost argument too, and it is a cliff rather than a slope. The
 Stan density has a closed form for \code{sigmadrift}, so estimating it costs
-about 2.8 times the classic model per gradient evaluation. \code{sigmabias} and
+about 3.5 times the classic model per gradient evaluation. \code{sigmabias} and
 \code{sigmandt} have no closed form: Stan integrates them out numerically, once
 for the density and once more for each partial derivative, at every
 observation and every leapfrog step. Measured against the \code{sigmadrift}-only

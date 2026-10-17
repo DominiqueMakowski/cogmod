@@ -295,7 +295,7 @@ test_that("sigmabias = 0 is exactly the recinormal (LATER) model", {
   # The end of that sequence is not merely approached, it is reachable: zero is
   # an admissible value of `sigmabias`, and there the density IS the recinormal,
   # in which 1 / (RT - ndt) is normally distributed. delta = sigmabias / st is
-  # then 0, which takes the Taylor branch of .lba_dens_over_A(), and there
+  # then 0, which takes the Taylor branch of .lba_ldens(), and there
   # drift + sigma * z1 = b / t identically - so what comes out is the closed
   # form below rather than an approximation to it.
   recinormal <- function(t, drift, s, b, ndt) {
@@ -411,7 +411,7 @@ test_that("cogmod_priors fences off the sigmabias = 0 flat direction", {
 
 
 test_that("a mixed vector of start-point ranges takes each branch it needs", {
-  # .lba_dens_over_A() switches to its Taylor branch below delta = 1e-4, so one
+  # .lba_ldens() switches to its Taylor branch below delta = 1e-4, so one
   # vectorised call can send some elements one way and the rest the other.
   # rtdists's lognormal and gamma LBAs have the same structure and, until
   # rtdists/rtdists#24, indexed one branch's parameters by the other branch's

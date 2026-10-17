@@ -830,6 +830,14 @@ saveRDS(m_wald4, file = "../models/m_wald4.rds")
 
 ### ExWald
 
+The ex-Wald adds an exponential stage of mean `tau` after the Wald's decision.
+That gives the skew of the distribution two possible sources:
+
+- the Wald itself, at a low drift with a short `tau`;
+- or the exponential stage, behind a nearly Gaussian Wald at a high drift and
+  threshold.
+
+The two predict almost the same response times, which makes this model prone to identifiability issues.
 
 ```{r}
 #| eval: false

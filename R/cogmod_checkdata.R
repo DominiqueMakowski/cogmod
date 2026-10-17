@@ -339,10 +339,12 @@
   # 81 ms, because that is exactly what the outlier component is for. What
   # matters is the PROPORTION, measured against how much of it `poutlier` can
   # plausibly claim. Over 20000 draws the outlier component sends 0.8% of
-  # responses below 0.1 s at poutlier = 0.02, and 1.9% at poutlier = 0.05 - the
-  # top of the default normal(-5, 1) prior. Past 5% the mixture cannot account
-  # for them and `ndt` has to come down under every one instead, so that is
-  # where the warning sits.
+  # responses below 0.1 s at poutlier = 0.02, and 1.9% at poutlier = 0.05 -
+  # three times the top of the default normal(-6, 1) prior, 1.7%, which sends
+  # 0.7% there. Past 5% the mixture cannot account for them even with the prior
+  # widened, and `ndt` has to come down under every one instead, so that is
+  # where the warning sits. (5% was set when the prior was normal(-5, 1), whose
+  # top sent 1.9%; moving the prior to -6 in 0.3.5 only widened the margin.)
   # How far past the plausible range the outlier component can be asked to go.
   reach <- 0.05
   fast <- mean(pos < 0.1)
@@ -352,8 +354,8 @@
       "% of `",
       resp,
       "` is under 0.1 s. The ",
-      "outlier component reaches about 2% there at the top of its ",
-      "default prior, so it cannot account for this many and `ndt` will ",
+      "outlier component puts under 1% of responses there at the top of ",
+      "its default prior, so it cannot account for this many and `ndt` will ",
       "be pushed down under all of them instead. Filter them, or widen ",
       "the `poutlier` prior if they are genuine fast guesses.",
       call. = FALSE

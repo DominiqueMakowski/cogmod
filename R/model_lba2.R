@@ -50,6 +50,12 @@
 #'
 #' # Negative drift rates
 #'
+#' **Where one response is rare - a few percent of the trials in some
+#' condition - keep the drift SD of its accumulator free of predictors**:
+#' `sigmaone ~ 1`, or `sigmaone ~ 1 + (1 | participant)`, or fix it. The
+#' reason is the flat direction described at the end of this section, which a
+#' condition-varying SD multiplies.
+#'
 #' A Normal drift rate can come out negative, and such an accumulator rises
 #' away from the threshold and never responds. Brown and Heathcote (2008) noted
 #' the problem and left it; every implementation since has had to decide what
@@ -89,10 +95,22 @@
 #' flat, its drift wandered to `-12` with an interval of `-23` to `-6.5`, on an
 #' evidence scale where the correct accumulator's drift is `3`.
 #' [cogmod_priors()] therefore puts `normal(1, 2)` on `driftone` and
-#' `normal(0, 1.5)` on its slopes, as it does for [cogmod_lnr()]'s `nuone`. If
-#' the *rarely* chosen option is the one on `mu`, mirror that prior onto `mu`
-#' by hand. Fixing both SDs (`sigmazero = 1, sigmaone = 1`, a single `sv`)
+#' `normal(0, 1.5)` on its slopes: a fence, of the kind [cogmod_lnr()]'s `nuone`
+#' gets. Under `dec(Error)`, the coding every example here uses, `driftone` is
+#' the *error* accumulator, and wherever errors are rare its posterior will sit
+#' in that prior's lower tail. As for [cogmod_rdm()], that is the fence working
+#' rather than a prior at odds with the data. If the *rarely* chosen option is
+#' the one on `mu`, mirror that prior onto `mu` by hand. Fixing both SDs (`sigmazero = 1, sigmaone = 1`, a single `sv`)
 #' removes the ray altogether and is common practice in the LBA literature.
+#'
+#' Predictors on that accumulator's SD make it worse. With `sigmaone`
+#' varying by condition, every condition in which the accumulator rarely wins
+#' has a ray of its own, along which its `driftone` and `sigmaone` can slide
+#' together without changing the fit - so an easy condition can report an
+#' error drift of `-7` or `-17` with the same realised behaviour, and different
+#' chains can settle at different points. One SD shared across conditions
+#' leaves a single such direction, and any condition in which the accumulator
+#' wins often enough then pins it.
 #'
 #' # The evidence scale is arbitrary
 #'
@@ -162,6 +180,9 @@
 #'           init     = cogmod_inits(f, df),
 #'           stanvars = cogmod_stanvars(f))
 #' ```
+#'
+#' `sigmaone ~ 1` is deliberate: read *Negative drift rates* before giving it
+#' the predictors the drifts have.
 #'
 #' The `brms` family names the drift of the first accumulator `mu` (as `brms`
 #' requires) and that of the second `driftone`. Use [cogmod_inits()] rather than
@@ -332,18 +353,17 @@ cogmod_lba2 <- function(
   bb <- as.vector(p$boundary)
 
   # The 1e-10 floor only keeps sigma * t away from an exact zero; z1 then runs
-  # off to +/-Inf, which the density and survival both handle.
+  # off to +/-Inf, which the density and survival both handle. The winner's
+  # density comes already divided by its own P(v > 0).
   stw <- pmax(s_win * tv, 1e-10)
-  f <- .lba_dens_over_A(v_win, s_win, stw, (bb - v_win * tv) / stw, aa / stw)
+  lf <- .lba_ldens(v_win, s_win, stw, (bb - v_win * tv) / stw, aa / stw)
   stl <- pmax(s_los * tv, 1e-10)
   lsurv <- .lba_lsurv_trunc(v_los, s_los, (bb - v_los * tv) / stl, aa / stl)
-  # log P(v_win > 0), the winner's truncation constant
-  lpos <- stats::pnorm(v_win / s_win, log.p = TRUE)
 
-  ok <- f > 0 & is.finite(lsurv) & is.finite(lpos)
+  ok <- lf > -Inf & lsurv > -Inf
   out <- rep(-Inf, length(tv))
   if (any(ok)) {
-    out[ok] <- log(f[ok]) - lpos[ok] + lsurv[ok]
+    out[ok] <- lf[ok] + lsurv[ok]
   }
   out
 }
@@ -381,19 +401,24 @@ cogmod_lba2 <- function(
 // own drift being positive. Without the truncation an accumulator could draw a
 // negative drift and never finish, and the density would integrate to the
 // probability that at least one of them does rather than to one.
+//
+// Both terms are finite or an explicit -inf, so their sum is too: a NaN here
+// used to reach the sampler as `log_mix: lambda2 is -nan`, from the winner's
+// density (see cogmod_lba_ldens()).
 real cogmod_lba2_decision_lpdf(real t, real v_win, real s_win,
                                real v_los, real s_los,
                                real sigmabias, real boundary) {
   real stw = fmax(s_win * t, 1e-10);
   real z1w = (boundary - v_win * t) / stw;
-  real f = cogmod_lba_dens_over_A(v_win, s_win, stw, z1w, sigmabias / stw);
-  if (f <= 0) return negative_infinity();
+  real lf = cogmod_lba_ldens(v_win, s_win, stw, z1w, sigmabias / stw);
+  if (lf == negative_infinity()) return negative_infinity();
 
   real stl = fmax(s_los * t, 1e-10);
   real z1l = (boundary - v_los * t) / stl;
   real lsurv = cogmod_lba_lsurv_trunc(v_los, s_los, z1l, sigmabias / stl);
+  if (lsurv == negative_infinity()) return negative_infinity();
 
-  return log(f) - std_normal_lcdf(v_win / s_win) + lsurv;
+  return lf + lsurv;
 }
 "
 )

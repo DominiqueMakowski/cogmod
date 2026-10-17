@@ -37,7 +37,9 @@
 #  mean              : E[decision time]; Inf where it does not exist
 #  prior             : optional, per-dpar priors for cogmod_priors() to fill,
 #                      where the likelihood has a flat direction brms would
-#                      otherwise leave improper. Each entry is a named character
+#                      otherwise leave improper, or where brms would leave a
+#                      dpar the family names flat even though the data
+#                      identify it. Each entry is a named character
 #                      vector with any of `link` (modelled intercept, on the
 #                      dpar's link scale), `nat` (dpar omitted from bf(), so on
 #                      the natural scale) and `slope`.
@@ -294,7 +296,25 @@
     # the same flat direction (a log link reaches zero only at minus infinity),
     # the same unit, and the same reputation as the variability a model is
     # least able to recover.
+    #
+    # `boundary` is identified and has no flat direction of its own, but brms
+    # leaves it flat: an improper prior on a softplus link, on the third member
+    # of the (mu, boundary, sigmadrift) ray above, which a prior on it helps to
+    # hold. normal(0.5, 1) puts the median threshold at softplus(0.5) = 0.97
+    # with 95% between 0.21 and 2.5, at a diffusion coefficient of 1: the RT
+    # vignette's Wald-family fits sit at 0.75-1.7, and the start of 0.5 at 0.9
+    # SDs below the centre. lognormal(0, 0.6) has the same median, and the
+    # slope is the normal(0, 0.5) every other threshold gets. cogmod_exwald()
+    # and cogmod_bisa() carry the same rows, their `boundary` being the same
+    # quantity. On the RT vignette's Wald with drift variability the prior
+    # trimmed the upper end of that ray - the boundary's 95th percentile from
+    # 2.7 to 2.1 on its link - and the fit took 21% fewer leapfrog steps per
+    # draw, with 38-81% more ESS per step; on the vignette's cogmod_bisa() and
+    # cogmod_exwald() fits nothing moved (2026-10-12;
+    # benchmarks/driftone_priors/).
     prior = list(
+      boundary = c(link = "normal(0.5, 1)", nat = "lognormal(0, 0.6)",
+                   slope = "normal(0, 0.5)"),
       sigmadrift = c(link = "normal(0, 1)", nat = "lognormal(-0.7, 0.75)",
                      slope = "normal(0, 0.5)"),
       sigmandt = c(link = "normal(-3, 1)", nat = "lognormal(-3, 1)",
@@ -353,7 +373,11 @@
     # `tau` is a length of time in seconds, and brms leaves it flat. Same belief,
     # and the same numbers, as the `tau` of cogmod_exgaussian(): it is the same
     # quantity, the mean of an exponential residual stage. See cogmod_priors().
+    # `boundary` takes cogmod_invgaussian()'s rows, for the threshold of the
+    # same Wald stage.
     prior = list(
+      boundary = c(link = "normal(0.5, 1)", nat = "lognormal(0, 0.6)",
+                   slope = "normal(0, 0.5)"),
       tau = c(link = "normal(-1.5, 0.7)", nat = "lognormal(-1.5, 0.7)",
               slope = "normal(0, 0.5)")
     ),
@@ -435,6 +459,13 @@
     # The same starting point as cogmod_invgaussian(), the parameters meaning
     # the same thing there.
     init = list(mu = 3, boundary = 0.5),
+    # Two identified parameters and no flat direction, but brms would leave
+    # `boundary` flat, so it takes cogmod_invgaussian()'s rows for the same
+    # threshold.
+    prior = list(
+      boundary = c(link = "normal(0.5, 1)", nat = "lognormal(0, 0.6)",
+                   slope = "normal(0, 0.5)")
+    ),
     dpar_doc = c(
       paste("mu: drift rate, the average size of the per-cycle evidence",
             "increment (> 0)."),
@@ -569,8 +600,8 @@
     # reachable by pinning the extension parameter at its floor.
     #
     # Nothing else has to change for that to be exact. `delta = sigmabias / st`
-    # is then 0, which takes the Taylor branch of .lba_dens_over_A(), and there
-    # the series is phi(z1) * (drift + sigma * z1) / st with drift + sigma * z1
+    # is then 0, which takes the Taylor branch of .lba_ldens(), and there the
+    # series is phi(z1) * (drift + sigma * z1) / st with drift + sigma * z1
     # = b / t identically - that is phi(z1) * b / (sigma * t^2), the recinormal
     # density itself rather than an approximation to it. .lba_lsurv_trunc()
     # likewise collapses to the survival of a deterministic start point, which
@@ -1202,14 +1233,14 @@ real %s_lccdf(%s) {
 
 
 # log(Phi(x)) for Stan, shared by every prelude that takes a normal tail:
-# .WALD_STAN_PRELUDE and .LOGNORMAL_STAN_PRELUDE below (and so the ex-Wald's
-# and the LNR's), .RDM_STAN_PRELUDE in model_rdm.R and .EXGAUSSIAN_STAN_PRELUDE
-# in model_exgaussian.R (and so the GEG's) paste it in front of their own
-# functions. It is its own object so that helper-stan.R can strip the duplicate
-# copies when it concatenates every family into one test program - a function
-# defined twice will not compile - and so that the next family to need a normal
-# tail takes this one rather than a Stan built-in. The reasoning is in the Stan
-# comment.
+# .WALD_STAN_PRELUDE, .LBA_STAN_PRELUDE and .LOGNORMAL_STAN_PRELUDE below (and
+# so the ex-Wald's, cogmod_lba2()'s and the LNR's), .RDM_STAN_PRELUDE in
+# model_rdm.R and .EXGAUSSIAN_STAN_PRELUDE in model_exgaussian.R (and so the
+# GEG's) paste it in front of their own functions. It is its own object so
+# that helper-stan.R can strip the duplicate copies when it concatenates every
+# family into one test program - a function defined twice will not compile -
+# and so that the next family to need a normal tail takes this one rather than
+# a Stan built-in. The reasoning is in the Stan comment.
 #
 # It sits here, ahead of every prelude, because those preludes paste it in at
 # load time: an object defined further down the file does not exist yet.
@@ -1786,7 +1817,7 @@ real cogmod_invgaussian_decision_lccdf(real t, real mu, real boundary,
 #  * A difference is taken between whichever pair is SMALL. The density is
 #    F(t) - F(t - st0) near the shift and S(t - st0) - S(t) in the tail, and
 #    the two differ only in which side has lost its digits; the midpoint's CDF
-#    decides. Same device as `dPhi` in .lba_dens_over_A(). R inherits the
+#    decides. Same device as `dPhi` in .lba_ldens(). R inherits the
 #    digit loss of .lswald_fixed() in the far tail and no more.
 #  * Below st0 / t = 1e-5 the difference quotient has lost five digits and the
 #    midpoint value f(t - st0 / 2) - error O(st0^2) - is the better answer, so
@@ -2219,11 +2250,97 @@ real cogmod_bisa_decision_lpdf(real t, real mu, real boundary) {
 # here rather than with either family for the same reason as the mixture itself:
 # one copy cannot drift out of step with the other.
 
-# The LBA defective density divided by the start-point range A, i.e.
+# log(Phibar(x) / phi(x)) for x >= 0, the log of the Mills ratio. Formed as
+# log Phibar(x) minus log phi(x) it would be the difference of two numbers of
+# order x^2 / 2, which beyond x of a few hundred has fewer digits left than the
+# quantities below need; above 25 the asymptotic series that cogmod_log_Phi()
+# also uses gives it directly, and below 25 the two logs are small enough to
+# subtract.
+#' @keywords internal
+.lba_log_mills <- function(x) {
+  out <- stats::pnorm(-x, log.p = TRUE) + 0.5 * x^2 + 0.91893853320467274
+  big <- x > 25
+  if (any(big)) {
+    z <- 1 / x[big]^2
+    out[big] <- log1p(z * (-1 + z * (3 + z * (-15 + z * (105 - 945 * z))))) -
+      log(x[big])
+  }
+  out
+}
+
+# The mass of a standard normal on (a, b), b > a, and its mean there, as
+# list(lphi, lr, m): lphi = log phi(x) at the end x of the interval nearer
+# zero, lr = log(mass / phi(x)) and m = E(u | a < u < b). Where the interval
+# straddles zero, lphi is 0 and lr the log of the mass itself; an interval
+# empty to every digit carried gives lr = -Inf. In one tail the mass and the
+# mean both come from Mills ratios at the two ends, relative to the density at
+# the nearer one, so nothing underflows and no two numbers of order a^2 / 2
+# are subtracted: the mean of a far-tail interval sits within 1 / |a| of its
+# near end, and that is the digit the survival below needs. lphi is returned
+# apart so that a caller can cancel it on paper against a term of the same
+# order rather than in floating point. Used by the log paths below and nowhere
+# else.
+#' @keywords internal
+.lba_tnorm <- function(a, b) {
+  n <- max(length(a), length(b))
+  a <- rep_len(a, n)
+  b <- rep_len(b, n)
+  lphi <- numeric(n)
+  lr <- rep(-Inf, n)
+  m <- (a + b) / 2
+
+  one <- a > 0 | b < 0
+  if (any(one)) {
+    i <- which(one)
+    up <- a[i] > 0
+    # the two ends in tail coordinates, nearer zero first
+    xn <- ifelse(up, a[i], -b[i])
+    xf <- ifelse(up, b[i], -a[i])
+    ep <- (b[i] - a[i]) * (xn + xf) / 2 # log phi(xn) - log phi(xf)
+    lmn <- .lba_log_mills(xn)
+    x <- .lba_log_mills(xf) - lmn - ep
+    lphi[i] <- -0.5 * xn^2 - 0.91893853320467274
+    ok <- x < 0
+    r <- lmn[ok] + .log1m_exp(x[ok])
+    lr[i[ok]] <- r
+    m[i[ok]] <- ifelse(up[ok], 1, -1) * -expm1(-ep[ok]) * exp(-r)
+  }
+  if (any(!one)) {
+    i <- which(!one)
+    D <- stats::pnorm(b[i]) - stats::pnorm(a[i])
+    ok <- D > 0
+    lr[i[ok]] <- log(D[ok])
+    m[i[ok]] <- (stats::dnorm(a[i[ok]]) - stats::dnorm(b[i[ok]])) / D[ok]
+  }
+  list(lphi = lphi, lr = lr, m = m)
+}
+
+# log(phi(z1) / Phi(ratio)), the factor the density's Taylor branch and both
+# log paths scale by. For a drift ratio below -25 both logs are of order
+# ratio^2 / 2 - by -1e8 that is 5e15, and the difference of two such numbers is
+# wrong by whole units - so there it is taken as one: the drift is negative,
+# z1 = boundary / st - ratio is positive, and log phi(-ratio) - log phi(z1) is
+# (z1 + ratio)(z1 - ratio) / 2, with log Phi(ratio) = log phi(-ratio) plus the
+# log Mills ratio at -ratio. Elsewhere the two logs are small enough to
+# subtract, and that is the form the hot path keeps.
+#' @keywords internal
+.lba_lw <- function(z1, ratio, lpos) {
+  far <- ratio < -25
+  out <- -0.5 * z1^2 - 0.91893853320467274 - lpos
+  if (any(far)) {
+    out[far] <- -(z1[far] + ratio[far]) * (z1[far] - ratio[far]) / 2 -
+      .lba_log_mills(-ratio[far])
+  }
+  out
+}
+
+# The accumulator's finishing-time density, its drift truncated at zero, on
+# the log scale: the defective density of the untruncated drift
 #
 #   [ drift * (Phi(z2) - Phi(z1)) + sigma * (phi(z1) - phi(z2)) ] / A
 #
-# with z2 = z1 + delta and delta = A / (sigma * t).
+# with z2 = z1 + delta and delta = A / (sigma * t), divided by P(v > 0) =
+# Phi(drift / sigma) (see ?rcogmod_lba2 for the truncation).
 #
 # Both differences vanish linearly in delta, so evaluating them directly and
 # then dividing by A loses every significant digit once the start-point range is
@@ -2236,23 +2353,40 @@ real cogmod_bisa_decision_lpdf(real t, real mu, real boundary) {
 # truncation error there is ~1e-12 relative, while the direct form still has
 # ~12 good digits, so the two agree across the switch. Above it, the two
 # differences are taken tail-aware: Phi(z2) - Phi(z1) from the upper tail when
-# both are positive, and phi(z1) - phi(z2) as phi(z1) * -expm1(...), which stays
-# accurate however close the two arguments are.
+# both are positive, and phi(z1) - phi(z2) as the LARGER of the two densities
+# times expm1() of their log ratio, which stays accurate however close the two
+# arguments are and cannot overflow. It used to be phi(z1) * -expm1(...)
+# whichever was larger. Once the accumulator should have finished well before
+# t, so that z1 + z2 < 0 and phi(z2) is the larger, that expm1() overflowed to
+# inf while phi(z1) underflowed to 0, and 0 * inf made the density NaN: the
+# `log_mix: lambda2 is -nan` that cogmod_lba2() fits reached under a wide
+# driftone prior (benchmarks/driftone_priors/README.md, 2026-10-12).
+#
+# Where the linear value would come out below 1e-280 - out in a tail, where
+# the terms underflow, or where they cancel - it is taken again from
+# .lba_tnorm(): the bracket is the normal mass on (z1, z2) times drift + sigma
+# * m, with m the normal's mean there, and that factor is the mean of d / t
+# over the threshold distances d, so positive. A density that is merely tiny
+# then stays finite instead of falling to -inf, which matters beyond a few
+# seconds, where the outlier component is itself negligible and the decision
+# component is all that explains a slow response.
 #' @keywords internal
-.lba_dens_over_A <- function(drift, sigma, st, z1, delta) {
+.lba_ldens <- function(drift, sigma, st, z1, delta) {
   n <- max(length(drift), length(sigma), length(st), length(z1), length(delta))
   drift <- rep_len(drift, n)
   sigma <- rep_len(sigma, n)
   st <- rep_len(st, n)
   z1 <- rep_len(z1, n)
   delta <- rep_len(delta, n)
+  ratio <- drift / sigma
+  # log P(v > 0), the truncation constant; zero to every digit carried below a
+  # ratio of about -1e154, where no drift is positive and nothing finishes
+  lpos <- stats::pnorm(ratio, log.p = TRUE)
+  out <- rep(-Inf, n)
 
-  phi1 <- stats::dnorm(z1)
-  out <- numeric(n)
-
-  small <- delta < 1e-4
+  small <- delta < 1e-4 & lpos > -Inf
   if (any(small)) {
-    i <- small
+    i <- which(small)
     d <- delta[i]
     z <- z1[i]
     v <- drift[i]
@@ -2260,19 +2394,38 @@ real cogmod_bisa_decision_lpdf(real t, real mu, real boundary) {
     series <- (v + sg * z) -
       (d / 2) * (v * z + sg * (z^2 - 1)) +
       (d^2 / 6) * (v * (z^2 - 1) + sg * (z^3 - 3 * z))
-    out[i] <- phi1[i] * series / st[i]
+    ok <- series > 0
+    out[i[ok]] <- .lba_lw(z[ok], ratio[i[ok]], lpos[i[ok]]) +
+      log(series[ok] / st[i[ok]])
   }
-  if (any(!small)) {
-    i <- !small
-    z2 <- z1[i] + delta[i]
+  big <- delta >= 1e-4 & lpos > -Inf
+  if (any(big)) {
+    i <- which(big)
+    z <- z1[i]
+    z2 <- z + delta[i]
+    e <- delta[i] * (z + z2) / 2 # log phi(z1) - log phi(z2)
     dPhi <- ifelse(
-      z1[i] > 0,
-      stats::pnorm(z1[i], lower.tail = FALSE) -
-        stats::pnorm(z2, lower.tail = FALSE),
-      stats::pnorm(z2) - stats::pnorm(z1[i])
+      z > 0,
+      stats::pnorm(z, lower.tail = FALSE) - stats::pnorm(z2, lower.tail = FALSE),
+      stats::pnorm(z2) - stats::pnorm(z)
     )
-    dphi <- phi1[i] * -expm1(-delta[i] * (z1[i] + z2) / 2)
-    out[i] <- (drift[i] * dPhi + sigma[i] * dphi) / (delta[i] * st[i])
+    dphi <- ifelse(e >= 0, stats::dnorm(z) * -expm1(-e),
+                   stats::dnorm(z2) * expm1(e))
+    f <- (drift[i] * dPhi + sigma[i] * dphi) / (delta[i] * st[i])
+    lin <- f > 1e-280
+    out[i[lin]] <- log(f[lin]) - lpos[i[lin]]
+    j <- i[!lin]
+    if (length(j)) {
+      tn <- .lba_tnorm(z1[j], z1[j] + delta[j])
+      br <- drift[j] + sigma[j] * tn$m
+      ok <- tn$lr > -Inf & br > 0
+      # A negative drift puts (z1, z2) in the upper tail, where tn$lphi is
+      # log phi(z1) and .lba_lw() carries it relative to P(v > 0)
+      lw <- ifelse(ratio[j] < -25, .lba_lw(z1[j], ratio[j], lpos[j]),
+                   tn$lphi - lpos[j])
+      out[j[ok]] <- lw[ok] + tn$lr[ok] + log(br[ok]) -
+        log(delta[j[ok]] * st[j[ok]])
+    }
   }
   out
 }
@@ -2308,6 +2461,25 @@ real cogmod_bisa_decision_lpdf(real t, real mu, real boundary) {
 # Returned on the log scale, as log(S - q) - log(1 - q), so that a loser that
 # has almost surely finished contributes a large negative number rather than
 # log(0).
+#
+# That only holds while S - q is representable, and two things took it below:
+# a loser that should have finished long before t, whose S - q underflows; and
+# a drift so negative that 1 - q does - Phi() of a ratio below -37.5 is 0 in
+# Stan, and the survival came back -inf where its true value is near 1. Below
+# 1e-280 the same probability is therefore taken in log space instead, split
+# into two parts that are both non-negative and so cannot cancel:
+#
+#   P(v > 0, unfinished) = [Phi(z1) - q] + (Phi(z2) - Phi(z1)) (z2 - m) / delta
+#
+# The first is the drifts too slow to cover even the nearer threshold distance
+# by t, the second those that cover only part of the range, with m the normal's
+# mean on (z1, z2); both come from .lba_tnorm(), each over 1 - q. For a drift
+# ratio below -25 the two parts and 1 - q are all of order exp(-ratio^2 / 2),
+# and the first is taken as 1 - exp(x) with x the exponent .lba_tnorm() builds
+# its mass from, so that nothing of that order is subtracted (see .lba_lw()).
+# Where 1 - q itself is zero to every digit carried - a ratio below about
+# -1e154 - the accumulator has no positive drift to finish with, and the
+# survival is 1.
 #' @keywords internal
 .lba_lsurv_trunc <- function(drift, sigma, z1, delta) {
   n <- max(length(drift), length(sigma), length(z1), length(delta))
@@ -2352,24 +2524,59 @@ real cogmod_bisa_decision_lpdf(real t, real mu, real boundary) {
     num[i] <- stats::pnorm(ratio[i]) - (h(z2) - h(z1[i])) / delta[i]
   }
 
+  lpos <- stats::pnorm(ratio, log.p = TRUE)
   out <- rep(-Inf, n)
-  ok <- is.finite(num) & num > 0
-  if (any(ok)) {
-    out[ok] <- pmin(log(num[ok]) - stats::pnorm(ratio[ok], log.p = TRUE), 0)
+  lin <- is.finite(num) & num > 1e-280
+  out[lin] <- log(num[lin]) - lpos[lin]
+
+  j <- which(!lin & lpos > -Inf)
+  if (length(j)) {
+    z <- z1[j]
+    r <- ratio[j]
+    d <- delta[j]
+    far <- r < -25
+    lw <- .lba_lw(z, r, lpos[j])
+    # the first part over 1 - q
+    t1 <- .lba_tnorm(-r, z)
+    l1 <- ifelse(far, t1$lr - .lba_log_mills(-r), t1$lphi + t1$lr - lpos[j])
+    # the second, by Taylor below delta = 1e-4 as in the branches above
+    l2 <- rep(-Inf, length(j))
+    s <- d < 1e-4
+    if (any(s)) {
+      k <- which(s)
+      cc <- 0.5 - d[k] * z[k] / 6
+      ok <- d[k] > 0 & cc > 0
+      l2[k[ok]] <- lw[k[ok]] + log(d[k[ok]] * cc[ok])
+    }
+    if (any(!s)) {
+      k <- which(!s)
+      z2 <- z[k] + d[k]
+      tn <- .lba_tnorm(z[k], z2)
+      omu <- (z2 - tn$m) / d[k]
+      ok <- tn$lr > -Inf & omu > 0
+      lnorm <- ifelse(far[k], lw[k], tn$lphi - lpos[j[k]])
+      l2[k[ok]] <- lnorm[ok] + tn$lr[ok] + log(pmin(omu[ok], 1))
+    }
+    hi <- pmax(l1, l2)
+    out[j] <- ifelse(hi == -Inf, -Inf, hi + log1p(exp(pmin(l1, l2) - hi)))
   }
-  out
+  out[lpos == -Inf] <- 0
+  pmin(out, 0)
 }
 
 
 # Decision component of cogmod_lba1(), written out here for the same reason as the
-# Wald: dcogmod_lba1() is the mixture and would recurse.
+# Wald: dcogmod_lba1() is the mixture and would recurse. .lba_ldens() already
+# divides by P(v > 0). That normaliser used to be log1p(-exp(log Phi(-drift /
+# sigma))), the form for a large positive ratio, where Phi saturates;
+# pnorm(log.p = TRUE) is exact there too, and the old form lost a negative
+# ratio - digits from about -6, and beyond about -8.3 the exp() is 1 to every
+# digit, so the normaliser was -Inf.
 #' @keywords internal
 .dlba1_raw <- function(t, drift, sigma, sigmabias, boundary) {
   st <- pmax(sigma * t, 1e-10)
   z1 <- (boundary - drift * t) / st
-  n2 <- .lba_dens_over_A(drift, sigma, st, z1, sigmabias / st)
-  log_norm <- log1p(-exp(stats::pnorm(-drift / sigma, log.p = TRUE)))
-  ifelse(n2 > 0, log(n2) - log_norm, -Inf)
+  .lba_ldens(drift, sigma, st, z1, sigmabias / st)
 }
 
 #' @keywords internal
@@ -2379,35 +2586,120 @@ real cogmod_bisa_decision_lpdf(real t, real mu, real boundary) {
   (sigmabias + boundary - sp) / v
 }
 
-# Stan counterpart of .lba_dens_over_A(), .lba_lsurv_trunc() and .dlba1_raw().
-# Same branches, and the same reason for them: both differences cancel as the
-# start-point range goes to zero, and the result is then divided by that range.
+# Stan counterpart of .lba_ldens(), .lba_lsurv_trunc(), .dlba1_raw() and the
+# helpers they share. Same branches, and the same reason for them: both
+# differences cancel as the start-point range goes to zero, and the result is
+# then divided by that range; below 1e-280 a value is taken again in log space.
+#
+# Every normal tail on the log scale is cogmod_log_Phi() (.LOG_PHI_STAN_PRELUDE
+# above), never std_normal_lcdf(), with one exception the survival explains:
+# where its linear branch has just formed Phi(drift / sigma), the truncation
+# constant is the log of that. The constant log P(v > 0), paid by both families
+# on every observation, used to be std_normal_lcdf(), whose value is right but
+# whose partials are approximate; the LBA1's was log1m_exp(std_normal_lcdf(-x)),
+# which is cogmod_log_Phi(x) the long way round. Measured 2026-10-12 over the
+# gradient check's grid, the change took cogmod_lba2()'s worst point from 2.6e-5
+# to 2.1e-6 and 21 of its 22 points to about 1e-9, at 0.92-0.93
+# (cogmod_lba1()) and 0.98-1.02 (cogmod_lba2()) times the cost of a gradient on
+# 5000 trials.
 #
 # cogmod_lba2() appends its own decision lpdf to this (see .LBA2_STAN_PRELUDE in
-# model_lba2.R) rather than repeating the two kernels, so the names here are
+# model_lba2.R) rather than repeating the kernels, so the names here are
 # family-neutral.
 #' @keywords internal
-.LBA_STAN_PRELUDE <- "
-// LBA defective density divided by the start-point range A, with
-// z2 = z1 + delta and delta = A / (sigma * t). Both differences below vanish
-// linearly in delta, so evaluating them directly and dividing by A loses every
-// significant digit for a small start-point range. The Taylor expansion is used
-// there instead; its truncation error is ~1e-12 at the switch, where the direct
-// form still has ~12 good digits.
-real cogmod_lba_dens_over_A(real drift, real sigma, real st, real z1, real delta) {
-  real phi1 = exp(-0.5 * square(z1)) * 0.3989422804014327;
+.LBA_STAN_PRELUDE <- paste0(.LOG_PHI_STAN_PRELUDE, "
+// log(Phibar(x) / phi(x)) for x >= 0, the log of the Mills ratio, without
+// subtracting two numbers of order x^2 / 2: above 25 from the asymptotic series
+// cogmod_log_Phi() also uses, below it from cogmod_log_Phi(-x) directly.
+real cogmod_lba_log_mills(real x) {
+  if (x > 25) {
+    real z = inv_square(x);
+    return log1p(z * (-1 + z * (3 + z * (-15 + z * (105 - 945 * z))))) - log(x);
+  }
+  return cogmod_log_Phi(-x) + 0.5 * square(x) + 0.91893853320467274;
+}
+
+// [log phi(x), log(mass / phi(x)), E(u | a < u < b)] for a standard normal u on
+// (a, b), b > a, with x the end nearer zero; where the interval straddles zero
+// the first is 0 and the second the log of the mass itself, and an interval
+// empty to every digit carried has log(0) there. In one tail the mass and the
+// mean come from Mills ratios relative to the density at the nearer end, so
+// nothing underflows and the mean keeps the digit that puts it within 1 / |a|
+// of that end. Only the log paths below call it, rarely enough that returning
+// a vector - an allocation on the autodiff stack - costs nothing.
+vector cogmod_lba_tnorm(real a, real b) {
+  if (a > 0 || b < 0) {
+    real xn = a > 0 ? a : -b;           // the two ends in tail coordinates,
+    real xf = a > 0 ? b : -a;           // nearer zero first
+    real ep = (b - a) * (xn + xf) / 2;  // log phi(xn) - log phi(xf)
+    real lmn = cogmod_lba_log_mills(xn);
+    real x = cogmod_lba_log_mills(xf) - lmn - ep;
+    real lphin = -0.5 * square(xn) - 0.91893853320467274;
+    if (x >= 0) return [lphin, negative_infinity(), (a + b) / 2]';
+    real lr = lmn + log1m_exp(x);
+    return [lphin, lr, (a > 0 ? 1 : -1) * -expm1(-ep) * exp(-lr)]';
+  }
+  real D = Phi(b) - Phi(a);
+  if (D <= 0) return [0, negative_infinity(), (a + b) / 2]';
+  return [0, log(D),
+          (exp(-0.5 * square(a)) - exp(-0.5 * square(b)))
+            * 0.3989422804014327 / D]';
+}
+
+// log(phi(z1) / Phi(ratio)). Below a ratio of -25 both logs are of order
+// ratio^2 / 2 and are cancelled on paper instead: the drift is negative, so z1
+// is positive, log phi(-ratio) - log phi(z1) = (z1 + ratio)(z1 - ratio) / 2 and
+// log Phi(ratio) is log phi(-ratio) plus the log Mills ratio at -ratio. See
+// .lba_lw().
+real cogmod_lba_lw(real z1, real ratio, real lpos) {
+  if (ratio < -25) {
+    return -(z1 + ratio) * (z1 - ratio) / 2 - cogmod_lba_log_mills(-ratio);
+  }
+  return -0.5 * square(z1) - 0.91893853320467274 - lpos;
+}
+
+// Log of an accumulator's finishing-time density with its drift truncated at
+// zero: [drift * (Phi(z2) - Phi(z1)) + sigma * (phi(z1) - phi(z2))] / A over
+// P(v > 0), with z2 = z1 + delta and delta = A / (sigma * t). Both differences
+// vanish linearly in delta, so evaluating them directly and dividing by A loses
+// every significant digit for a small start-point range. The Taylor expansion
+// is used there instead; its truncation error is ~1e-12 at the switch, where
+// the direct form still has ~12 good digits.
+//
+// phi(z1) - phi(z2) is taken from the larger of the two densities. Taken from
+// phi(z1) whichever was larger, the expm1() overflowed once the accumulator
+// should have finished well before t, and the density was 0 * inf = NaN. Below
+// 1e-280 the value is taken again as the normal mass on (z1, z2) times drift +
+// sigma * m, m the normal's mean there - the mean of d / t over the threshold
+// distances d, so positive. See .lba_ldens().
+real cogmod_lba_ldens(real drift, real sigma, real st, real z1, real delta) {
+  real ratio = drift / sigma;
+  real lpos = cogmod_log_Phi(ratio);
+  // no positive drift at all, so no finishing time
+  if (lpos == negative_infinity()) return negative_infinity();
   if (delta < 1e-4) {
     real series = (drift + sigma * z1)
       - (delta / 2) * (drift * z1 + sigma * (square(z1) - 1))
       + (square(delta) / 6) * (drift * (square(z1) - 1)
                                + sigma * (z1 * square(z1) - 3 * z1));
-    return phi1 * series / st;
+    if (series <= 0) return negative_infinity();
+    return cogmod_lba_lw(z1, ratio, lpos) + log(series / st);
   }
   real z2 = z1 + delta;
+  real e = delta * (z1 + z2) / 2;  // log phi(z1) - log phi(z2)
   // upper tail when both are positive, so Phi(z2) - Phi(z1) does not cancel
   real dPhi = z1 > 0 ? (Phi(-z1) - Phi(-z2)) : (Phi(z2) - Phi(z1));
-  real dphi = phi1 * -expm1(-delta * (z1 + z2) / 2);
-  return (drift * dPhi + sigma * dphi) / (delta * st);
+  real dphi = e >= 0 ? exp(-0.5 * square(z1)) * -expm1(-e)
+                     : exp(-0.5 * square(z2)) * expm1(e);
+  real f = (drift * dPhi + sigma * dphi * 0.3989422804014327) / (delta * st);
+  if (f > 1e-280) return log(f) - lpos;
+  vector[3] tn = cogmod_lba_tnorm(z1, z2);
+  real br = drift + sigma * tn[3];
+  if (tn[2] == negative_infinity() || br <= 0) return negative_infinity();
+  // a negative drift puts (z1, z2) in the upper tail, where tn[1] is
+  // log phi(z1) and cogmod_lba_lw() carries it relative to P(v > 0)
+  real lw = ratio < -25 ? cogmod_lba_lw(z1, ratio, lpos) : tn[1] - lpos;
+  return lw + tn[2] + log(br) - log(delta * st);
 }
 
 // Log probability that an accumulator has NOT finished by t, given that its
@@ -2417,11 +2709,22 @@ real cogmod_lba_dens_over_A(real drift, real sigma, real st, real z1, real delta
 // 1 - q and the untruncated CDF F are tiny, so the same number is taken as
 // (1 - q) - F from the upper tail, F = (h(z2) - h(z1)) / delta with
 // h(z) = z Phibar(z) - phi(z). The Taylor branches are for the cancellation in
-// the quotients as delta -> 0; see .lba_lsurv_trunc() for the derivation.
+// the quotients as delta -> 0. Below 1e-280 - a loser that should have
+// finished long before t, or a drift so negative that Phi(drift / sigma) is 0 -
+// the probability is taken in log space as [Phi(z1) - q] + (Phi(z2) - Phi(z1))
+// (z2 - m) / delta, two parts that cannot cancel, m the normal's mean on
+// (z1, z2), each over 1 - q. See .lba_lsurv_trunc() for the derivation.
 real cogmod_lba_lsurv_trunc(real drift, real sigma, real z1, real delta) {
-  real phi1 = exp(-0.5 * square(z1)) * 0.3989422804014327;
   real ratio = drift / sigma;
-  real num;
+  real phi1 = exp(-0.5 * square(z1)) * 0.3989422804014327;
+  // On the linear path log P(v > 0) is taken from the Phi() each branch has
+  // just formed rather than from a second normal tail: num > 1e-280 puts that
+  // Phi() above 1e-280 too, so its log has no range problem, and its partials
+  // are exact (phi over the Phi formed), which std_normal_lcdf()'s are not.
+  // cogmod_log_Phi() here cost the race 9-12% more per gradient than the
+  // std_normal_lcdf() it replaced; taken this way it costs 0.87 of that
+  // (measured 2026-10-12, 5000 trials), so the fix is no dearer than the old
+  // code. The log path below, which needs the range, keeps cogmod_log_Phi().
   if (drift >= 0) {
     real s;
     if (delta < 1e-4) {
@@ -2431,7 +2734,9 @@ real cogmod_lba_lsurv_trunc(real drift, real sigma, real z1, real delta) {
       real phi2 = exp(-0.5 * square(z2)) * 0.3989422804014327;
       s = ((z2 * Phi(z2) + phi2) - (z1 * Phi(z1) + phi1)) / delta;
     }
-    num = s - Phi(-ratio);
+    real q = Phi(-ratio);
+    real num = s - q;
+    if (num > 1e-280) return fmin(log(num) - log1m(q), 0);
   } else {
     real f;
     if (delta < 1e-4) {
@@ -2441,21 +2746,46 @@ real cogmod_lba_lsurv_trunc(real drift, real sigma, real z1, real delta) {
       real phi2 = exp(-0.5 * square(z2)) * 0.3989422804014327;
       f = ((z2 * Phi(-z2) - phi2) - (z1 * Phi(-z1) - phi1)) / delta;
     }
-    num = Phi(ratio) - f;
+    real pos = Phi(ratio);
+    real num = pos - f;
+    if (num > 1e-280) return fmin(log(num) - log(pos), 0);
   }
-  if (num <= 0) return negative_infinity();
-  return fmin(log(num) - std_normal_lcdf(ratio), 0);
+
+  real lpos = cogmod_log_Phi(ratio);
+  // no positive drift to finish with: the accumulator never does
+  if (lpos == negative_infinity()) return 0;
+
+  real lw = cogmod_lba_lw(z1, ratio, lpos);
+  // the first part over 1 - q; below a ratio of -25 as 1 - exp(x), x the
+  // exponent cogmod_lba_tnorm() builds that mass from
+  vector[3] t1 = cogmod_lba_tnorm(-ratio, z1);
+  real l1 = ratio < -25 ? t1[2] - cogmod_lba_log_mills(-ratio)
+                        : t1[1] + t1[2] - lpos;
+  real l2 = negative_infinity();
+  if (delta < 1e-4) {
+    real c = 0.5 - delta * z1 / 6;
+    if (delta > 0 && c > 0) l2 = lw + log(delta * c);
+  } else {
+    real z2 = z1 + delta;
+    vector[3] tn = cogmod_lba_tnorm(z1, z2);
+    real omu = (z2 - tn[3]) / delta;
+    if (tn[2] > negative_infinity() && omu > 0) {
+      l2 = (ratio < -25 ? lw : tn[1] - lpos) + tn[2] + log(fmin(omu, 1));
+    }
+  }
+  if (l1 == negative_infinity() && l2 == negative_infinity()) {
+    return negative_infinity();
+  }
+  return fmin(log_sum_exp(l1, l2), 0);
 }
 
 // Log density of the single-accumulator LBA decision time (no shift).
 real cogmod_lba1_decision_lpdf(real t, real drift, real sigma, real sigmabias, real boundary) {
   real st = fmax(sigma * t, 1e-10);
   real z1 = (boundary - drift * t) / st;
-  real f = cogmod_lba_dens_over_A(drift, sigma, st, z1, sigmabias / st);
-  if (f <= 0) return negative_infinity();
-  return log(f) - log1m_exp(std_normal_lcdf(-drift / sigma));
+  return cogmod_lba_ldens(drift, sigma, st, z1, sigmabias / st);
 }
-"
+")
 
 # LogNormal accumulator with a start-point range --------------------------
 
@@ -2482,7 +2812,7 @@ real cogmod_lba1_decision_lpdf(real t, real drift, real sigma, real sigmabias, r
 #
 # Both differences vanish linearly in c, so dividing by A loses every digit as
 # A -> 0; below c = 1e-4 the series in c is used instead, at the same switch as
-# .lba_dens_over_A(). At A = 0 exactly the plain lognormal functions are
+# .lba_ldens(). At A = 0 exactly the plain lognormal functions are
 # called, so a model that pins `sigmabias = 0` computes what the family
 # computed before the parameter existed, at the same cost.
 #
