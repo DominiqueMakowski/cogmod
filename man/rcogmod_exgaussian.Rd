@@ -153,8 +153,8 @@ estimated. This also matches every other implementation - \code{brms}'s own
 fitted values are directly comparable.
 
 The cost is that \code{brms}'s default intercept prior is no longer sensible for
-\code{mu} (\code{student_t(3, 0, 2.5)} centred at zero seconds), which is why
-\code{\link[=cogmod_priors]{cogmod_priors()}} now supplies one.
+\code{mu} (a \code{student_t()} with a scale of 2.5 s, or none at all under
+\code{0 + Intercept}), which is why \code{\link[=cogmod_priors]{cogmod_priors()}} now supplies one.
 }
 \examples{
 # Simulate 1000 RTs

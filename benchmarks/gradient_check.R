@@ -28,7 +28,9 @@
 #
 #   --pkg       working tree to load (default ".")
 #   --out       output directory (default benchmarks/results/gradient_check)
-#   --families  comma-separated subset (default: all)
+#   --families  comma-separated subset (default: all); a family brings its
+#               .GP_VARIANTS programs along (cogmod_ddm also checks the DDM-4,
+#               cogmod_ddm4), and a variant can be named on its own
 #   --n         simulated trials per family before the tail responses (300)
 #   --delta     step along each unconstrained coordinate (2.5)
 #   --random    random points around the start (5)
@@ -48,6 +50,8 @@ source("benchmarks/gradient_programs.R")
 
 # Families whose gradient is known to disagree with central differences, with
 # the reason. Non-finite gradients are never waived - only the mismatch is.
+# Keyed by program: an entry covers the family's default program, not its
+# .GP_VARIANTS, which have to pass on their own.
 .GP_KNOWN <- c(
   # Stan's 7-parameter wiener_lpdf(): with both a start-point range and a
   # non-decision-time range, and the latter pushed wide (st0 = 0.46 s at
@@ -69,9 +73,7 @@ opt <- gp_args(list(pkg = ".", out = "benchmarks/results/gradient_check",
 gp_load(opt$pkg)
 suppressPackageStartupMessages(library(cmdstanr))
 
-fams <- if (nzchar(opt$families)) strsplit(opt$families, ",")[[1]] else gp_families()
-unknown <- setdiff(fams, gp_families())
-if (length(unknown)) stop("not a cogmod family: ", paste(unknown, collapse = ", "))
+fams <- gp_programs(if (nzchar(opt$families)) strsplit(opt$families, ",")[[1]] else character(0))
 
 cat("Emitting programs\n")
 emitted <- gp_emit(file.path(opt$out, "programs"), fams, n = opt$n, extremes = TRUE)
@@ -107,6 +109,12 @@ grid_points <- function(up0, delta, random, seed = 1) {
 # own, and this whole function is what gets parallelised.
 check_family <- function(row) {
   fam <- row$family
+  # Model methods go through Rcpp::sourceCpp(), whose cache index in its
+  # cacheDir (tempdir() by default) is rewritten with save() on every build.
+  # mclapply()'s workers share tempdir(), so one could load() the index while
+  # another was writing it: "empty (zero-byte) input file". One cache per
+  # program keeps them apart.
+  options(rcpp.cache.dir = file.path(tempdir(), paste0("rcpp-", fam)))
   mod <- gp_compile(row$stan)
   m <- gp_methods(mod, row$data, row$init)
   fit <- m$fit
@@ -199,7 +207,7 @@ verdict <- if (any(new_bad)) "FAILED" else if (any(known)) "passed (known mismat
 md <- c(
   sprintf("## Gradient check: %s", verdict),
   "",
-  sprintf("%d families, %d points; %d failed, %d known mismatches, %d skipped where log_prob is -inf.",
+  sprintf("%d programs, %d points; %d failed, %d known mismatches, %d skipped where log_prob is -inf.",
           nrow(per), nrow(results), sum(new_bad), sum(known), sum(results$status == "lp_inf")),
   "",
   "| family | points | ok | skipped | failed | known | max rel. error vs central differences | note |",
@@ -209,6 +217,11 @@ md <- c(
           ifelse(is.na(per$max_fd_err), "", formatC(per$max_fd_err, format = "e", digits = 1)),
           per$note)
 )
+variants <- per$family[per$family %in% names(.GP_VARIANTS)]
+if (length(variants)) {
+  md <- c(md, "", paste0(sprintf("%s: %s.", variants, vapply(variants, gp_describe, "")),
+                         collapse = " "))
+}
 writeLines(md, file.path(opt$out, "summary.md"))
 cat("\n", paste(md, collapse = "\n"), "\n", sep = "")
 

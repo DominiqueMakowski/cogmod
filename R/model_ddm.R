@@ -71,9 +71,16 @@
 #' tight priors. Fixing the ones a design cannot identify is usually better than
 #' estimating them behind a prior.
 #'
+#' `boundary` and `bias` have no such direction, but `brms` would leave them
+#' flat, so [cogmod_priors()] fills those too: `normal(1, 1)` on the `boundary`
+#' intercept, on its `softplus` link - a median separation of 1.31, with 95%
+#' between 0.32 and 3.0 - and `normal(0, 0.5)` on the slopes of both. The
+#' `bias` intercept keeps `brms`'s `logistic(0, 1)`, uniform on the probability
+#' scale.
+#'
 #' There is a cost argument too, and it is a cliff rather than a slope. The
 #' Stan density has a closed form for `sigmadrift`, so estimating it costs
-#' about 2.8 times the classic model per gradient evaluation. `sigmabias` and
+#' about 3.5 times the classic model per gradient evaluation. `sigmabias` and
 #' `sigmandt` have no closed form: Stan integrates them out numerically, once
 #' for the density and once more for each partial derivative, at every
 #' observation and every leapfrog step. Measured against the `sigmadrift`-only
@@ -1337,9 +1344,11 @@ cogmod_ddm <- function(
 # Stanvars ----------------------------------------------------------------
 
 # The Stan literal is generated from `.DDM_TAU0` rather than written out, so
-# the two implementations cannot end up shifted by different amounts.
+# the two implementations cannot end up shifted by different amounts. One
+# sprintf() template per function, because R refuses a format string longer
+# than 8192 characters.
 #' @keywords internal
-.DDM_STAN_PRELUDE <- sprintf("
+.DDM_STAN_PRELUDE <- paste0(sprintf("
 // The decision component: Stan's Wiener density at the decision time. `w` is
 // the starting point of whichever boundary is being scored, so the caller flips
 // both it and the drift for the lower one.
@@ -1433,7 +1442,7 @@ real cogmod_ddm_log_density_scale(real t, real v, real boundary, real w,
 
   return -2 * log(boundary) + fmin(small, large) + drift;
 }
-
+", formatC(.DDM_TAU0, format = "g", digits = 17, width = 1)), sprintf("
 real cogmod_ddm_decision_lpdf(real t, real v, real boundary, real w,
                               real sigmadrift, real sigmabias, real sigmandt) {
   real tau0 = %s;
@@ -1451,9 +1460,23 @@ real cogmod_ddm_decision_lpdf(real t, real v, real boundary, real w,
     // sv-capable implementations agree to 1e-13, so there is no step in the
     // density where the two paths meet. The second test stops about 100 log
     // units short of underflow - far more slack than the estimate's error.
-    if (sigmadrift == 0 && t > 0.01 * square(boundary)
-        && cogmod_ddm_log_density_scale(t, v, boundary, w, 0, 0, 0) > -600) {
-      return wiener_lpdf(y | boundary, tau0, w, v);
+    //
+    // The estimate only feeds this `if`, yet autodiff records it like any
+    // other expression: some 25 nodes per trial, a fifth of a DDM-4 gradient.
+    // So a certificate goes first: a few products that, within its bounds
+    // (boundary < 100, w in (1e-3, 1 - 1e-3), tau < 50, a drift term above
+    // -300), prove the estimate is above -560. The estimate then runs only
+    // for the trials the certificate cannot vouch for, and every trial takes
+    // the branch it took without it. Change a bound and the proof has to be
+    // redone: benchmarks/ddm_router/README.md has it, and the measurements.
+    if (sigmadrift == 0) {
+      real a2 = square(boundary);
+      if (t > 0.01 * a2
+          && ((boundary < 100 && w > 1e-3 && w < 1 - 1e-3 && t < 50 * a2
+               && v * (v * t + 2 * boundary * w) < 600)
+              || cogmod_ddm_log_density_scale(t, v, boundary, w, 0, 0, 0) > -600)) {
+        return wiener_lpdf(y | boundary, tau0, w, v);
+      }
     }
     // wiener5 works in log space throughout: it stays finite, with finite
     // gradients, down to log-densities of -1e7 and beyond, so it needs no
@@ -1472,9 +1495,8 @@ real cogmod_ddm_decision_lpdf(real t, real v, real boundary, real w,
 }
 ",
   formatC(.DDM_TAU0, format = "g", digits = 17, width = 1),
-  formatC(.DDM_TAU0, format = "g", digits = 17, width = 1),
   formatC(.DDM_WIENER_PRECISION, format = "g", digits = 17, width = 1)
-)
+))
 
 
 #' @keywords internal

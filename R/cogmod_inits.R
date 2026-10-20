@@ -4,105 +4,76 @@
 #' Builds an `init` argument for `brms::brm()`, for the custom families whose
 #' default starting point is a bad one.
 #'
-#' **This is not a tuning knob to reach for when sampling looks bad.** For
-#' [cogmod_gamma()] and [cogmod_weibull()] the usual default is actively harmful, and
-#' the failure is silent: the chain does not error, it simply never moves.
+#' **This is not a tuning knob to reach for when sampling looks bad.** For the
+#' families with a non-decision time the default start is actively harmful,
+#' and the failure is silent: the chain does not error, it simply never moves.
 #'
 #' @details
 #' Two regions of the parameter space have no gradient to escape on, and both
 #' are easy to start inside.
 #'
-#' `ndt` **too large.** `brms` initialises on the *unconstrained* scale, so
-#' `init = 0` puts `ndt` at `exp(0) = 1` second. For sub-second reaction times
-#' that is above nearly every observation, so every response is attributed to
-#' the outlier component, the decision parameters drop out of the density
-#' entirely, and their gradient is exactly zero. The chain is stuck where it
-#' started.
+#' - **`ndt` too large.** `brms` initialises on the *unconstrained* scale, so
+#'   `init = 0` puts `ndt` at `exp(0) = 1` second, above nearly every
+#'   sub-second response. Every response is then attributed to the outlier
+#'   component, the decision parameters drop out of the density, and their
+#'   gradient is exactly zero.
+#' - **Shape below 1.** For [cogmod_gamma()] and [cogmod_weibull()] the density
+#'   is unbounded at `ndt` whenever the shape is below 1, and `init = 0` starts
+#'   a `softplus` shape at `log(2) = 0.69`, inside that region.
 #'
-#' **Shape below 1.** For [cogmod_gamma()] and [cogmod_weibull()] the density is
-#' unbounded at `ndt` whenever the shape is below 1, and `init = 0` on a
-#' `softplus` link starts the shape at `log(2) = 0.69` - inside that region.
-#'
-#' A single scalar `init` cannot avoid both, because they pull in opposite
-#' directions: `ndt = exp(c)` wants `c` around `-1.6`, while
-#' `shape = softplus(c)` wants `c` above `1.9`. That is why `init = 0` fails and
-#' why no other single number fixes it - the parameters have to be set
-#' separately, which is what this function does.
+#' No single scalar `init` avoids both - `ndt = exp(c)` wants `c` around
+#' `-1.6`, `shape = softplus(c)` wants it above `1.9` - so the parameters have
+#' to be set separately, which is what this function does.
 #'
 #' # How it works
 #'
-#' The Stan parameter declarations are read off `brms::make_stancode()` for the
-#' model you are actually fitting, and their dimensions off
-#' `brms::make_standata()`, rather than reconstructed from the formula. That is
-#' what makes it robust to `0 + Intercept`, interactions, group-level terms and
-#' smooths: whatever `brms` decided to call things, and however large it decided
-#' to make them, that is what is matched.
+#' The parameter declarations are read off [brms::make_stancode()] for the
+#' model you are fitting, and their dimensions off [brms::make_standata()], so
+#' `0 + Intercept`, interactions, group-level terms and smooths are matched
+#' however `brms` names and sizes them. **Every** declared parameter gets a
+#' value, which also spares you CmdStan's message about a partial list:
 #'
-#' **Every** declared parameter is given a value, not only the ones this
-#' function has an opinion about. That is deliberate: CmdStan prints
-#' `Init values were only set for a subset of parameters` and lists the rest
-#' whenever the list is partial, which is noise for a list that is partial on
-#' purpose. The parameters with no family-specific target - regression slopes,
-#' standardized group-level effects, group-level SDs, spline coefficients - get
-#' generic values that are at least as good as Stan's own `U(-2, 2)`: slopes and
-#' standardized effects start at zero, positive parameters just above their
-#' lower bound, bounded ones at the midpoint, and Cholesky factors at the
-#' identity.
+#' - **The family's values** go to the intercept of each distributional
+#'   parameter, on its link scale - through the links on the family, so
+#'   `cogmod_gamma(link_mu = "log")` is honoured - and, on the natural scale,
+#'   to any parameter left out of the formula, which `brms` declares as a plain
+#'   auxiliary parameter. Under `0 + Intercept` the value goes to the
+#'   coefficient named `Intercept`.
+#' - **`ndt`** starts at half the first percentile of the observed response
+#'   times: below essentially every response, but on the data's own scale. The
+#'   two errors are not symmetric: a start too small only means the shift has
+#'   to grow, which the gradient does, while one too large removes the
+#'   gradient.
+#' - **The error accumulator** of [cogmod_rdm()], [cogmod_lba2()] and
+#'   [cogmod_lnr()] starts slower than the correct one (`driftone = 1` against
+#'   `mu = 3`, `nuone = 0` against `mu = 0.7`): few data sets are a 50/50
+#'   race, and for the Wald and the LBA a start too fast costs far more than
+#'   one too slow. Each family's page has the details.
+#' - **Everything else** gets a generic value at least as good as Stan's own
+#'   `U(-2, 2)`: zero for slopes and standardized effects, just above the bound
+#'   for a positive parameter, the midpoint for a doubly bounded one, the
+#'   identity for a Cholesky factor. A smooth's SD (`sds`) starts where its
+#'   smooth is nearly flat, at 0.1 link units of wiggle, a different value on
+#'   every basis; see *Smooth terms* in [cogmod_priors()].
 #'
-#' The family-specific values go to the intercept of each distributional
-#' parameter, and to any dpar left out of the formula (which `brms` declares as
-#' a plain auxiliary parameter). Values are set on whichever scale the parameter
-#' lives on: the link scale for an intercept - using the links on the family, so
-#' `cogmod_gamma(link_mu = "log")` is honoured - and the natural scale for an
-#' auxiliary parameter. Under `0 + Intercept` there is no separate intercept
-#' parameter, so the coefficient named `Intercept` inside the `b` vector gets it
-#' instead.
-#'
-#' Each chain gets a different draw. The noise is added on the *unconstrained*
-#' scale - additive for a free parameter, multiplicative for a positive one,
-#' on the logit scale for a doubly bounded one - so a jittered value can never
-#' land outside its own bounds, and the chains still start dispersed enough for
-#' `Rhat` to mean something.
-#'
-#' `ndt` starts deliberately **below the data**: at half the first percentile
-#' of the observed response times (0.16 s for responses whose fastest
-#' hundredth sits at 0.32 s). The two errors are not symmetric: too small
-#' merely means the shift has to grow, which the gradient will do, whereas
-#' too large removes the gradient altogether. Half the first percentile keeps
-#' essentially every response above the start while following the scale of
-#' the data. A fixed 0.1 s did not: on responses whose non-decision time is
-#' 0.6 s it sat half a second low, every decision time looked far too long, a
-#' driftless race then fit better than a fast one, and the first trajectory of
-#' a cold chain threw both drifts of a [cogmod_rdm()] onto the flat region
-#' where the likelihood no longer depends on them, from which the chain did
-#' not return.
-#'
-#' The same asymmetry decides where [cogmod_rdm()]'s error accumulator starts.
-#' A Wald density is thin on the fast side and flat on the slow side, so
-#' `driftone` starts at a third of `mu`'s drift rather than equal to it: too
-#' slow costs a few dozen log-density units, too fast costs hundreds, and a
-#' cold chain converts that difference into momentum along the flat
-#' `driftone` direction in its very first trajectory - far enough down it, on
-#' real data, for the step size to collapse and the chain to freeze for the
-#' rest of warmup.
+#' Each chain gets a different draw. The noise is added on the unconstrained
+#' scale, so a value can never leave its bounds. For a regression coefficient
+#' it is divided by the largest row norm of the coefficient block's design
+#' columns, wherever that exceeds 1, so that at no row does the SD of what
+#' reaches the linear predictor exceed `jitter`: a slope on age in years would
+#' otherwise start with an SD of six link units at the oldest participant.
 #'
 #' # Supported families
 #'
 #' The family is read off `formula`, so build it with
-#' `brms::bf(..., family = cogmod_gamma())`. Every family built on the direct
-#' `ndt` + `poutlier` parameterization is covered - [cogmod_lognormal()],
-#' [cogmod_logstudent()], [cogmod_loggamma()], [cogmod_invgaussian()], [cogmod_exwald()],
-#' [cogmod_bisa()], [cogmod_gamma()],
-#' [cogmod_invgamma()],
-#' [cogmod_weibull()], [cogmod_invweibull()], [cogmod_logweibull()], [cogmod_lba1()] and,
-#' for the choice-and-RT models, [cogmod_lnr()], [cogmod_rdm()],
-#' [cogmod_lba2()] and [cogmod_ddm()] - plus
-#' [cogmod_exgaussian()] and [cogmod_geg()], whose parameters are all on the RT
-#' scale behind a `softplus` link and so are equally badly served by starting
-#' at `log(2)`.
-#'
-#' The two bounded-scale families for subjective ratings, [cogmod_choco()] and
-#' [cogmod_betadiscrete()], are covered as well to help with warmup.
+#' `brms::bf(..., family = cogmod_gamma())`. The families are those of
+#' [cogmod_priors()], listed in its *Supported families* section: every family
+#' with an `ndt` + `poutlier` component; [cogmod_exgaussian()] and
+#' [cogmod_geg()], whose parameters are lengths of time that the default start
+#' puts at 0 s or 0.69 s; and the rating-scale families [cogmod_choco()],
+#' [cogmod_betagate()] and [cogmod_betadiscrete()], where it describes a scale
+#' nobody uses - half the responses on the midpoint or at an endpoint, or a
+#' U-shaped Beta. Any other family is an error.
 #'
 #' @param formula The model formula, as passed to `brms::brm()`. Must carry the
 #'   family, i.e. be built with `brms::bf(..., family = cogmod_gamma())`. May
@@ -111,16 +82,14 @@
 #' @param data The data, as passed to `brms::brm()`. May be left `NULL` only
 #'   when `warmstart` is a `brmsfit`, whose data are then used.
 #' @param jitter SD of the noise added on the unconstrained scale, so that
-#'   chains start at different points. One number is the SD for the
-#'   population-level blocks, the intercepts and slopes; the group-level and
-#'   smooth blocks - the standardized effects `z_*` and `zs_*` and their scales
-#'   `sd_*` and `sds_*` - get a fifth of it, because a unit of noise there is
-#'   multiplied through a scale and a design column before it reaches the
-#'   linear predictor, and reaches it once per participant or basis function.
-#'   Two numbers set the two tiers directly, population first. Set to `0` for
-#'   identical starts. `NULL` (the default) means 0.25, so 0.05 on the
-#'   hierarchical blocks, or 0.05 with a `warmstart`, whose values come from a
-#'   converged posterior and should not be scattered far.
+#'   chains start at different points. One number sets the population-level
+#'   blocks (intercepts and slopes; for a slope, divided by how far its design
+#'   columns reach) and a fifth of it the group-level and smooth blocks (`z_*`,
+#'   `zs_*`, `sd_*`, `sds_*`), where a unit of noise is multiplied through a
+#'   scale and a design column, once per group or basis function. Two numbers
+#'   set the two tiers, population first. `0` gives identical starts. `NULL`
+#'   (the default) means 0.25, or 0.05 with a `warmstart`, whose values come
+#'   from a converged posterior.
 #' @param warmstart A previous fit to start from instead of the family's
 #'   generic values: a `brmsfit`, a [cogmod_warmstart()] object, the data frame
 #'   `as.data.frame()` makes of one, or the path to a CSV file of it. The
@@ -135,7 +104,7 @@
 #'   call returns a named list of starting values, one for every parameter the
 #'   generated Stan program declares.
 #'
-#' @seealso [cogmod_priors()], [cogmod_stanvars()]
+#' @seealso [cogmod_priors()], [cogmod_stanvars()], [cogmod_warmstart()]
 #'
 #' @examples
 #' d <- data.frame(RT = rcogmod_gamma(50, ndt = 0.3, poutlier = 0.02))
@@ -143,7 +112,7 @@
 #' inits <- cogmod_inits(f, d)
 #' inits(1)
 #'
-#' # The bounded-scale families are covered too. `pmid` starts at 0.05 rather
+#' # The rating-scale families are covered too. `pmid` starts at 0.05 rather
 #' # than the logit origin's 0.5, which would put half of every response
 #' # exactly on the midpoint of the scale.
 #' r <- data.frame(y = rcogmod_choco(50, pmid = 0.05))
@@ -230,60 +199,13 @@ cogmod_inits <- function(
 
 # Where `ndt` starts: half the first percentile of the observed responses, in
 # seconds. Below the data, so that essentially every response keeps its
-# gradient, but on the data's own scale. The fixed 0.1 s this replaces was a
-# third of the prior median, and the argument for it - too small is cheap, too
-# large removes the gradient - is still the argument here; what it missed is
-# that "cheap" is relative. A start half a second below the non-decision time
-# of a slow data set costs thousands of log-density units, which a cold
-# chain's first HMC trajectory turns into momentum, and for cogmod_rdm() that
-# momentum carried both drifts onto their flat regions in one transition
-# (benchmarks/rdm_brittleness_report.md, section 7). Half the first percentile
-# is a factor of about two below where the posterior usually ends up; the
-# posterior of a data set whose non-decision time is well below its fastest
-# responses (a simulated one, say) sits below the start instead, which is the
-# harmless direction. The jitter is on the log scale, so a jittered start stays
-# below the first percentile.
-#
-# Considered and not done (2026-09-18), for whoever meets a data set that
-# argues otherwise. A cluster report on a smooth-heavy LNR had one
-# participant's ndt start above 98 of their 128 trials; that came from the
-# untiered jitter on the smooth coefficients (see .init_tier()), not from this
-# rule. With the tiering in place, simulating 30 participants x 128 trials
-# whose non-decision times spread by 0.15-0.4 log-SD leaves 0.2-0.8 trials per
-# data set below the start, more than five in about 1% of data sets, with the
-# start 1.3-1.5x below the typical ndt. A trial below the start is not a
-# rejection - the outlier component absorbs it - but a mass of them is a
-# basin: their gradient on the race parameters is exactly zero and the one on
-# poutlier is n / poutlier, so the first transitions inflate the outlier rate
-# instead of lowering ndt. At under one trial that is five log units, not a
-# basin. Two alternatives were weighed: (a) the minimum over grouping levels
-# of each level's own half first percentile - takes the count to zero, but
-# puts everyone's start 1.7-2x below the typical ndt and lets one level's
-# single spurious fast trial set the start for all; (b) a downward-only jitter
-# on Intercept_ndt - halves between-chain dispersion for a bound the two-sided
-# jitter already keeps (x1.65 at 2 SD stays under the first percentile). If a
-# guard is wanted, the bounded form is a warning naming any grouping level on
-# ndt with more than a few percent of its responses below the start: the
-# grouping indices J_<k> and the Z_<k>_ndt_<j> names in the Stan data say
-# which levels those are, and it leaves the start alone.
-#
-# Also considered and not done (2026-09-22): extending this rule to EVERY
-# start, by moment-matching each family's decision parameters to the response
-# once `ndt` is placed (log mean and log SD for the log-location families, the
-# Wald inversion drift = sqrt(mean / var), and so on - twelve families). It
-# was built, and it worked as an estimator: on simulated slow participants the
-# constants sat 2-6 log-likelihood units per observation below the truth and
-# the data starts 0.01-0.4. Fitted, it bought nothing. Over 384 cells on real
-# RTs at three sizes and 39 cells of tensor-smooth models at 120-480
-# participants, the leapfrog steps spent in warmup were within 1% of the
-# constant start's in the median, ESS per second was a coin flip, and Rhat
-# identical; the Wald's data start reached the typical set in 16-37% fewer
-# iterations and then spent more steps walking its step size back down. The
-# constants were never the problem: what the sampler cannot recover from is a
-# start on a flat region, which this rule and the constants already avoid, and
-# a start merely far from the mode is absorbed by the first metric window. The
-# write-up, the harness that measured it and the implementation as a patch are
-# in benchmarks/data_inits_ablation.md and benchmarks/inits_ablation/.
+# gradient, but on the data's own scale: a fixed start half a second below a
+# slow data set's non-decision time costs thousands of log-density units,
+# which a cold chain's first trajectory turns into momentum (NEWS, 0.3.2). The
+# jitter is on the log scale, so a jittered start stays below the first
+# percentile. A per-group refinement was weighed, and data-aware starts for
+# every other parameter measured, and both turned down; see "Tried and decided
+# against" in AGENTS.md.
 #' @keywords internal
 .ndt_start <- function(y, fallback = 0.1) {
   y <- y[is.finite(y) & y > 0]
@@ -304,7 +226,11 @@ cogmod_inits <- function(
     out <- lapply(plan, function(e) {
       v <- e$value
       j <- jitter[[e$tier]]
-      if (j > 0) {
+      # per element, for a coefficient block whose design reaches past 1
+      if (!is.null(e$scale)) {
+        j <- j * e$scale
+      }
+      if (any(j > 0)) {
         v <- switch(
           e$kind,
           bounds = .jitter_bounded(v, e$lower, e$upper, j),
@@ -329,82 +255,41 @@ cogmod_inits <- function(
 .init_families <- function() c(.OUTLIER_FAMILIES, names(.INIT_PLAIN))
 
 
-# Families that are NOT on the ndt + poutlier mixture but still have dpars the
-# unconstrained origin puts somewhere no data set lives. One natural-scale
-# value per dpar, the same shape as the registries' `init` slot; .init_value()
-# sends it through the family's own link for a modelled intercept and uses it
-# as it stands for a dpar left out of bf(), which brms declares on the natural
-# scale.
-#
-# Kept as a list rather than the switch() this was, so that .init_families()
-# can be derived from it. The switch() had grown a cogmod_geg entry that the
-# hand-written list of supported families never learned about, so the error
-# message for an unsupported family named every family but that one.
+# Families with no ndt + poutlier component whose dpars the unconstrained
+# origin puts somewhere no data set lives. One natural-scale value per dpar,
+# as in the registries' `init` slot: .init_value() sends it through the
+# family's link for a modelled intercept, and uses it as it stands for a dpar
+# left out of bf().
 #' @keywords internal
 .INIT_PLAIN <- list(
-  # mu and tau are the Gaussian centre and the exponential mean, both in
-  # seconds; sigma is the Gaussian SD. Behind the softplus link that `sigma`
-  # and `tau` use, the default start puts both at log(2) = 0.69 s, which makes
-  # sigma alone wider than most whole RT distributions. `mu` is on identity,
-  # where the generic start of 0 would put the Gaussian centre at zero
-  # seconds - harmless but pointless when 0.4 s is known to be the right
-  # neighbourhood.
+  # In seconds: the Gaussian centre, its SD and the exponential mean. The
+  # origin puts `sigma` and `tau` at softplus(0) = 0.69 s, `sigma` alone wider
+  # than most whole RT distributions, and `mu` (identity) at 0 s.
   cogmod_exgaussian = list(mu = 0.4, sigma = 0.1, tau = 0.2),
 
-  # cogmod_geg() starts from the ex-Gaussian it nests: shape = 1 is that
-  # model exactly, and it is the one point on the shape axis known not to be
-  # somewhere up the shape/mu ridge.
+  # The ex-Gaussian it nests: shape = 1 is that model exactly, and the one
+  # point on the shape axis known not to be up the shape/mu ridge.
   cogmod_geg = list(mu = 0.4, sigma = 0.1, tau = 0.2, shape = 1),
 
-  # The two bounded-scale families below are a weaker case than the RT ones,
-  # and worth stating as such: neither has a flat region of the gamma/weibull
-  # kind, every start named here is a proper density, and a chain begun at the
-  # unconstrained origin does move. What it has to do first is walk back a
-  # start that describes a rating scale nobody uses, which costs warmup rather
-  # than the fit.
+  # The rating-scale families are a weaker case than the RT ones: no start
+  # here is on a flat region, and a chain begun at the origin does move. It
+  # first has to walk back a start that describes a rating scale nobody uses,
+  # which costs warmup rather than the fit. Each value was chosen on the
+  # log-likelihood shortfall per observation of a start against simulated data
+  # sets' own parameters, over several response styles.
   #
-  # `precright` and `precleft` are the Beta precisions of the two halves,
-  # behind a softplus link, so the origin puts them at log(2) = 0.69. The Beta
-  # shapes are `conf * prec * 2` and `(1 - conf) * prec * 2`, so at the origin
-  # both are 0.69 - a U-shaped Beta, unbounded at both ends of each half of the
-  # scale, which is the one shape rating data almost never has. 2 puts both
-  # shapes at 2: a gentle hump, strictly inside the unimodal region.
-  #
-  # Where in the unimodal region matters much less than getting into it.
-  # Measured over five simulated 4000-trial data sets spanning flat,
-  # confident, unconfident and extreme-heavy response styles, the worst
-  # shortfall against a data set's own parameters is 1.00 log units per
-  # observation at prec 1, 1.12 at 2, 1.35 at 3 and 2.25 at 6 - flat between 1
-  # and 2, then climbing, which is also why this is not the 4 that
-  # ?rcogmod_choco defaults to. `prec` and `conf` are entangled, and the
-  # asymmetry that sets `ndt` holds here too: a spread Beta put in the wrong
-  # place costs far less than a concentrated one, so the flat end of that
-  # range is the one to start at. Note what the numbers do NOT say - against
-  # the origin's 0.69, prec 2 wins on four of the five but by 0.36 and 0.13
-  # log units per observation on the two most ordinary shapes and by a hair on
-  # the rest. The case for moving it is the U shape, not the average.
-  #
-  # `pmid` is the probability of landing exactly on the midpoint, and the logit
-  # origin starts it at 0.5: half of every response sitting on one value. This
-  # is the worst single part of the default start. On a 2000-trial slider data
-  # set with 5% exact midpoints the origin costs 1871 log-likelihood units
-  # against these targets, and 983 of them are `pmid` alone (722 the two
-  # `prec`, 166 `pex`, nothing at all the rest). 0.05 is where sliders with a
-  # visible midpoint usually sit; ?rcogmod_choco defaults it to 0, which a
-  # logit link cannot start at. A scale with no midpoint category is better
-  # served by `pmid = 0` in bf(), which removes the parameter instead.
-  #
-  # `pex` is the total probability of an extreme (0 or 1) response. It matters
-  # least of the three: the observed proportion of 0s and 1s pins it almost
-  # immediately, and the cost is shallow across 0.05 to 0.2. 0.1 is the
-  # ?rcogmod_choco default and the middle of the usual empirical range; the
-  # point is only that the origin's 0.5 is not in it.
-  #
-  # `mu` (the share of non-mid responses on the right), `bex` (which end the
-  # extremes favour) and the two `conf` all start at 0.5, which is where the
-  # logit origin already puts them - there is no reason to favour a side, an
-  # end, or a direction of confidence. They are named anyway so that the start
-  # follows a non-default link rather than silently landing elsewhere.
+  # cogmod_choco(). The precisions (softplus) start at 2: the Beta shapes are
+  # conf * prec * 2, so the origin's 0.69 is a U, unbounded at both ends of
+  # each half - the one shape rating data almost never has - and 2 a gentle
+  # hump. The case is the U rather than the average: over five 4000-trial
+  # styles the worst shortfall is flat from prec 1 to 2 (1.00, 1.12) and
+  # climbs after (2.25 at 6, hence not ?rcogmod_choco's 4). `pmid` starts at
+  # 0.05, where sliders with a visible midpoint sit: the origin's 0.5, half of
+  # every response on one value, is the costliest part of the default start
+  # (983 of its 1871 units on 2000 trials with 5% midpoints). `pex` matters
+  # least, since the observed share of 0s and 1s pins it almost at once, and
+  # starts at ?rcogmod_choco's 0.1. The rest start at 0.5, where the origin
+  # already puts them, and are named so that a non-default link is followed.
   cogmod_choco = list(
     mu = 0.5,
     confright = 0.5,
@@ -416,38 +301,33 @@ cogmod_inits <- function(
     pmid = 0.05
   ),
 
-  # cogmod_betadiscrete() bins a Beta into k categories, so unlike the three
-  # above it has no density that can be unbounded: every category probability
-  # is a difference of Beta CDFs and stays finite whatever the shapes. Its
-  # `phi` is on a log link, and the origin's exp(0) = 1 with `mu` at 0.5 is
-  # exactly the discrete Uniform - the max-entropy point, and the right place
-  # to start. Both are named regardless, because brms' actual default is
-  # `init = "random"`, i.e. U(-2, 2) on the unconstrained scale, which draws
-  # `phi` anywhere from 0.14 to 7.4. That range is not symmetric in cost: a
-  # spread Beta gives every category a workable probability and so can never be
-  # very wrong, whereas a concentrated one starves the categories the data
-  # actually occupy. Over six simulated 4000-trial data sets - uniform,
-  # mid-peaked, high, low, U-shaped and at the ceiling - the largest shortfall
-  # per observation is 1.08 log units at phi = 1 against 1.68 at 2 and 2.87 at
-  # 4, still climbing. Below 1 it barely improves and stops being the Uniform:
-  # 0.5 shaves the worst case to 0.89 but is worse on four of the six.
-  #
-  # `pzero` is the hurdle mass on the extra "0" category, which the logit
-  # origin starts at 0.5 - half of every response outside the rating scale
-  # altogether, and on a 2000-trial data set with 4% zeros the whole of the
-  # origin's 1066 log-likelihood units. Over data sets whose true hurdle is 0,
-  # 0.03 and 0.2, a start of 0.05 is the least bad: worst case 0.38 log units
-  # per observation, against 1.01 at 0.5 and 0.53 at 0.02. ?rcogmod_betadiscrete
-  # defaults it to 0, which a logit link cannot start at; a scale with no zero
-  # category wants `pzero = 0` in bf(), which removes the parameter.
+  # cogmod_betagate(). The origin puts `phi` (softplus) at 0.69, a U-shaped
+  # Beta (shapes mu * phi * 2), and `pex` at half of all responses on an
+  # endpoint. `phi` starts at 1, the Uniform at mu = 0.5, as in
+  # cogmod_betadiscrete(). `pex` starts at 0.2, not choco's 0.1: over eight
+  # styles the worst shortfall is 1.23 here against 1.65 at 0.1, where two
+  # thirds 1s sets it, and 1.36 at the origin. Fitted cold the start made no
+  # difference to sampling; it is here so that every family cogmod_priors()
+  # covers is covered (benchmarks/betagate_start/).
+  cogmod_betagate = list(mu = 0.5, phi = 1, pex = 0.2, bex = 0.5),
+
+  # cogmod_betadiscrete() bins a Beta into k categories, so no start is
+  # unbounded. `phi` (log) starts at the origin's 1, the discrete Uniform with
+  # mu = 0.5, and is named because brms's real default, init = "random", draws
+  # it anywhere in 0.14-7.4, and a concentrated start starves the categories
+  # the data occupy: over six 4000-trial styles the worst shortfall is 1.08 at
+  # phi = 1, 1.68 at 2 and 2.87 at 4. `pzero`, the hurdle on the extra "0"
+  # category, starts at 0.05 rather than the origin's 0.5, half of every
+  # response off the scale (worst case 0.38 against 1.01 at 0.5 and 0.53 at
+  # 0.02). A scale with no zero category wants `pzero = 0` in bf().
   cogmod_betadiscrete = list(mu = 0.5, phi = 1, pzero = 0.05)
 )
 
 
-# The natural-scale value each dpar should start at, or NULL for a family with
-# no opinion attached. The shifted families take theirs from the registry in
-# shifted.R and add the two the parameterization introduces; anything else
-# comes from .INIT_PLAIN above.
+# The natural-scale value each dpar starts at, or NULL for a family with none.
+# The ndt + poutlier families take theirs from their registry entry
+# (.mixture_spec()) plus the two the parameterization introduces; the rest
+# come from .INIT_PLAIN.
 #' @keywords internal
 .init_targets <- function(family) {
   fam <- .family_name(family)
@@ -544,9 +424,75 @@ cogmod_inits <- function(
     }
 
     entry$value <- .init_value(d, n, lower, upper, targets, links, sdata)
+    entry$scale <- .jitter_scale(d, n, sdata)
     entry
   })
   plan[!vapply(plan, is.null, logical(1))]
+}
+
+
+# How far the jitter on a block of regression coefficients may move the
+# linear predictor. The noise on a coefficient is multiplied by its design
+# column, so at the row where the columns reach furthest the block moves the
+# predictor with SD jitter * ||X[i, ]||. The block's jitter is divided by that
+# largest row norm wherever it exceeds 1, which keeps the SD at or under the
+# tier's value at every row and leaves a dummy column or a standardized
+# covariate alone. Dividing by the column SD instead would not do: the columns
+# that bit - a t2()'s unpenalised `bs_*`, age in years - have SDs under 1, and
+# it is their extreme rows that put responses below `ndt` (NEWS, 0.3.4).
+#
+# `b` is matched to the matrix brms builds from `X`: centred and without its
+# Intercept column when the formula has an intercept (the parameter is then
+# one shorter than `X`), as it stands otherwise, where an `Intercept` column
+# under `0 + Intercept` keeps the full jitter. `bs` is matched to `Xs`, which
+# mgcv has already centred. Returns one factor per element, or NULL for
+# anything else, which keeps the tier's jitter as it is.
+#' @keywords internal
+.jitter_scale <- function(d, n, sdata) {
+  if (!identical(d$type, "vector") || length(d$dims) != 1) {
+    return(NULL)
+  }
+  nm <- d$name
+  design <- if (identical(nm, "b")) {
+    "X"
+  } else if (startsWith(nm, "b_")) {
+    sub("^b_", "X_", nm)
+  } else if (identical(nm, "bs")) {
+    "Xs"
+  } else if (startsWith(nm, "bs_")) {
+    sub("^bs_", "Xs_", nm)
+  } else {
+    return(NULL)
+  }
+  X <- sdata[[design]]
+  if (is.null(X)) {
+    return(NULL)
+  }
+  X <- as.matrix(X)
+  icpt <- if (is.null(colnames(X))) {
+    rep(FALSE, ncol(X))
+  } else {
+    colnames(X) %in% "Intercept"
+  }
+  out <- rep(1, n)
+  if (any(icpt) && n == ncol(X) - sum(icpt)) {
+    slope <- rep(TRUE, n)
+    Z <- X[, !icpt, drop = FALSE]
+    Z <- sweep(Z, 2, colMeans(Z))
+  } else if (n == ncol(X)) {
+    slope <- !icpt
+    Z <- X[, slope, drop = FALSE]
+  } else {
+    return(NULL)
+  }
+  if (!any(slope) || !nrow(Z)) {
+    return(NULL)
+  }
+  reach <- max(sqrt(rowSums(Z^2)))
+  if (is.finite(reach) && reach > 1) {
+    out[slope] <- 1 / reach
+  }
+  out
 }
 
 
@@ -601,13 +547,18 @@ cogmod_inits <- function(
     return(out)
   }
 
-  # A smooth's wiggliness scale starts near flat. The generic lower-bound
-  # default of 0.25 is a plausible group-level SD but a lot of wiggle for a
-  # spline: multiplied into jittered coefficients and tensor-product basis
-  # values in the tens, it is what bent one production model's ndt smooth up to
-  # 0.89 s at a participant whose trials sat below 0.5 s. Penalised smoothers
-  # start flat and let the data buy curvature; so does this.
+  # A smooth's SD starts near flat, at 0.1 link units of wiggle: 0.1 /
+  # .zs_scales() in units of `sds`, about 1 on a t2(..., bs = c("cr", "cr"))
+  # and 0.017 on s(x, bs = "cr"). The generic lower-bound value, 0.25, is a
+  # plausible group-level SD but a lot of wiggle for a spline. With `zs` at
+  # zero under the hierarchical jitter, the starting smooth stays flat. Each
+  # penalty gets its own scale; 0.05 is the fallback for a block whose scale
+  # cannot be read.
   if (startsWith(d$name, "sds_")) {
+    sc <- .zs_scales(sdata, sub("^sds_", "", d$name))
+    if (length(sc) == n && !anyNA(sc)) {
+      return(unname(0.1 / sc))
+    }
     return(rep(0.05, n))
   }
 
@@ -655,19 +606,14 @@ cogmod_inits <- function(
 
 # Which of the two jitters a declared parameter gets. brms names the
 # standardized group-level effects `z_<k>`, the smooth coefficients
-# `zs_<k>_<j>`, and their scales `sd_<k>` and `sds_<k>_<j>`; Gaussian processes
-# follow the pattern with `zgp_`, `sdgp_` and `lscale_`. A unit of noise on one
-# of those is not a unit on the linear predictor: it is multiplied by the scale
-# and by a design column - tensor-product basis values reach tens - and every
-# participant and every basis function draws its own, so the predictor at any
-# one row moves by the sum of many. Measured on a production model (a Muller-
-# Lyer study: a tensor smooth on five dpars, a participant intercept on six),
-# 0.25 there moved the linear predictors by one to two and a half link units,
-# which put one participant's ndt start above 98 of their 128 trials and a
-# sigma start at 0.07 s where 0.5 was intended; at 0.05 the same model started
-# where the targets say. Intercepts and population-level slopes keep the full
-# jitter: that is where between-chain dispersion makes Rhat mean something,
-# and a quarter of a link unit there is a quarter.
+# `zs_<k>_<j>` and their scales `sd_<k>` and `sds_<k>_<j>`; Gaussian processes
+# follow with `zgp_`, `sdgp_` and `lscale_`. A unit of noise on one of those is
+# multiplied by a scale and a design column, and every group and basis
+# function draws its own, so the predictor at one row moves by the sum of
+# many: at the full 0.25, a tensor-smooth model's starts moved by one to two
+# and a half link units (NEWS, 0.3.3). Intercepts and population-level slopes
+# keep the full jitter, which is where between-chain dispersion makes Rhat
+# mean something.
 #' @keywords internal
 .init_tier <- function(name) {
   if (grepl("^(z|zs|sd|sds|zgp|sdgp|lscale)_", name)) {

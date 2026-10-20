@@ -59,8 +59,8 @@
 #' fitted values are directly comparable.
 #'
 #' The cost is that `brms`'s default intercept prior is no longer sensible for
-#' `mu` (`student_t(3, 0, 2.5)` centred at zero seconds), which is why
-#' [cogmod_priors()] now supplies one.
+#' `mu` (a `student_t()` with a scale of 2.5 s, or none at all under
+#' `0 + Intercept`), which is why [cogmod_priors()] now supplies one.
 #'
 #' @param n Number of observations. If `length(n) > 1`, the length is taken to be the number required.
 #' @param mu Mean of the Gaussian component. Unbounded - it is a location, not a

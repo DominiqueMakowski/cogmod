@@ -789,13 +789,13 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_ddm", {
   expect_true(any(p$dpar == "ndt" & p$class == "Intercept" &
                     p$prior == "normal(-1.2, 0.5)"))
   expect_true(any(p$dpar == "poutlier" & p$class == "Intercept" &
-                    p$prior == "normal(-5, 1)"))
+                    p$prior == "normal(-6, 1)"))
 
   omitted <- brms::bf(RT | dec(Error) ~ 1, family = cogmod_ddm())
   p2 <- cogmod_priors(omitted, d)
   expect_false(any(grepl("uniform", p2$prior)))
   expect_true(any(p2$class == "ndt" & p2$prior == "lognormal(-1.2, 0.5)"))
-  expect_true(any(p2$class == "poutlier" & p2$prior == "exponential(100)"))
+  expect_true(any(p2$class == "poutlier" & p2$prior == "exponential(280)"))
 
   mixed <- brms::bf(RT | dec(Error) ~ Condition + (1 | id), ndt ~ Condition,
                     sigmadrift = 0, sigmabias = 0, sigmandt = 0,
@@ -850,6 +850,71 @@ test_that("cogmod_priors fences off the three variability parameters", {
                           stanvars = cogmod_stanvars(form))
     )
   }
+})
+
+
+test_that("cogmod_priors gives boundary and bias proper priors", {
+  # Both are identified, but brms leaves `boundary` flat - an improper prior on
+  # a softplus link, which brms then refuses to sample from - and the slopes
+  # of `bias` flat beside its logistic(0, 1) intercept.
+  set.seed(12)
+  sim <- rcogmod_ddm(200, drift = 0.5, ndt = 0.2, poutlier = 0.02)
+  d <- data.frame(RT = sim$rt, Error = sim$response,
+                  Condition = rep(c("a", "b"), length.out = 200),
+                  id = rep(1:10, length.out = 200))
+  f <- brms::bf(RT | dec(Error) ~ 1, boundary ~ Condition + (1 | id),
+                bias ~ Condition + (1 | id), ndt ~ 1, sigmadrift = 0,
+                sigmabias = 0, sigmandt = 0, family = cogmod_ddm())
+  raw <- brms::get_prior(f, data = d, family = cogmod_ddm())
+  expect_true(all(!nzchar(raw$prior[raw$dpar == "boundary" & raw$class != "sd"])))
+  expect_true(all(!nzchar(raw$prior[raw$dpar == "bias" & raw$class == "b"])))
+
+  p <- cogmod_priors(f, d)
+  pick <- function(dp, cls, grp = "") {
+    p$prior[p$dpar == dp & p$class == cls & p$group == grp & !nzchar(p$coef) &
+              nzchar(p$prior)]
+  }
+  expect_equal(pick("boundary", "Intercept"), "normal(1, 1)")
+  expect_equal(pick("boundary", "b"), "normal(0, 0.5)")
+  # brms's own intercept, untouched
+  expect_equal(pick("bias", "Intercept"), "logistic(0, 1)")
+  expect_equal(pick("bias", "b"), "normal(0, 0.5)")
+  # and both group-level SDs get what every other dpar the family names gets
+  expect_equal(pick("boundary", "sd", "id"), "exponential(1)")
+  expect_equal(pick("bias", "sd", "id"), "exponential(1)")
+
+  # Under `0 + Intercept` the intercept is a `b` coefficient: it gets the
+  # intercept's prior, not the blanket slope one it would otherwise inherit.
+  g <- brms::bf(RT | dec(Error) ~ 1, boundary ~ 0 + Intercept + Condition,
+                bias ~ 0 + Intercept + Condition, ndt ~ 1, sigmadrift = 0,
+                sigmabias = 0, sigmandt = 0, family = cogmod_ddm())
+  q <- cogmod_priors(g, d)
+  coef_prior <- function(dp) {
+    q$prior[q$dpar == dp & q$class == "b" & q$coef == "Intercept"]
+  }
+  expect_equal(coef_prior("boundary"), "normal(1, 1)")
+  expect_equal(coef_prior("bias"), "logistic(0, 1)")
+
+  # omitted, `boundary` takes its natural-scale row and `bias` keeps brms's
+  # beta(1, 1), which is already proper
+  h <- brms::bf(RT | dec(Error) ~ 1, sigmadrift = 0, sigmabias = 0,
+                sigmandt = 0, family = cogmod_ddm())
+  r <- cogmod_priors(h, d)
+  expect_equal(r$prior[r$class == "boundary"], "lognormal(0.27, 0.5)")
+  expect_equal(r$prior[r$class == "bias"], "beta(1, 1)")
+
+  for (form in list(f, g, h)) {
+    expect_silent(
+      brms::make_stancode(form, data = d, family = cogmod_ddm(),
+                          prior = cogmod_priors(form, d),
+                          stanvars = cogmod_stanvars(form))
+    )
+  }
+  # and with nothing flat left, brms will sample from the priors alone
+  expect_no_error(
+    brms::make_stancode(f, data = d, family = cogmod_ddm(), prior = p,
+                        stanvars = cogmod_stanvars(f), sample_prior = "only")
+  )
 })
 
 

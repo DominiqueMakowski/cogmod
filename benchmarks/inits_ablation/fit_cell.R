@@ -206,6 +206,16 @@ cat(sprintf("compiled in %.0f s\n", t_compile))
 
 set.seed(cell$seed)
 init_list <- lapply(seq_len(chains), function(i) init_fun(i))
+# Off the seed again before sampling (benchmarks/lnr_start/README.md, "Two
+# earlier arrays lost chains"). processx < 3.9, the R module's copy, tags
+# each chain process with an id drawn by sample() plus the current second,
+# and cmdstanr's cleanup SIGKILLs every process on the node carrying that
+# tag. Both schemes and both warmups of a (data, family, seed) draw the same
+# tags, so two of them starting to sample on one node in the same second
+# would kill each other's chains. None did in the 2026-09-22 rows (all 4
+# chains everywhere). CmdStan's seed is passed explicitly, so the draws do
+# not change.
+set.seed(NULL)
 
 row <- data.frame(
   cell, n_rows = nrow(data), n_participants = nlevels(data$Participant),

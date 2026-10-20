@@ -581,7 +581,7 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_lnr", {
   expect_true(any(p$dpar == "ndt" & p$class == "Intercept" &
                     p$prior == "normal(-1.2, 0.5)"))
   expect_true(any(p$dpar == "poutlier" & p$class == "Intercept" &
-                    p$prior == "normal(-5, 1)"))
+                    p$prior == "normal(-6, 1)"))
 
   # Omitted dpars live on the natural scale and need different priors. brms
   # recognises the name `ndt` and supplies uniform(0, min_Y) - precisely the
@@ -594,7 +594,7 @@ test_that("cogmod_priors fills ndt and poutlier for cogmod_lnr", {
   p2 <- cogmod_priors(omitted, d)
   expect_false(any(grepl("uniform", p2$prior)))
   expect_true(any(p2$class == "ndt" & p2$prior == "lognormal(-1.2, 0.5)"))
-  expect_true(any(p2$class == "poutlier" & p2$prior == "exponential(100)"))
+  expect_true(any(p2$class == "poutlier" & p2$prior == "exponential(280)"))
 
   # and a mixed formula with group-level terms still builds a Stan program
   mixed <- brms::bf(RT | dec(Error) ~ Condition + (1 | id), ndt ~ Condition,
@@ -693,7 +693,13 @@ test_that("cogmod_inits covers the declared parameters", {
   expect_setequal(names(vals), declared)
   expect_true(all(vapply(vals, function(v) all(is.finite(v)), logical(1))))
   # ndt starts small rather than at exp(0) = 1s, which is the point
-  expect_lt(exp(cogmod_inits(f, d, jitter = 0)(1)$Intercept_ndt), 0.3)
+  v0 <- cogmod_inits(f, d, jitter = 0)(1)
+  expect_lt(exp(v0$Intercept_ndt), 0.3)
+  # The error accumulator starts slower than the correct one, as in the RDM
+  # and the LBA2: 16% errors rather than the 50/50 race nuone = mu = 0.7 was
+  # (see the registry entry).
+  expect_equal(v0$Intercept, 0.7, tolerance = 1e-8)
+  expect_equal(v0$Intercept_nuone, 0, tolerance = 1e-8)
 })
 
 

@@ -16,16 +16,14 @@ used.}
 when \code{warmstart} is a \code{brmsfit}, whose data are then used.}
 
 \item{jitter}{SD of the noise added on the unconstrained scale, so that
-chains start at different points. One number is the SD for the
-population-level blocks, the intercepts and slopes; the group-level and
-smooth blocks - the standardized effects \verb{z_*} and \verb{zs_*} and their scales
-\verb{sd_*} and \verb{sds_*} - get a fifth of it, because a unit of noise there is
-multiplied through a scale and a design column before it reaches the
-linear predictor, and reaches it once per participant or basis function.
-Two numbers set the two tiers directly, population first. Set to \code{0} for
-identical starts. \code{NULL} (the default) means 0.25, so 0.05 on the
-hierarchical blocks, or 0.05 with a \code{warmstart}, whose values come from a
-converged posterior and should not be scattered far.}
+chains start at different points. One number sets the population-level
+blocks (intercepts and slopes; for a slope, divided by how far its design
+columns reach) and a fifth of it the group-level and smooth blocks (\verb{z_*},
+\verb{zs_*}, \verb{sd_*}, \verb{sds_*}), where a unit of noise is multiplied through a
+scale and a design column, once per group or basis function. Two numbers
+set the two tiers, population first. \code{0} gives identical starts. \code{NULL}
+(the default) means 0.25, or 0.05 with a \code{warmstart}, whose values come
+from a converged posterior.}
 
 \item{warmstart}{A previous fit to start from instead of the family's
 generic values: a \code{brmsfit}, a \code{\link[=cogmod_warmstart]{cogmod_warmstart()}} object, the data frame
@@ -47,104 +45,77 @@ generated Stan program declares.
 Builds an \code{init} argument for \code{brms::brm()}, for the custom families whose
 default starting point is a bad one.
 
-\strong{This is not a tuning knob to reach for when sampling looks bad.} For
-\code{\link[=cogmod_gamma]{cogmod_gamma()}} and \code{\link[=cogmod_weibull]{cogmod_weibull()}} the usual default is actively harmful, and
-the failure is silent: the chain does not error, it simply never moves.
+\strong{This is not a tuning knob to reach for when sampling looks bad.} For the
+families with a non-decision time the default start is actively harmful,
+and the failure is silent: the chain does not error, it simply never moves.
 }
 \details{
 Two regions of the parameter space have no gradient to escape on, and both
 are easy to start inside.
+\itemize{
+\item \strong{\code{ndt} too large.} \code{brms} initialises on the \emph{unconstrained} scale, so
+\code{init = 0} puts \code{ndt} at \code{exp(0) = 1} second, above nearly every
+sub-second response. Every response is then attributed to the outlier
+component, the decision parameters drop out of the density, and their
+gradient is exactly zero.
+\item \strong{Shape below 1.} For \code{\link[=cogmod_gamma]{cogmod_gamma()}} and \code{\link[=cogmod_weibull]{cogmod_weibull()}} the density
+is unbounded at \code{ndt} whenever the shape is below 1, and \code{init = 0} starts
+a \code{softplus} shape at \code{log(2) = 0.69}, inside that region.
+}
 
-\code{ndt} \strong{too large.} \code{brms} initialises on the \emph{unconstrained} scale, so
-\code{init = 0} puts \code{ndt} at \code{exp(0) = 1} second. For sub-second reaction times
-that is above nearly every observation, so every response is attributed to
-the outlier component, the decision parameters drop out of the density
-entirely, and their gradient is exactly zero. The chain is stuck where it
-started.
-
-\strong{Shape below 1.} For \code{\link[=cogmod_gamma]{cogmod_gamma()}} and \code{\link[=cogmod_weibull]{cogmod_weibull()}} the density is
-unbounded at \code{ndt} whenever the shape is below 1, and \code{init = 0} on a
-\code{softplus} link starts the shape at \code{log(2) = 0.69} - inside that region.
-
-A single scalar \code{init} cannot avoid both, because they pull in opposite
-directions: \code{ndt = exp(c)} wants \code{c} around \code{-1.6}, while
-\code{shape = softplus(c)} wants \code{c} above \code{1.9}. That is why \code{init = 0} fails and
-why no other single number fixes it - the parameters have to be set
-separately, which is what this function does.
+No single scalar \code{init} avoids both - \code{ndt = exp(c)} wants \code{c} around
+\code{-1.6}, \code{shape = softplus(c)} wants it above \code{1.9} - so the parameters have
+to be set separately, which is what this function does.
 }
 \section{How it works}{
-The Stan parameter declarations are read off \code{brms::make_stancode()} for the
-model you are actually fitting, and their dimensions off
-\code{brms::make_standata()}, rather than reconstructed from the formula. That is
-what makes it robust to \code{0 + Intercept}, interactions, group-level terms and
-smooths: whatever \code{brms} decided to call things, and however large it decided
-to make them, that is what is matched.
+The parameter declarations are read off \code{\link[brms:stancode]{brms::make_stancode()}} for the
+model you are fitting, and their dimensions off \code{\link[brms:standata]{brms::make_standata()}}, so
+\code{0 + Intercept}, interactions, group-level terms and smooths are matched
+however \code{brms} names and sizes them. \strong{Every} declared parameter gets a
+value, which also spares you CmdStan's message about a partial list:
+\itemize{
+\item \strong{The family's values} go to the intercept of each distributional
+parameter, on its link scale - through the links on the family, so
+\code{cogmod_gamma(link_mu = "log")} is honoured - and, on the natural scale,
+to any parameter left out of the formula, which \code{brms} declares as a plain
+auxiliary parameter. Under \code{0 + Intercept} the value goes to the
+coefficient named \code{Intercept}.
+\item \strong{\code{ndt}} starts at half the first percentile of the observed response
+times: below essentially every response, but on the data's own scale. The
+two errors are not symmetric: a start too small only means the shift has
+to grow, which the gradient does, while one too large removes the
+gradient.
+\item \strong{The error accumulator} of \code{\link[=cogmod_rdm]{cogmod_rdm()}}, \code{\link[=cogmod_lba2]{cogmod_lba2()}} and
+\code{\link[=cogmod_lnr]{cogmod_lnr()}} starts slower than the correct one (\code{driftone = 1} against
+\code{mu = 3}, \code{nuone = 0} against \code{mu = 0.7}): few data sets are a 50/50
+race, and for the Wald and the LBA a start too fast costs far more than
+one too slow. Each family's page has the details.
+\item \strong{Everything else} gets a generic value at least as good as Stan's own
+\code{U(-2, 2)}: zero for slopes and standardized effects, just above the bound
+for a positive parameter, the midpoint for a doubly bounded one, the
+identity for a Cholesky factor. A smooth's SD (\code{sds}) starts where its
+smooth is nearly flat, at 0.1 link units of wiggle, a different value on
+every basis; see \emph{Smooth terms} in \code{\link[=cogmod_priors]{cogmod_priors()}}.
+}
 
-\strong{Every} declared parameter is given a value, not only the ones this
-function has an opinion about. That is deliberate: CmdStan prints
-\verb{Init values were only set for a subset of parameters} and lists the rest
-whenever the list is partial, which is noise for a list that is partial on
-purpose. The parameters with no family-specific target - regression slopes,
-standardized group-level effects, group-level SDs, spline coefficients - get
-generic values that are at least as good as Stan's own \code{U(-2, 2)}: slopes and
-standardized effects start at zero, positive parameters just above their
-lower bound, bounded ones at the midpoint, and Cholesky factors at the
-identity.
-
-The family-specific values go to the intercept of each distributional
-parameter, and to any dpar left out of the formula (which \code{brms} declares as
-a plain auxiliary parameter). Values are set on whichever scale the parameter
-lives on: the link scale for an intercept - using the links on the family, so
-\code{cogmod_gamma(link_mu = "log")} is honoured - and the natural scale for an
-auxiliary parameter. Under \code{0 + Intercept} there is no separate intercept
-parameter, so the coefficient named \code{Intercept} inside the \code{b} vector gets it
-instead.
-
-Each chain gets a different draw. The noise is added on the \emph{unconstrained}
-scale - additive for a free parameter, multiplicative for a positive one,
-on the logit scale for a doubly bounded one - so a jittered value can never
-land outside its own bounds, and the chains still start dispersed enough for
-\code{Rhat} to mean something.
-
-\code{ndt} starts deliberately \strong{below the data}: at half the first percentile
-of the observed response times (0.16 s for responses whose fastest
-hundredth sits at 0.32 s). The two errors are not symmetric: too small
-merely means the shift has to grow, which the gradient will do, whereas
-too large removes the gradient altogether. Half the first percentile keeps
-essentially every response above the start while following the scale of
-the data. A fixed 0.1 s did not: on responses whose non-decision time is
-0.6 s it sat half a second low, every decision time looked far too long, a
-driftless race then fit better than a fast one, and the first trajectory of
-a cold chain threw both drifts of a \code{\link[=cogmod_rdm]{cogmod_rdm()}} onto the flat region
-where the likelihood no longer depends on them, from which the chain did
-not return.
-
-The same asymmetry decides where \code{\link[=cogmod_rdm]{cogmod_rdm()}}'s error accumulator starts.
-A Wald density is thin on the fast side and flat on the slow side, so
-\code{driftone} starts at a third of \code{mu}'s drift rather than equal to it: too
-slow costs a few dozen log-density units, too fast costs hundreds, and a
-cold chain converts that difference into momentum along the flat
-\code{driftone} direction in its very first trajectory - far enough down it, on
-real data, for the step size to collapse and the chain to freeze for the
-rest of warmup.
+Each chain gets a different draw. The noise is added on the unconstrained
+scale, so a value can never leave its bounds. For a regression coefficient
+it is divided by the largest row norm of the coefficient block's design
+columns, wherever that exceeds 1, so that at no row does the SD of what
+reaches the linear predictor exceed \code{jitter}: a slope on age in years would
+otherwise start with an SD of six link units at the oldest participant.
 }
 
 \section{Supported families}{
 The family is read off \code{formula}, so build it with
-\code{brms::bf(..., family = cogmod_gamma())}. Every family built on the direct
-\code{ndt} + \code{poutlier} parameterization is covered - \code{\link[=cogmod_lognormal]{cogmod_lognormal()}},
-\code{\link[=cogmod_logstudent]{cogmod_logstudent()}}, \code{\link[=cogmod_loggamma]{cogmod_loggamma()}}, \code{\link[=cogmod_invgaussian]{cogmod_invgaussian()}}, \code{\link[=cogmod_exwald]{cogmod_exwald()}},
-\code{\link[=cogmod_bisa]{cogmod_bisa()}}, \code{\link[=cogmod_gamma]{cogmod_gamma()}},
-\code{\link[=cogmod_invgamma]{cogmod_invgamma()}},
-\code{\link[=cogmod_weibull]{cogmod_weibull()}}, \code{\link[=cogmod_invweibull]{cogmod_invweibull()}}, \code{\link[=cogmod_logweibull]{cogmod_logweibull()}}, \code{\link[=cogmod_lba1]{cogmod_lba1()}} and,
-for the choice-and-RT models, \code{\link[=cogmod_lnr]{cogmod_lnr()}}, \code{\link[=cogmod_rdm]{cogmod_rdm()}},
-\code{\link[=cogmod_lba2]{cogmod_lba2()}} and \code{\link[=cogmod_ddm]{cogmod_ddm()}} - plus
-\code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} and \code{\link[=cogmod_geg]{cogmod_geg()}}, whose parameters are all on the RT
-scale behind a \code{softplus} link and so are equally badly served by starting
-at \code{log(2)}.
-
-The two bounded-scale families for subjective ratings, \code{\link[=cogmod_choco]{cogmod_choco()}} and
-\code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}, are covered as well to help with warmup.
+\code{brms::bf(..., family = cogmod_gamma())}. The families are those of
+\code{\link[=cogmod_priors]{cogmod_priors()}}, listed in its \emph{Supported families} section: every family
+with an \code{ndt} + \code{poutlier} component; \code{\link[=cogmod_exgaussian]{cogmod_exgaussian()}} and
+\code{\link[=cogmod_geg]{cogmod_geg()}}, whose parameters are lengths of time that the default start
+puts at 0 s or 0.69 s; and the rating-scale families \code{\link[=cogmod_choco]{cogmod_choco()}},
+\code{\link[=cogmod_betagate]{cogmod_betagate()}} and \code{\link[=cogmod_betadiscrete]{cogmod_betadiscrete()}}, where it describes a scale
+nobody uses - half the responses on the midpoint or at an endpoint, or a
+U-shaped Beta. Any other family is an error.
 }
 
 \examples{
@@ -153,7 +124,7 @@ f <- brms::bf(RT ~ 1, sigma ~ 1, ndt ~ 1, poutlier ~ 1, family = cogmod_gamma())
 inits <- cogmod_inits(f, d)
 inits(1)
 
-# The bounded-scale families are covered too. `pmid` starts at 0.05 rather
+# The rating-scale families are covered too. `pmid` starts at 0.05 rather
 # than the logit origin's 0.5, which would put half of every response
 # exactly on the midpoint of the scale.
 r <- data.frame(y = rcogmod_choco(50, pmid = 0.05))
@@ -174,5 +145,5 @@ if (requireNamespace("cmdstanr", quietly = TRUE) &&
 
 }
 \seealso{
-\code{\link[=cogmod_priors]{cogmod_priors()}}, \code{\link[=cogmod_stanvars]{cogmod_stanvars()}}
+\code{\link[=cogmod_priors]{cogmod_priors()}}, \code{\link[=cogmod_stanvars]{cogmod_stanvars()}}, \code{\link[=cogmod_warmstart]{cogmod_warmstart()}}
 }

@@ -487,11 +487,19 @@ test_that("cogmod_priors survives arbitrary formula shapes", {
     expect_s3_class(p, "brmsprior")
     # No ndt or poutlier row is left flat unless a blanket row covers it -
     # brms reports a blanket row plus one per coefficient, and filling the
-    # blanket is what makes the per-coefficient ones proper.
+    # blanket is what makes the per-coefficient ones proper. A flat blanket
+    # row is fine when every coefficient under it has a prior of its own:
+    # `ndt ~ s(x)` has only the smooth's rescaled `sx_1` under `b`, and
+    # filling the blanket as well would make brms warn that it covers nothing.
     np <- p[p$dpar %in% c("ndt", "poutlier") & !nzchar(p$prior), ]
     covered <- vapply(seq_len(nrow(np)), function(i) {
-      any(!nzchar(p$coef) & nzchar(p$prior) & p$class == np$class[i] &
-            p$dpar == np$dpar[i] & p$group == np$group[i])
+      same <- p$class == np$class[i] & p$dpar == np$dpar[i] &
+        p$group == np$group[i]
+      if (!nzchar(np$coef[i])) {
+        under <- same & nzchar(p$coef)
+        return(any(under) && all(nzchar(p$prior[under])))
+      }
+      any(same & !nzchar(p$coef) & nzchar(p$prior))
     }, logical(1))
     expect_true(all(covered), label = nm)
     expect_gt(sum(p$dpar %in% c("ndt", "poutlier") & nzchar(p$prior)), 0)
@@ -583,12 +591,12 @@ test_that("omitting ndt/poutlier from bf() still yields proper priors", {
 
   p <- cogmod_priors(f, d)
   expect_equal(p$prior[p$class == "ndt"], "lognormal(-1.2, 0.5)")
-  expect_equal(p$prior[p$class == "poutlier"], "exponential(100)")
+  expect_equal(p$prior[p$class == "poutlier"], "exponential(280)")
 
   code <- brms::make_stancode(f, data = d, family = cogmod_lognormal(), prior = p,
                               stanvars = cogmod_lognormal_stanvars())
   expect_true(grepl("lognormal_lpdf(ndt | -1.2, 0.5)", code, fixed = TRUE))
-  expect_true(grepl("exponential_lpdf(poutlier | 100)", code, fixed = TRUE))
+  expect_true(grepl("exponential_lpdf(poutlier | 280)", code, fixed = TRUE))
   expect_false(grepl("uniform_lpdf(ndt", code, fixed = TRUE))
 })
 
@@ -599,15 +607,15 @@ test_that("the natural-scale priors describe the same belief as the link ones", 
   expect_equal(mean(log(x)), -1.2, tolerance = 0.01)
   expect_equal(sd(log(x)), 0.5, tolerance = 0.02)
 
-  # exponential(100) keeps the centre of logit-normal(-5, 1) but moves the mode
+  # exponential(280) keeps the centre of logit-normal(-6, 1) but moves the mode
   # to zero: omitting poutlier from the formula says you expect no outliers.
-  # both medians sit at about 0.7%: 0.00693 vs 0.00669, i.e. within 0.03 of a
+  # both medians sit at about 0.25%: 0.00248 vs 0.00247, i.e. within 0.001 of a
   # percentage point of each other (a relative check would be the wrong test
   # here - what matters is that neither says "expect a percent or two")
-  expect_lt(abs(qexp(0.5, 100) - plogis(-5)), 5e-4)
-  expect_lt(qexp(0.95, 100), 0.05)
+  expect_lt(abs(qexp(0.5, 280) - plogis(-6)), 1e-4)
+  expect_lt(qexp(0.95, 280), 0.02)
   # essentially all of it lies inside the [0, 1] support, so truncation is moot
-  expect_gt(pexp(1, 100), 1 - 1e-12)
+  expect_gt(pexp(1, 280), 1 - 1e-12)
 })
 
 
