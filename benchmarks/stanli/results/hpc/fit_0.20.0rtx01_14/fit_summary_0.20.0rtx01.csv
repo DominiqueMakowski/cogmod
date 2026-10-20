@@ -1,2 +1,0 @@
-"seed","round","arm","position","build_s","chain_s_mean","chain_s_max","wall_s","leapfrog","ms_per_leapfrog","ess_bulk_min","ess_tail_min","ess_bulk_per_s","ess_bulk_per_wall_s","ess_bulk_per_1k_leapfrog","rhat_max","divergent","ess_per_s_vs_cmdstanr_orig","ess_per_wall_s_vs_cmdstanr_orig"
-14,1,"cmdstanr_orig",1,19.4742527008057,455.033,498.206,501.625982761383,36880,49.3528199566161,1000.10606151833,1135.7352807472,2.00741472707742,1.9937285864119,27.1178433166576,1.00268979659393,0,1,1

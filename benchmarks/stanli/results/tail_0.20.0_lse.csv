@@ -1,5 +1,0 @@
-"point","engine","lp","lp_ulp","grad_finite","grad_relerr","err"
-"tail","cmdstan_orig",-30993.5541845848,0,TRUE,0,""
-"tail","cmdstan_lse",-30993.5541845848,0,TRUE,1.01150837311243e-14,""
-"tail","stanli_orig",-30993.5541845848,2,TRUE,1.03251987241935e-15,""
-"tail","stanli_lse",-30993.5541845848,2,TRUE,1.02595849272833e-14,""

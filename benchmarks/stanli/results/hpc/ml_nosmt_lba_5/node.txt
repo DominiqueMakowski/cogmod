@@ -1,5 +1,0 @@
-node: artemis-a40-01.local
-cpus: 8
-model name	: AMD EPYC 7513 32-Core Processor
-job: 11594988_29 started 2026-10-12 17:18:02
-finished 2026-10-12 17:31:13 status 0

@@ -1,4 +1,0 @@
-stanli 0.20.0 
-init none   wall  4.13 s, chains max  4.10, sum 12.63: wall/sum 0.33
-init vector wall  3.67 s, chains max  3.66, sum 11.05: wall/sum 0.33
-init matrix wall  3.87 s, chains max  3.86, sum 12.02: wall/sum 0.32
