@@ -2,6 +2,8 @@
 
 ### All vignettes
 
+- [cogmod vs. other
+  packages](https://dominiquemakowski.github.io/cogmod/articles/comparison.md):
 - [Decision Making
   Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.md):
 - [Outliers and Non-Decision

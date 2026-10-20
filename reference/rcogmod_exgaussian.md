@@ -194,7 +194,8 @@ other implementation - `brms`'s own
 values are directly comparable.
 
 The cost is that `brms`'s default intercept prior is no longer sensible
-for `mu` (`student_t(3, 0, 2.5)` centred at zero seconds), which is why
+for `mu` (a `student_t()` with a scale of 2.5 s, or none at all under
+`0 + Intercept`), which is why
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
 now supplies one.
 

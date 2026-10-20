@@ -292,7 +292,10 @@ reciprocal-normal (LATER) limit, where the within-trial noise stops
 mattering and `RT = boundary / drift` exactly - so large values of all
 three describe nearly the same distribution.
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
-gives `sigmadrift` a deliberately informative prior to fence off both.
+gives `sigmadrift` a deliberately informative prior to fence off both,
+and `boundary` a weakly informative one - `normal(0.5, 1)` on its
+`softplus` link, a median threshold of 0.97 - which helps hold the same
+ray.
 
 One consequence is worth stating plainly: with `sigmadrift > 0` the
 density decays as `t^-2`, because drifts arbitrarily close to zero take

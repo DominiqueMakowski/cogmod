@@ -1,5 +1,401 @@
 # Changelog
 
+## cogmod 0.3.5
+
+### Breaking changes
+
+All three change the priors
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+returns, so a model refitted under 0.3.5 is not the model it was under
+0.3.4.
+
+- **`poutlier`’s default prior is centred at 0.25% rather than 0.7%:**
+  `normal(-6, 1)` on the logit link instead of `normal(-5, 1)`, and
+  `exponential(280)` instead of `exponential(100)` when `poutlier` is
+  left out of
+  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html),
+  the two medians still matching. Every family with an outlier component
+  is affected. Miller (2024) puts the outlier proportion below 0.5%. On
+  the untrimmed Illusion Game data of `vignette("outliers")` the share
+  of responses at chance speed is -5.3 on the logit scale pooled but
+  -6.2 for the typical participant, which is what the intercept of
+  `poutlier ~ 1 + (1 | Participant)` estimates; and on 18 such fits of
+  324,000 trials each the posterior sat at -6.0 to -8.2, below the old
+  centre every time and past its 1st percentile in nine. The advice for
+  trimmed data, `normal(-7, 0.5)`, is unchanged.
+
+- **[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)’s
+  `boundary` and `bias` get priors.** `brms` left `boundary` flat,
+  intercept and slopes - an improper prior on a `softplus` link, which
+  `brms` refuses to sample from with `sample_prior = "only"` - and the
+  slopes of `bias` flat. `boundary` now gets `normal(1, 1)`, a median
+  separation of 1.31 with 95% between 0.32 and 3.0
+  (`lognormal(0.27, 0.5)` when left out of
+  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)),
+  and `normal(0, 0.5)` on its slopes. `bias` keeps `brms`’s
+  `logistic(0, 1)` intercept, now under `0 + Intercept` too, and gets
+  `normal(0, 0.5)` on its slopes. A group-level SD on either now gets
+  `exponential(1)`, as every other parameter the family names does,
+  instead of `brms`’s `student_t(3, 0, 2.5)`.
+
+- **[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
+  [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md)
+  and
+  [`cogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md)
+  give `boundary` a prior,** for the same reason: `normal(0.5, 1)` on
+  the `softplus` link, a median threshold of 0.97 with 95% between 0.21
+  and 2.5 (`lognormal(0, 0.6)` when left out of
+  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)),
+  `normal(0, 0.5)` on its slopes and `exponential(1)` on its group-level
+  SDs.
+
+### Bug fixes
+
+- **[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)’s
+  density could be NaN.** The LBA’s closed form needs the difference of
+  two normal densities, `phi(z1) - phi(z2)`, and took it as `phi(z1)`
+  times `-expm1()` of their log ratio, whichever of the two was the
+  larger. Where an accumulator’s drift should have carried it past the
+  whole threshold range well before the response - in the
+  decision-making article’s model, the error accumulator with a positive
+  drift and a small SD - `phi(z2)` is the larger: the
+  [`expm1()`](https://rdrr.io/r/base/Log.html) overflowed to infinity
+  while `phi(z1)` underflowed to zero, and the density was
+  `0 * Inf = NaN`. Under the wide `driftone` prior tried in
+  `benchmarks/driftone_priors/`, CmdStan met it as
+  `log_mix: lambda2 is -nan`, and since Stan scores a NaN log density as
+  an infinite potential, each such proposal was a divergent transition.
+  The difference is now taken from the larger of the two densities. Over
+  36,000 parameter values, from around the article’s fit out to the
+  extremes, the Stan density was NaN at 3,301 and is now NaN at none;
+  through `grad_log_prob()`, 37 had a finite value with a non-finite
+  gradient and 14 a `-Inf` value with a non-finite partial - a NaN
+  gradient for the whole model once `log_mix()` weights that component
+  by zero - and now none do. R’s
+  [`dcogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+  had the same formula, and there the NaN reached a mask and errored
+  (“NAs are not allowed in subscripted assignments”);
+  [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html)
+  and
+  [`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+  call the same density.
+
+- **The LBAs’ densities no longer fall to `-Inf` where they are merely
+  small.** The winner’s density was formed linearly and underflowed to
+  zero some 38 standardized units out, so that a 12 s response the race
+  puts at a log density of -777 was handed to the outlier component, at
+  -1864. The loser’s survival is taken given a positive drift, over
+  `Phi(drift / sigma)`, which Stan’s `Phi()` makes exactly zero below
+  -37.5: the survival came back `-Inf` where it is near 1, and around
+  there the terms it was built from had lost enough digits to put the
+  race density out by up to 21 log units. Below 1e-280 both are now
+  taken again in log space, from the normal mass on the start-point
+  interval and its mean there, each formed relative to the density at
+  the interval’s near end so that nothing of order z^2 / 2 is
+  subtracted. On the same 36,000 values, 17,964 that were `-Inf` and
+  3,293 that were NaN are now finite. Of the 11,310 that were finite
+  under both, the median change is 0 and the 99th percentile 6e-14; of
+  the 56 that moved by more than 1e-12, the 20 that moved most all moved
+  onto a quadrature of the density, to within 1e-5.
+  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+  shares the density and gets the same fix.
+
+- **The LBAs’ gradients are exact in the tails.** The truncation
+  constant `log P(v > 0)`, paid on every observation, was Stan’s
+  `std_normal_lcdf()`, whose value is right but whose partials are
+  approximate, and
+  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)’s
+  was `log1m_exp(std_normal_lcdf(-x))`, the same thing the long way
+  round. Both now go through `cogmod_log_Phi()`, except where the
+  loser’s survival has just formed `Phi(drift / sigma)` itself and takes
+  its log directly: exact partials either way, and that reuse is what
+  keeps the fix at the old cost (`cogmod_log_Phi()` for both
+  accumulators measured 1.09 and 1.12 times the old cost on
+  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)).
+  Over the gradient check’s grid (`benchmarks/gradient_check.R`) the
+  worst error against central differences goes from 2.6e-5 to 2.1e-6 for
+  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md),
+  and 21 of its 22 points from around 1e-6 to around 1e-9; the remaining
+  point, and
+  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)’s
+  worst at 1.2e-6, are the same to the last digit before and after, so
+  they come from elsewhere in the density. Nothing got dearer: per
+  gradient evaluation
+  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+  costs 0.98 and 1.02 times what it did, and
+  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md),
+  where one function replaces two, 0.92 and 0.93, over two runs of
+  `benchmarks/gradient_cost.R` (5,000 trials, median of 21 alternating
+  blocks).
+
+- **[`dcogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+  with a negative drift.** Its truncation constant was
+  `log1p(-exp(log Phi(-drift / sigma)))`, which loses digits below a
+  drift ratio of about -6 and is `-Inf` beyond -8.3, taking the density
+  with it; it is now `pnorm(drift / sigma, log.p = TRUE)`.
+  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+  puts a `softplus` link on the drift, so fitted models were not
+  affected.
+
+### Changes to starting values
+
+- **[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)’s
+  error accumulator starts slower than the correct one,** at `nuone = 0`
+  against `mu = 0.7`, as
+  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)’s
+  and
+  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)’s
+  already do. The old equal start was a 50/50 race; the new one implies
+  16% errors. This is for consistency, not speed: refitted cold on three
+  models, 4 seeds each, the closer start changed the median warmup cost
+  by 8% or less (cheaper on one model, dearer on another), with no
+  divergences or stuck chains under either start. The `nuone` prior is
+  unchanged, and starting values do not change a posterior, so no fitted
+  model needs revisiting.
+
+- **[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  now covers
+  [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md),**
+  which it refused (“nothing to offer”) although
+  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  covered it, so every family one function supports the other now does
+  too. `phi` starts at 1, the Uniform at `mu = 0.5`, rather than the
+  U-shaped Beta `init = 0` gives it on its `softplus` link, `pex` at 0.2
+  rather than half of all responses on an endpoint, and `mu` and `bex`
+  at 0.5. Against simulated data in eight response styles the start’s
+  worst log-likelihood shortfall is 1.23 per observation, against 1.36
+  for `init = 0` and a median of 2.54 for Stan’s random start. Fitted
+  cold, it made no difference to sampling: warmup within 5% of either
+  alternative’s, no divergences, the same posteriors
+  (`benchmarks/betagate_start/`).
+
+### Performance
+
+- **The classic
+  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  costs 0.77x what it did per gradient in CmdStan, and 0.83x in
+  stanli,** with the same log density and gradient to the last bit.
+  “Classic” means `sigmadrift`, `sigmabias` and `sigmandt` all fixed at
+  0 in
+  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html). On
+  every trial the Stan code chooses between two of Stan’s Wiener
+  densities from an estimate of the log density. The estimate only
+  decides a branch, yet autodiff recorded it like any other expression,
+  and it was a fifth of the gradient. A few products now prove, for
+  nearly every trial, that the estimate would have chosen the faster
+  density, and the estimate runs only where they cannot. So every trial
+  takes the branch it took before. Checked at 200,000 parameter values,
+  and at 120 points of a 10-participant model in CmdStan and stanli. The
+  ratios are from that model, on two runs; `benchmarks/gradient_cost.R`
+  gives 0.77 too (`benchmarks/ddm_router/`). The cost of estimating
+  `sigmadrift`, relative to the classic model, goes from about 2.8x to
+  about 3.5x in
+  [`?cogmod_ddm`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md),
+  because the classic model got cheaper.
+
+### Documentation
+
+- New article, *Comparison with Other Packages*, setting `cogmod` beside
+  `brms`’s native families and `bmm`.
+
+- [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  said the RDM’s drift rates were left alone, which stopped being true
+  when `driftone` got its prior; it now documents that prior, and its
+  table of omitted parameters has the new rows.
+  [`?rcogmod_rdm`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  now explains the `driftone` prior that the decision-making article
+  sends readers to.
+  [`?rcogmod_exwald`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md)
+  quoted the `ndt` prior as `normal(-1.2, 0.2)`; it is
+  `normal(-1.2, 0.5)`.
+
+- **Why the race families’ `driftone` priors are unchanged.** Under the
+  `dec(Error)` coding every example uses, `driftone` is the error
+  accumulator, and wherever errors are rare its posterior sits in the
+  lower tail of its prior - on 324,000 Illusion Game trials at prior
+  quantiles down to 3e-6.
+  [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md),
+  [`?rcogmod_rdm`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  and
+  [`?rcogmod_lba2`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+  now say that this is the fence working: below a drift of a few
+  hundredths the likelihood is flat, and nothing observable depends on
+  where on the plateau the drift sits. Priors centred on the error
+  accumulator were measured before being turned down
+  (`benchmarks/driftone_priors/`). On the decision-making article’s data
+  they predicted the same error rates and RTs, to within 0.003 and 5 ms.
+  On the RDM they cost 9-26% more gradient evaluations per draw. On the
+  LBA2 they raised the divergent transitions from 1 in 12 chains to
+  between 5 in 12 and 10 in 11.
+
+- **Why
+  [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md)’s
+  chains can disagree.** The ex-Wald can make a right tail in two ways:
+  from the Wald itself, at a low drift with a short `tau`, or from a
+  long exponential stage behind a nearly Gaussian Wald, an ex-Gaussian
+  with a shift. On the RT article’s data the two predict response times
+  within 8 ms of each other from the 1st to the 95th percentile. Each is
+  a separate mode of the posterior, more data separates them further
+  rather than merging them, and a chain settles in whichever its warmup
+  reaches.
+  [`?rcogmod_exwald`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md)
+  and the RT article now say so.
+
+  The measurements are in `benchmarks/exwald_modes/`. The split the
+  `driftone_priors` refits showed is one chain in the second solution,
+  held there by a valley of 12 log-density units. The density is exact
+  across the seam where it changes branch. On data simulated from the
+  ex-Wald itself the second mode was present in every data set from
+  2,000 to 32,000 trials, and its valley grew with the data.
+
+- **[`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  and
+  [`?cogmod_inits`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  are rewritten to be read.**
+  [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  now has one table of every prior it sets - the parameter, its
+  families, the prior in
+  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html),
+  the prior when left out, and the prior on its slopes, which were
+  documented for only some parameters - in place of four overlapping
+  tables. It sorts the reasons into five kinds rather than a paragraph
+  per family, each family’s own page keeping the full account. It also
+  stops saying five things that were not true: it left
+  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+  out of the families covered, sent
+  [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+  readers to a section that did not exist, said `shape` existed only in
+  [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md),
+  and said an omitted `shape` was left flat, where `brms` gives it
+  `gamma(0.01, 0.01)`, which
+  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  replaces. With
+  [`?rcogmod_exgaussian`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md),
+  it also said `brms`’s default intercept for the ex-Gaussian’s `mu` was
+  centred on zero seconds. It is centred on the median response; the
+  trouble is its scale of 2.5 s, and under `0 + Intercept` there is no
+  default at all. Neither function returns anything different for a
+  family it already covered.
+
+## cogmod 0.3.4
+
+### Breaking changes
+
+- **[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  now states the SD of a smooth term (`sds`) in link units, whatever the
+  basis.** One unit of `sds` moves the linear predictor by an amount set
+  by the basis `mgcv` builds: about 0.45 link units for `s(x)`, 6 for
+  `s(x, bs = "cr")` and 0.1 for
+  `t2(x, z, k = c(5, 5), bs = c("cr", "cr"))`, almost regardless of the
+  number of rows or the units of the covariates. The fixed
+  `exponential(1)` of 0.3.3 therefore allowed a median of 4 link units
+  of wiggle on the second of those and 0.07 on the third, and it applied
+  only to the parameters a family names, the rest keeping `brms`’s
+  equally basis-blind `student_t(3, 0, 2.5)`. Each smooth term now gets
+  `exponential(rate)` with the rate set to its own scale, read off
+  [`brms::make_standata()`](https://paulbuerkner.com/brms/reference/standata.html),
+  which is `exponential(1)` on the wiggle measured in link units. It
+  applies to every smooth in the model, the response’s own included; the
+  response’s slopes are still left to `brms`. On the tensor smooths of a
+  324,000-trial study the posterior `sds` ran from 0.4 to 37 (median 7)
+  across four families, where `exponential(1)` puts 0.1% of its mass
+  above 7. Any model with a smooth gets different priors from 0.3.3.
+  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  now builds the basis of each distinct smooth term once (1.8 s for a
+  [`t2()`](https://paulbuerkner.com/brms/reference/s.html) on 324,000
+  rows). See the *Smooth terms* section of
+  [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md).
+
+- **The unpenalised part of a smooth on a dpar the family names gets the
+  dpar’s slope prior stated in link units.** `brms` reports those
+  coefficients (`bs_*`: the linear trend of an `s(x)`, the marginal
+  trends of a [`t2()`](https://paulbuerkner.com/brms/reference/s.html))
+  under class `b`, so until now they took the dpar’s blanket slope
+  prior, `normal(0, 0.2)` on `ndt`. `mgcv` sets the scale of those
+  columns, not the user: their root mean square is about 0.16 for `s(x)`
+  whatever the units of `x`, 0.8 to 1 for a
+  [`t2()`](https://paulbuerkner.com/brms/reference/s.html), 2 for
+  `s(x, bs = "cr")`. On the default `s(x)` that prior was
+  `normal(0, 0.03)` on the trend at a typical row, which pinned `ndt`’s
+  linear trend to about 0.1 link units across its range while the
+  penalty left that part of the smooth free, and on `s(x, bs = "cr")` it
+  allowed 0.4. Each such column now gets `normal(0, s / rms)`, with `s`
+  the dpar’s slope SD, as its own `b` row. The response’s keep `brms`’s
+  default, as its slopes do. Any model with a smooth on `ndt`,
+  `poutlier` or another family-named dpar gets different priors from
+  0.3.3.
+
+- **In
+  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
+  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  and
+  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md),
+  `mu`’s group-level SD gets the same prior as the other
+  accumulator’s.** In a race `mu` is the rate of accumulator 0, and the
+  `dec()` coding decides which accumulator that is, so `brms`’s
+  `student_t(3, 0, 2.5)` on one accumulator’s SD against
+  `exponential(1)` on the other’s changed whenever the coding did. Both
+  now get `exponential(1)`. `mu`’s intercept and slopes are still left
+  to `brms`.
+
+### Changes to starting values
+
+- **[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  starts a smooth’s SD at 0.1 link units of wiggle** instead of
+  `sds = 0.05`, for the reason above: 0.05 was 0.3 link units on
+  `s(x, bs = "cr")` and 0.004 on the
+  [`t2()`](https://paulbuerkner.com/brms/reference/s.html), where the
+  posterior `sds` sat five or six log units above the start. The smooth
+  coefficients still start at zero, so the starting smooth stays flat.
+
+- **[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  scales the jitter on regression coefficients by how far their design
+  columns reach.** The noise that disperses the chains is 0.25 on every
+  population-level parameter, argued as “a quarter of a link unit”. For
+  a slope it reaches the linear predictor multiplied by its column, so
+  on a column that spans +-3 it was three quarters, and the start tilted
+  the whole surface. The unpenalised part of a
+  `t2(..., bs = c("cr", "cr"))` smooth (`bs_*`) is such a block: on the
+  Illusion Game’s Muller-Lyer models it tilted every smoothed parameter
+  by a median of 2.3 link units across the rows, and 30% of chains
+  started with more than 1% of their responses below their own `ndt`.
+  Each block’s jitter SD is now divided by the largest row norm of its
+  design wherever that exceeds 1, which keeps the SD of what reaches the
+  predictor at or under 0.25 link units at every row (the noise is
+  Normal, so a single draw can still exceed that): a median tilt of 0.5
+  there, and 0.7% of chains past 1%. A dummy column or a standardised
+  covariate keeps its 0.25; a slope on an unstandardised one (age in
+  years) no longer has an SD of six link units at the extremes.
+
+- **[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)’s
+  error accumulator starts slower than the correct one,** at
+  `driftone = 1` against `mu = 3`, as
+  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)’s
+  has since 0.3.2. The old equal start was a 50/50 race. On simulated
+  data with error rates from 3% to 43% it was the costliest of the
+  starts 3, 2, 1 and 0 every time, and moving it to 1 took 2,400-3,800
+  log-likelihood units per 2,000 trials off the shortfall of the whole
+  start. Starting values do not change a posterior, so no fitted model
+  needs revisiting for this.
+
+### Documentation
+
+- [`?rcogmod_lba2`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+  now opens its *Negative drift rates* section with the advice the rest
+  of it explains: wherever one response is rare in some condition, keep
+  the drift SD of its accumulator free of predictors (`sigmaone ~ 1`, or
+  a participant intercept only). A condition-varying SD gives every such
+  condition a direction of its own along which drift and SD slide
+  together without changing the fit.
+
+- The *Performance* article has a new, explicitly experimental section
+  on sampling a `cogmod` model with
+  [stanli](https://github.com/seantalts/stanli), a Stan interpreter that
+  needs no C++ compilation, and turning the result into a `brmsfit`
+  through `brms`’s `"mock"` backend. On the LNR it gave CmdStan’s
+  posterior in 0.74x CmdStan’s wall time on Linux and under half of it
+  on Windows (`benchmarks/stanli/`).
+
 ## cogmod 0.3.3
 
 CRAN release: 2026-09-25

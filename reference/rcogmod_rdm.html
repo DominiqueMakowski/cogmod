@@ -39,7 +39,7 @@ p_outlier(): Per-trial posterior probability of being an outlier.
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -57,6 +57,7 @@ p_outlier(): Per-trial posterior probability of being an outlier.
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
     <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
+    <li><a class="dropdown-item" href="../articles/comparison.html">Comparison with Other Packages</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -70,7 +71,7 @@ p_outlier(): Per-trial posterior probability of being an outlier.
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Two-Accumulator Racing Diffusion Model (RDM)</h1>
-      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/v0.3.3/R/model_rdm.R" class="external-link"><code>R/model_rdm.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/main/R/model_rdm.R" class="external-link"><code>R/model_rdm.R</code></a></small>
       <div class="d-none name"><code>rcogmod_rdm.Rd</code></div>
     </div>
 
@@ -456,6 +457,23 @@ which shares this parameterisation.</p>
 <p>The sum <code>boundary + sigmabias</code> is well identified either way, so it is the
 more trustworthy quantity to interpret and to compare across conditions. The
 same caveat applies to <code><a href="rcogmod_lba2.html">cogmod_lba2()</a></code>.</p>
+<p>The error accumulator's drift has a flat direction of its own. A drift of
+zero is legitimate - driftless Brownian motion still finishes, and still
+wins sometimes - but once <code>driftone</code> is a few hundredths the likelihood stops
+changing, while the <code>softplus</code> link puts that whole region at minus
+infinity. Left flat, the two-participant data of the
+<a href="https://dominiquemakowski.github.io/cogmod/articles/decision_making.html">decision-making article</a>,
+whose Accuracy condition carries about 75 errors, ran it down to 0.0001 with
+half of the transitions divergent. <code><a href="cogmod_priors.html">cogmod_priors()</a></code> fences it with
+<code>normal(3, 2)</code>, and <code>normal(0, 2)</code> on its slopes. That prior sits well above
+the floor on purpose. Under <code>dec(Error)</code>, the coding every example here
+uses, <code>driftone</code> is the <em>error</em> accumulator, and wherever errors are rare
+its posterior will land in the prior's lower tail. That is the fence
+working, not a prior at odds with the data: nothing the model predicts
+depends on where on the plateau the drift sits, and priors centred lower
+were measured to cost sampling efficiency without changing the fit. If the
+<em>rarely</em> chosen option is the one on <code>mu</code>, mirror that prior onto <code>mu</code> by
+hand.</p>
     </div>
     <div class="section level2">
     <h2 id="predictions-exclude-the-outlier-component">Predictions exclude the outlier component<a class="anchor" aria-label="anchor" href="#predictions-exclude-the-outlier-component"></a></h2>

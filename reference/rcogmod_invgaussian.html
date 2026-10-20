@@ -35,7 +35,7 @@ cogmod_invgaussian_stanvars(): Generates the stanvars to pass to brm().
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -53,6 +53,7 @@ cogmod_invgaussian_stanvars(): Generates the stanvars to pass to brm().
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
     <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
+    <li><a class="dropdown-item" href="../articles/comparison.html">Comparison with Other Packages</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -66,7 +67,7 @@ cogmod_invgaussian_stanvars(): Generates the stanvars to pass to brm().
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Shifted Wald Model (Inverse Gaussian)</h1>
-      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/v0.3.3/R/model_invgaussian.R" class="external-link"><code>R/model_invgaussian.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/main/R/model_invgaussian.R" class="external-link"><code>R/model_invgaussian.R</code></a></small>
       <div class="d-none name"><code>rcogmod_invgaussian.Rd</code></div>
     </div>
 
@@ -314,7 +315,9 @@ zero, and the outlier weight absorbs most of the difference. And scaling
 the reciprocal-normal (LATER) limit, where the within-trial noise stops
 mattering and <code>RT = boundary / drift</code> exactly - so large values of all three
 describe nearly the same distribution. <code><a href="cogmod_priors.html">cogmod_priors()</a></code> gives <code>sigmadrift</code>
-a deliberately informative prior to fence off both.</p>
+a deliberately informative prior to fence off both, and <code>boundary</code> a weakly
+informative one - <code>normal(0.5, 1)</code> on its <code>softplus</code> link, a median threshold
+of 0.97 - which helps hold the same ray.</p>
 <p>One consequence is worth stating plainly: with <code>sigmadrift &gt; 0</code> the density
 decays as <code>t^-2</code>, because drifts arbitrarily close to zero take arbitrarily
 long, so <strong>the mean does not exist</strong>. <a href="https://paulbuerkner.com/brms/reference/posterior_epred.brmsfit.html" class="external-link">posterior_epred()</a>

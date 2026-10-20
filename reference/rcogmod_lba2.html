@@ -33,7 +33,7 @@ p_outlier(): Per-trial posterior probability of being an outlier.
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -51,6 +51,7 @@ p_outlier(): Per-trial posterior probability of being an outlier.
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
     <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
+    <li><a class="dropdown-item" href="../articles/comparison.html">Comparison with Other Packages</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -64,7 +65,7 @@ p_outlier(): Per-trial posterior probability of being an outlier.
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Two-Accumulator Linear Ballistic Accumulator (LBA) Model</h1>
-      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/v0.3.3/R/model_lba2.R" class="external-link"><code>R/model_lba2.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/main/R/model_lba2.R" class="external-link"><code>R/model_lba2.R</code></a></small>
       <div class="d-none name"><code>rcogmod_lba2.Rd</code></div>
     </div>
 
@@ -287,7 +288,12 @@ avoids that.</p>
     </div>
     <div class="section level2">
     <h2 id="negative-drift-rates">Negative drift rates<a class="anchor" aria-label="anchor" href="#negative-drift-rates"></a></h2>
-    <p>A Normal drift rate can come out negative, and such an accumulator rises
+    <p><strong>Where one response is rare - a few percent of the trials in some
+condition - keep the drift SD of its accumulator free of predictors</strong>:
+<code>sigmaone ~ 1</code>, or <code>sigmaone ~ 1 + (1 | participant)</code>, or fix it. The
+reason is the flat direction described at the end of this section, which a
+condition-varying SD multiplies.</p>
+<p>A Normal drift rate can come out negative, and such an accumulator rises
 away from the threshold and never responds. Brown and Heathcote (2008) noted
 the problem and left it; every implementation since has had to decide what
 to do about it, and this one follows the convention of <code>rtdists</code>
@@ -323,10 +329,21 @@ accumulator in a task with a 5% error rate is exactly such a case: left
 flat, its drift wandered to <code>-12</code> with an interval of <code>-23</code> to <code>-6.5</code>, on an
 evidence scale where the correct accumulator's drift is <code>3</code>.
 <code><a href="cogmod_priors.html">cogmod_priors()</a></code> therefore puts <code>normal(1, 2)</code> on <code>driftone</code> and
-<code>normal(0, 1.5)</code> on its slopes, as it does for <code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>'s <code>nuone</code>. If
-the <em>rarely</em> chosen option is the one on <code>mu</code>, mirror that prior onto <code>mu</code>
-by hand. Fixing both SDs (<code>sigmazero = 1, sigmaone = 1</code>, a single <code>sv</code>)
+<code>normal(0, 1.5)</code> on its slopes: a fence, of the kind <code><a href="rcogmod_lnr.html">cogmod_lnr()</a></code>'s <code>nuone</code>
+gets. Under <code>dec(Error)</code>, the coding every example here uses, <code>driftone</code> is
+the <em>error</em> accumulator, and wherever errors are rare its posterior will sit
+in that prior's lower tail. As for <code><a href="rcogmod_rdm.html">cogmod_rdm()</a></code>, that is the fence working
+rather than a prior at odds with the data. If the <em>rarely</em> chosen option is
+the one on <code>mu</code>, mirror that prior onto <code>mu</code> by hand. Fixing both SDs (<code>sigmazero = 1, sigmaone = 1</code>, a single <code>sv</code>)
 removes the ray altogether and is common practice in the LBA literature.</p>
+<p>Predictors on that accumulator's SD make it worse. With <code>sigmaone</code>
+varying by condition, every condition in which the accumulator rarely wins
+has a ray of its own, along which its <code>driftone</code> and <code>sigmaone</code> can slide
+together without changing the fit - so an easy condition can report an
+error drift of <code>-7</code> or <code>-17</code> with the same realised behaviour, and different
+chains can settle at different points. One SD shared across conditions
+leaves a single such direction, and any condition in which the accumulator
+wins often enough then pins it.</p>
     </div>
     <div class="section level2">
     <h2 id="the-evidence-scale-is-arbitrary">The evidence scale is arbitrary<a class="anchor" aria-label="anchor" href="#the-evidence-scale-is-arbitrary"></a></h2>
@@ -385,6 +402,8 @@ applies unchanged here.</p>
 <span>          prior    <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
 <span>          init     <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span>,</span>
 <span>          stanvars <span class="op">=</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span><span class="op">)</span></span></code></pre><p></p></div>
+<p><code>sigmaone ~ 1</code> is deliberate: read <em>Negative drift rates</em> before giving it
+the predictors the drifts have.</p>
 <p>The <code>brms</code> family names the drift of the first accumulator <code>mu</code> (as <code>brms</code>
 requires) and that of the second <code>driftone</code>. Use <code><a href="cogmod_inits.html">cogmod_inits()</a></code> rather than
 <code>init = 0</code>: <code>brms</code> initialises on the unconstrained scale, so <code>init = 0</code> puts

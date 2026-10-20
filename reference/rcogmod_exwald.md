@@ -176,7 +176,7 @@ Both delay the response, and they are separated only by shape: `ndt` is
 a hard floor, `tau` a variable stage with an exponential spread. That
 makes them a ridge rather than a flat direction - the leading edge of
 the distribution identifies `ndt` - but a ridge all the same. The
-`normal(-1.2, 0.2)` that
+`normal(-1.2, 0.5)` that
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
 puts on `ndt` is what holds it; widen it and expect the two to trade
 off. Schwarz's own model has no `ndt` at all, the exponential stage
@@ -188,6 +188,27 @@ There is deliberately no `sigmadrift`. It and `tau` both fatten the
 right tail and are very hard to tell apart;
 [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
 is where the drift-variability route lives.
+
+## Two ways to make a right tail
+
+The Ex-Wald model is prone to identifiability issues. The skew can come
+from either stage. In one solution the Wald carries it, at a low drift
+with a short `tau`. In the other the Wald is nearly Gaussian, at a high
+drift and threshold, and a long `tau` carries it. That second solution
+is an ex-Gaussian with a shift, and its `mu` and `boundary` no longer
+read as a drift and a threshold. The two predict almost the same
+response times.
+
+More data does not remove the other solution. The posterior keeps a mode
+at each, and the valley between them deepens as trials are added. Chains
+started far from both, as
+[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+starts them, can settle in either, and chains that agree have not
+necessarily found the more probable one. If the estimates matter, start
+a few chains at a high drift and threshold with a long `tau` and see
+where they end. If the exponential stage is not the question, then
+[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+is preferable.
 
 ## How the density is computed
 

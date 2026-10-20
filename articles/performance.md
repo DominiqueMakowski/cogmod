@@ -604,6 +604,110 @@ The result behaves like a single
 `chains_per_node * n_nodes` chains worth of draws, obtained in roughly
 the time a single node’s chains would have taken.
 
+## An Experimental Backend: stanli
+
+> **Warning**
+>
+> **Very experimental.** `stanli` is young (a new release most weeks),
+> it is not a `brms` backend yet, and we have measured it on one family
+> only. Treat this section as something to try, not a recommendation.
+> The figures below were obtained with `brms` as released, which
+> computes an intercept-only parameter such as `sigmazero ~ 1` once per
+> observation rather than once per evaluation;
+> [brms#1946](https://github.com/paul-buerkner/brms/pull/1946) would
+> change that for every backend, and with it the figures, so this
+> section will be updated if it is merged. The steps themselves would
+> shrink to one argument if `brms` gains a `backend = "stanli"`
+> ([brms#1911](https://github.com/paul-buerkner/brms/pull/1911)).
+
+[stanli](https://github.com/seantalts/stanli) runs Stan programs without
+compiling them: it interprets the program over precompiled Stan Math
+functions, so a model is ready in a second or two instead of after a
+minute of C++ compilation, and no C++ toolchain is needed at all. It is
+held to CmdStan’s numerical results (the same program gives the same log
+density and gradient, to within a few units in the last place) and runs
+the same sampler, so what can change is the cost of each gradient
+evaluation, not the posterior.
+
+`brms` writes the Stan program and the data, `stanli` samples them, and
+`brms`’s own `"mock"` backend turns the finished fit into a `brmsfit`:
+
+``` r
+
+# install.packages("stanli", repos = c("https://seantalts.r-universe.dev", "https://cloud.r-project.org"))
+# stanli::stanli_install()  # once: downloads stanli's prebuilt runtime
+library(stanli)
+
+prior <- cogmod_priors(f, df)
+stanvars <- cogmod_stanvars(f)
+
+# 1. brms writes the Stan program and the data; stanli builds the model (no C++ compilation)
+scode <- stancode(f, data = df, prior = prior, stanvars = stanvars)
+sdata <- standata(f, data = df, prior = prior, stanvars = stanvars)
+model <- stanli_model(code = scode, data = sdata)
+
+# 2. cogmod's initial values, one row per chain on Stan's unconstrained scale
+inits <- cogmod_inits(f, df)
+init <- do.call(rbind, lapply(1:4, function(chain) unconstrain(model, inits(chain))))
+
+# 3. Sample, chains in parallel
+fit <- sample_model(model, chains = 4, parallel_chains = 4,
+                    warmup = 1000, samples = 1000, init = init)
+
+# 4. Back into brms (the "mock" backend takes a finished fit; needs rstan installed)
+m <- brm(f, data = df, prior = prior, stanvars = stanvars,
+         backend = "mock", mock_fit = as_stanfit(fit))
+```
+
+Everything that works from the posterior draws works on the result as
+with any other backend:
+[`summary()`](https://rdrr.io/r/base/summary.html),
+[`loo()`](https://mc-stan.org/loo/reference/loo.html) and
+[`loo_compare()`](https://mc-stan.org/loo/reference/loo_compare.html),
+[`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html),
+[`hypothesis()`](https://paulbuerkner.com/brms/reference/hypothesis.brmsfit.html),
+prior sensitivity with `priorsense`, and marginal means and contrasts
+with `modelbased`, `marginaleffects` or `emmeans` (where the family
+provides expectations, as with any backend). What needs the model itself
+does not, until `brms` has a `stanli` backend, because it does not know
+how the fit was made: refitting
+([`update()`](https://rdrr.io/r/stats/update.html),
+[`kfold()`](https://mc-stan.org/loo/reference/kfold-generic.html),
+`reloo`), [`loo()`](https://mc-stan.org/loo/reference/loo.html)’s moment
+matching, and bridge sampling
+([`bayes_factor()`](https://rdrr.io/pkg/bridgesampling/man/bf.html),
+[`post_prob()`](https://rdrr.io/pkg/bridgesampling/man/post_prob.html)).
+For those, fit the same model with `backend = "cmdstanr"`, or try the
+unofficial [brm_stanli](https://github.com/StaffanBetner/brm_stanli)
+wrapper, which adds moment matching and
+[`update()`](https://rdrr.io/r/stats/update.html) (we have not tested
+it). Before relying on `stanli` for a model, compare its result with a
+short CmdStan run of the same model.
+
+In our local benchmarking demo ([scripts and full
+results](https://github.com/DominiqueMakowski/cogmod/tree/main/benchmarks/stanli)),
+on the LNR of the [decision making
+models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.md)
+(4620 trials) with `stanli` 0.20.0, we found the same posterior as with
+CmdStan, the same number of leapfrog steps per effective draw, and a
+faster run on every measure (ratios to CmdStan; 16 seeds on the
+cluster):
+
+|                              | Windows laptop | Linux cluster |
+|:-----------------------------|:--------------:|:-------------:|
+| Time per gradient evaluation |      0.42      | 0.75 to 0.77  |
+| Wall time of a 4-chain fit   |  0.43 to 0.46  |     0.74      |
+| Effective draws per second   |   2.7 to 2.8   |      1.2      |
+
+The gain is largest where the system’s maths library is slow, as on
+Windows, since `stanli` brings its own. Rewriting the family’s Stan code
+by hand to suit the interpreter bought another 1.3x in `stanli` but cost
+CmdStan up to 1.9x, so `cogmod` keeps a single Stan program for both.
+`stanli`’s own test suite includes every `cogmod` family, and its
+developer’s measurements found most of them cheaper per gradient than in
+CmdStan (the beta-gate dearer), but only the LNR has been fitted end to
+end here.
+
 ## Future Directions
 
 A different line of work sidesteps the repeated sampling of MCMC/VI

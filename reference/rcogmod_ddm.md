@@ -312,9 +312,17 @@ likelihood stops changing well before then - so
 gives all three deliberately tight priors. Fixing the ones a design
 cannot identify is usually better than estimating them behind a prior.
 
+`boundary` and `bias` have no such direction, but `brms` would leave
+them flat, so
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+fills those too: `normal(1, 1)` on the `boundary` intercept, on its
+`softplus` link - a median separation of 1.31, with 95% between 0.32 and
+3.0 - and `normal(0, 0.5)` on the slopes of both. The `bias` intercept
+keeps `brms`'s `logistic(0, 1)`, uniform on the probability scale.
+
 There is a cost argument too, and it is a cliff rather than a slope. The
 Stan density has a closed form for `sigmadrift`, so estimating it costs
-about 2.8 times the classic model per gradient evaluation. `sigmabias`
+about 3.5 times the classic model per gradient evaluation. `sigmabias`
 and `sigmandt` have no closed form: Stan integrates them out
 numerically, once for the density and once more for each partial
 derivative, at every observation and every leapfrog step. Measured

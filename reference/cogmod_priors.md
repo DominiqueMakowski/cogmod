@@ -1,24 +1,20 @@
 # Priors that make a cogmod posterior proper
 
 Fills in weakly informative priors for the parameters `brms` would
-otherwise leave flat, for the model you are actually fitting.
+otherwise leave flat, or give a default meant for another
+parameterization, for the model you are actually fitting.
 
-**For
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
-this is not a convenience.** `brms` assigns a flat, improper prior to
-the intercept of any custom-family parameter it does not recognise,
-which there means both `ndt` and `poutlier`. The likelihood has two
-directions in which it is exactly flat: `poutlier` toward 1, where every
-response is attributed to the outlier component and `mu`, `sigma` and
-`ndt` drop out of the density altogether; and `ndt` toward 0, where the
-model reduces to an unshifted LogNormal and the gradient with respect to
-`log(ndt)` vanishes. Flat prior plus infinite flat region is an improper
-posterior. The fit does not fail loudly - it returns intercepts around
-`1e14` with `Rhat` near 2 and an effective sample size of about 5.
-
-The second direction has nothing to do with the mixture; it is inherent
-to putting a positive shift on a log link, which is why a prior on
-`poutlier` alone is not enough.
+**For the families with a non-decision time this is not a convenience.**
+`brms` gives the intercept of a custom-family parameter it does not
+recognise a flat, improper prior, and on the `ndt` + `poutlier` mixture
+the likelihood is exactly flat in two directions: `poutlier` toward 1,
+where every response belongs to the outlier component and the decision
+parameters drop out of the density, and `ndt` toward 0, where the
+gradient with respect to `log(ndt)` vanishes. Flat prior plus infinite
+flat region is an improper posterior, and the fit does not fail loudly:
+it returns intercepts around `1e14` with `Rhat` near 2 and an effective
+sample size of about 5. Several families have flat directions of their
+own (see *Why these parameters*).
 
 ## Usage
 
@@ -55,8 +51,8 @@ cogmod_priors(formula, data, ..., warmstart = NULL, prior_scale = 3)
   as
   [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
   takes. `NULL` (the default) leaves the priors where this function put
-  them. **Changes the posterior, and double-counts the source's data if
-  the new model contains it** - see the section above.
+  them. **Changes the posterior** - see *Centring the priors on a
+  previous fit*.
 
 - prior_scale:
 
@@ -72,36 +68,22 @@ A `brmsprior` object, to pass to `brms::brm(prior = )`.
 
 The function starts from
 [`brms::get_prior()`](https://paulbuerkner.com/brms/reference/default_prior.html)
-for the model in hand, edits the rows it knows how to improve, and
+for the model in hand, edits the rows it has a better prior for, and
 returns the result of
-[`brms::validate_prior()`](https://paulbuerkner.com/brms/reference/validate_prior.html).
-Three things follow.
-
-Every row comes from the model `brms` is going to build, so a prior
-matching no parameter is impossible by construction: `0 + Intercept`
-formulas, interactions, group-level terms and smooths are all handled
-because none of them are guessed at.
-
-The return value is a `brmsprior` object: the same class returned by
-[`brms::get_prior()`](https://paulbuerkner.com/brms/reference/default_prior.html)
-and
-[`brms::prior()`](https://paulbuerkner.com/brms/reference/set_prior.html).
-It prints as a table, including the defaults that `brms` will use, but
-can be combined with [`c()`](https://rdrr.io/r/base/c.html) like any
-other `brms` prior specification.
-
-Passing it through
-[`brms::validate_prior()`](https://paulbuerkner.com/brms/reference/validate_prior.html)
-means a malformed specification errors here, with the offending row in
-view, rather than deep inside
+[`brms::validate_prior()`](https://paulbuerkner.com/brms/reference/validate_prior.html):
+a `brmsprior` object, printed as a table that includes the defaults
+`brms` will use. Because every row comes from the model `brms` will
+build, no prior can miss its parameter - `0 + Intercept`, interactions,
+group-level terms and smooths need no special handling - and a malformed
+specification errors here rather than inside
 [`brm()`](https://paulbuerkner.com/brms/reference/brm.html).
 
 ## Setting your own priors
 
-Combine it with
+Combine the result with
 [`brms::prior()`](https://paulbuerkner.com/brms/reference/set_prior.html)
-entries. Set `replace = TRUE` to replace one of these defaults, or omit
-it to add a prior for a different slot:
+entries. `replace = TRUE` replaces one of these defaults; without it the
+entry is added for another slot:
 
     priors <- c(
       cogmod_priors(f, df),
@@ -109,72 +91,11 @@ it to add a prior for a different slot:
       replace = TRUE
     )
 
-## Centring the priors on a previous fit
-
-`warmstart` takes what
-[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
-takes - a `brmsfit`, the table
-[`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) makes of
-one, or the path to a CSV of it - and re-centres the priors on that
-fit's posterior: each prior becomes `normal(median, prior_scale * sd)`,
-the median and SD being the source's for that same parameter. It applies
-to the population-level intercepts and coefficients, the group-level
-SDs, and any dpar left out of the formula and so declared as a plain
-auxiliary parameter. The group-level correlations keep their LKJ, and
-the standardized effects have no stated prior to change.
-
-No transformation is involved, which is the reason this is safe to do
-automatically: the parameter a prior row is about *is* the parameter the
-source sampled, matched by its `class`, `dpar`, `coef` and `group`. In
-particular the `Intercept` prior is stated on the centred intercept in
-both models, so that is what the median comes from.
-
-**This changes the posterior.** It is not in the same category as
-[`cogmod_inv_metric()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
-and
-[`cogmod_step_size()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md),
-which only change how the sampler moves: a prior is part of the model,
-and a fit with these priors is answering a different question from one
-with the defaults. Two consequences are worth stating plainly.
-
-First, **if the source was fitted to data the new model also contains,
-this double-counts it.** A pilot on 5 of 10 participants, used to centre
-the priors for the fit on all 10, uses those 5 participants twice - once
-as a prior and once as data - and the intervals it produces are too
-narrow by an amount nothing in the output reveals. That is the standard
-warm-start setup, and it is exactly the setup in which this argument
-should not be used for anything you intend to report. It is legitimate
-when the source is an independent data set - last year's sample, another
-lab's, a different session of the same task - or when you are
-deliberately doing a sequential analysis and the priors *are* the
-previous posterior.
-
-Second, `prior_scale` is what stands between the two extremes.
-`prior_scale = 1` uses the source's posterior as the prior, which is the
-maximally informative choice and the one that double-counts hardest;
-letting it grow widens the prior until it is only saying roughly where
-the parameter lives. The default of 3 gives a prior with nine times the
-variance of the source's posterior, so it carries something like a ninth
-of the information - enough to put the sampler in the right region and
-keep it out of the flat directions these likelihoods have, weak enough
-that data disagreeing with the pilot will win.
-
-A parameter the source never saw - a new predictor, a group-level term
-it did not have - keeps whatever prior the rest of this function gave
-it, and
-[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)'s
-[`print()`](https://rdrr.io/r/base/print.html) says how many of those
-there are.
-
-    # last year's sample as the prior for this year's
-    priors <- cogmod_priors(f, df, warmstart = fit_2025)
-    priors <- cogmod_priors(f, df, warmstart = fit_2025, prior_scale = 6)  # weaker
-
 ## Supported families
 
 The family is read off `formula`, so build it with
-`brms::bf(..., family = cogmod_lognormal())`. Every family built on the
-direct `ndt` + `poutlier` parameterization is edited:
+`brms::bf(..., family = cogmod_lognormal())`. Covered: every family with
+an `ndt` + `poutlier` component -
 [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
 [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md),
 [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md),
@@ -185,415 +106,353 @@ direct `ndt` + `poutlier` parameterization is edited:
 [`cogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md),
 [`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md),
 [`cogmod_invweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md),
-[`cogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md)
-and, for the choice-and-RT models,
+[`cogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md),
+[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+and the choice-and-RT families
 [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
 [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
 [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
 and
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md).
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
-and
+[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) -
+plus
+[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md),
 [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
-are edited too, although they are not built on that parameterization -
-see their own section below - as are the three bounded-scale families
-for subjective ratings,
+and the rating-scale families
 [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md),
 [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
 and
 [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md).
-Any other family, or a formula carrying none, is passed through: you get
-a message and `brms`'s own defaults, unchanged, so the call is always
-safe to leave in a script.
+Any other family, or a formula carrying none, gets a message and
+`brms`'s defaults unchanged, so the call is safe to leave in a script.
 
-What gets set, on the link scale (`log` for `ndt`, `logit` for
-`poutlier`, `identity` for `shape`):
+## What gets set
 
-|  |  |  |  |
-|----|----|----|----|
-| class | `ndt` | `poutlier` | `shape` |
-| `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-1.2, 0.5)` | `normal(-5, 1)` | `normal(0, 0.5)` |
-| `b` (slopes) | `normal(0, 0.2)` | `normal(0, 0.2)` | `normal(0, 0.2)` |
-| `sd`, `sds` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
+For each parameter in the table under *The priors*:
 
-`normal(-1.2, 0.5)` centres `ndt` on 0.30 s, with 95% of its mass
-between about 0.11 and 0.80 s: wide enough for the non-decision times of
-slower populations and more demanding responses, and still a fence
-against the `ndt -> 0` direction the likelihood cannot close on its own.
-Like everything else in these families it is stated in **seconds**,
-which is the unit the package expects throughout. `poutlier` is a
-proportion and does not move: `normal(-5, 1)` is centred at about 0.7%
-and puts roughly 95% of its mass between 0.1% and 5%. That is where the
-empirical estimates sit - pooling across four lexical-decision
-megastudies, Miller (2024) puts the outlier proportion below 0.5% and
-argues that the 5-10% assumed in most simulation work is unrealistically
-large.
+- its **intercept** gets the prior in the table;
 
-`shape` exists only for
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md).
-`normal(0, 0.5)` is centred on the LogNormal shape and keeps the sampler
-clear of `sigma * shape >= 1`, where the decision density becomes
-unbounded at the shift and the likelihood with it.
+- its **slopes** get `normal(0, 0.2)` on the link scale, or the wider
+  prior in the table. On a log or logit link a flat slope prior is not
+  harmless: it can carry a condition into the flat regions while the
+  intercept stays well behaved;
 
-A family may add rows of its own where its likelihood has a flat
-direction that `brms` would leave improper. Seven do:
+- its **group-level SDs** get `exponential(1)`, for the same reason, and
+  the correlations keep `brms`'s LKJ;
 
-- [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md):
-  `dof`. The LogNormal is only reached as `dof -> Inf`, and it is
-  approached slowly - at `dof = 100` the density still differs from the
-  LogNormal by 66% in the tail - so above about `dof = 30` the
-  likelihood has almost stopped moving, and a `log` link puts that
-  region at plus infinity. The prior fences the other end too: a
-  Student-t is symmetric on the log scale, so a small `dof` piles mass
-  just above `ndt` as well as in the slow tail, which is what `poutlier`
-  is for. `normal(1.8, 0.7)` centres `dof` at 6 with 95% between 1.5 and
-  24.
+- its **smooth terms** follow *Smooth terms*, as every smooth does.
 
-- [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md):
-  `tau`, the mean of the exponential residual stage. It is a length of
-  time in seconds behind a `softplus` link, which `brms` has no way to
-  know, and it shares a ridge with `ndt` - both delay the response, and
-  only the shape of the leading edge tells them apart.
-  `normal(-1.5, 0.7)` is the same statement
-  [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
-  gets for the same quantity: roughly 55 to 630 ms.
-
-- [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md):
-  `sigmabias` and `boundary`. As the start-point range approaches zero
-  the LBA converges to the recinormal and the likelihood stops depending
-  on it, and a `softplus` link reaches zero only at minus infinity.
-  Without those rows `sigmabias` runs off - `softplus(-10.4)`, `Rhat`
-  1.69.
-
-- [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md):
-  `sigmabias` and `boundary`, for exactly the reason
-  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
-  needs them - the two enter the threshold only through the sum
-  `b = boundary + sigmabias` and trade off along a ridge worth a handful
-  of log units, and the `softplus` link reaches zero only at minus
-  infinity. The drift rates are left alone: a zero-drift accumulator
-  still finishes, and still wins sometimes, so there is no plateau at
-  the bottom of that direction the way there is for
-  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)'s
-  `nuone`.
-
-- [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md):
-  `driftone`, `sigmazero`, `sigmaone`, `sigmabias` and `boundary`. The
-  last two share the threshold ridge above; the two drift SDs are worse.
-  The evidence scale of an LBA is arbitrary - multiply the drifts, their
-  SDs, the start-point range and the threshold by any `c > 0` and every
-  finishing time is unchanged - so the likelihood is *exactly* constant
-  along that ray. These priors make the posterior proper; only fixing
-  one SD in the formula (`sigmazero = 1`) identifies the scale.
-  `driftone` has the plateau
-  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)'s
-  `nuone` has, created here by the truncation of each drift at zero:
-  once an accumulator rarely wins, its drift and SD are identified only
-  through `|drift| / sigma^2`, and a flat prior lets the drift run off
-  to `-12` and beyond. `normal(1, 2)` is centred where LBA drifts sit on
-  the `sigmazero = 1` scale. See
-  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md).
-
-- [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md):
-  `sigmadrift`, `sigmabias` and `sigmandt`, the three between-trial
-  variability parameters. Each has a floor at zero that its link reaches
-  only at minus infinity, and the likelihood stops changing well before
-  then. They are also the parameters a DDM is least able to recover, so
-  these priors are deliberately tighter than the rest. Fixing the ones a
-  design cannot identify (`sigmadrift = 0` in
-  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)) is
-  usually better than estimating them behind a prior.
-
-- [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md):
-  `sigmadrift` and `sigmandt`, for the same reasons as the DDM's, with
-  `sigmandt` taking the DDM's prior for the same quantity verbatim. Both
-  should be fixed at zero unless the design can identify them;
-  `sigmandt` in particular needs a lot of data, a strong prior, or both.
-
-- [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md):
-  `nuone`, `sigmazero` and `sigmaone`. Push an accumulator's rate far
-  enough down and it never finishes first, so the density depends on it
-  only through a survival term that has already saturated at 1; past
-  about `nuone = -6` the log-likelihood is exactly constant, and that
-  accumulator's `sigma` is unidentified along with it. `mu` - which is
-  `nuzero` - has the mirror-image plateau, but it is the response's own
-  intercept and `brms` already gives it a proper `student_t` default, so
-  it is left alone. Model a rarely-chosen option and it is worth
-  mirroring the `nuone` prior onto it. `sigmabias`, the start-point
-  range, has the flat direction
-  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)'s
-  has - the likelihood stops changing as it approaches zero - and gets
-  the same treatment, rescaled to its unit, the threshold offset of 1.
-  Fix it at zero unless the design speaks to start-point variability.
-
-- [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md):
-  `sigmabias`, the same start-point range as the LNR's (the LNR races
-  two of these accumulators), with the same rows.
-
-All of them are the same failure as `ndt` and `poutlier`: an infinite
-flat region under a flat prior. See
-[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md),
-[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
-[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md),
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+Parameters not in the table, such as
+[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)'s
+`sigma`, keep `brms`'s defaults, and so does the response's own `mu`:
+its slopes are the effects being estimated, and `brms`'s `student_t()`
+default is a fair intercept prior on most links. Two exceptions.
+[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
 and
-[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md).
+[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+give `mu` an intercept prior, because there it is a time in seconds on
+an `identity` link. And in the race families,
+[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
+[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+and
+[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md),
+`mu` is the rate of one accumulator, so its group-level SD gets the
+`exponential(1)` the other accumulator's gets and swapping the `dec()`
+coding does not change what the priors say.
 
-Note that no prior is set on the shape of
+A row `brms` left flat is filled. A row `brms` already filled is
+replaced only where its default was written for a parameter of the same
+name in one of its own families, and is wrong here: `uniform(0, min_Y)`
+on an `ndt` left out of
+[`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html), the
+min-RT bound the outlier component exists to remove; `gamma(0.01, 0.01)`
+on
+[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)'s
+`shape`, which must be free to go negative; and `student_t(3, 0, 2.5)`
+and the like on the `sigma` of
+[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+and
+[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md),
+the `shape` of
+[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+and the `phi` of
+[`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
+and
+[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md) -
+a Gaussian SD wider than most whole RT distributions, or on
+[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)'s
+`log` link a precision reaching 2853.
+
+## ndt and poutlier
+
+`ndt` is in **seconds**, like everything else in these families.
+`normal(-1.2, 0.5)` on its `log` link centres it on 0.30 s with 95% of
+the mass between 0.11 and 0.80 s: wide enough for slow populations and
+demanding responses, and still a fence against `ndt -> 0`.
+
+`poutlier` is a proportion. `normal(-6, 1)` on its `logit` link centres
+it on 0.25%, with 95% between 0.035% and 1.7%, which is where the
+empirical estimates sit: Miller (2024) puts the outlier proportion below
+0.5% across four lexical-decision megastudies, and the untrimmed data of
+the [outliers
+article](https://dominiquemakowski.github.io/cogmod/articles/outliers.html)
+agree. If the data were trimmed before fitting, tighten the prior
+(`normal(-7, 0.5)`) rather than fixing `poutlier = 0`, which brings the
+hard min-RT boundary back; see the *Trimmed data* section of
+[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md).
+
+## The priors
+
+On the link scale for a parameter in
+[`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) - for
+its intercept, or under `0 + Intercept` its coefficient named
+`Intercept` - and on the natural scale for one left out (see *Parameters
+left out of the formula*).
+
+|  |  |  |  |  |
+|----|----|----|----|----|
+| Parameter | Families | In [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) | Left out | Slopes |
+| `ndt` | all with `ndt` | `normal(-1.2, 0.5)` | `lognormal(-1.2, 0.5)` | `normal(0, 0.2)` |
+| `poutlier` | all with `ndt` | `normal(-6, 1)` | `exponential(280)` | `normal(0, 0.2)` |
+| `sigmabias` | [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md), [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md) | `normal(0, 1)` | `lognormal(-0.35, 0.75)` | `normal(0, 0.5)` |
+| `dof` | [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md) | `normal(1.8, 0.7)` | `lognormal(1.8, 0.7)` | `normal(0, 0.3)` |
+| `shape` | [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md) | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.2)` |
+| `boundary` | [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md), [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md), [`cogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md) | `normal(0.5, 1)` | `lognormal(0, 0.6)` | `normal(0, 0.5)` |
+| `sigmadrift` | [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` | `normal(0, 0.5)` |
+| `sigmandt` | [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md), [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) | `normal(-3, 1)` | `lognormal(-3, 1)` | `normal(0, 0.5)` |
+| `tau` | [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md), [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md), [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` | `normal(0, 0.5)` |
+| `sigmabias`, `boundary` | [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md), [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md), [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` | `normal(0, 0.5)` |
+| `sigmazero`, `sigmaone` | [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md), [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` | `normal(0, 0.5)` |
+| `nuone` | [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` | `normal(0, 0.5)` |
+| `driftone` | [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md) | `normal(3, 2)` | `lognormal(1, 0.75)` | `normal(0, 2)` |
+| `driftone` | [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md) | `normal(1, 2)` | `normal(1, 2)` | `normal(0, 1.5)` |
+| `boundary` | [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) | `normal(1, 1)` | `lognormal(0.27, 0.5)` | `normal(0, 0.5)` |
+| `bias` | [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) | `logistic(0, 1)` | `brms`'s `beta(1, 1)` | `normal(0, 0.5)` |
+| `sigmadrift` | [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) | `normal(0, 1)` | `lognormal(-1, 0.75)` | `normal(0, 0.5)` |
+| `sigmabias` | [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) | `normal(-2, 1)` | `beta(1, 5)` | `normal(0, 0.5)` |
+| `mu` | [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md), [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md) | `normal(0.4, 0.25)` | \- | `brms`'s |
+| `sigma` | [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md), [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md) | `normal(-2.3, 0.7)` | `lognormal(-2.3, 0.7)` | `normal(0, 0.5)` |
+| `shape` | [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md) | `normal(0, 0.5)` | `lognormal(0, 0.5)` | `normal(0, 0.5)` |
+| `confright`, `confleft` | [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md) | `normal(0, 1)` | `beta(2, 2)` | `normal(0, 0.5)` |
+| `precright`, `precleft` | [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md) | `normal(2, 1.5)` | `lognormal(0.7, 0.7)` | `normal(0, 0.5)` |
+| `phi` | [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md) | `normal(2, 1.5)` | `lognormal(0.7, 0.7)` | `normal(0, 0.5)` |
+| `phi` | [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md) | `normal(0.7, 0.8)` | `lognormal(0.7, 0.8)` | `normal(0, 0.5)` |
+| `pex` | [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md), [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md) | `normal(-2, 1)` | `beta(2, 12)` | `normal(0, 0.5)` |
+| `bex` | [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md), [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md) | `normal(0, 1)` | `beta(2, 2)` | `normal(0, 0.5)` |
+| `pmid` | [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md) | `normal(-2.5, 1)` | `exponential(9)` | `normal(0, 0.5)` |
+| `pzero` | [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md) | `normal(-2.5, 1)` | `exponential(9)` | `normal(0, 0.5)` |
+
+## Parameters left out of the formula
+
+Writing `ndt ~ 1` and leaving `ndt` out are not the same model to
+`brms`. A parameter in
+[`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html), even
+as `~ 1`, gets a linear predictor and lives on its **link** scale,
+reported as `ndt_Intercept` under *Regression Coefficients*. One left
+out is declared as a plain auxiliary parameter, like `sigma` in
+[`gaussian()`](https://rdrr.io/r/stats/family.html), and lives on its
+**natural** scale, under *Further Distributional Parameters*, so it
+needs a prior on that scale. The two columns of the table describe the
+same belief wherever they can: exactly on a `log` or `identity` link,
+where `lognormal` is `normal` on the log scale, and matched on the
+median elsewhere.
+
+The exception is a probability whose omission is itself a statement.
+Leaving `poutlier` out says the data were trimmed or are not expected to
+contain outliers, and leaving `pmid` or `pzero` out says the event is
+not expected. Those get an exponential, with its **mode at zero**, which
+no logit-scale prior can have, and the same median: `exponential(280)`
+against `plogis(-6) = 0.0025`, and `exponential(9)` against
+`plogis(-2.5) = 0.076`. It is still a prior, so a genuine spike of fast
+responses still pulls the rate up.
+
+## Why these parameters
+
+Each family's own page has the full account. In short, a parameter is in
+the table for one of five reasons:
+
+- **Its link puts a limit at infinity, and the likelihood is flat long
+  before it** - the `ndt -> 0` failure again. That is the start-point
+  ranges (`sigmabias`) and the LBA and RDM thresholds that share a ridge
+  with them (`boundary`), the between-trial variabilities (`sigmadrift`,
+  `sigmandt`), and
+  [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)'s
+  `dof`, which reaches the LogNormal only as `dof -> Inf`. Where the
+  design cannot identify a range or a variability, fixing it in
+  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+  (`sigmabias = 0`) is better than estimating it behind a prior.
+
+- **An accumulator that stops winning.** Push a race accumulator's rate
+  down far enough and the likelihood stops depending on it, or on its
+  SD: `nuone` and the SDs in
+  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
+  `driftone` in
+  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  and
+  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md).
+  Under `dec(Error)` that is the error accumulator, and wherever errors
+  are rare its posterior sits in the lower tail of the prior: the fence
+  working, not a prior at odds with the data. `mu` has the mirror
+  plateau; if the rarely chosen option is on `mu`, copy the prior onto
+  it.
+
+- **An arbitrary scale.**
+  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)'s
+  likelihood is exactly constant along a ray that rescales every
+  evidence parameter. The priors on `sigmazero` and `sigmaone` make the
+  posterior proper; only fixing one of them in
+  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+  (`sigmazero = 1`) identifies the scale.
+
+- **A ridge with another parameter**: `tau` with `ndt` in
+  [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md),
+  `shape` with `mu` in
+  [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md),
+  `dof` with `poutlier` at the fast end of
+  [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md);
+  and
+  [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)'s
+  `shape`, whose prior also keeps the sampler clear of
+  `sigma * shape >= 1`, where the density is unbounded at the shift.
+
+- **Identified, but `brms` leaves it flat or gives it a default for
+  another parameterization**: the Wald and DDM thresholds, the DDM's
+  `bias`, and the ex-Gaussian and rating-scale parameters (below).
+
+No prior is set on the shape of
 [`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
 or
 [`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md),
-although a shape below 2 makes their `ndt` gradient unbounded. That
-region is reached because the *likelihood* prefers it, by around 100 log
-units on the data in the [RT models
+although a shape below 2 makes their `ndt` gradient unbounded: the
+likelihood itself prefers that region, by around 100 log units on the
+data in the [RT models
 article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
-so a prior weak enough to be a sensible default cannot move the
-posterior out of it - only bias it.
+so a prior weak enough to be a default could only bias it.
 [`?rcogmod_weibull`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
 sets out what to do instead.
 
-## The ex-Gaussian
+## The ex-Gaussian and the GEG
 
 [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
-has neither `ndt` nor `poutlier`, but all three of its parameters are
-lengths of time in **seconds**, and `brms` has no way to know that.
-`sigma` and `tau` sit behind a `softplus` link; `mu` is on `identity`.
-All three intercepts are set.
+has no `ndt`, but `mu`, `sigma` and `tau` are all lengths of time in
+seconds, which `brms` cannot know. On the `softplus` link, `sigma` (the
+Gaussian SD) gets 25 to 330 ms with a median of 96 ms, and `tau` (the
+mean of the exponential tail) 55 to 630 ms with a median of 201 ms: the
+range they occupy across the usual simple- and choice-RT tasks. `mu` is
+on an `identity` link, where `brms`'s default, a `student_t()` with a
+scale of 2.5 s, spreads the Gaussian's centre over several seconds
+either way, and under `0 + Intercept` it gets no prior at all.
+`normal(0.4, 0.25)` puts 95% of it between -0.09 and 0.89 s and
+deliberately allows negative values: for fast, heavily tailed data the
+Gaussian component belongs near or below zero, with `tau` carrying the
+mass. It is the centre of the Gaussian alone, so the mean of the
+distribution is `mu + tau`.
+[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+takes the same rows, and a `shape` centred on the ex-Gaussian it nests
+(`shape = 1`, with 95% between 0.37 and 2.7): `shape` and `mu` sit on a
+ridge, and the prior holds it.
 
-|  |  |  |
-|----|----|----|
-| class | `sigma` | `tau` |
-| `Intercept`, or `b` on a coefficient named `Intercept` | `normal(-2.3, 0.7)` | `normal(-1.5, 0.7)` |
-| `b` (slopes) | `normal(0, 0.5)` | `normal(0, 0.5)` |
-| `sd`, `sds` | `exponential(1)` | `exponential(1)` |
-
-On the `softplus` scale `normal(-2.3, 0.7)` puts `sigma` - the SD of the
-Gaussian component - between roughly 25 and 330 ms with a median of 96
-ms, and `normal(-1.5, 0.7)` puts `tau` - the mean of the exponential
-tail - between roughly 55 and 630 ms with a median of 201 ms. Both cover
-the range these parameters occupy across the usual simple- and choice-RT
-tasks and are wide enough not to fight data that disagrees.
-
-`tau` arrives from `brms` flat, so it is filled like any other
-unrecognised custom dpar. `sigma` arrives with a **non-empty** default,
-`student_t(3, 0, 2.5)`, because `brms` recognises the name from its own
-families - centred on `softplus(0) = 0.69 s`, a Gaussian SD wider than
-most whole RT distributions. That one is overridden rather than filled,
-the same treatment `shape` and an omitted `ndt` get above.
-
-`mu` gets `normal(0.4, 0.25)` on its own intercept - 95% of the mass
-between -0.09 and 0.89 s. It is not left to `brms`, whose
-`student_t(3, 0, 2.5)` is a fair statement about a location on a
-`softplus` link (median 0.69 s) but not on the `identity` link `mu`
-uses, where it is centred on zero seconds and puts a Gaussian centre of
--2 s on a par with one of +2 s. The prior does **not** exclude negative
-values: `mu` is a location, and for fast heavily-tailed data the
-Gaussian component genuinely belongs near or below zero with `tau`
-carrying the mass. Only the intercept is set - the response's slopes are
-the effects being estimated, and are left to `brms`. Note that `mu` is
-the centre of the Gaussian component **alone**, so the mean of the
-distribution it implies is `mu + tau`; see
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md).
-
-## The bounded-scale families
+## The rating-scale families
 
 [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md),
 [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
 and
 [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)
-model subjective ratings on `[0, 1]` or on `1:k` rather than reaction
-times, and none of them has an infinite flat region of the
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
-kind. They are edited anyway, because every distributional parameter
-they have arrives either flat - improper - or with a `brms` default
-aimed at a different parameterization.
+have no infinite flat region of the RT kind, but every parameter arrives
+either flat or with a `brms` default meant for another parameterization.
 
-|  |  |  |  |  |  |
-|----|----|----|----|----|----|
-| class | `pmid`, `pzero` | `pex` | `bex`, `confright`, `confleft` | `precright`, `precleft`, `phi` (softplus) | `phi` ([`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md), `log`) |
-| `Intercept` | `normal(-2.5, 1)` | `normal(-2, 1)` | `normal(0, 1)` | `normal(2, 1.5)` | `normal(0.7, 0.8)` |
-| `b` (slopes) | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.5)` |
-| `sd`, `sds` | `exponential(1)` | `exponential(1)` | `exponential(1)` | `exponential(1)` | `exponential(1)` |
+- **Point masses.** `pmid` is the probability of exactly the midpoint,
+  and `pzero` of an extra category outside the scale. When the event is
+  absent from the data the likelihood rises all the way to zero, and
+  under a flat prior the logit runs off to minus infinity: `poutlier`'s
+  failure, and `poutlier`'s treatment. `normal(-2.5, 1)` centres it on
+  8%, with 95% below 37%. To switch one off, fix it in
+  [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
+  (`pmid = 0`); a response exactly on the midpoint is then impossible,
+  and the fit will not start.
 
-**The point masses.** `pmid` is the probability of landing exactly on
-the midpoint of the scale and `pzero` the probability of an extra
-category outside it. Both are flat on a `logit` link, which is improper
-in the posterior as well as the prior whenever the event is simply
-absent from the data: with no exact midpoints anywhere the likelihood in
-`pmid` increases monotonically all the way to zero, and nothing stops
-the logit running to minus infinity. That is `poutlier`'s failure
-exactly, so it gets `poutlier`'s treatment, including the omitted form's
-**mode at zero** - leaving the dpar out of
-[`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) is
-itself the statement that you do not expect the event. `normal(-2.5, 1)`
-is centred on 8% with 95% of its mass below 37%, which covers both a
-slider with a visible midpoint tick and a scale carrying a "not
-applicable" category.
+- **Extremes.** `pex`, the total probability of a 0 or a 1, is *not*
+  given a mode at zero: extreme responding is a response style, not a
+  contaminant. `normal(-2, 1)` centres it on 12%, with 95% between 2%
+  and 49%. `bex`, which end the extremes favour, is centred on
+  symmetric, which also keeps it away from 0 and 1, where one gate
+  closes and every response at that end has zero probability.
 
-This is not hypothetical, and it has the signature the
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
-failure has. Fitting
-[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)
-to 400 slider responses containing no exact midpoints and no extremes,
-`brms`'s flat defaults put `pex` at `-1.1e14` and `pmid` at `-3.4e13`,
-both with `Rhat` 2.9 and an effective sample size of 5, alongside 12%
-divergent transitions and 48% of them hitting the maximum treedepth.
-With these priors the same data give -4.70 and -5.15 - 0.9% and 0.6% on
-the probability scale, which is what a data set containing none of
-either should say - at `Rhat` 1.00, 3000 to 4000 effective samples, and
-no divergences.
+- **Beta shapes.** `confright` and `confleft`, the Beta means of each
+  side, are centred on the middle of their half. The precisions are the
+  awkward ones: below about 1 the Beta is U-shaped and unbounded at both
+  ends, and a large one concentrates it sharply. `normal(2, 1.5)` on the
+  `softplus` link spans 0.33 to 4.95, leaving 17% of its mass below 1,
+  since a polarising item really can produce a U.
+  [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)'s
+  `phi` is on a `log` link: `normal(0.7, 0.8)`, 0.42 to 9.7 with a
+  median of 2.
 
-**The extremes.** `pex`, the total probability of a 0 or a 1,
-deliberately does *not* get the mode-at-zero treatment: extreme
-responding is a documented response style rather than a contaminant, and
-a scale nobody ever answers at the endpoints is the unusual case.
-`normal(-2, 1)` centres it on 12% with 95% between 2% and 49%. `bex`,
-which end the extremes favour, is centred on symmetric; that also fences
-the two values at which the model degenerates, since at `bex = 0` or `1`
-one gate closes entirely and any observation at that endpoint takes the
-density to `-Inf`.
+`mu` is left to `brms`, whose `student_t(3, 0, 2.5)` is the standard
+choice on a `logit` link.
 
-**The Beta shapes.** The precisions are the awkward ones. The underlying
-Beta has shapes `conf * prec * 2` and `(1 - conf) * prec * 2`, so a
-precision below about 1 makes it U-shaped and unbounded at both ends,
-while a large one narrows it sharply: at a precision of 15 the middle
-95% of a side spans only a third of it, and a rating a tenth of the way
-along that side costs 13 log units. `normal(2, 1.5)` on the `softplus`
-link puts the precision between 0.33 and 4.95 with a median of 2.13,
-leaving 17% of its mass below 1 - a U-shaped rating distribution is a
-real thing for a polarising item, so it is fenced rather than excluded.
+## Smooth terms
 
-`phi` is the one row of the three that **overrides** a non-empty `brms`
-default rather than filling an empty one, for the reason
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)'s
-`sigma` does: `brms` recognises the name from its own beta family and
-supplies `student_t(3, 0, 2.5)`. On
-[`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)'s
-`softplus` link that is merely loose. On
-[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)'s
-`log` link it is close to improper - its 95% interval runs to
-`phi = 2853`, where the Beta has collapsed onto one rating category and
-every other category's probability has underflowed.
-[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)'s
-precisions escape it only because they are named `precright` and
-`precleft`, which `brms` does not recognise, so they arrive flat
-instead.
+A smooth's SD, `sds`, is not in link units. `brms` writes the penalised
+part of an [`s()`](https://paulbuerkner.com/brms/reference/s.html) or
+[`t2()`](https://paulbuerkner.com/brms/reference/s.html) term as
+`sds * Zs %*% zs` with `zs ~ N(0, 1)`, and how far one unit of `sds`
+moves the linear predictor depends on the basis `mgcv` builds: about
+0.45 link units for `s(x)`, 6 for `s(x, bs = "cr")` and 0.1 for
+`t2(x, z, k = c(5, 5), bs = c("cr", "cr"))`, almost regardless of the
+data. So each smooth term gets `exponential(rate)`, with the rate set to
+that term's own scale (read off
+[`brms::make_standata()`](https://paulbuerkner.com/brms/reference/standata.html)):
+`exponential(1)` on the wiggle measured in link units, median 0.69 and
+95% below 3, whatever the basis. A term whose scale cannot be computed
+gets `exponential(1)`. This applies to every smooth, the response's
+included, and it matters however many rows there are: a smooth's SD is
+informed by the handful of coefficients behind each penalty, as a
+group-level SD is by the number of groups.
 
-`mu` is left to `brms` in all three. It is the response's own predictor,
-and on a `logit` link `student_t(3, 0, 2.5)` is the standard weakly
-informative choice for exactly that - unlike
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)'s
-`mu`, which needed overriding only because an `identity` link made the
-same prior a statement about seconds.
+The unpenalised part of a smooth - the linear trend of an `s(x)`, the
+marginal trends of a
+[`t2()`](https://paulbuerkner.com/brms/reference/s.html) - is reported
+under class `b`, where it would take its parameter's slope prior; but
+`mgcv` sets the scale of those columns, not the user. On the parameters
+in the table, each such column gets `normal(0, s / rms)` instead, which
+is the slope prior `normal(0, s)` stated on the trend at a typical row,
+`rms` being the column's root mean square.
 
-## Parameters left out of the formula
+## Centring the priors on a previous fit
 
-Writing `ndt ~ 1` and omitting `ndt` entirely are not the same thing to
-`brms`, and the difference matters here. A dpar that appears in
-[`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) -
-even as `~ 1` - gets a linear predictor, so it is estimated on the
-**link** scale and reported under *Regression Coefficients* as
-`ndt_Intercept`. A dpar left out is declared as a plain auxiliary
-parameter instead, the same mechanism as `sigma` for
-[`gaussian()`](https://rdrr.io/r/stats/family.html), estimated on the
-**natural** scale with no link and reported under *Further
-Distributional Parameters*.
+`warmstart` takes what
+[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+takes - a `brmsfit`, the table
+[`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) makes of
+one, or the path to a CSV of it - and replaces each prior with
+`normal(median, prior_scale * sd)`, from that fit's posterior for the
+same parameter. It applies to the population-level intercepts and
+coefficients, the group-level SDs and the parameters left out of the
+formula; correlations keep their LKJ. A parameter the source never saw
+keeps the prior it would get anyway, and
+[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)'s
+[`print()`](https://rdrr.io/r/base/print.html) says how many there are.
 
-Both forms are filled, with priors on whichever scale the parameter
-actually lives on:
+**This changes the posterior.** Unlike
+[`cogmod_inv_metric()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+and
+[`cogmod_step_size()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md),
+which only change how the sampler moves, a prior is part of the model.
+**If the source was fitted to data the new model also contains, it
+counts those data twice**: a pilot on 5 of 10 participants used to
+centre the priors for all 10 uses those 5 twice, and the intervals come
+out too narrow by an amount nothing in the output shows. Use it when the
+source is an independent data set - last year's sample, another lab's,
+another session - or for a deliberately sequential analysis.
 
-|  |  |  |
-|----|----|----|
-| dpar | in [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) (link scale) | omitted (natural scale) |
-| `ndt` | `normal(-1.2, 0.5)` | `lognormal(-1.2, 0.5)` |
-| `poutlier` | `normal(-5, 1)` | `exponential(100)` |
-| `shape` | `normal(0, 0.5)` | `normal(0, 0.5)` |
-| `sigmabias`, `boundary` ([`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md), [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md), [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
-| `sigmazero`, `sigmaone` ([`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
-| `driftone` ([`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)) | `normal(1, 2)` | `normal(1, 2)` |
-| `sigmadrift` ([`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)) | `normal(0, 1)` | `lognormal(-1, 0.75)` |
-| `sigmabias` ([`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)) | `normal(-2, 1)` | `beta(1, 5)` |
-| `sigmandt` ([`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md), [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)) | `normal(-3, 1)` | `lognormal(-3, 1)` |
-| `sigmadrift` ([`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
-| `nuone` ([`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` |
-| `sigmazero`, `sigmaone` ([`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` |
-| `sigmabias` ([`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md), [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)) | `normal(0, 1)` | `lognormal(-0.35, 0.75)` |
-| `dof` ([`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)) | `normal(1.8, 0.7)` | `lognormal(1.8, 0.7)` |
-| `tau` ([`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md)) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
-| `mu` ([`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)) | `normal(0.4, 0.25)` | \- (always modelled) |
-| `sigma` ([`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)) | `normal(-2.3, 0.7)` | `lognormal(-2.3, 0.7)` |
-| `tau` ([`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` |
-| `confright`, `confleft` ([`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)), `bex` | `normal(0, 1)` | `beta(2, 2)` |
-| `precright`, `precleft` ([`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)), `phi` ([`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)) | `normal(2, 1.5)` | `lognormal(0.7, 0.7)` |
-| `phi` ([`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)) | `normal(0.7, 0.8)` | `lognormal(0.7, 0.8)` |
-| `pex` ([`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md), [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)) | `normal(-2, 1)` | `beta(2, 12)` |
-| `pmid` ([`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)), `pzero` ([`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)) | `normal(-2.5, 1)` | `exponential(9)` |
+`prior_scale = 1` makes the source's posterior the prior. The default of
+3 has nine times its variance: enough to keep the sampler in the right
+region and out of the flat directions, weak enough for data that
+disagree to win.
 
-The `ndt` pair describes the same belief twice: `lognormal` is just
-`normal` on the log scale, written for the untransformed parameter. The
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
-pairs do the same to within a rounding error, because `softplus(x)` and
-`exp(x)` agree to three figures for the `x` below `-2` that both
-parameters live at: `lognormal(-2.3, 0.7)` has median 0.100 against
-`softplus(-2.3) = 0.096`.
-
-The Beta precisions are the one place that reasoning does **not** carry
-over. They live up at `x = 2`, where `softplus(x)` is approximately `x`
-rather than `exp(x)`, so the two forms cannot be the same distribution
-written twice however the numbers are chosen. `lognormal(0.7, 0.7)` is
-matched to `normal(2, 1.5)` on its median - 2.01 against 2.13 - and on
-its sense rather than quantile by quantile: its upper tail reaches 7.9
-where the link form stops at 4.9.
-[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)'s
-`phi` is the exception that shows the rule, being on a `log` link, where
-the pair really is one distribution and carries the same two numbers.
-
-If the data were trimmed before fitting, tighten this rather than
-removing it: `normal(-7, 0.5)` asserts essentially no contamination
-while keeping the density positive below `ndt`. Fixing `poutlier = 0`
-outright reinstates the hard min-RT boundary that the component exists
-to remove. See the *Trimmed data* section of
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md).
-
-`poutlier` is deliberately *not* the same belief twice. Leaving it out
-of the formula is itself information - you either trimmed the data
-already or do not expect outliers - so the omitted form puts its **mode
-at zero**, which a logit-scale prior cannot do at any location. The
-centre is unchanged: `exponential(100)` has median 0.0069 against
-`plogis(-5) = 0.0067`. It is still a prior rather than a constraint, so
-a genuine spike of fast responses will still pull the rate up; to switch
-the parameter off entirely, trim the data and it will simply sit near
-zero.
-
-`pmid` and `pzero` are the same argument on a rating scale, and get the
-same pair: `exponential(9)` has median 0.077 against
-`plogis(-2.5) = 0.076`. To switch either off outright, fix it in
-[`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) -
-`pmid = 0` or `pzero = 0` - which removes the parameter rather than
-merely pushing it down. Note that `pmid = 0` makes any response falling
-exactly on the midpoint impossible, so the fit will fail to initialise
-if the data contain one.
-
-Two rows override a **non-empty** `brms` default rather than filling an
-empty one. `brms` recognises the name `ndt` from its own shifted
-families and supplies `uniform(0, min_Y)` - precisely the min-RT bound
-that
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)'s
-parameterization exists to remove, reimposed silently and with a warning
-about an upper bound on an unbounded parameter. It recognises `sigma`
-too, and gives
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)'s
-a half `student_t(3, 0, 2.5)`, whose median of 1.9 s is a Gaussian SD
-wider than most whole RT distributions. An omitted `poutlier` is left
-flat over `[0, 1]` by `brms`, which is proper but puts half its mass
-above 0.5, and an omitted `shape` or `tau` is flat over the whole real
-line, which is not proper at all.
-
-Slope and group-level priors are deliberately narrow. On a log or a
-logit link a flat slope prior is not as harmless as it looks, and a
-group-level SD with no prior can wander far enough for individual groups
-to reach the flat regions above even when the population intercept is
-well behaved.
+    # last year's sample as the prior for this year's
+    priors <- cogmod_priors(f, df, warmstart = fit_2025)
+    priors <- cogmod_priors(f, df, warmstart = fit_2025, prior_scale = 6)  # weaker
 
 ## References
 
@@ -619,7 +478,7 @@ cogmod_priors(f, d)
 #>                   prior     class coef group resp     dpar nlpar lb ub tag
 #>  student_t(3, 0.8, 2.5) Intercept                                         
 #>       normal(-1.2, 0.5) Intercept                      ndt                
-#>           normal(-5, 1) Intercept                 poutlier                
+#>           normal(-6, 1) Intercept                 poutlier                
 #>    student_t(3, 0, 2.5) Intercept                    sigma                
 #>  lognormal(-0.35, 0.75) sigmabias                                 0       
 #>   source

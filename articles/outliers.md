@@ -479,11 +479,13 @@ priors for the paradigms that produced them.
 
 **The pooled rate is well under 1%.** About 0.5% in the Illusion Game,
 and 0.08% to 1.1% in lexical decision depending on instruction. On the
-logit scale that is around -5.3, so a weakly informative prior such as
-`normal(-5, 1)` on the `poutlier` intercept is centred at about 0.7% and
-puts roughly 95% of its mass between 0.1% and 5% - tight enough to keep
-chains away from the region where half the dataset is called
-contamination.
+logit scale the pooled rate is around -5.3, and the typical participant
+sits lower still, around -6.2 - the figure the intercept estimates once
+`poutlier` has a random intercept, as it should (see below). A weakly
+informative prior such as `normal(-6, 1)` on the `poutlier` intercept is
+centred at 0.25% and puts roughly 95% of its mass between 0.035% and
+1.7%: it covers both, and it is tight enough to keep chains away from
+the region where half the dataset is called contamination.
 
 **It is extremely unevenly distributed.** The per-participant standard
 deviation (0.0206) is about four times the mean (0.0053), the median
@@ -621,7 +623,7 @@ knitr::kable(rbind(
   implied("mu",       -1,   1,   exp,      "median decision time (s)"),
   implied("sigma",     0,   1,   softplus, "SD of log decision time"),
   implied("ndt",      -1.2, 0.5, exp,     "non-decision time (s)"),
-  implied("poutlier", -5,   1, plogis,      "proportion of trials")
+  implied("poutlier", -6,   1, plogis,      "proportion of trials")
 ), digits = 3)
 ```
 
@@ -630,14 +632,14 @@ knitr::kable(rbind(
 | mu        | normal(-1.0, 1.0) | 0.052 |  0.368 | 2.612 | median decision time (s) |
 | sigma     | normal(0.0, 1.0)  | 0.132 |  0.693 | 2.092 | SD of log decision time  |
 | ndt       | normal(-1.2, 0.5) | 0.113 |  0.301 | 0.803 | non-decision time (s)    |
-| poutlier  | normal(-5.0, 1.0) | 0.001 |  0.007 | 0.046 | proportion of trials     |
+| poutlier  | normal(-6.0, 1.0) | 0.000 |  0.002 | 0.017 | proportion of trials     |
 
-**`poutlier`.** `normal(-5, 1)` is centred at about 0.7%, in line with
-the pooled rates found above, and keeps the degenerate region far into
-the tail. `exponential(1)` on the between-participant SD matches the
-spread observed earlier (a logit-scale SD of about 1.1) while still
-pooling hard toward a common rate when a dataset gives no evidence of
-heterogeneity.
+**`poutlier`.** `normal(-6, 1)` is centred at 0.25%, between the typical
+participant’s rate and the pooled one found above, and keeps the
+degenerate region far into the tail. `exponential(1)` on the
+between-participant SD matches the spread observed earlier (a
+logit-scale SD of about 1.1) while still pooling hard toward a common
+rate when a dataset gives no evidence of heterogeneity.
 
 **`ndt`.** `normal(-1.2, 0.5)` centres the non-decision time on 300 ms,
 with 95% of its mass between about 110 and 800 ms - the usual range for

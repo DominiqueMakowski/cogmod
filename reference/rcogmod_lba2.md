@@ -243,6 +243,12 @@ directly is what avoids that.
 
 ## Negative drift rates
 
+**Where one response is rare - a few percent of the trials in some
+condition - keep the drift SD of its accumulator free of predictors**:
+`sigmaone ~ 1`, or `sigmaone ~ 1 + (1 | participant)`, or fix it. The
+reason is the flat direction described at the end of this section, which
+a condition-varying SD multiplies.
+
 A Normal drift rate can come out negative, and such an accumulator rises
 away from the threshold and never responds. Brown and Heathcote (2008)
 noted the problem and left it; every implementation since has had to
@@ -287,12 +293,26 @@ left flat, its drift wandered to `-12` with an interval of `-23` to
 `3`.
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
 therefore puts `normal(1, 2)` on `driftone` and `normal(0, 1.5)` on its
-slopes, as it does for
+slopes: a fence, of the kind
 [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)'s
-`nuone`. If the *rarely* chosen option is the one on `mu`, mirror that
-prior onto `mu` by hand. Fixing both SDs (`sigmazero = 1, sigmaone = 1`,
-a single `sv`) removes the ray altogether and is common practice in the
-LBA literature.
+`nuone` gets. Under `dec(Error)`, the coding every example here uses,
+`driftone` is the *error* accumulator, and wherever errors are rare its
+posterior will sit in that prior's lower tail. As for
+[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
+that is the fence working rather than a prior at odds with the data. If
+the *rarely* chosen option is the one on `mu`, mirror that prior onto
+`mu` by hand. Fixing both SDs (`sigmazero = 1, sigmaone = 1`, a single
+`sv`) removes the ray altogether and is common practice in the LBA
+literature.
+
+Predictors on that accumulator's SD make it worse. With `sigmaone`
+varying by condition, every condition in which the accumulator rarely
+wins has a ray of its own, along which its `driftone` and `sigmaone` can
+slide together without changing the fit - so an easy condition can
+report an error drift of `-7` or `-17` with the same realised behaviour,
+and different chains can settle at different points. One SD shared
+across conditions leaves a single such direction, and any condition in
+which the accumulator wins often enough then pins it.
 
 ## The evidence scale is arbitrary
 
@@ -369,6 +389,9 @@ for the full account, which applies unchanged here.
               prior    = cogmod_priors(f, df),
               init     = cogmod_inits(f, df),
               stanvars = cogmod_stanvars(f))
+
+`sigmaone ~ 1` is deliberate: read *Negative drift rates* before giving
+it the predictors the drifts have.
 
 The `brms` family names the drift of the first accumulator `mu` (as
 `brms` requires) and that of the second `driftone`. Use

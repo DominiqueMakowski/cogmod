@@ -1,0 +1,216 @@
+# cogmod vs. other packages
+
+## Cognitive Models in Plain `brms`
+
+[`brms`](https://paulbuerkner.com/brms/) can fit some cognitive models
+on its own.
+[`wiener()`](https://paulbuerkner.com/brms/reference/brmsfamily.html) is
+the classic four-parameter drift diffusion model,
+[`shifted_lognormal()`](https://paulbuerkner.com/brms/reference/brmsfamily.html)
+a shifted reaction-time distribution, and
+[`exgaussian()`](https://paulbuerkner.com/brms/reference/brmsfamily.html)
+the ex-Gaussian. They are among the most widely used and best tested
+families in the field, they need no extra package, and if one of them is
+the model you need and your data have been trimmed of anticipatory
+responses, plain `brms` is the simplest option.
+
+But it comes with limitations:
+
+- **A short list of models.** No race models (LBA, RDM, LNR), no
+  between-trial variability in the DDM, and no shifted distributions
+  beyond the LogNormal.
+- **Non-standard parametrisations.** In
+  [`exgaussian()`](https://paulbuerkner.com/brms/reference/brmsfamily.html),
+  `mu` is the mean of the whole distribution, not of its Gaussian
+  component as in the experimental-psychology literature, which is
+  confusing (see [Geller, Angele & Makowski,
+  2026](https://doi.org/10.31234/osf.io/kdcxa_v2)).
+- **Nothing for fast responses.** Very fast responses (below `ndt`) are
+  not allowed, and will make the fitting fail, which requires extra
+  preprocessing (trimming the fast responses) and fidly parametrization.
+- **Flat priors and random starts.** Several parameters are left with
+  flat priors, and chains start at random values that, leading to a lot
+  of initialization failures.
+
+This is why bespoke packages exist. They add models and make them
+convenient to use.
+
+## `cogmod`’s Design Principles
+
+![It just
+works](https://media1.tenor.com/m/rkI1a8s2Z6QAAAAd/todd-howard-it-just-works.gif)
+
+`cogmod`’s aim is to bring cognitive models within the familiar realm of
+regular `brms` models, so that the standard Bayesian workflow (fit,
+check, compare, summarise, report, predict, etc.) “just works” on them.
+A `cogmod` model *is* a
+[`brm()`](https://paulbuerkner.com/brms/reference/brm.html) call. The
+family goes in
+[`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) like
+any `brms` family, and the only extra bit is the need for a
+[`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md),
+which adds the necessary Stan functions.
+
+### Transparency
+
+Nothing sits between you and the model.
+`brms::stancode(f, data = df, stanvars = cogmod_stanvars(f))` prints the
+whole program, family functions included, and that program is the one
+that gets compiled. Priors and starting values are not applied behind
+the scenes:
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+and
+[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+return ordinary `brms` objects that you pass to
+[`brm()`](https://paulbuerkner.com/brms/reference/brm.html) yourself, so
+they are written into every script, and can be printed, inspected,
+overwritten and edited there. The source code carries the reasoning for
+every prior, link and constant.
+
+### Lightness
+
+`cogmod` is a set of families, not a layer. It defines no class for
+fitted models and no methods for `brmsfit`. Random-effect structures,
+smooths, within-chain threading,
+[`update()`](https://rdrr.io/r/stats/update.html) and, on the RT-only
+families, `cens()` work just as for any other `brms` models.
+
+Inside the package, each family is defined once. A single registry entry
+generates its Stan code, its R density and random generator, its
+[`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html),
+[`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
+and
+[`posterior_epred()`](https://mc-stan.org/rstantools/reference/posterior_epred.html)
+methods, its parameter checks and its priors, so the R and Stan sides
+cannot drift apart. The densities are exported (`dcogmod_*()`,
+`rcogmod_*()` and, for most families, `pcogmod_*()`), so a model can be
+simulated or used in a parameter-recovery study without fitting
+anything.
+
+### A Minimal, Consistent API
+
+`cogmod`’s interface has essentially four functions. The family and
+[`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md)
+are required.
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+and
+[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+are optional. The pattern is the same for every family.
+
+### brms’ Quirks Are Inherited Too
+
+Some of `brms`’s conventions and idiosyncrasies apply. Parameters are
+named the way `brms` names them: `mu` for the main parameters, even if
+they are drift rates, as in `brms`’s own
+[`wiener()`](https://paulbuerkner.com/brms/reference/brmsfamily.html). A
+parameter written in
+[`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) lives
+on its link scale, while one left out is estimated on its natural scale.
+The best way to learn how to use `cogmod` is to learn how to use `brms`,
+which is the point of the package.
+
+### Post-Processing by the Packages That Do It Best
+
+`cogmod` has no [`summary()`](https://rdrr.io/r/base/summary.html),
+plotting, marginal-effects or reporting functions of its own. It
+implements what `brms` asks of a family, and everything downstream
+builds on those: `loo`,
+[`pp_check()`](https://mc-stan.org/bayesplot/reference/pp_check.html)
+and `bayesplot`, and the packages built for `brms` models, such as
+easystats (`parameters`, `modelbased`, `performance`, `bayestestR`,
+`report`), `marginaleffects` and `emmeans`.
+
+``` r
+
+parameters::parameters(m)
+
+# Non-decision time by condition, and its difference between conditions
+marginaleffects::avg_predictions(m, by = "Condition", dpar = "ndt")
+marginaleffects::avg_comparisons(m, variables = "Condition", dpar = "ndt")
+
+loo::loo_compare(loo(m_brms), loo(m))
+```
+
+These packages are maintained by people who specialise in them and are
+used on every kind of `brms` model, so a `cogmod` fit benefits from each
+of their improvements without a line of `cogmod` changing. Being also
+the coauthor of **easystats**, I (Dominique Makowski) made sure that its
+awesome post-processing features also work seamlessly for `cogmod`
+models.
+
+### Speed, Measured
+
+The giam of `cogmod` is to fit these models correctly *and* as fast as
+they can be fitted, and neither is assumed:
+
+- **Gradients are checked, not only values.** An R density and a Stan
+  density can agree on every value while the gradient the sampler
+  follows is wrong. On every pull request, a continuous-integration job
+  compares each family’s gradient with finite differences over a grid
+  that includes responses in the far tails.
+- **Every change to a Stan density is timed** against the version it
+  replaces, and a slower gradient is treated as a regression and
+  investigated.
+- **Features and documentation is there to help speed.**
+  [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  starts chains in a sensible region, and
+  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  reuses the adaptation of one fit for the next. The
+  [Performance](https://dominiquemakowski.github.io/cogmod/articles/performance.md)
+  article covers the rest.
+
+## Alternatives
+
+### `bmm`
+
+[`bmm`](https://popov-lab.github.io/bmm/) ([Frischkorn & Popov,
+2025](https://doi.org/10.3758/s13428-025-02643-0)) is a great
+atlernative, also built on `brms`, and differs from `cogmod` in design
+rather than in quality. It puts an interface between the user and
+`brms`. A model is written with its own formula function, `bmf()`, using
+the parameter names of the model’s literature, with the response
+variables named in the model constructor. `bmm()` translates this into a
+`brms` formula, family and Stan code, checks the data (reaction times in
+milliseconds, responses not coded 0/1), applies model-specific priors
+and starting values, calls
+[`brm()`](https://paulbuerkner.com/brms/reference/brm.html), and returns
+a `bmmfit` with methods of its own: a
+[`summary()`](https://rdrr.io/r/base/summary.html), a
+[`conditional_effects()`](https://paulbuerkner.com/brms/reference/conditional_effects.brmsfit.html)
+that shows parameters on their native scale, a
+[`pp_check()`](https://mc-stan.org/bayesplot/reference/pp_check.html)
+that can check every observable of the likelihood. Contamination is
+handled before the fit, with `flag_contaminant_rts()` identifying fast
+guesses and attention lapses for you to remove.
+
+That is a full solution from beginning to end, in one vocabulary. It
+suits users who are new to these models and want one package to take
+them from data to a reported fit, without necessarily wanting cognitive
+models to sit alongside their other `brms` models in the same workflow.
+The costs are the mirror of `cogmod`’s choices: a layer and a set of
+methods that have to keep pace with `brms`, and conveniences that stay
+within the package.
+
+### Outside `brms`
+
+[EMC2](https://cran.r-project.org/package=EMC2) fits hierarchical DDM,
+LBA, RDM and LNR models with particle-based samplers in R, using its own
+design language and post-processing.
+[HSSM](https://github.com/lnccbrown/HSSM) (Python) adds likelihood
+approximation networks for models without a closed-form likelihood.
+[`rtdists`](https://cran.r-project.org/package=rtdists) provides
+densities and random generation for the DDM and LBA, without fitting.
+
+## Choosing
+
+- **Plain `brms`** if its native families cover your model (shifted
+  LogNormal, ex-Gaussian with its overall-mean parametrisation,
+  four-parameter DDM) and your data have been trimmed of anticipatory
+  responses.
+- **`bmm`** for visual working memory, M3, EZ-diffusion from summary
+  statistics, or if you prefer an integrated toolkit with a
+  model-specific vocabulary.
+- **`cogmod`** for race models, the DDM with between-trial variability,
+  a choice of RT distributions to compare, rating-scale models, or
+  outliers modelled inside the likelihood, and whenever you want the
+  model to remain a plain `brms` call.

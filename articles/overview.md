@@ -75,6 +75,10 @@ that would be too slow to include here:
 - [Assessing
   Reliability](https://dominiquemakowski.github.io/cogmod/articles/reliability.html) -
   interindividual variability and reliability of model parameters.
+- [Comparison with Other
+  Packages](https://dominiquemakowski.github.io/cogmod/articles/comparison.html) -
+  how `cogmod` relates to `brms`’s native families and to `bmm`, and
+  when each is the better choice.
 
 ## Citation
 
@@ -84,7 +88,7 @@ citation("cogmod")
 #> To cite cogmod in publications use:
 #> 
 #>   Makowski, D. (2026). cogmod: Cognitive Models for Subjective Scales
-#>   and Decision Making Tasks. R package version 0.3.3.
+#>   and Decision Making Tasks. R package version 0.3.5.
 #>   https://github.com/DominiqueMakowski/cogmod
 #> 
 #> A BibTeX entry for LaTeX users is
@@ -93,7 +97,7 @@ citation("cogmod")
 #>     title = {{cogmod}: Cognitive Models for Subjective Scales and Decision Making Tasks},
 #>     author = {Dominique Makowski},
 #>     year = {2026},
-#>     note = {R package version 0.3.3},
+#>     note = {R package version 0.3.5},
 #>     url = {https://github.com/DominiqueMakowski/cogmod},
 #>   }
 ```

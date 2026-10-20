@@ -33,7 +33,7 @@ cogmod_exgaussian(): Creates a brms::custom_family() for use in brms models.
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -51,6 +51,7 @@ cogmod_exgaussian(): Creates a brms::custom_family() for use in brms models.
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
     <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
+    <li><a class="dropdown-item" href="../articles/comparison.html">Comparison with Other Packages</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -64,7 +65,7 @@ cogmod_exgaussian(): Creates a brms::custom_family() for use in brms models.
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Ex-Gaussian Model (Classical Parameterization)</h1>
-      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/v0.3.3/R/model_exgaussian.R" class="external-link"><code>R/model_exgaussian.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/main/R/model_exgaussian.R" class="external-link"><code>R/model_exgaussian.R</code></a></small>
       <div class="d-none name"><code>rcogmod_exgaussian.Rd</code></div>
     </div>
 
@@ -234,8 +235,8 @@ estimated. This also matches every other implementation - <code>brms</code>'s ow
 <code><a href="https://paulbuerkner.com/brms/reference/brmsfamily.html" class="external-link">exgaussian()</a></code>, <code>retimes</code>, and the estimates reported in the literature - so
 fitted values are directly comparable.</p>
 <p>The cost is that <code>brms</code>'s default intercept prior is no longer sensible for
-<code>mu</code> (<code>student_t(3, 0, 2.5)</code> centred at zero seconds), which is why
-<code><a href="cogmod_priors.html">cogmod_priors()</a></code> now supplies one.</p>
+<code>mu</code> (a <code>student_t()</code> with a scale of 2.5 s, or none at all under
+<code>0 + Intercept</code>), which is why <code><a href="cogmod_priors.html">cogmod_priors()</a></code> now supplies one.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

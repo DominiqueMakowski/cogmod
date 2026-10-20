@@ -5,11 +5,9 @@ Builds an `init` argument for
 the custom families whose default starting point is a bad one.
 
 **This is not a tuning knob to reach for when sampling looks bad.** For
-[`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
-and
-[`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
-the usual default is actively harmful, and the failure is silent: the
-chain does not error, it simply never moves.
+the families with a non-decision time the default start is actively
+harmful, and the failure is silent: the chain does not error, it simply
+never moves.
 
 ## Usage
 
@@ -37,17 +35,14 @@ cogmod_inits(formula = NULL, data = NULL, jitter = NULL, warmstart = NULL, ...)
 - jitter:
 
   SD of the noise added on the unconstrained scale, so that chains start
-  at different points. One number is the SD for the population-level
-  blocks, the intercepts and slopes; the group-level and smooth blocks -
-  the standardized effects `z_*` and `zs_*` and their scales `sd_*` and
-  `sds_*` - get a fifth of it, because a unit of noise there is
-  multiplied through a scale and a design column before it reaches the
-  linear predictor, and reaches it once per participant or basis
-  function. Two numbers set the two tiers directly, population first.
-  Set to `0` for identical starts. `NULL` (the default) means 0.25, so
-  0.05 on the hierarchical blocks, or 0.05 with a `warmstart`, whose
-  values come from a converged posterior and should not be scattered
-  far.
+  at different points. One number sets the population-level blocks
+  (intercepts and slopes; for a slope, divided by how far its design
+  columns reach) and a fifth of it the group-level and smooth blocks
+  (`z_*`, `zs_*`, `sd_*`, `sds_*`), where a unit of noise is multiplied
+  through a scale and a design column, once per group or basis function.
+  Two numbers set the two tiers, population first. `0` gives identical
+  starts. `NULL` (the default) means 0.25, or 0.05 with a `warmstart`,
+  whose values come from a converged posterior.
 
 - warmstart:
 
@@ -82,129 +77,99 @@ generated Stan program declares.
 Two regions of the parameter space have no gradient to escape on, and
 both are easy to start inside.
 
-`ndt` **too large.** `brms` initialises on the *unconstrained* scale, so
-`init = 0` puts `ndt` at `exp(0) = 1` second. For sub-second reaction
-times that is above nearly every observation, so every response is
-attributed to the outlier component, the decision parameters drop out of
-the density entirely, and their gradient is exactly zero. The chain is
-stuck where it started.
+- **`ndt` too large.** `brms` initialises on the *unconstrained* scale,
+  so `init = 0` puts `ndt` at `exp(0) = 1` second, above nearly every
+  sub-second response. Every response is then attributed to the outlier
+  component, the decision parameters drop out of the density, and their
+  gradient is exactly zero.
 
-**Shape below 1.** For
-[`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
-and
-[`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
-the density is unbounded at `ndt` whenever the shape is below 1, and
-`init = 0` on a `softplus` link starts the shape at `log(2) = 0.69` -
-inside that region.
+- **Shape below 1.** For
+  [`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
+  and
+  [`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
+  the density is unbounded at `ndt` whenever the shape is below 1, and
+  `init = 0` starts a `softplus` shape at `log(2) = 0.69`, inside that
+  region.
 
-A single scalar `init` cannot avoid both, because they pull in opposite
-directions: `ndt = exp(c)` wants `c` around `-1.6`, while
-`shape = softplus(c)` wants `c` above `1.9`. That is why `init = 0`
-fails and why no other single number fixes it - the parameters have to
-be set separately, which is what this function does.
+No single scalar `init` avoids both - `ndt = exp(c)` wants `c` around
+`-1.6`, `shape = softplus(c)` wants it above `1.9` - so the parameters
+have to be set separately, which is what this function does.
 
 ## How it works
 
-The Stan parameter declarations are read off
+The parameter declarations are read off
 [`brms::make_stancode()`](https://paulbuerkner.com/brms/reference/stancode.html)
-for the model you are actually fitting, and their dimensions off
+for the model you are fitting, and their dimensions off
 [`brms::make_standata()`](https://paulbuerkner.com/brms/reference/standata.html),
-rather than reconstructed from the formula. That is what makes it robust
-to `0 + Intercept`, interactions, group-level terms and smooths:
-whatever `brms` decided to call things, and however large it decided to
-make them, that is what is matched.
+so `0 + Intercept`, interactions, group-level terms and smooths are
+matched however `brms` names and sizes them. **Every** declared
+parameter gets a value, which also spares you CmdStan's message about a
+partial list:
 
-**Every** declared parameter is given a value, not only the ones this
-function has an opinion about. That is deliberate: CmdStan prints
-`Init values were only set for a subset of parameters` and lists the
-rest whenever the list is partial, which is noise for a list that is
-partial on purpose. The parameters with no family-specific target -
-regression slopes, standardized group-level effects, group-level SDs,
-spline coefficients - get generic values that are at least as good as
-Stan's own `U(-2, 2)`: slopes and standardized effects start at zero,
-positive parameters just above their lower bound, bounded ones at the
-midpoint, and Cholesky factors at the identity.
+- **The family's values** go to the intercept of each distributional
+  parameter, on its link scale - through the links on the family, so
+  `cogmod_gamma(link_mu = "log")` is honoured - and, on the natural
+  scale, to any parameter left out of the formula, which `brms` declares
+  as a plain auxiliary parameter. Under `0 + Intercept` the value goes
+  to the coefficient named `Intercept`.
 
-The family-specific values go to the intercept of each distributional
-parameter, and to any dpar left out of the formula (which `brms`
-declares as a plain auxiliary parameter). Values are set on whichever
-scale the parameter lives on: the link scale for an intercept - using
-the links on the family, so `cogmod_gamma(link_mu = "log")` is
-honoured - and the natural scale for an auxiliary parameter. Under
-`0 + Intercept` there is no separate intercept parameter, so the
-coefficient named `Intercept` inside the `b` vector gets it instead.
+- **`ndt`** starts at half the first percentile of the observed response
+  times: below essentially every response, but on the data's own scale.
+  The two errors are not symmetric: a start too small only means the
+  shift has to grow, which the gradient does, while one too large
+  removes the gradient.
+
+- **The error accumulator** of
+  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
+  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+  and
+  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+  starts slower than the correct one (`driftone = 1` against `mu = 3`,
+  `nuone = 0` against `mu = 0.7`): few data sets are a 50/50 race, and
+  for the Wald and the LBA a start too fast costs far more than one too
+  slow. Each family's page has the details.
+
+- **Everything else** gets a generic value at least as good as Stan's
+  own `U(-2, 2)`: zero for slopes and standardized effects, just above
+  the bound for a positive parameter, the midpoint for a doubly bounded
+  one, the identity for a Cholesky factor. A smooth's SD (`sds`) starts
+  where its smooth is nearly flat, at 0.1 link units of wiggle, a
+  different value on every basis; see *Smooth terms* in
+  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md).
 
 Each chain gets a different draw. The noise is added on the
-*unconstrained* scale - additive for a free parameter, multiplicative
-for a positive one, on the logit scale for a doubly bounded one - so a
-jittered value can never land outside its own bounds, and the chains
-still start dispersed enough for `Rhat` to mean something.
-
-`ndt` starts deliberately **below the data**: at half the first
-percentile of the observed response times (0.16 s for responses whose
-fastest hundredth sits at 0.32 s). The two errors are not symmetric: too
-small merely means the shift has to grow, which the gradient will do,
-whereas too large removes the gradient altogether. Half the first
-percentile keeps essentially every response above the start while
-following the scale of the data. A fixed 0.1 s did not: on responses
-whose non-decision time is 0.6 s it sat half a second low, every
-decision time looked far too long, a driftless race then fit better than
-a fast one, and the first trajectory of a cold chain threw both drifts
-of a
-[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
-onto the flat region where the likelihood no longer depends on them,
-from which the chain did not return.
-
-The same asymmetry decides where
-[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)'s
-error accumulator starts. A Wald density is thin on the fast side and
-flat on the slow side, so `driftone` starts at a third of `mu`'s drift
-rather than equal to it: too slow costs a few dozen log-density units,
-too fast costs hundreds, and a cold chain converts that difference into
-momentum along the flat `driftone` direction in its very first
-trajectory - far enough down it, on real data, for the step size to
-collapse and the chain to freeze for the rest of warmup.
+unconstrained scale, so a value can never leave its bounds. For a
+regression coefficient it is divided by the largest row norm of the
+coefficient block's design columns, wherever that exceeds 1, so that at
+no row does the SD of what reaches the linear predictor exceed `jitter`:
+a slope on age in years would otherwise start with an SD of six link
+units at the oldest participant.
 
 ## Supported families
 
 The family is read off `formula`, so build it with
-`brms::bf(..., family = cogmod_gamma())`. Every family built on the
-direct `ndt` + `poutlier` parameterization is covered -
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
-[`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md),
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md),
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
-[`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md),
-[`cogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md),
-[`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md),
-[`cogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md),
-[`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md),
-[`cogmod_invweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md),
-[`cogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md),
-[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
-and, for the choice-and-RT models,
-[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
-[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
-[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
-and
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) -
-plus
+`brms::bf(..., family = cogmod_gamma())`. The families are those of
+[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md),
+listed in its *Supported families* section: every family with an `ndt` +
+`poutlier` component;
 [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
 and
 [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md),
-whose parameters are all on the RT scale behind a `softplus` link and so
-are equally badly served by starting at `log(2)`.
-
-The two bounded-scale families for subjective ratings,
-[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)
+whose parameters are lengths of time that the default start puts at 0 s
+or 0.69 s; and the rating-scale families
+[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md),
+[`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
 and
 [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md),
-are covered as well to help with warmup.
+where it describes a scale nobody uses - half the responses on the
+midpoint or at an endpoint, or a U-shaped Beta. Any other family is an
+error.
 
 ## See also
 
 [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md),
-[`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md)
+[`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md),
+[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
 
 ## Examples
 
@@ -226,7 +191,7 @@ inits(1)
 #> [1] -3.861294
 #> 
 
-# The bounded-scale families are covered too. `pmid` starts at 0.05 rather
+# The rating-scale families are covered too. `pmid` starts at 0.05 rather
 # than the logit origin's 0.5, which would put half of every response
 # exactly on the midpoint of the scale.
 r <- data.frame(y = rcogmod_choco(50, pmid = 0.05))

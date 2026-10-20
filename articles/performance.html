@@ -28,7 +28,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,6 +48,7 @@
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
     <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
+    <li><a class="dropdown-item" href="../articles/comparison.html">Comparison with Other Packages</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -70,7 +71,7 @@
 
 
 
-      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/v0.3.3/vignettes/articles/performance.qmd" class="external-link"><code>vignettes/articles/performance.qmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/main/vignettes/articles/performance.qmd" class="external-link"><code>vignettes/articles/performance.qmd</code></a></small>
       <div class="d-none name"><code></code></div>
     </div>
 
@@ -511,6 +512,69 @@
 <span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="fu">brms</span><span class="fu">::</span><span class="va"><a href="https://paulbuerkner.com/brms/reference/combine_models.html" class="external-link">combine_models</a></span>, <span class="va">fits</span><span class="op">)</span></span></code></pre></div>
 </div>
 <p>The result behaves like a single <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm()</a></code> fit with <code>chains_per_node * n_nodes</code> chains worth of draws, obtained in roughly the time a single node’s chains would have taken.</p>
+</section><section class="level2"><h2 id="an-experimental-backend-stanli">An Experimental Backend: stanli<a class="anchor" aria-label="anchor" href="#an-experimental-backend-stanli"></a>
+</h2>
+<div>
+<blockquote>
+<p><strong>Warning</strong></p>
+<p><strong>Very experimental.</strong> <code>stanli</code> is young (a new release most weeks), it is not a <code>brms</code> backend yet, and we have measured it on one family only. Treat this section as something to try, not a recommendation. The figures below were obtained with <code>brms</code> as released, which computes an intercept-only parameter such as <code>sigmazero ~ 1</code> once per observation rather than once per evaluation; <a href="https://github.com/paul-buerkner/brms/pull/1946" class="external-link">brms#1946</a> would change that for every backend, and with it the figures, so this section will be updated if it is merged. The steps themselves would shrink to one argument if <code>brms</code> gains a <code>backend = "stanli"</code> (<a href="https://github.com/paul-buerkner/brms/pull/1911" class="external-link">brms#1911</a>).</p>
+</blockquote>
+</div>
+<p><a href="https://github.com/seantalts/stanli" class="external-link">stanli</a> runs Stan programs without compiling them: it interprets the program over precompiled Stan Math functions, so a model is ready in a second or two instead of after a minute of C++ compilation, and no C++ toolchain is needed at all. It is held to CmdStan’s numerical results (the same program gives the same log density and gradient, to within a few units in the last place) and runs the same sampler, so what can change is the cost of each gradient evaluation, not the posterior.</p>
+<p><code>brms</code> writes the Stan program and the data, <code>stanli</code> samples them, and <code>brms</code>’s own <code>"mock"</code> backend turns the finished fit into a <code>brmsfit</code>:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># install.packages("stanli", repos = c("https://seantalts.r-universe.dev", "https://cloud.r-project.org"))</span></span>
+<span><span class="co"># stanli::stanli_install()  # once: downloads stanli's prebuilt runtime</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">stanli</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">prior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cogmod_priors.html">cogmod_priors</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span></span>
+<span><span class="va">stanvars</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cogmod_stanvars.html">cogmod_stanvars</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 1. brms writes the Stan program and the data; stanli builds the model (no C++ compilation)</span></span>
+<span><span class="va">scode</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/stancode.html" class="external-link">stancode</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span>, prior <span class="op">=</span> <span class="va">prior</span>, stanvars <span class="op">=</span> <span class="va">stanvars</span><span class="op">)</span></span>
+<span><span class="va">sdata</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/standata.html" class="external-link">standata</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span>, prior <span class="op">=</span> <span class="va">prior</span>, stanvars <span class="op">=</span> <span class="va">stanvars</span><span class="op">)</span></span>
+<span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu">stanli_model</span><span class="op">(</span>code <span class="op">=</span> <span class="va">scode</span>, data <span class="op">=</span> <span class="va">sdata</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2. cogmod's initial values, one row per chain on Stan's unconstrained scale</span></span>
+<span><span class="va">inits</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cogmod_inits.html">cogmod_inits</a></span><span class="op">(</span><span class="va">f</span>, <span class="va">df</span><span class="op">)</span></span>
+<span><span class="va">init</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">4</span>, <span class="kw">function</span><span class="op">(</span><span class="va">chain</span><span class="op">)</span> <span class="fu">unconstrain</span><span class="op">(</span><span class="va">model</span>, <span class="fu"><a href="https://paulbuerkner.com/brms/reference/inits.brmsfit.html" class="external-link">inits</a></span><span class="op">(</span><span class="va">chain</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 3. Sample, chains in parallel</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu">sample_model</span><span class="op">(</span><span class="va">model</span>, chains <span class="op">=</span> <span class="fl">4</span>, parallel_chains <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>                    warmup <span class="op">=</span> <span class="fl">1000</span>, samples <span class="op">=</span> <span class="fl">1000</span>, init <span class="op">=</span> <span class="va">init</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 4. Back into brms (the "mock" backend takes a finished fit; needs rstan installed)</span></span>
+<span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brm</a></span><span class="op">(</span><span class="va">f</span>, data <span class="op">=</span> <span class="va">df</span>, prior <span class="op">=</span> <span class="va">prior</span>, stanvars <span class="op">=</span> <span class="va">stanvars</span>,</span>
+<span>         backend <span class="op">=</span> <span class="st">"mock"</span>, mock_fit <span class="op">=</span> <span class="fu">as_stanfit</span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+<p>Everything that works from the posterior draws works on the result as with any other backend: <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, <code><a href="https://mc-stan.org/loo/reference/loo.html" class="external-link">loo()</a></code> and <code><a href="https://mc-stan.org/loo/reference/loo_compare.html" class="external-link">loo_compare()</a></code>, <code><a href="https://mc-stan.org/rstantools/reference/posterior_predict.html" class="external-link">posterior_predict()</a></code>, <code><a href="https://paulbuerkner.com/brms/reference/hypothesis.brmsfit.html" class="external-link">hypothesis()</a></code>, prior sensitivity with <code>priorsense</code>, and marginal means and contrasts with <code>modelbased</code>, <code>marginaleffects</code> or <code>emmeans</code> (where the family provides expectations, as with any backend). What needs the model itself does not, until <code>brms</code> has a <code>stanli</code> backend, because it does not know how the fit was made: refitting (<code><a href="https://rdrr.io/r/stats/update.html" class="external-link">update()</a></code>, <code><a href="https://mc-stan.org/loo/reference/kfold-generic.html" class="external-link">kfold()</a></code>, <code>reloo</code>), <code><a href="https://mc-stan.org/loo/reference/loo.html" class="external-link">loo()</a></code>’s moment matching, and bridge sampling (<code><a href="https://rdrr.io/pkg/bridgesampling/man/bf.html" class="external-link">bayes_factor()</a></code>, <code><a href="https://rdrr.io/pkg/bridgesampling/man/post_prob.html" class="external-link">post_prob()</a></code>). For those, fit the same model with <code>backend = "cmdstanr"</code>, or try the unofficial <a href="https://github.com/StaffanBetner/brm_stanli" class="external-link">brm_stanli</a> wrapper, which adds moment matching and <code><a href="https://rdrr.io/r/stats/update.html" class="external-link">update()</a></code> (we have not tested it). Before relying on <code>stanli</code> for a model, compare its result with a short CmdStan run of the same model.</p>
+<p>In our local benchmarking demo (<a href="https://github.com/DominiqueMakowski/cogmod/tree/main/benchmarks/stanli" class="external-link">scripts and full results</a>), on the LNR of the <a href="decision_making.html">decision making models</a> (4620 trials) with <code>stanli</code> 0.20.0, we found the same posterior as with CmdStan, the same number of leapfrog steps per effective draw, and a faster run on every measure (ratios to CmdStan; 16 seeds on the cluster):</p>
+<table class="table caption-top">
+<thead><tr class="header">
+<th style="text-align: left;"></th>
+<th style="text-align: center;">Windows laptop</th>
+<th style="text-align: center;">Linux cluster</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Time per gradient evaluation</td>
+<td style="text-align: center;">0.42</td>
+<td style="text-align: center;">0.75 to 0.77</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Wall time of a 4-chain fit</td>
+<td style="text-align: center;">0.43 to 0.46</td>
+<td style="text-align: center;">0.74</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Effective draws per second</td>
+<td style="text-align: center;">2.7 to 2.8</td>
+<td style="text-align: center;">1.2</td>
+</tr>
+</tbody>
+</table>
+<p>The gain is largest where the system’s maths library is slow, as on Windows, since <code>stanli</code> brings its own. Rewriting the family’s Stan code by hand to suit the interpreter bought another 1.3x in <code>stanli</code> but cost CmdStan up to 1.9x, so <code>cogmod</code> keeps a single Stan program for both. <code>stanli</code>’s own test suite includes every <code>cogmod</code> family, and its developer’s measurements found most of them cheaper per gradient than in CmdStan (the beta-gate dearer), but only the LNR has been fitted end to end here.</p>
 </section><section class="level2"><h2 id="future-directions">Future Directions<a class="anchor" aria-label="anchor" href="#future-directions"></a>
 </h2>
 <p>A different line of work sidesteps the repeated sampling of MCMC/VI entirely: <strong>amortized inference</strong>, where a neural network is trained (once, offline, potentially at significant upfront cost) to map observed data directly to an approximate posterior, so that inference on new datasets afterwards is close to instantaneous rather than requiring a fresh MCMC run each time. <a href="https://bayesflow.org/" class="external-link">BayesFlow</a> is the most actively developed toolkit in this space, and has already been applied to evidence accumulation and other cognitive models.</p>

@@ -28,7 +28,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,6 +48,7 @@
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
     <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
+    <li><a class="dropdown-item" href="../articles/comparison.html">Comparison with Other Packages</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -70,7 +71,7 @@
 
 
 
-      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/v0.3.3/vignettes/articles/outliers.qmd" class="external-link"><code>vignettes/articles/outliers.qmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/main/vignettes/articles/outliers.qmd" class="external-link"><code>vignettes/articles/outliers.qmd</code></a></small>
       <div class="d-none name"><code></code></div>
     </div>
 
@@ -483,7 +484,7 @@ Figure 3: <em>Responses in 10 ms bins. Flat through the anticipation region, ri
 </div>
 <p>Four things follow, all of them practical.</p>
 <p><strong>The 0.30 s cut is a property of the paradigm, not a constant.</strong> Brightness discrimination makes this unmissable: under the speed instruction 31.7% of trials fall below 0.30 s, against 0.9% under the accuracy instruction - the same three people doing the same task. Those are not contamination. Their error rate at 0.25-0.30 s is 0.273, essentially the genuine-decision baseline, so they are simply fast decisions under a deadline. A cut calibrated on one task will over-count on a faster one, which is exactly why the rest of this article estimates a rate rather than applying a threshold. Treat the numbers below as priors for the paradigms that produced them.</p>
-<p><strong>The pooled rate is well under 1%.</strong> About 0.5% in the Illusion Game, and 0.08% to 1.1% in lexical decision depending on instruction. On the logit scale that is around -5.3, so a weakly informative prior such as <code>normal(-5, 1)</code> on the <code>poutlier</code> intercept is centred at about 0.7% and puts roughly 95% of its mass between 0.1% and 5% - tight enough to keep chains away from the region where half the dataset is called contamination.</p>
+<p><strong>The pooled rate is well under 1%.</strong> About 0.5% in the Illusion Game, and 0.08% to 1.1% in lexical decision depending on instruction. On the logit scale the pooled rate is around -5.3, and the typical participant sits lower still, around -6.2 - the figure the intercept estimates once <code>poutlier</code> has a random intercept, as it should (see below). A weakly informative prior such as <code>normal(-6, 1)</code> on the <code>poutlier</code> intercept is centred at 0.25% and puts roughly 95% of its mass between 0.035% and 1.7%: it covers both, and it is tight enough to keep chains away from the region where half the dataset is called contamination.</p>
 <p><strong>It is extremely unevenly distributed.</strong> The per-participant standard deviation (0.0206) is about four times the mean (0.0053), the median participant has <strong>72%</strong> none at all, and the maximum is 23.8%. This is not a homogeneous nuisance rate: most people never fast-guess, and a small minority do it constantly.</p>
 <p><strong>So a random intercept on <code>poutlier</code> is worth it</strong>, and the observed spread suggests what to expect: a logit-scale between-participant SD of roughly 1.1, which is large. A prior like <code>exponential(1)</code> or a half-<code>normal(0, 1)</code> on that SD is in the right range.</p>
 <div>
@@ -549,7 +550,7 @@ poutlier_Intercept  3.010229e+14      2.20       5.2</code></pre>
 <span>  <span class="fu">implied</span><span class="op">(</span><span class="st">"mu"</span>,       <span class="op">-</span><span class="fl">1</span>,   <span class="fl">1</span>,   <span class="va">exp</span>,      <span class="st">"median decision time (s)"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">implied</span><span class="op">(</span><span class="st">"sigma"</span>,     <span class="fl">0</span>,   <span class="fl">1</span>,   <span class="va">softplus</span>, <span class="st">"SD of log decision time"</span><span class="op">)</span>,</span>
 <span>  <span class="fu">implied</span><span class="op">(</span><span class="st">"ndt"</span>,      <span class="op">-</span><span class="fl">1.2</span>, <span class="fl">0.5</span>, <span class="va">exp</span>,     <span class="st">"non-decision time (s)"</span><span class="op">)</span>,</span>
-<span>  <span class="fu">implied</span><span class="op">(</span><span class="st">"poutlier"</span>, <span class="op">-</span><span class="fl">5</span>,   <span class="fl">1</span>, <span class="va">plogis</span>,      <span class="st">"proportion of trials"</span><span class="op">)</span></span>
+<span>  <span class="fu">implied</span><span class="op">(</span><span class="st">"poutlier"</span>, <span class="op">-</span><span class="fl">6</span>,   <span class="fl">1</span>, <span class="va">plogis</span>,      <span class="st">"proportion of trials"</span><span class="op">)</span></span>
 <span><span class="op">)</span>, digits <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span></code></pre></div>
 </details><div class="cell-output-display">
 <table class="table caption-top">
@@ -596,17 +597,17 @@ poutlier_Intercept  3.010229e+14      2.20       5.2</code></pre>
 </tr>
 <tr class="even">
 <td style="text-align: left;">poutlier</td>
-<td style="text-align: left;">normal(-5.0, 1.0)</td>
-<td style="text-align: right;">0.001</td>
-<td style="text-align: right;">0.007</td>
-<td style="text-align: right;">0.046</td>
+<td style="text-align: left;">normal(-6.0, 1.0)</td>
+<td style="text-align: right;">0.000</td>
+<td style="text-align: right;">0.002</td>
+<td style="text-align: right;">0.017</td>
 <td style="text-align: left;">proportion of trials</td>
 </tr>
 </tbody>
 </table>
 </div>
 </div>
-<p><strong><code>poutlier</code>.</strong> <code>normal(-5, 1)</code> is centred at about 0.7%, in line with the pooled rates found above, and keeps the degenerate region far into the tail. <code>exponential(1)</code> on the between-participant SD matches the spread observed earlier (a logit-scale SD of about 1.1) while still pooling hard toward a common rate when a dataset gives no evidence of heterogeneity.</p>
+<p><strong><code>poutlier</code>.</strong> <code>normal(-6, 1)</code> is centred at 0.25%, between the typical participant’s rate and the pooled one found above, and keeps the degenerate region far into the tail. <code>exponential(1)</code> on the between-participant SD matches the spread observed earlier (a logit-scale SD of about 1.1) while still pooling hard toward a common rate when a dataset gives no evidence of heterogeneity.</p>
 <p><strong><code>ndt</code>.</strong> <code>normal(-1.2, 0.5)</code> centres the non-decision time on 300 ms, with 95% of its mass between about 110 and 800 ms - the usual range for keypress responses, with room for slower populations and more demanding responses. This is a convention informed by the RT literature rather than something demonstrated here, and it is the prior most worth revisiting: a task with an unusual motor requirement, or reaction times recorded from a different zero point, will need it moved.</p>
 <p><strong><code>mu</code> and <code>sigma</code>.</strong> Both are weakly informative and mostly there to keep warmup sane; the table gives their reach. They assume RT in seconds, like everything else in this family. Neither should be doing real work in a dataset of any size - if changing them moves your conclusions, the model is under-identified for a reason worth finding.</p>
 <div>

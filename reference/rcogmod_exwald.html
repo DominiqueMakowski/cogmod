@@ -29,7 +29,7 @@ cogmod_exwald_stanvars(): Generates the stanvars to pass to brm().
 
     <a class="navbar-brand me-2" href="../index.html">cogmod</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -47,6 +47,7 @@ cogmod_exwald_stanvars(): Generates the stanvars to pass to brm().
     <li><a class="dropdown-item" href="../articles/reliability.html">Assessing Reliability</a></li>
     <li><a class="dropdown-item" href="../articles/outliers.html">Outliers and Non-Decision Time</a></li>
     <li><a class="dropdown-item" href="../articles/performance.html">Performance</a></li>
+    <li><a class="dropdown-item" href="../articles/comparison.html">Comparison with Other Packages</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -60,7 +61,7 @@ cogmod_exwald_stanvars(): Generates the stanvars to pass to brm().
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Shifted Ex-Wald Model</h1>
-      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/v0.3.3/R/model_exwald.R" class="external-link"><code>R/model_exwald.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/DominiqueMakowski/cogmod/blob/main/R/model_exwald.R" class="external-link"><code>R/model_exwald.R</code></a></small>
       <div class="d-none name"><code>rcogmod_exwald.Rd</code></div>
     </div>
 
@@ -214,13 +215,30 @@ returns a number - unlike <code><a href="rcogmod_invgaussian.html">cogmod_invgau
     <p>Both delay the response, and they are separated only by shape: <code>ndt</code> is a
 hard floor, <code>tau</code> a variable stage with an exponential spread. That makes
 them a ridge rather than a flat direction - the leading edge of the
-distribution identifies <code>ndt</code> - but a ridge all the same. The <code>normal(-1.2, 0.2)</code> that <code><a href="cogmod_priors.html">cogmod_priors()</a></code> puts on <code>ndt</code> is what holds it; widen it and
+distribution identifies <code>ndt</code> - but a ridge all the same. The <code>normal(-1.2, 0.5)</code> that <code><a href="cogmod_priors.html">cogmod_priors()</a></code> puts on <code>ndt</code> is what holds it; widen it and
 expect the two to trade off. Schwarz's own model has no <code>ndt</code> at all, the
 exponential stage being the whole of the residual time, and fixing <code>ndt = 0</code>
 in <code><a href="https://paulbuerkner.com/brms/reference/brmsformula.html" class="external-link">bf()</a></code> recovers exactly that.</p>
 <p>There is deliberately no <code>sigmadrift</code>. It and <code>tau</code> both fatten the right
 tail and are very hard to tell apart; <code><a href="rcogmod_invgaussian.html">cogmod_invgaussian()</a></code> is where the
 drift-variability route lives.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="two-ways-to-make-a-right-tail">Two ways to make a right tail<a class="anchor" aria-label="anchor" href="#two-ways-to-make-a-right-tail"></a></h2>
+    <p>The Ex-Wald model is prone to identifiability issues.
+The skew can come from either stage. In one solution the Wald carries it, at
+a low drift with a short <code>tau</code>. In the other the Wald is nearly Gaussian, at
+a high drift and threshold, and a long <code>tau</code> carries it. That second
+solution is an ex-Gaussian with a shift, and its <code>mu</code> and <code>boundary</code> no
+longer read as a drift and a threshold. The two predict almost the same
+response times.</p>
+<p>More data does not remove the other solution. The posterior keeps a mode at
+each, and the valley between them deepens as trials are added. Chains
+started far from both, as <code><a href="cogmod_inits.html">cogmod_inits()</a></code> starts them, can settle in
+either, and chains that agree have not necessarily found the more probable
+one. If the estimates matter, start a few chains at a high drift and
+threshold with a long <code>tau</code> and see where they end. If the exponential
+stage is not the question, then <code><a href="rcogmod_invgaussian.html">cogmod_invgaussian()</a></code> is preferable.</p>
     </div>
     <div class="section level2">
     <h2 id="how-the-density-is-computed">How the density is computed<a class="anchor" aria-label="anchor" href="#how-the-density-is-computed"></a></h2>
