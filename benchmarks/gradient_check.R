@@ -109,6 +109,12 @@ grid_points <- function(up0, delta, random, seed = 1) {
 # own, and this whole function is what gets parallelised.
 check_family <- function(row) {
   fam <- row$family
+  # Model methods go through Rcpp::sourceCpp(), whose cache index in its
+  # cacheDir (tempdir() by default) is rewritten with save() on every build.
+  # mclapply()'s workers share tempdir(), so one could load() the index while
+  # another was writing it: "empty (zero-byte) input file". One cache per
+  # program keeps them apart.
+  options(rcpp.cache.dir = file.path(tempdir(), paste0("rcpp-", fam)))
   mod <- gp_compile(row$stan)
   m <- gp_methods(mod, row$data, row$init)
   fit <- m$fit
