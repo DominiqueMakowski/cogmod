@@ -1209,10 +1209,8 @@ shrinks from Windows to Linux. 2026-10-16, measured (section "0.21.0",
 so it is not the reason either, and the figures stand to within that.
 2026-10-16: stanli 0.21.0 rerun of `multilevel.R` (section "0.21.0"):
 faster end to end on four of six models, even on the DDM-5, the DDM-4
-still 1.11x. Next: report it on #455 (the user's call); then perhaps the
-performance article's stanli section, which still describes the
-population-level LNR on 0.20.0 only.
+still 1.11x. Next: perhaps the performance article's stanli section,
+which still describes the population-level LNR on 0.20.0 only.
 2026-10-17: the Windows library has stanli 0.21.0. The DDM-4's router is
-fixed on cogmod's side (`benchmarks/ddm_router/`). The #455 report of the
-0.21.0 rerun is drafted in `reply_draft.md`; post it, then delete the draft
-as with the others.
+fixed on cogmod's side (`benchmarks/ddm_router/`).
+2026-10-20: the 0.21.0 rerun is reported on #455.
