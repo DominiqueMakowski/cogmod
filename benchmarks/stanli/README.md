@@ -1,6 +1,6 @@
 # stanli as a backend for cogmod: exact, and faster per gradient and end to end
 
-2026-10-02 to 04, 2026-10-12 and 2026-10-16, on two platforms:
+2026-10-02 to 04, 2026-10-12, 2026-10-16 and 2026-10-23, on two platforms:
 
 - **Windows**: a laptop (i7-1265U: 2 performance + 8 efficiency cores),
   CmdStan 2.38, cmdstanr 0.9.0.9000, R 4.5.3.
@@ -15,7 +15,9 @@ maintainer posted as [cogmod#5](https://github.com/DominiqueMakowski/cogmod/issu
 (section "0.19.1, and the rewrite from cogmod#5"; on Linux these ran on EPYC
 9355 and 7513 nodes), then 0.20.0 (2026-10-11), which fixed what our 0.19.1
 report raised (section "0.20.0"), then 0.21.0 (2026-10-16), which fixed what
-#455 raised on multilevel models (section "0.21.0").
+#455 raised on multilevel models (section "0.21.0"), then 0.23.2
+(2026-10-22), whose corpus benchmark has two cogmod families below CmdStan
+(section "0.23.2", Windows only).
 
 | file | what |
 | --- | --- |
@@ -26,6 +28,7 @@ report raised (section "0.20.0"), then 0.21.0 (2026-10-16), which fixed what
 | `multilevel.R` | seven multilevel decision models (LNR, LNR-6, DDM-4/5/7, LBA, RDM) on simulated data: `emit`, `fit` (cmdstanr against stanli), `inits` (starting points in place of a fit, for the DDM-7), `grad` (exactness and cost at posterior draws; `--build matched` compiles CmdStan's methods at its own flags); sections "0.21.0" and "Multilevel decision models" |
 | `chains_probe.R` | one chain against four, as threads and as processes, in both engines |
 | `probe_bottlenecks.R` | per-gradient cost of DDM-4 and LNR variants that each remove one suspect (Windows) |
+| `corpus_probe.R` | stanli's own `cm_invgaussian` and `cm_ddm` (its `tests/cogmod`), and cogmod's programs on the same data per configuration: `emit`, `grad` (CmdStan against stanli at stanli's benchmark points and near the truth), `replay`, `fit`, `ab`, `diag`; section "0.23.2" (`results/corpus_*.csv`) |
 | `postprocess.R` | which post-processing tools work on a fit through the `"mock"` route, against a cmdstanr fit (`results/postprocess_0.20.0.csv`) |
 | `lnr_select_functions.stan`, `lnr_branchfree_functions.stan` | the rewritten likelihoods |
 | `lnr_rewrite.stan` | cogmod#5's whole program, verbatim (variant `rw`) |
@@ -108,6 +111,145 @@ cmdstanr backend? Measured on the LNR: the decision_making vignette's model
 - **brms can take the result through public API** since 0.20.0:
   `brm(..., backend = "mock", mock_fit = as_stanfit(fit))` gives the same
   `brmsfit` as the internal `rename_pars()` route.
+- **One configuration is far slower** (0.23.2, section "0.23.2"):
+  `cogmod_invgaussian()` with both `sigmadrift` and `sigmandt` estimated,
+  whose 64-point quadrature stanli records again at every new point, takes
+  13x CmdStan's time per gradient. With `sigmandt = 0`, as in the articles,
+  it takes 0.20x.
+
+## 0.23.2: the Wald quadrature, and the corpus benchmark
+
+stanli 0.23.2 (2026-10-22) publishes a corpus benchmark
+([docs/benchmarks.md](https://github.com/seantalts/stanli/blob/main/docs/benchmarks.md),
+run of 2026-10-21 on an Apple M3 Ultra) in which every cogmod family is
+faster per gradient than CmdStan except `cm_ddm` (0.975, CmdStan's time over
+stanli's) and `cm_invgaussian` (0.756). Both rows carry its †: their
+reference fit timed out at 30 minutes, so both engines were timed at stanli's
+ten synthetic points (a fixed pattern, then nine draws uniform on (-2, 2) on
+the unconstrained scale). stanli's corpus (`tests/cogmod`, from cogmod
+732be30) estimates every parameter, which for the Wald means `sigmadrift ~ 1`
+and `sigmandt ~ 1`: every trial past `ndt` then goes through the 64-point
+quadrature over the drift (`cogmod_wald_sv_lquad()` in
+`.WALD_STAN_PRELUDE`). None of the articles fits that; they all have
+`sigmandt = 0`.
+
+`corpus_probe.R`, Windows, 2026-10-23: stanli 0.23.2 (r-universe binary,
+`log_prob_grad()`) against CmdStan 2.38's model methods. It fetches stanli's
+two programs and their data (200 trials each, from the commit that added
+them: the same SHA-256 as in the benchmark's points file) and writes cogmod's
+own programs on the same data. Two point sets: `fixed`, stanli's
+`evaluation_point()` ported to R (bit for bit the same as a Python port of
+the C++), and `post`, 40 points at the data-generating values plus N(0, 0.1).
+Each timed block cycles through its set, since a sampler moves to a new point
+at every leapfrog step; 5 alternating blocks. Ratios below are **stanli's
+time over CmdStan's** (the benchmark's inverse), median [range] over blocks.
+The log density and gradient agree to a scaled error of 8e-14 or less at
+every point (`results/corpus_check_*.csv`).
+
+**Only the quadrature is slow** (`grad`, `post`):
+
+| program | CmdStan | stanli | stanli / CmdStan |
+| --- | ---: | ---: | ---: |
+| stanli's `cm_invgaussian` | 34.0 ms | 433 ms | 13.1 [12.2, 14.2] |
+| cogmod's, same formula (`sv_st0`) | 30.5 ms | 414 ms | 12.6 [11.8, 14.7] |
+| `sigmandt = 0` (`sv`, the articles' formula) | 0.441 ms | 0.080 ms | 0.20 [0.17, 0.22] |
+| `sigmadrift = 0` (`st0`) | 0.625 ms | 0.187 ms | 0.30 [0.24, 0.34] |
+| both 0 (`plain`) | 0.239 ms | 0.044 ms | 0.18 [0.18, 0.19] |
+
+The last three rows come from a rerun with blocks calibrated to 0.4 s for
+the faster engine (`--tag fast`; the first run's were 40-160 ms against a 10
+ms clock, and read 0.17-0.28). At the fixed points the two quadrature
+programs take 8.0 [7.0, 9.5] and 8.3 [7.7, 9.0] times CmdStan's, the other
+three 0.16-0.20. `cens()` with `sigmadrift > 0` takes the
+same quadrature for its CDF and survival at any `sigmandt`; not measured.
+
+**Why: the retained loop records itself again at every new point.**
+`diag` (`STANLI_REGION_MAP_DIAGNOSTICS=1`): stanli's region map takes the
+trial loop of every other program here, but refuses the quadrature's with
+`body program too large` (stanli's 2026-10-03 region-map note: the 64 nodes
+are unrolled, 57k instructions per trial). The loop is then retained:
+recorded once, with a guard on every branch that depended on a parameter,
+and replayed while the guards hold. Each trial takes branches at all 64
+nodes (the CDF pair or the survival pair, the arms of `cogmod_log_Phi()`),
+so a new point always fails some guard and the whole loop is recorded again
+(`replay`, `sv_st0`, ten of the `post` points):
+
+| order of evaluation | ms per gradient |
+| --- | ---: |
+| one point repeated | 29 |
+| two points alternated | 463 |
+| a point and a 1e-3 step from it, alternated | 426 |
+| the ten, cycled | 430 |
+| the ten, each 3 times in a row | 174 |
+| the ten, each 20 times in a row | 44 |
+
+A replay is faster than CmdStan's gradient (30.5 ms); a recording costs 15
+replays. NUTS never repeats a point: `fit`, 5 warmup iterations from one
+start, 321 leapfrog steps either way (the same trajectory), costs 466 ms per
+step by default and 56 ms with `STANLI_STRUCTURED_LOOPS=0`.
+
+**The benchmark times the replay.** stanli's `bench_grad` calibrates a batch
+at each point and times batches at that point, so a retained loop is timed on
+its replay, which no sampler gets. At the fixed points, on stanli's program
+(`replay --variant corpus --set fixed`): 3.40 ms per gradient cycled, 0.45 ms
+with each point 20 times in a row, against CmdStan's 0.53 ms. Batches turn
+6.5x CmdStan's time into 0.86x, about the 1.32x (0.756) the benchmark reports
+on Apple. stanli's own 2026-10-02 note on the cogmod gaps already says that
+fixed-point timings overstate its structured loop.
+
+**What helps.** `STANLI_STRUCTURED_LOOPS=0`, stanli's switch for retaining no
+loops, set before `stanli_model()`: the trial loop is lowered without
+recording, 1.69 [1.45, 1.76] times CmdStan's on stanli's program and 1.58
+[1.40, 1.69] on `sv_st0` (`post`), and the programs the region map takes are
+unchanged (0.18-0.26, short blocks). It does not help at the fixed points (8.1 and 7.4),
+it is global to the process, and stanli's docs say it is what made ctsem's
+Kalman loop slow, so it is not a general recommendation. Three rewrites of
+`cogmod_wald_sv_lquad()`, on `sv_st0` (`emit`; `ab` compares CmdStan's cost
+with `sv_st0`'s over 11 alternating blocks):
+
+| rewrite | stanli / CmdStan | with `STANLI_STRUCTURED_LOOPS=0` | CmdStan, against `sv_st0` |
+| --- | ---: | ---: | ---: |
+| `q1_meancrit`: the tail pair chosen by the Wald mean (`m < a / v`), not by the midpoint's CDF | 13.0 | 1.68 | 0.77 [0.73, 0.81] |
+| `q3_while`: the node loop as a `while` | 13.2 | **0.98** [0.88, 1.00] | 0.96 [0.93, 1.03] |
+| `q4_runlse`: a running `log_sum_exp()` | 11.2 | 1.55 | - |
+
+Under the default lowering none of them helps. The `while` version's body is
+2677 instructions, and the region map refuses it only for `no generated
+adjoint` (a back edge); with the switch it is at parity with CmdStan at both
+point sets (0.94 at the fixed points) and in the fit (31 ms per leapfrog
+step). So the cost is the unrolled inner loop: if stanli kept a counted inner
+loop of independent iterations as a loop inside a mapped body, or ran its 64
+iterations as one tile of lanes, this trial loop could take the region map
+like the other families.
+
+**`cm_ddm` is not connected, and not slow here.** cogmod's DDM shares no
+Stan code with the Wald. The region map takes its trial loop, and the time
+goes to the 7-parameter `wiener_lpdf()`, the kernel CmdStan calls as well.
+On Windows stanli is ahead (`grad --family ddm`, `post`):
+
+| program | CmdStan | stanli | stanli / CmdStan |
+| --- | ---: | ---: | ---: |
+| stanli's `cm_ddm` (DDM-7) | 162 ms | 56 ms | 0.35 [0.30, 0.35] |
+| cogmod's DDM-7 | 200 ms | 69 ms | 0.35 [0.34, 0.37] |
+| DDM-5 | 1.29 ms | 0.435 ms | 0.30 [0.30, 0.36] |
+| DDM-4 | 0.389 ms | 0.241 ms | 0.61 [0.58, 0.71] |
+
+(DDM-5 and DDM-4 from the calibrated rerun, `--tag ddmfast`.)
+
+Apple's 0.975 reads as both engines running the same kernel at the same
+speed.
+
+**For cogmod: nothing to change for stanli's sake.** The `while` form costs
+CmdStan nothing, but it helps stanli only together with the switch, and a
+fix in stanli would make it moot. Choosing the tail pair by the Wald mean
+saves CmdStan 23% per gradient on this path on its own merits; it would need
+the same change in `.lwald_st0_fixed()` and the gradient check, and is not
+done. Side finding: `.GAUSS_LEGENDRE` comes from `eigen()` when the package
+loads, so the nodes and log-weights written into the Stan code differ in
+their last digits between macOS and Windows. The generated program depends
+on the machine, and stanli's claim that its generator reproduces
+`tests/cogmod` byte for byte holds only where the files were written.
+Reported upstream in `issue_draft_quadrature.md` (not yet posted).
 
 ## 0.21.0: multilevel models faster end to end
 
@@ -1214,3 +1356,8 @@ which still describes the population-level LNR on 0.20.0 only.
 2026-10-17: the Windows library has stanli 0.21.0. The DDM-4's router is
 fixed on cogmod's side (`benchmarks/ddm_router/`).
 2026-10-20: the 0.21.0 rerun is reported on #455.
+2026-10-23: the Windows library has stanli 0.23.2, whose corpus benchmark
+has `cm_invgaussian` and `cm_ddm` below CmdStan (section "0.23.2",
+`corpus_probe.R`). The issue is drafted in `issue_draft_quadrature.md`: its
+links point at dev, so post it once this folder is pushed, then delete the
+draft as with the others.

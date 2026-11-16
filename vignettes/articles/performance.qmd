@@ -599,10 +599,11 @@ would have taken.
 ## An Experimental Backend: stanli
 
 ::: {.callout-warning}
-**Very experimental.** `stanli` is young (a new release most weeks), it is
-not a `brms` backend yet, and we have measured it on one family only. Treat
-this section as something to try, not a recommendation. The figures below
-were obtained with `brms` as released, which computes an intercept-only
+**Very experimental.** `stanli` is young (a new release most weeks), and it is
+not a `brms` backend yet. The nutpie sampler described below arrived in it
+only with version 0.26.0, in November 2026. Treat this section as something
+to try, not a recommendation. The figures below
+were obtained with `brms` as it stands, which computes an intercept-only
 parameter such as `sigmazero ~ 1` once per observation rather than once per
 evaluation; [brms#1946](https://github.com/paul-buerkner/brms/pull/1946)
 would change that for every backend, and with it the figures, so this
@@ -665,26 +666,77 @@ because it does not know how the fit was made: refitting (`update()`,
 moment matching and `update()` (we have not tested it). Before relying on `stanli`
 for a model, compare its result with a short CmdStan run of the same model.
 
-In our local benchmarking demo
-([scripts and full results](https://github.com/DominiqueMakowski/cogmod/tree/main/benchmarks/stanli)),
-on the LNR of the [decision making models](decision_making.html) (4620
-trials) with `stanli` 0.20.0, we found the same posterior as with CmdStan,
-the same number of leapfrog steps per effective draw, and a faster run on
-every measure (ratios to CmdStan; 16 seeds on the cluster):
+### A different sampler: nutpie
 
-| | Windows laptop | Linux cluster |
+`stanli` can also hand its model to the sampler of
+[nutpie](https://github.com/andytimm/nutpieR) (through the `nutpieR`
+package). The log density and its gradient are still `stanli`'s; only the
+sampler changes. nutpie runs the same kind of NUTS sampler, but its warmup
+also learns from the gradients. It settles on steps 2 to 4.5 times larger
+than Stan's, so a fit needs far fewer gradient evaluations. Only
+step 3 changes:
+
+```{r}
+#| eval: false
+#| code-fold: false
+
+# install.packages("nutpieR", repos = c("https://andytimm.r-universe.dev", "https://cloud.r-project.org"))
+
+# 3. Sample with nutpie (chains run in parallel by default)
+fit <- sample_nutpie(model, chains = 4, warmup = 1000, samples = 1000, init = inits)
+```
+
+It takes the function that `cogmod_inits()` returns directly as its
+starting values, instead of step 2's matrix. Step 4 turns the fit into a
+`brmsfit` as before.
+
+### How much faster?
+
+In our benchmarks ([stanli](https://github.com/DominiqueMakowski/cogmod/tree/main/benchmarks/stanli),
+[nutpie](https://github.com/DominiqueMakowski/cogmod/tree/main/benchmarks/nutpieR)),
+every fit gave the same posterior as CmdStan.
+
+**On a real data set.** On the LNR of the
+[decision making models](decision_making.html) (4620 trials), with `stanli`
+0.20.0, a 4-chain fit took 0.43-0.46x CmdStan's time on a Windows laptop
+and 0.74x on a Linux cluster. The gain is largest where the system's maths
+library is slow, as on Windows, since `stanli` brings its own.
+
+**On five multilevel models.** These are 10 participants x 100 simulated
+trials, 18 runs each, on a Linux cluster, with `stanli` 0.26.0. The table
+gives effective draws per second of sampling, as a ratio to CmdStan.
+Compilation is not counted, which would add about 40 s to every CmdStan fit.
+
+| Model | `stanli` | `stanli` + nutpie |
 |:--|:--:|:--:|
-| Time per gradient evaluation | 0.42 | 0.75 to 0.77 |
-| Wall time of a 4-chain fit | 0.43 to 0.46 | 0.74 |
-| Effective draws per second | 2.7 to 2.8 | 1.2 |
+| LNR | 1.6 | 2.8 |
+| RDM | 1.6 | 3.4 |
+| LBA | 1.6 | 1.6 |
+| DDM | 1.1 | 1.7 |
+| DDM with drift variability | 1.0 | 2.0 |
 
-The gain is largest where the system's maths library is slow, as on Windows,
-since `stanli` brings its own. Rewriting the family's Stan code by hand to
-suit the interpreter bought another 1.3x in `stanli` but cost CmdStan up to
-1.9x, so `cogmod` keeps a single Stan program for both. `stanli`'s own test
-suite includes every `cogmod` family, and its developer's measurements found
-most of them cheaper per gradient than in CmdStan (the beta-gate dearer), but
-only the LNR has been fitted end to end here.
+**Where nutpie's speed comes from.** nutpie gets fewer effective draws out
+of every draw than Stan's sampler. It comes out ahead anyway because it
+takes so many fewer steps. Its weak spot is the population-level
+intercepts. On the LBA it gets a quarter to half of Stan's effective draws
+on them, which is why it gains nothing there.
+
+**Reasons for caution.**
+
+- nutpie diverged more often. On the LBA, it diverged 25 times in 13 of 18
+  fits, against 6-7 times for Stan's sampler.
+- On the LBA and RDM, its effective sample sizes looked slightly
+  optimistic. Its differences from CmdStan spread up to 9% wider than its
+  Monte Carlo errors allow.
+- Its low-rank mass matrix (`adaptation = "low_rank"`) was worse on every
+  count, so we do not recommend it.
+
+Rewriting the family's Stan code by hand to suit the interpreter bought
+another 1.3x in `stanli`, but cost CmdStan up to 1.9x, so `cogmod` keeps a
+single Stan program for both. `stanli`'s own test suite includes every
+`cogmod` family. Its developer's measurements found most of them cheaper
+per gradient than in CmdStan (the beta-gate dearer). Of those, we have
+fitted the LNR, RDM, LBA and DDM end to end here.
 
 ## Future Directions
 

@@ -1,0 +1,29 @@
+stanli 0.26.0 - CmdStan 2.38.0 - model ddm4 - variants: base, rec, unrolled 
+compiling base 
+compiling rec 
+compiling unrolled 
+
+against base ( 120 points per engine; draws / tails):
+  cmdstan base    draw  non-finite  0 (base  0); max |dlp| 0, max rel dgrad 0; vs CmdStan max |dlp| 0
+  cmdstan base    tail  non-finite  1 (base  1); max |dlp| 0, max rel dgrad 0; vs CmdStan max |dlp| 0
+  stanli  base    draw  non-finite  0 (base  0); max |dlp| 0, max rel dgrad 0; vs CmdStan max |dlp| 2.84e-13
+  stanli  base    tail  non-finite  1 (base  1); max |dlp| 0, max rel dgrad 0; vs CmdStan max |dlp| 4.73e-11
+  cmdstan rec     draw  non-finite  0 (base  0); max |dlp| 7.27e-09, max rel dgrad 4.78e-08; vs CmdStan max |dlp| 0
+  cmdstan rec     tail  non-finite  1 (base  1); max |dlp| 3.76e-05, max rel dgrad 8.8e-05; vs CmdStan max |dlp| 0
+  stanli  rec     draw  non-finite  0 (base  0); max |dlp| 7.27e-09, max rel dgrad 4.78e-08; vs CmdStan max |dlp| 3.13e-13
+  stanli  rec     tail  non-finite  1 (base  1); max |dlp| 3.76e-05, max rel dgrad 8.8e-05; vs CmdStan max |dlp| 4.91e-11
+  cmdstan unrolled draw  non-finite  0 (base  0); max |dlp| 7.27e-09, max rel dgrad 4.78e-08; vs CmdStan max |dlp| 0
+  cmdstan unrolled tail  non-finite  1 (base  1); max |dlp| 3.76e-05, max rel dgrad 8.8e-05; vs CmdStan max |dlp| 0
+  stanli  unrolled draw  non-finite  0 (base  0); max |dlp| 7.27e-09, max rel dgrad 4.78e-08; vs CmdStan max |dlp| 3.13e-13
+  stanli  unrolled tail  non-finite  1 (base  1); max |dlp| 3.76e-05, max rel dgrad 8.8e-05; vs CmdStan max |dlp| 4.91e-11
+
+us per gradient, median over 21 rounds; ratio to the same engine's base within round, median [min, max]:
+  cmdstan base      1786 us  ratio 1.000 [1.000, 1.000]
+  cmdstan rec       1222 us  ratio 0.856 [0.563, 0.949]
+  cmdstan unrolled   1250 us  ratio 0.859 [0.558, 1.137]
+  stanli  base      1212 us  ratio 1.000 [1.000, 1.000]
+  stanli  rec      27750 us  ratio 24.352 [21.104, 27.238]
+  stanli  unrolled   1333 us  ratio 1.063 [0.912, 1.399]
+  stanli base    / CmdStan base: 0.721
+  stanli rec     / CmdStan base: 17.500
+  stanli unrolled / CmdStan base: 0.758

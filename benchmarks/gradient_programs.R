@@ -77,12 +77,14 @@ gp_class <- function(fam) {
 # coverage: fixing these in .GP_FIXED would lose the path they leave.
 .GP_VARIANTS <- list(
   # The DDM with all three variabilities fixed at 0 ("DDM-4"), the most common
-  # configuration: cogmod_ddm_decision_lpdf() sends it to the classic
-  # 4-parameter wiener_lpdf() through the certificate and router in front of
-  # it (benchmarks/ddm_router/README.md). With every dpar estimated, the
-  # default program reaches only the 7-parameter call.
+  # configuration, and with sigmadrift alone estimated ("DDM-5"): the two
+  # routes to cogmod_wfpt_lpdf(), the package's own Stan series
+  # (benchmarks/wiener_stan/README.md). With every dpar estimated, the default
+  # program reaches only Stan's 7-parameter wiener_lpdf().
   cogmod_ddm4 = list(family = "cogmod_ddm",
-                     fixed = c(sigmadrift = 0, sigmabias = 0, sigmandt = 0))
+                     fixed = c(sigmadrift = 0, sigmabias = 0, sigmandt = 0)),
+  cogmod_ddm5 = list(family = "cogmod_ddm",
+                     fixed = c(sigmabias = 0, sigmandt = 0))
 )
 
 # The family a program key builds: itself, or a variant's family.

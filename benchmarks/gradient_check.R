@@ -29,8 +29,9 @@
 #   --pkg       working tree to load (default ".")
 #   --out       output directory (default benchmarks/results/gradient_check)
 #   --families  comma-separated subset (default: all); a family brings its
-#               .GP_VARIANTS programs along (cogmod_ddm also checks the DDM-4,
-#               cogmod_ddm4), and a variant can be named on its own
+#               .GP_VARIANTS programs along (cogmod_ddm also checks the DDM-4
+#               and DDM-5, cogmod_ddm4 and cogmod_ddm5), and a variant can be
+#               named on its own
 #   --n         simulated trials per family before the tail responses (300)
 #   --delta     step along each unconstrained coordinate (2.5)
 #   --random    random points around the start (5)
