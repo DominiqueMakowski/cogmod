@@ -79,15 +79,16 @@
 #' scale.
 #'
 #' There is a cost argument too, and it is a cliff rather than a slope. The
-#' Stan density has a closed form for `sigmadrift`, so estimating it costs
-#' about 3.5 times the classic model per gradient evaluation. `sigmabias` and
-#' `sigmandt` have no closed form: Stan integrates them out numerically, once
-#' for the density and once more for each partial derivative, at every
-#' observation and every leapfrog step. Measured against the `sigmadrift`-only
-#' model, estimating *one* of them costs about 18 times as much per gradient
-#' and estimating *both* about 30 times (55 before the tolerance the package
-#' now passes to `wiener_lpdf()`). Nothing in between exists: the fast path is
-#' a test for exactly zero, so a tight prior does not buy it back - a
+#' density has a closed form in `sigmadrift`, so estimating it costs about 1.2
+#' to 1.6 times the classic model per gradient evaluation, depending on the data
+#' (it was 3.5 before 0.3.6). `sigmabias` and `sigmandt` have no closed form:
+#' Stan integrates them out numerically, once for the density and once more for
+#' each partial derivative, at every observation and every leapfrog step.
+#' Measured against the `sigmadrift`-only model on 300 trials, estimating *one*
+#' of them costs about 60 to 70 times as much per gradient and estimating *both*
+#' about 250 times. The multiples move with the data and the parameter values,
+#' since the integration adapts to them. Nothing in between exists: the fast
+#' path is a test for exactly zero, so a tight prior does not buy it back - a
 #' `sigmandt` estimated at 1e-5 costs the same as one at 0.05 s. Only
 #' `sigmandt = 0` in `bf()` does. On a few thousand trials this is the
 #' difference between minutes and hours; on a few hundred thousand, between a
@@ -144,17 +145,18 @@
 #' correction with Gauss-Legendre quadrature over the starting point and
 #' non-decision time, also in log space.
 #'
-#' In Stan the decision component is `wiener_lpdf()`, called with its own
-#' non-decision time set to zero because the shift is applied by the mixture
-#' around it, and short-circuited to the cheaper 4- and 5-parameter forms
-#' whenever the start-point and non-decision-time ranges both vanish. The
-#' cheapest of the three, Stan's classic 4-parameter density, is used only where
-#' it is sound: it returns `-inf` with **NaN** derivatives once the rescaled
-#' decision time `t / boundary^2` falls below about `6.6e-4`, or once the density
-#' underflows, and a NaN derivative on a trial the mixture gives no weight to
-#' still turns the gradient of the whole model to NaN. Those calls go to the
-#' `sv`-capable form instead, which the two agree with to `1e-13` where they
-#' meet.
+#' In Stan, whenever `sigmabias` and `sigmandt` are both zero, the decision
+#' component is the same series written in the Stan language, with `sigmadrift`
+#' in closed form. The two sides agree to about `1e-11`, so the density a model
+#' is fitted with is the one `log_lik()` and `loo()` score it by, on every
+#' version of Stan and every backend. Stan's own `wiener_lpdf()` is used only for
+#' the 7-parameter form, called with its own non-decision time set to zero
+#' because the shift is applied by the mixture around it. Its 5-parameter form,
+#' which the package used before 0.3.6, controls its error in absolute terms, so
+#' it was off by up to a log unit per trial in the tails, and it computes the
+#' density and each derivative as separate series, which made a model with
+#' `sigmadrift` about 3.4 times as costly per gradient as it is now
+#' (`benchmarks/wiener_stan/` in the source repository).
 #'
 #' # Fitting
 #'
@@ -504,14 +506,41 @@ cogmod_ddm <- function(
 # extreme rescaled time could reach it, and there the answer is `-Inf` anyway.
 .DDM_FPT_CAP <- 200L
 
+# Navarro & Fuss's term counts (their eqs 10-13) for an absolute error `eps`
+# on the rescaled density at rescaled time `u`: the small-time series' count,
+# across both sides of k = 0, and the large-time series' count.
+#' @keywords internal
+.ddm_fpt_ks <- function(u, eps = .DDM_FPT_EPS) {
+  pmax(sqrt(u) + 1,
+       ifelse(2 * sqrt(2 * pi * u) * eps < 1,
+              2 + sqrt(pmax(-2 * u * log(2 * sqrt(2 * pi * u) * eps), 0)),
+              2))
+}
+#' @keywords internal
+.ddm_fpt_kl <- function(u, eps = .DDM_FPT_EPS) {
+  pmax(1 / (pi * sqrt(u)),
+       ifelse(pi * u * eps < 1,
+              sqrt(pmax(-2 * log(pi * u * eps), 0) / (pi^2 * u)), 0))
+}
+
+# The rescaled time at which those two counts cross at .DDM_FPT_EPS: below it
+# the small-time series is the shorter one, above it the large-time series.
+# Written out rather than solved for at load, so that the Stan code built from
+# it (.WFPT_STAN) is the same text on every machine; test-model_ddm.R checks
+# it against the counts.
+.DDM_FPT_SWITCH <- 0.20276100128382937
+
 # Log first-passage density at the LOWER boundary of the driftless, unit-
 # boundary diffusion started at `w`, at rescaled time `u = t / boundary^2`.
+# `wc` is `1 - w`, which a caller that has it exactly should pass: near the
+# far boundary `1 - w` rounds away the start point's distance from it.
 #
 # Navarro & Fuss give two series that are each exact and each converge only in
 # their own regime - the small-time one in powers of exp(-1/u), the large-time
 # one in powers of exp(-u) - and a rule (their eqs 10-13) for how many terms
 # each needs for a given absolute error, so the cheaper one is taken for every
-# element. Each series is then summed with its leading term factored out: for
+# element (below .DDM_FPT_SWITCH, the small-time one). Each series is then
+# summed with its leading term factored out: for
 # the small-time series that is the k = 0 term's exponent, `-w^2 / 2u`, and for
 # the large-time series the k = 1 term's, `-pi^2 u / 2`. That is what makes the
 # result accurate in the tails, where the density itself is far below `eps`:
@@ -524,54 +553,63 @@ cogmod_ddm <- function(
 # elements matrix, sized by the element in the group that needs the most terms.
 # The extra terms the others get are exact zeros to double precision, so the
 # grouping costs time and never accuracy.
+#
+# Two sums are arranged so that they do not cancel as the start point nears
+# the far boundary (`wc` -> 0). The small-time k = 0 and k = -1 terms,
+# `w + (w - 2) exp(-2 wc / u)`, are both near 1 there with a sum near
+# `2 wc / u`, so they are taken together through expm1() - but only when `wc`
+# is the smaller: near the boundary being hit (`w` -> 0) that form cancels
+# instead, and the two terms as written are exact. And the large-time
+# `sin(k pi w)` is taken as `(-1)^(k + 1) sin(k pi wc)` when `wc` is the
+# smaller. The Stan code (.WFPT_STAN) does the same.
 #' @keywords internal
-.ddm_lfpt0 <- function(u, w) {
-  n <- max(length(u), length(w))
+.ddm_lfpt0 <- function(u, w, wc = 1 - w) {
+  n <- max(length(u), length(w), length(wc))
   u <- rep_len(u, n)
   w <- rep_len(w, n)
+  wc <- rep_len(wc, n)
   out <- rep(-Inf, n)
   ok <- is.finite(u) & u > 0 & is.finite(w) & w > 0 & w < 1
   if (!any(ok)) return(out)
   u <- u[ok]
   w <- w[ok]
-  eps <- .DDM_FPT_EPS
+  wc <- wc[ok]
 
-  # Terms the large-time series needs (eq. 12-13) and the small-time one (eq.
-  # 10-11), the latter counted across both sides of k = 0.
-  kl <- pmax(1 / (pi * sqrt(u)),
-             ifelse(pi * u * eps < 1,
-                    sqrt(pmax(-2 * log(pi * u * eps), 0) / (pi^2 * u)), 0))
-  ks <- pmax(sqrt(u) + 1,
-             ifelse(2 * sqrt(2 * pi * u) * eps < 1,
-                    2 + sqrt(pmax(-2 * u * log(2 * sqrt(2 * pi * u) * eps), 0)),
-                    2))
-  small <- ks < kl
+  small <- u < .DDM_FPT_SWITCH
   res <- rep(-Inf, length(u))
 
   if (any(small)) {
     us <- u[small]
     ws <- w[small]
-    m <- min(.DDM_FPT_CAP, max(2L, as.integer(ceiling(max(ks[small]) / 2))))
-    kk <- seq.int(-m, m)
+    wcs <- wc[small]
+    m <- min(.DDM_FPT_CAP,
+             max(2L, as.integer(ceiling(max(.ddm_fpt_ks(us)) / 2))))
+    kk <- c(seq.int(-m, -2), seq_len(m))
     K <- length(kk)
     ne <- length(us)
     W <- matrix(ws, K, ne, byrow = TRUE) + 2 * kk
     U <- matrix(us, K, ne, byrow = TRUE)
     W0 <- matrix(ws, K, ne, byrow = TRUE)
-    s <- .colSums(W * exp(-(W^2 - W0^2) / (2 * U)), K, ne)
+    x <- -2 * wcs / us
+    e1 <- exp(x)
+    s <- ifelse(wcs < 0.5, -expm1(x) - wcs * (1 + e1), ws + (ws - 2) * e1) +
+      .colSums(W * exp(-(W^2 - W0^2) / (2 * U)), K, ne)
     res[small] <- ifelse(s > 0,
                          log(s) - ws^2 / (2 * us) - 0.5 * log(2 * pi * us^3),
                          -Inf)
   }
   if (any(!small)) {
     ul <- u[!small]
-    wl <- w[!small]
-    K <- min(.DDM_FPT_CAP, max(2L, as.integer(ceiling(max(kl[!small])))))
+    flip <- w[!small] > 0.5
+    th <- pi * ifelse(flip, wc[!small], w[!small])
+    K <- min(.DDM_FPT_CAP,
+             max(2L, as.integer(ceiling(max(.ddm_fpt_kl(ul))))))
     ne <- length(ul)
     Kk <- matrix(seq_len(K), K, ne)
     U <- matrix(ul, K, ne, byrow = TRUE)
-    Wl <- matrix(wl, K, ne, byrow = TRUE)
-    s <- .colSums(Kk * exp(-(Kk^2 - 1) * pi^2 * U / 2) * sin(Kk * pi * Wl),
+    TH <- matrix(th, K, ne, byrow = TRUE)
+    sg <- ifelse(matrix(flip, K, ne, byrow = TRUE) & Kk %% 2 == 0, -1, 1)
+    s <- .colSums(sg * Kk * exp(-(Kk^2 - 1) * pi^2 * U / 2) * sin(Kk * TH),
                   K, ne)
     res[!small] <- ifelse(s > 0, log(pi) + log(s) - pi^2 * ul / 2, -Inf)
   }
@@ -589,8 +627,8 @@ cogmod_ddm <- function(
 # `sv = 0` the exponent below is the familiar `-v a w - v^2 t / 2` and the
 # `sqrt(1 + sv^2 t)` is one.
 #' @keywords internal
-.ddm_lfpt <- function(t, v, a, w, sv = 0) {
-  n <- max(length(t), length(v), length(a), length(w), length(sv))
+.ddm_lfpt <- function(t, v, a, w, sv = 0, wc = 1 - w) {
+  n <- max(length(t), length(v), length(a), length(w), length(sv), length(wc))
   t <- rep_len(t, n)
   v <- rep_len(v, n)
   a <- rep_len(a, n)
@@ -598,18 +636,125 @@ cogmod_ddm <- function(
   sv <- rep_len(sv, n)
   s2t <- 1 + sv^2 * t
   num <- -v^2 * t - 2 * v * a * w + sv^2 * a^2 * w^2
-  .ddm_lfpt0(t / a^2, w) - 2 * log(a) + num / (2 * s2t) - 0.5 * log(s2t)
+  .ddm_lfpt0(t / a^2, w, wc) - 2 * log(a) + num / (2 * s2t) - 0.5 * log(s2t)
 }
 
 
 # The same for the boundary named by `k`: 1 is upper, 0 lower. The upper
 # boundary is the lower boundary of the reflected process, so one routine
-# serves both with the drift and the start point flipped.
+# serves both with the drift and the start point flipped - and the start
+# point's complement is then `w` itself, exactly.
 #' @keywords internal
 .ddm_lfpt_resp <- function(t, v, a, w, k, sv = 0) {
   up <- k == 1
-  .ddm_lfpt(t, ifelse(up, -v, v), a, ifelse(up, 1 - w, w), sv)
+  .ddm_lfpt(t, ifelse(up, -v, v), a, ifelse(up, 1 - w, w), sv,
+            wc = ifelse(up, w, 1 - w))
 }
+
+
+# The same density in Stan, for the likelihood (pasted into .DDM_STAN_PRELUDE).
+# The switch is generated from .DDM_FPT_SWITCH, so the two sides cannot pick
+# different series.
+#' @keywords internal
+.WFPT_STAN <- sprintf("
+// The decision density whenever the start-point and non-decision-time ranges
+// are both zero: .ddm_lfpt0() and .ddm_lfpt() of the R side, in Stan. Stan's
+// own wiener_lpdf() serves the 7-parameter form only. Against Stan's, this is
+// one series for the value and every partial (its 5-parameter form runs four),
+// accurate in both tails where that form is off by up to a log unit, the
+// number log_lik() computes in R, and the same on every Stan version and on
+// stanli. To go back to Stan's - once a release carries stan-dev/math#3481 and
+// #3442 - rerun benchmarks/wiener_stan/grid.R and program_ab.R on it: if
+// Stan's is as accurate and no slower on both engines, the call in
+// cogmod_ddm_decision_lpdf() is the only thing to change.
+//
+// Log first-passage density of the driftless, unit-boundary diffusion at its
+// lower boundary, started at wl, at rescaled time u (Navarro & Fuss 2009, at
+// 1e-12 absolute on the density, each series with its leading exponent
+// factored out). w = 1 - wl is passed alongside because the caller has it
+// exactly, where 1 - wl would round.
+//
+// Both series are written out at fixed length, m = 3 (k = -3..3) and K = 6:
+// the most either needs at 1e-12 on its side of the switch (test-model_ddm.R
+// checks this against .DDM_FPT_EPS). Do not fold them back into loops. A loop
+// whose trip count depends on a parameter keeps the trial loop out of
+// stanli's region map, which then records it afresh at every new point: 15 to
+// 24 times slower per gradient (benchmarks/wiener_stan/README.md).
+real cogmod_wfpt0(real u, real wl, real w) {
+  if (u < %s) {
+    // Small time: sum_k (wl + 2k) exp(-2k(k + wl) / u). Every term is a
+    // product of e1 (the k = -1 factor), a1 (k = 1) and q = exp(-4 / u). The
+    // k = 0 and k = -1 terms, wl + (wl - 2) e1, are taken by side. As w -> 0
+    // both are near 1 with a sum near 2w / u, so there they go through
+    // expm1(). As wl -> 0 that form would cancel instead (1 - w is wl), at
+    // 2e-16 / wl on the log density, and the two terms as written are exact.
+    real r = 2 / u;
+    real x = -w * r;
+    real e1 = exp(x);
+    real a1 = exp(-(1 + wl) * r);
+    real q = a1 * e1;
+    real q2 = square(q);
+    real b2 = square(e1) * q;
+    real a2 = square(a1) * q;
+    real s = (w < 0.5 ? -expm1(x) - w * (1 + e1) : wl + (wl - 2) * e1)
+             + (wl + 2) * a1 + (wl - 4) * b2 + (wl + 4) * a2
+             + (wl - 6) * (b2 * e1 * q2) + (wl + 6) * (a2 * a1 * q2);
+    if (!(s > 0)) return negative_infinity();
+    return log(s) - square(wl) / (2 * u) - 0.5 * log(2 * pi()) - 1.5 * log(u);
+  }
+  // Large time: sum_k k E^(k^2 - 1) sin(k pi wl), k = 1..6, with
+  // E = exp(-pi^2 u / 2). The sines come by rotation from one sin() and one
+  // cos(), at whichever of wl and w is nearer 0, using
+  // sin(k pi wl) = (-1)^(k + 1) sin(k pi w), so that a start point near
+  // either boundary keeps its relative precision.
+  real E = exp(-square(pi()) * u / 2);
+  real E2 = square(E);
+  real g2 = E2 * E;
+  real g3 = g2 * g2 * E2;
+  real g4 = g3 * g2 * E2 * E2;
+  real g5 = g4 * g3 * E;
+  real g6 = g5 * g3 * E2 * E;
+  int flip = wl > 0.5;
+  int f = flip ? -1 : 1;
+  real theta = pi() * (flip ? w : wl);
+  real s1 = sin(theta);
+  real c1 = cos(theta);
+  real s2 = 2 * s1 * c1;
+  real c2 = 1 - 2 * square(s1);
+  real s3 = s2 * c1 + c2 * s1;
+  real s4 = 2 * s2 * c2;
+  real c4 = 1 - 2 * square(s2);
+  real s5 = s4 * c1 + c4 * s1;
+  real c5 = c4 * c1 - s4 * s1;
+  real s6 = s5 * c1 + c5 * s1;
+  real s = s1 + f * 2 * g2 * s2 + 3 * g3 * s3 + f * 4 * g4 * s4
+           + 5 * g5 * s5 + f * 6 * g6 * s6;
+  if (!(s > 0)) return negative_infinity();
+  return log(pi()) + log(s) - square(pi()) * u / 2;
+}
+
+// The density at the upper boundary with w measured from the lower one, as
+// Stan's wiener_lpdf(): the lower boundary of the reflected process, started
+// at 1 - w with drift -v. sv integrates out in closed form.
+//
+// Outside 1e-140 < t / a^2 < 1e140 the log density is below -1e100 or so,
+// and the partials of t / a^2 itself overflow (u / a^2 = 4e380 at a = 8e-96)
+// while the value is still finite: reverse mode multiplies a zero adjoint
+// into the infinite partial, and the gradient of the whole model is NaN under
+// any mixture weight. So the answer there is the -inf it rounds to, as a
+// constant, tested on products whose partials cannot overflow.
+real cogmod_wfpt_lpdf(real t, real a, real w, real v, real sv) {
+  real a2 = square(a);
+  if (t > 1e140 * a2 || t < 1e-140 * a2) return negative_infinity();
+  real wl = 1 - w;
+  real lf = cogmod_wfpt0(t / a2, wl, w) - 2 * log(a);
+  if (sv == 0) return lf + v * a * wl - square(v) * t / 2;
+  real s2 = square(sv);
+  return lf + (s2 * square(a * wl) + 2 * v * a * wl - square(v) * t)
+              / (2 * (1 + s2 * t))
+         - 0.5 * log1p(s2 * t);
+}
+", formatC(.DDM_FPT_SWITCH, format = "g", digits = 17, width = 1))
 
 
 # Full (7-parameter) log-density at decision time `t`.
@@ -700,6 +845,7 @@ cogmod_ddm <- function(
   up <- pars$response == 1
   v <- ifelse(up, -pars$drift, pars$drift)
   w <- ifelse(up, 1 - pars$bias, pars$bias)
+  wc <- ifelse(up, pars$bias, 1 - pars$bias)  # 1 - w, exactly
   a <- pars$boundary
   sv <- pars$sigmadrift
   sw <- pars$sigmabias * pmin(2 * w, 2 * (1 - w))
@@ -742,6 +888,7 @@ cogmod_ddm <- function(
   out <- rep(-Inf, n)
   for (ia in seq_along(w_quad$nodes)) {
     w_a <- w + (sw / 2) * w_quad$nodes[ia]
+    wc_a <- wc - (sw / 2) * w_quad$nodes[ia]
     # The log range: from where the density is dead (see above), or from
     # `t - st0` if that is later, up to `t`.
     cc <- a^2 * w_a^2 / 2
@@ -756,7 +903,8 @@ cogmod_ddm <- function(
     lscale <- ifelse(spread, log(half) - log(st0), -log(2) - log_t)
     s_b <- each(log_t - half) + each(half) * t_quad$nodes
     lt <- matrix(each(lscale) + lw + s_b +
-                   .ddm_lfpt(exp(s_b), v_b, a_b, each(w_a), sv_b), nb, n)
+                   .ddm_lfpt(exp(s_b), v_b, a_b, each(w_a), sv_b,
+                             wc = each(wc_a)), nb, n)
     # log-sum-exp down the columns; a column of -Inf stays -Inf rather than NaN
     mx <- lt[1, ]
     for (b in seq_len(nb)[-1]) mx <- pmax(mx, lt[b, ])
@@ -1343,15 +1491,25 @@ cogmod_ddm <- function(
 
 # Stanvars ----------------------------------------------------------------
 
-# The Stan literal is generated from `.DDM_TAU0` rather than written out, so
-# the two implementations cannot end up shifted by different amounts. One
-# sprintf() template per function, because R refuses a format string longer
-# than 8192 characters.
+# The Stan literals are generated from `.DDM_TAU0` and `.DDM_WIENER_PRECISION`
+# rather than written out, so the two implementations cannot end up shifted by
+# different amounts. One sprintf() template per function, because R refuses a
+# format string longer than 8192 characters; the 4- and 5-parameter density,
+# .WFPT_STAN, is its own.
 #' @keywords internal
 .DDM_STAN_PRELUDE <- paste0(sprintf("
-// The decision component: Stan's Wiener density at the decision time. `w` is
+// The decision component: the Wiener density at the decision time. `w` is
 // the starting point of whichever boundary is being scored, so the caller flips
 // both it and the drift for the lower one.
+//
+// With the start-point and non-decision-time ranges both zero, that density is
+// cogmod_wfpt_lpdf(), whether or not sigmadrift is estimated. Otherwise it is
+// Stan's 7-parameter wiener_lpdf(), which integrates the ranges out by adaptive
+// quadrature: 100 us per observation and gradient with one of them nonzero,
+// about 160 with both at the tolerance .DDM_WIENER_PRECISION passes it
+// (2026-09-18). The test is for *exact* zero, so an estimated sigmabias or
+// sigmandt never takes the cheap path however small it gets; only fixing it in
+// bf() does.
 //
 // The shift is applied by the mixture around this, so the diffusion's own
 // non-decision time should be zero - but wiener_lpdf() rejects that outright,
@@ -1364,58 +1522,27 @@ cogmod_ddm <- function(
 // point inside the boundaries, so sw = sigmabias * fmin(2w, 2(1-w)) - which is
 // the same number for w and 1 - w, as it must be. sigmandt is st0 itself, in
 // the same unit as Y, with the shift as its lower bound.
-//
-// Performance note: Stan's own `sw == 0 && st0 == 0` fast path inside
-// `wiener_lpdf()` still delegates to the newer 'wiener5' algorithm (which also
-// handles sv analytically), a structurally different and empirically much
-// costlier implementation than the classic 4-parameter `wiener_lpdf()`, even
-// when sv = 0. So we short-circuit ourselves whenever sw and st0 both vanish:
-// to the classic 4-parameter Navarro & Fuss density when sv is also 0 (the
-// fastest path), or to the dedicated 5-parameter (sv-only) form otherwise,
-// which is still much cheaper than the general 7-parameter form (the latter
-// falls back to adaptive numerical quadrature whenever sw or st0 is nonzero).
-// Measured per observation and gradient (2026-09-18): 2.0 us classic, 5.4 us
-// with sv, 100 us with one of sw / st0 nonzero, 274 us with both - and the
-// last is what the tolerance passed to it (see .DDM_WIENER_PRECISION) brings
-// down to about 160. The test is for *exact* zero, so an estimated sigmabias
-// or sigmandt never takes the fast path however small it gets; only fixing
-// it in bf() does.
-//
-// The classic form is not usable everywhere, though - see
-// cogmod_ddm_log_density_scale() below for the two regions it has to be kept
-// out of, and why keeping it out of them is what removes the \"Non-finite
-// gradient\" reports.
 
-// A cheap estimate of the log first-passage density, used only to *route*
-// between Stan's implementations - never as the density itself. Both call
-// sites below fall back to an implementation that computes the exact value, so
-// this being off in either direction costs a little speed and nothing else.
+// A cheap estimate of the log first-passage density, used only to keep Stan's
+// 7-parameter wiener_lpdf() out of the region where its density underflows -
+// never as the density itself. There that function returns -inf with NaN
+// partial derivatives, and a NaN partial is not made harmless by the mixture
+// weight on it being zero: reverse-mode multiplies the (zero) adjoint into the
+// stored partial, and 0 * NaN is NaN, so a single such trial turns the gradient
+// of the whole model to NaN. That is what \"Error evaluating model log
+// probability: Non-finite gradient\" reports during a Pathfinder search, and
+// it is also why such a fit collects divergent transitions - a proposal whose
+// gradient is not finite is rejected as one.
 //
-// Stan's classic 4-parameter `wiener_lpdf()` returns -inf in two regions, and
-// hands back NaN partial derivatives when it does. A NaN partial is not made
-// harmless by the mixture weight on it being zero: reverse-mode multiplies the
-// (zero) adjoint into the stored partial, and 0 * NaN is NaN, so a single such
-// trial turns the gradient of the whole model to NaN. That is what \"Error
-// evaluating model log probability: Non-finite gradient\" reports during a
-// Pathfinder search, and it is also why such a fit collects divergent
-// transitions - a proposal whose gradient is not finite is rejected as one.
-//
-// The first region is the density underflowing to zero, which this function
-// detects: the two series Navarro & Fuss give for the driftless, unit-boundary
-// density at rescaled time tau = t / boundary^2 are each exact in their own
-// tail and a wild extrapolation outside it, so the smaller of the two leading
-// terms is the one to believe. Integrating a normal drift out of the density
-// is closed-form, so sv enters as a factor rather than as another series. The
-// second region is the alternating small-time series losing its sum to
-// cancellation while the density is still perfectly representable; that one
-// depends on tau alone - not on the drift or the scale separately - and is
-// tested for at the call site.
-//
-// The general 7-parameter density averages over a start point spread across
-// sw and a non-decision time spread across st0, so what matters there is
-// whether *any* point of those ranges has a representable density. Each term
-// is therefore taken at whichever end of each range makes it largest, which
-// reduces to the point value when both ranges vanish.
+// The two series Navarro & Fuss give for the driftless, unit-boundary density
+// at rescaled time tau = t / boundary^2 are each exact in their own tail and a
+// wild extrapolation outside it, so the smaller of the two leading terms is the
+// one to believe. Integrating a normal drift out of the density is closed-form,
+// so sv enters as a factor rather than as another series. The 7-parameter
+// density averages over a start point spread across sw and a non-decision time
+// spread across st0, so what matters there is whether *any* point of those
+// ranges has a representable density. Each term is therefore taken at
+// whichever end of each range makes it largest.
 real cogmod_ddm_log_density_scale(real t, real v, real boundary, real w,
                                   real sv, real sw, real st0) {
   real w_lo = fmax(w - sw / 2, 1e-12);
@@ -1442,55 +1569,31 @@ real cogmod_ddm_log_density_scale(real t, real v, real boundary, real w,
 
   return -2 * log(boundary) + fmin(small, large) + drift;
 }
-", formatC(.DDM_TAU0, format = "g", digits = 17, width = 1)), sprintf("
+", formatC(.DDM_TAU0, format = "g", digits = 17, width = 1)), .WFPT_STAN, sprintf("
 real cogmod_ddm_decision_lpdf(real t, real v, real boundary, real w,
                               real sigmadrift, real sigmabias, real sigmandt) {
   real tau0 = %s;
   // Below the offset the Wiener density has underflowed to zero anyway, so
   // -inf is the answer to double precision as well as the safe one.
   if (t <= tau0) return negative_infinity();
-  real y = t + tau0;
   real sw = sigmabias * fmin(2 * w, 2 * (1 - w));
 
+  // The 4- and 5-parameter forms: cogmod_wfpt_lpdf() is sound everywhere, so
+  // nothing routes around it.
   if (sw == 0 && sigmandt == 0) {
-    // The classic density, but only where it is sound. Cancellation sets in
-    // below tau = 6.6e-4 (measured over w from 1e-6 to 1 - 1e-6 and |v| up to
-    // 15, and invariant in the boundary and the drift), so the test keeps a
-    // factor of 15 clear of it; from tau = 0.002 upwards the classic and the
-    // sv-capable implementations agree to 1e-13, so there is no step in the
-    // density where the two paths meet. The second test stops about 100 log
-    // units short of underflow - far more slack than the estimate's error.
-    //
-    // The estimate only feeds this `if`, yet autodiff records it like any
-    // other expression: some 25 nodes per trial, a fifth of a DDM-4 gradient.
-    // So a certificate goes first: a few products that, within its bounds
-    // (boundary < 100, w in (1e-3, 1 - 1e-3), tau < 50, a drift term above
-    // -300), prove the estimate is above -560. The estimate then runs only
-    // for the trials the certificate cannot vouch for, and every trial takes
-    // the branch it took without it. Change a bound and the proof has to be
-    // redone: benchmarks/ddm_router/README.md has it, and the measurements.
-    if (sigmadrift == 0) {
-      real a2 = square(boundary);
-      if (t > 0.01 * a2
-          && ((boundary < 100 && w > 1e-3 && w < 1 - 1e-3 && t < 50 * a2
-               && v * (v * t + 2 * boundary * w) < 600)
-              || cogmod_ddm_log_density_scale(t, v, boundary, w, 0, 0, 0) > -600)) {
-        return wiener_lpdf(y | boundary, tau0, w, v);
-      }
-    }
-    // wiener5 works in log space throughout: it stays finite, with finite
-    // gradients, down to log-densities of -1e7 and beyond, so it needs no
-    // guard of its own.
-    return wiener_lpdf(y | boundary, tau0, w, v, sigmadrift);
+    return cogmod_wfpt_lpdf(t | boundary, w, v, sigmadrift);
   }
-  // The 7-parameter form has the same -inf-with-NaN-partials failure as the
-  // classic one and no sounder implementation to fall back on, so the answer
-  // here is the -inf it would have returned anyway - only as a constant, which
-  // carries no partial derivatives to poison the gradient with.
+
+  // The 7-parameter form returns -inf with NaN partials where its density
+  // underflows. Where the estimate puts it below -600, the answer is that
+  // -inf - only as a constant, which carries no partial derivatives to poison
+  // the gradient with. The threshold stops over 100 log units short of
+  // underflow (-745), far more slack than the estimate's error.
   if (cogmod_ddm_log_density_scale(t, v, boundary, w, sigmadrift, sw,
                                    sigmandt) < -600) {
     return negative_infinity();
   }
+  real y = t + tau0;
   return wiener_lpdf(y | boundary, tau0, w, v, sigmadrift, sw, sigmandt, %s);
 }
 ",

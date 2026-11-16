@@ -679,11 +679,15 @@ test_that("stanvars carry the likelihood with the outlier component", {
   expect_true(grepl("log_mix\\(poutlier", code))
   expect_true(grepl("half Normal with scale 0.2", code))
   expect_true(grepl("real cogmod_ddm_decision_lpdf", code))
-  # all three wiener_lpdf branches survive the change
-  expect_true(grepl("wiener_lpdf\\(y \\| boundary, tau0, w, v\\)", code))
-  expect_true(grepl("wiener_lpdf\\(y \\| boundary, tau0, w, v, sigmadrift\\)",
-                    code))
-  # ...and the 7-parameter one carries the package's tolerance, not Stan's
+  # the 4- and 5-parameter forms are the package's own series (.WFPT_STAN),
+  # and only the 7-parameter form is Stan's
+  expect_true(grepl("real cogmod_wfpt_lpdf", code, fixed = TRUE))
+  expect_true(grepl("return cogmod_wfpt_lpdf(t | boundary, w, v, sigmadrift);",
+                    code, fixed = TRUE))
+  expect_false(grepl("wiener_lpdf(y | boundary, tau0, w, v)", code, fixed = TRUE))
+  expect_false(grepl("wiener_lpdf(y | boundary, tau0, w, v, sigmadrift)", code,
+                     fixed = TRUE))
+  # ...and that one carries the package's tolerance, not Stan's
   # default: it is generated from .DDM_WIENER_PRECISION, so check that number
   expect_true(grepl(
     sprintf("wiener_lpdf\\(y \\| boundary, tau0, w, v, sigmadrift, sw, sigmandt, %s\\)",
@@ -770,6 +774,73 @@ test_that("Stan cogmod_ddm_lpdf matches dcogmod_ddm", {
   expect_equal(lpdf(0.5, 0.5, 1, 0.5, 0, 0, 0, 0.2, 1.5, 1L), -Inf)
   expect_equal(lpdf(0.5, 0.5, 1, 0.5, 0, 0, 0, 0.2, 0.02, 2L), -Inf)
   expect_equal(lpdf(0, 0.5, 1, 0.5, 0, 0, 0, 0.2, 0.02, 1L), -Inf)
+})
+
+
+test_that("the 4- and 5-parameter Stan density is the R series, to 1e-10", {
+  skip_on_cran()
+  skip_if_not_installed("cmdstanr")
+
+  # Both sides run the same series (.ddm_lfpt0() and .WFPT_STAN), so the
+  # comparison can be far tighter than the 7-parameter one above. The grid
+  # reaches both tails - rescaled times from 1e-3 to 8000 - and start points
+  # 1e-4 from either boundary, where the two sums arranged against
+  # cancellation do their work. `poutlier = 0` leaves the decision density
+  # alone.
+  lpdf <- stan_fun("cogmod_ddm")
+  g <- expand.grid(Y = c(0.03, 0.3, 1, 3, 20), boundary = c(0.05, 0.5, 1.5, 4),
+                   bias = c(1e-4, 0.05, 0.5, 0.95, 1 - 1e-4), mu = c(-6, 0, 2.5),
+                   sigmadrift = c(0, 0.4, 3), dec = 0:1)
+  worst <- 0
+  for (i in seq_len(nrow(g))) {
+    x <- g[i, ]
+    stan <- lpdf(x$Y, x$mu, x$boundary, x$bias, x$sigmadrift, 0, 0, 0.01, 0,
+                 as.integer(x$dec))
+    r <- dcogmod_ddm(x$Y, x$mu, x$boundary, x$bias, 0.01, response = x$dec,
+                     sigmadrift = x$sigmadrift, poutlier = 0, log = TRUE)
+    expect_true(is.finite(stan) && is.finite(r))
+    worst <- max(worst, abs(stan - r) / max(1, abs(r)))
+  }
+  expect_lt(worst, 1e-10)
+})
+
+
+test_that("the series switch is where Navarro & Fuss's term counts cross", {
+  ks <- cogmod:::.ddm_fpt_ks
+  kl <- cogmod:::.ddm_fpt_kl
+  us <- cogmod:::.DDM_FPT_SWITCH
+  expect_equal(ks(us), kl(us), tolerance = 1e-12)
+  # The small-time count rises with u and the large-time one falls, so each is
+  # at its largest at the switch, and the lengths .WFPT_STAN writes out for
+  # them - m = 3 each way and K = 6 - have to cover that.
+  u <- exp(seq(log(1e-6), log(us), length.out = 200))
+  expect_true(all(diff(ks(u)) >= 0))
+  u <- exp(seq(log(us), log(1e6), length.out = 200))
+  expect_true(all(diff(kl(u)) <= 0))
+  expect_lte(max(2, ceiling(ks(us) / 2)), 3)
+  expect_lte(max(2, ceiling(kl(us))), 6)
+  # and the Stan code switches where the R code does
+  expect_true(grepl(sprintf("if (u < %s)", formatC(us, format = "g", digits = 17,
+                                                   width = 1)),
+                    cogmod:::.WFPT_STAN, fixed = TRUE))
+})
+
+
+test_that("the series keeps its precision with the start point next to either boundary", {
+  # Reference values from the small-time series at 80 digits (mpmath), at a
+  # rescaled time where neither e1 nor the k = 1 term is negligible. "near" is
+  # the start point next to the boundary that is hit, "far" next to the other.
+  # The two leading small-time terms cancel on one side when written out
+  # (6e-9 here, far side) and on the other when paired through expm1() (5e-8,
+  # near side), so .ddm_lfpt0() picks by side; this holds both to 1e-12.
+  f <- cogmod:::.ddm_lfpt0
+  expect_equal(f(0.1, 1e-6, 1 - 1e-6), -11.28057161245287393, tolerance = 1e-13)
+  expect_equal(f(0.1, 1e-9, 1 - 1e-9), -18.18832689143001087, tolerance = 5e-14)
+  expect_equal(f(0.1, 1 - 1e-6, 1e-6), -13.39019969377375054, tolerance = 1e-13)
+  expect_equal(f(0.1, 1 - 1e-9, 1e-9), -20.29795497276385043, tolerance = 5e-14)
+  # and the Stan code makes the same choice
+  expect_true(grepl("w < 0.5 ? -expm1(x) - w * (1 + e1) : wl + (wl - 2) * e1",
+                    cogmod:::.WFPT_STAN, fixed = TRUE))
 })
 
 

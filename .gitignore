@@ -87,6 +87,9 @@ benchmarks/**/*.csv
 # which task.slurm writes per cluster task and the summarise scripts read,
 # and the repro_*.txt logs. They stay on disk for those scripts.
 benchmarks/**/*.txt
+# And the .log files (from 2026-11-16), such as the per-task fit.log that
+# hpc/run.sh tails while a cluster run is going.
+benchmarks/**/*.log
 
 # Compiled Stan executables produced by benchmarks/*.R
 benchmarks/results/exe/
@@ -128,9 +131,6 @@ benchmarks/results/stanli/
 benchmarks/results/stanli_ml/
 # benchmarks/nutpieR/bench.R: likewise, programs, executables and CmdStan CSVs.
 benchmarks/results/nutpie/
-# The log hpc/task.slurm writes per cluster task, read only by hpc/run.sh
-# while a run is going.
-benchmarks/nutpieR/results/hpc/*/fit.log
 
 # The animation scripts import a shared module, which leaves one of these.
 __pycache__/

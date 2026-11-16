@@ -116,7 +116,9 @@ Two things go beyond the R side, so R and Stan now differ below 2e-11:
 
 - The small-time k = 0 and k = -1 terms are summed as
   `-expm1(-2w/u) - w (1 + e1)`. Written as two terms, they cancel as the
-  start point nears the far boundary.
+  start point nears the far boundary. (Only on that side, since the review
+  below: next to the boundary that is hit, this form is the one that
+  cancels.)
 - The large-time `sin(k pi wl)` is taken at whichever of `wl` and `w` is
   nearer 0, with alternating signs. Each keeps its relative precision near
   its own boundary.
@@ -340,6 +342,41 @@ Checked on the applied tree, Windows, the same day:
     and point. The help page now says 1.2 to 1.6 for `sigmadrift`: this
     ladder's 1.16, 1.32 from `gradient_cost.R`, and 1.57 on the multilevel
     model. For the ranges it says 60-70 and 250.
+
+### Review, same day
+
+A second pass over the applied code, against a reference at 80 to 330
+digits (mpmath: the small-time series to k = +-40 below u = 0.3, the
+large-time one above), with the Stan function transcribed into doubles.
+
+- **The algebra holds.** Worst error on the log density: 1.1e-14 for
+  |logit(bias)| < 5 and 1.9e-11 for |logit(bias)| < 12, over u from 1e-3
+  to 50.
+- **The `expm1()` pairing had moved the cancellation, not removed it.**
+  `-expm1(-2w/u) - w (1 + e1)` forms `1 - w` as it goes, so next to the
+  boundary that is hit (`wl` -> 0) it was off by about 2e-16 / wl for u
+  between 0.05 and 0.2: 9e-11 at wl = 1e-6, 5e-8 at 1e-9, 8e-5 at 1e-12
+  (u = 0.1). The two terms as written, which 0.3.5's R code had, are exact
+  there. Both sides now pick by side (`w < 0.5`), which also skips the
+  `expm1()` call for those trials. `test-model_ddm.R` pins both sides to
+  reference values.
+- **Two idle computations went**: `c3`, never used, and `-w * r`, built
+  twice.
+- **Checked after the edit.** `gradient_check.R --families
+  cogmod_ddm4,cogmod_ddm5`: 16/16 (5.9e-8) and 18/18 (1.7e-7), as before.
+  `gradient_cost.R`, 21 blocks, against the programs emitted before the
+  edit: 0.96 and 0.90 (one run; the edit is the same in both programs, so
+  the gap between the two is noise). The R density moved by at most
+  5.3e-13 (relative) over 200,000 points with |logit(bias)| < 9.
+  **Not rerun: stanli.** The edit adds a conditional on a parameter, as
+  `flip ? w : wl` already is, and no loop, but the region map was not
+  looked at again.
+- **Left alone.** Below a far-boundary distance of about 1e-25 near the
+  switch, the leading pair is absorbed by larger terms that cancel exactly.
+  For a denormal bias (logit below -709), `1 / s` overflows while the value
+  is finite. And the k = 3 and sixth large-time terms change the value by
+  under 3e-14, so the series could be a term shorter each: a few tape nodes
+  per trial, below what `gradient_cost.R` resolves on a laptop.
 
 **When to switch back** to Stan's `wiener_lpdf()`: once a CmdStan release
 carries stan-dev/math#3481 and #3442, rerun `grid.R` and `program_ab.R`

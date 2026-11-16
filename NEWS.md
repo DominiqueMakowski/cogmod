@@ -1,3 +1,54 @@
+# cogmod 0.3.6
+
+## Performance
+
+* **`cogmod_ddm()` with `sigmadrift` estimated costs 0.29x what it did per
+  gradient in CmdStan, and the classic model 0.86x.** Whenever `sigmabias` and
+  `sigmandt` are both fixed at 0, the Stan likelihood no longer calls Stan's
+  `wiener_lpdf()`. It evaluates the Navarro and Fuss (2009) series the R side
+  already used for `dcogmod_ddm()` and `log_lik()`, written in the Stan
+  language, with `sigmadrift` in closed form. Stan's 5-parameter form computes
+  the density and each of its derivatives as separate series; here autodiff
+  takes every derivative through the one series. Estimating `sigmadrift` now
+  costs about 1.2 to 1.6 times the classic model per gradient, down from
+  about 3.5. On stanli the two models cost 1.06x and 0.67x what they did,
+  0.76x and 0.24x of CmdStan before the change. Measured on a model with 10
+  participants and 1000 trials (Windows, CmdStan 2.38.0, stanli 0.26.0);
+  `benchmarks/gradient_cost.R` gives 0.81 and 0.36. The 7-parameter
+  model, with `sigmabias` or `sigmandt` estimated, still uses Stan's
+  `wiener_lpdf()`. The certificate and router that chose between Stan's two
+  cheaper forms for the classic model are gone; the router remains for the
+  7-parameter form. Details in `benchmarks/wiener_stan/`.
+
+## Bug fixes
+
+* **`cogmod_ddm()`'s Stan likelihood was off by up to a log unit per trial in
+  the tails when `sigmadrift` was estimated.** Stan's 5-parameter
+  `wiener_lpdf()` controls its error in absolute terms on the density, so where
+  the density is small its log can be badly wrong. Against an independent
+  reference it was off by 0.47 log units at a log density of -28, and by up to
+  1.1 per trial (13.6 summed over 1000 trials) at a tail point of a
+  10-participant model. Its partial derivatives were off by up to 84 times
+  their size in the tails. At vanishing boundaries it returned a finite
+  gradient that was wrong: -11 for the log decision time, where the true value
+  is about -1.4e191. The classic model was off by up to 6.6e-4, wherever the
+  start point lay near the far boundary. The new density agrees with that
+  reference to about 1e-11, and so does `dcogmod_ddm()`. So `log_lik()`,
+  `loo()` and `p_outlier()` now score each trial by the density the model was
+  fitted with. Across boundaries from 1e-160 to 1e80 it never gives a
+  non-finite derivative, where the old code did at up to 2,252 of 5,000
+  points. Away from the tails nothing moves: at the posterior draws of a
+  1000-trial model, the total log density changed by 7e-9 for the classic
+  model and 2e-13 with `sigmadrift`.
+
+* **`dcogmod_ddm()` keeps its relative precision with the start point next to
+  the far boundary.** Two sums in the Navarro and Fuss series cancel there. On
+  that side, the small-time series' two leading terms are now taken together
+  through `expm1()`, and the large-time series takes its sines at the start
+  point's distance from the nearer boundary. Next to the boundary that is hit
+  the two terms stay as they were, since there it is the `expm1()` form that
+  cancels. The values move by at most 1.6e-13 elsewhere.
+
 # cogmod 0.3.5
 
 ## Breaking changes
