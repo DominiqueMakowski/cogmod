@@ -1,5 +1,11 @@
 # A cheaper routing test for the DDM's classic Wiener path
 
+> **Superseded in 0.3.6.** The DDM-4 and DDM-5 no longer call Stan's
+> `wiener_lpdf()`: they use the package's own Stan series
+> (`benchmarks/wiener_stan/`), which needs no routing. The certificate below
+> is gone. The router, `cogmod_ddm_log_density_scale()`, remains, but only at
+> the 7-parameter call site. The scripts here run against a 0.3.5 tree.
+
 Proposed 2026-10-16, implemented and measured 2026-10-17 (0.3.5). With all
 three variabilities fixed at 0 in `bf()` ("DDM-4"), a gradient now costs
 0.77x what it did in CmdStan and 0.83x in stanli, and every log density and
