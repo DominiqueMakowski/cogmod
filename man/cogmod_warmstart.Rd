@@ -19,9 +19,10 @@ cogmod_step_size(formula = NULL, data = NULL, warmstart, ...)
 \method{print}{cogmod_warmstart}(x, ...)
 }
 \arguments{
-\item{x}{The source: a \code{brmsfit} fitted with \code{backend = "cmdstanr"}, a
-\code{cogmod_warmstart} object, the data frame \code{as.data.frame()} makes of one,
-or the path to a CSV file holding that data frame.}
+\item{x}{The source: a \code{brmsfit} sampled with \code{backend = "cmdstanr"} or
+\code{backend = "stanli"}, a \code{cogmod_warmstart} object, the data frame
+\code{as.data.frame()} makes of one, or the path to a CSV file holding that
+data frame.}
 
 \item{formula, data}{The target model, as they will be passed to
 \code{\link[brms:brm]{brms::brm()}}. Either left \code{NULL} (the default) is taken from the source
@@ -84,9 +85,16 @@ m <- brm(formula, data = data, prior = ..., stanvars = ...,
          warmup = 100, iter = 600, backend = "cmdstanr")
 }\if{html}{\out{</div>}}
 
-The sampler keeps adapting from the supplied values during whatever warmup
-remains, so a poor warm start costs speed, not correctness. Nothing about it
-changes the posterior being sampled.
+What the sampler does with the supplied metric depends on the warmup length.
+With Stan's default adaptation windows, 150 warmup iterations or more
+re-estimate the metric from the run's own draws, so the supplied one only
+has to carry the sampler to the end of the first window. A shorter warmup,
+such as the 100 above, never re-estimates it: only the step size adapts, and
+the supplied metric is used as is. That is a Stan bug
+(\href{https://github.com/stan-dev/stan/pull/3441}{stan-dev/stan#3441}, in no
+CmdStan release up to 2.39), and the figures under \emph{What it is worth} below
+were measured with it. Either way a poor warm start costs speed, not
+correctness: nothing about it changes the posterior being sampled.
 }
 \section{What is carried over, and how}{
 Stan adapts one variance per \strong{unconstrained} scalar parameter, in the
@@ -130,15 +138,17 @@ iterations. With only \code{data}, the target is the same model on that data -
 the pilot-to-full-sample case. With only \code{formula}, it is that model on the
 source's data - a variant of the model, say with one more predictor, whose
 shared parameters can start where the first fit left them. A table or file
-source carries neither and needs both. Any \code{brms} model fitted with the
-\code{cmdstanr} backend and the default diagonal metric can be a source; a
-\code{dense_e} fit is refused, and so is the \code{rstan} backend, which does not
-store the adaptation.
+source carries neither and needs both. Any \code{brms} model sampled with the
+default diagonal metric by the \code{cmdstanr} or the \code{stanli} backend can be a
+source, and a \code{dense_e} fit is refused. \code{cmdstanr} keeps the adaptation in
+the fit's metadata, \code{stanli} as the text Stan prints after warmup; either
+is read, to the 6 significant digits both carry. Either backend can take
+the result, through the same three \code{brm()} arguments.
 
-The \code{inv_metric} returned is a plain vector, as \code{cmdstanr} wants it; the
-labels are in \code{ws$table}. The metric must match the target program exactly,
-which is why \code{formula} and \code{data} are needed rather than just a count of
-participants: \code{brms} decides the layout from both.
+The \code{inv_metric} returned is a plain vector, as \code{cmdstanr} and \code{stanli}
+want it; the labels are in \code{ws$table}. The metric must match the target
+program exactly, which is why \code{formula} and \code{data} are needed rather than
+just a count of participants: \code{brms} decides the layout from both.
 }
 
 \section{Storing it, and the four helpers}{
@@ -181,10 +191,13 @@ On an LNR and a DDM with participant random intercepts, a pilot on 4 of 8
 participants warm-started the full fit to about twice the effective draws
 per second of a cold start with a 500-iteration warmup, and four to six
 times those of a cold start with the same 100-iteration warmup. The
-starting values alone
-bought nothing: what a short warmup lacks is an adapted step size and
-metric, not a good position. Details and the benchmark are in
-the \href{https://dominiquemakowski.github.io/cogmod/articles/performance.html}{performance article}.
+starting values alone bought nothing: what a 100-iteration warmup lacks is
+an adapted metric (Stan estimates none in so short a warmup, as above), not
+a good position. Once a Stan release carries the fix, a 100-iteration
+warmup will replace the supplied metric with one estimated from 75 of its
+own draws, and these figures will need measuring again. Details and the
+benchmark are in the
+\href{https://dominiquemakowski.github.io/cogmod/articles/performance.html}{performance article}.
 }
 
 \examples{

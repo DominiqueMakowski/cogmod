@@ -1,5 +1,16 @@
 # cogmod 0.3.6
 
+## New features
+
+* **`cogmod_warmstart()` takes fits from `brms`'s new `stanli` backend.**
+  `stanli` keeps each chain's adapted step size and metric as the text Stan
+  prints after warmup, not in the metadata `cmdstanr` writes, and that text
+  is now read. The `init`, `inv_metric` and `step_size` that come out go to
+  `brm(backend = "stanli")` as they go to `cmdstanr`, so a pilot fitted with
+  either backend can warm-start a fit with either. `cogmod_inv_metric()` and
+  `cogmod_step_size()` follow. On a `cmdstanr` fit, which carries both, the
+  text gives the metadata's values to the 6 significant digits both have.
+
 ## Performance
 
 * **`cogmod_ddm()` with `sigmadrift` estimated costs 0.29x what it did per
@@ -48,6 +59,33 @@
   point's distance from the nearer boundary. Next to the boundary that is hit
   the two terms stay as they were, since there it is the `expm1()` form that
   cancels. The values move by at most 1.6e-13 elsewhere.
+
+## Documentation
+
+* The performance article's `stanli` section now fits with `brms`'s own
+  `backend = "stanli"` (in `brms`'s development version since brms#1966),
+  where it took four steps through the `"mock"` backend. With it, `update()`,
+  `kfold()`, `loo()`'s moment matching and bridge sampling work too, as does
+  `control = list(metric = "dense_e")`; checked on the decision-making
+  article's LNR. The nutpie sampler keeps the longer route, which the
+  article now spells out.
+
+* **The warm-start documentation misdescribed what a short warmup does.**
+  `?cogmod_warmstart` and the performance article said the sampler goes on
+  adapting the supplied metric during the remaining warmup. With the
+  100-iteration warmup they recommend, Stan never re-estimates the metric at
+  all: with fewer than 150 warmup iterations it shrinks its adaptation
+  windows and, through a bug (stan-dev/stan#3441), never closes them. The
+  supplied metric is used as is and only the step size adapts, and a cold
+  start with the same warmup samples with the unit metric. Checked on
+  CmdStan 2.38.0 and stanli 0.26.0, with both the diagonal and the dense
+  metric. The article's reading of its warm-start benchmarks now says so;
+  the figures themselves are unchanged, and are flagged for a rerun once a
+  CmdStan release carries the fix. The article also blamed Pathfinder's
+  covariance for its run with the metric "held fixed". The window settings
+  that run used in fact replace the metric with 0.001 on every parameter at
+  the end of warmup, so the article now says that, and that the covariance
+  itself was never tested as a fixed metric.
 
 # cogmod 0.3.5
 

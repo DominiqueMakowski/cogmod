@@ -29,6 +29,12 @@
 #   warm inits       pilot posterior means as inits, default metric, warmup 100
 #   warm             + pilot metric and step size (cogmod_warmstart()), warmup 100
 #
+# With the default adaptation windows, Stan never re-estimates the metric in
+# a warmup under 150 (stan-dev/stan#3441, unfixed in any release up to 2.39;
+# checked 2026-11-17). So the three 100-iteration runs adapt the step size
+# only: `cold` and `warm inits` sample with the unit metric, `warm` with the
+# pilot's exactly as given. Rerun once a CmdStan release carries the fix.
+#
 # Output: benchmarks/results/warm_start_subset_<family>.csv (one row per run,
 # the pilot fit included: wall time, min bulk ESS, ESS per second,
 # divergences, max Rhat).

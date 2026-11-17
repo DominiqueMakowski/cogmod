@@ -18,9 +18,16 @@
 #'          warmup = 100, iter = 600, backend = "cmdstanr")
 #' ```
 #'
-#' The sampler keeps adapting from the supplied values during whatever warmup
-#' remains, so a poor warm start costs speed, not correctness. Nothing about it
-#' changes the posterior being sampled.
+#' What the sampler does with the supplied metric depends on the warmup length.
+#' With Stan's default adaptation windows, 150 warmup iterations or more
+#' re-estimate the metric from the run's own draws, so the supplied one only
+#' has to carry the sampler to the end of the first window. A shorter warmup,
+#' such as the 100 above, never re-estimates it: only the step size adapts, and
+#' the supplied metric is used as is. That is a Stan bug
+#' ([stan-dev/stan#3441](https://github.com/stan-dev/stan/pull/3441), in no
+#' CmdStan release up to 2.39), and the figures under *What it is worth* below
+#' were measured with it. Either way a poor warm start costs speed, not
+#' correctness: nothing about it changes the posterior being sampled.
 #'
 #' @details
 #' # What is carried over, and how
@@ -65,15 +72,17 @@
 #' the pilot-to-full-sample case. With only `formula`, it is that model on the
 #' source's data - a variant of the model, say with one more predictor, whose
 #' shared parameters can start where the first fit left them. A table or file
-#' source carries neither and needs both. Any `brms` model fitted with the
-#' `cmdstanr` backend and the default diagonal metric can be a source; a
-#' `dense_e` fit is refused, and so is the `rstan` backend, which does not
-#' store the adaptation.
+#' source carries neither and needs both. Any `brms` model sampled with the
+#' default diagonal metric by the `cmdstanr` or the `stanli` backend can be a
+#' source, and a `dense_e` fit is refused. `cmdstanr` keeps the adaptation in
+#' the fit's metadata, `stanli` as the text Stan prints after warmup; either
+#' is read, to the 6 significant digits both carry. Either backend can take
+#' the result, through the same three `brm()` arguments.
 #'
-#' The `inv_metric` returned is a plain vector, as `cmdstanr` wants it; the
-#' labels are in `ws$table`. The metric must match the target program exactly,
-#' which is why `formula` and `data` are needed rather than just a count of
-#' participants: `brms` decides the layout from both.
+#' The `inv_metric` returned is a plain vector, as `cmdstanr` and `stanli`
+#' want it; the labels are in `ws$table`. The metric must match the target
+#' program exactly, which is why `formula` and `data` are needed rather than
+#' just a count of participants: `brms` decides the layout from both.
 #'
 #' # Storing it, and the four helpers
 #'
@@ -117,14 +126,18 @@
 #' participants warm-started the full fit to about twice the effective draws
 #' per second of a cold start with a 500-iteration warmup, and four to six
 #' times those of a cold start with the same 100-iteration warmup. The
-#' starting values alone
-#' bought nothing: what a short warmup lacks is an adapted step size and
-#' metric, not a good position. Details and the benchmark are in
-#' the [performance article](https://dominiquemakowski.github.io/cogmod/articles/performance.html).
+#' starting values alone bought nothing: what a 100-iteration warmup lacks is
+#' an adapted metric (Stan estimates none in so short a warmup, as above), not
+#' a good position. Once a Stan release carries the fix, a 100-iteration
+#' warmup will replace the supplied metric with one estimated from 75 of its
+#' own draws, and these figures will need measuring again. Details and the
+#' benchmark are in the
+#' [performance article](https://dominiquemakowski.github.io/cogmod/articles/performance.html).
 #'
-#' @param x The source: a `brmsfit` fitted with `backend = "cmdstanr"`, a
-#'   `cogmod_warmstart` object, the data frame `as.data.frame()` makes of one,
-#'   or the path to a CSV file holding that data frame.
+#' @param x The source: a `brmsfit` sampled with `backend = "cmdstanr"` or
+#'   `backend = "stanli"`, a `cogmod_warmstart` object, the data frame
+#'   `as.data.frame()` makes of one, or the path to a CSV file holding that
+#'   data frame.
 #' @param formula,data The target model, as they will be passed to
 #'   [brms::brm()]. Either left `NULL` (the default) is taken from the source
 #'   fit: the same formula on new data, the same data under a new formula, or
@@ -372,18 +385,18 @@ print.cogmod_warmstart <- function(x, ...) {
 # Metric, step size and posterior means out of a brmsfit.
 #' @keywords internal
 .warmstart_extract <- function(fit) {
-  md <- attr(fit$fit, "metadata")
-  if (is.null(md) || is.null(md$inv_metric) || is.null(md$step_size)) {
+  ad <- .warmstart_adaptation(fit$fit)
+  if (is.null(ad)) {
     stop("The fit carries no adaptation. cogmod_warmstart() needs a model ",
-         "sampled with backend = \"cmdstanr\" (the rstan backend does not ",
-         "keep the metric, and approximations have none).", call. = FALSE)
+         "sampled with NUTS, with backend = \"cmdstanr\" or \"stanli\" ",
+         "(approximations such as Pathfinder have none).", call. = FALSE)
   }
-  if (is.matrix(md$inv_metric[[1]])) {
+  if (is.matrix(ad$inv_metric[[1]])) {
     stop("The fit used a dense metric (metric = \"dense_e\"). Only the ",
          "diagonal metric can be carried over.", call. = FALSE)
   }
-  inv_metric <- Reduce(`+`, md$inv_metric) / length(md$inv_metric)
-  step_size <- mean(unlist(md$step_size))
+  inv_metric <- Reduce(`+`, ad$inv_metric) / length(ad$inv_metric)
+  step_size <- mean(ad$step_size)
 
   decls <- .stan_param_decls(fit$model)
   sdata <- as.list(brms::standata(fit))
@@ -402,6 +415,59 @@ print.cogmod_warmstart <- function(x, ...) {
   tab$sd <- st$sd
   tab$step_size <- step_size
   tab
+}
+
+
+# Each chain's adapted inverse metric and step size, or NULL. A cmdstanr fit
+# holds them as numbers in its metadata; a stanfit sampled by stanli holds
+# them only as the text Stan prints after warmup, one string per chain, which
+# is read back here. That text has 6 significant digits, as many as the CSV
+# behind cmdstanr's metadata.
+#' @keywords internal
+.warmstart_adaptation <- function(stanfit) {
+  md <- attr(stanfit, "metadata")
+  if (!is.null(md$inv_metric) && !is.null(md$step_size)) {
+    return(list(inv_metric = md$inv_metric, step_size = unlist(md$step_size)))
+  }
+  samples <- tryCatch(stanfit@sim$samples, error = function(e) NULL)
+  if (!length(samples)) return(NULL)
+  chains <- lapply(samples, function(s) .parse_adaptation_info(attr(s, "adaptation_info")))
+  if (any(vapply(chains, is.null, logical(1)))) return(NULL)
+  list(inv_metric = lapply(chains, `[[`, "inv_metric"),
+       step_size = vapply(chains, `[[`, numeric(1), "step_size"))
+}
+
+
+# One chain's adaptation text, as Stan prints it:
+#   # Step size = 0.0932521
+#   # Diagonal elements of inverse mass matrix:
+#   # 0.145774, 0.0580678, ...
+# A dense metric is headed "Elements of inverse mass matrix:" with one line
+# per row, and comes back as a matrix so that the caller can refuse it. NULL
+# for anything else, such as the empty string of a chain that did not adapt.
+#' @keywords internal
+.parse_adaptation_info <- function(txt) {
+  if (!is.character(txt) || length(txt) != 1L || is.na(txt)) return(NULL)
+  lines <- trimws(sub("^\\s*#", "", strsplit(txt, "\n", fixed = TRUE)[[1]]))
+  lines <- lines[nzchar(lines)]
+  nums <- function(x) suppressWarnings(as.numeric(strsplit(x, ",", fixed = TRUE)[[1]]))
+  step <- grep("^Step size\\s*=", lines, value = TRUE)
+  if (length(step) != 1L) return(NULL)
+  step <- nums(sub("^Step size\\s*=", "", step))
+  if (length(step) != 1L || !is.finite(step) || step <= 0) return(NULL)
+  at <- match("Diagonal elements of inverse mass matrix:", lines)
+  if (!is.na(at)) {
+    m <- if (at < length(lines)) nums(lines[at + 1L]) else numeric(0)
+  } else {
+    at <- match("Elements of inverse mass matrix:", lines)
+    if (is.na(at) || at == length(lines)) return(NULL)
+    n <- length(nums(lines[at + 1L]))
+    rows <- lapply(lines[at + seq_len(n)], nums)
+    if (any(lengths(rows) != n)) return(NULL)
+    m <- do.call(rbind, rows)
+  }
+  if (!length(m) || anyNA(m)) return(NULL)
+  list(step_size = step, inv_metric = m)
 }
 
 
