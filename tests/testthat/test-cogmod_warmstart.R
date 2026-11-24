@@ -387,11 +387,14 @@ test_that("one chain's adaptation text is read back", {
 })
 
 test_that("a stanfit without metadata gives every chain's adaptation, or none", {
-  skip_if_not_installed("rstan")
+  # A stand-in with the one slot that is read, not rstan's class: nothing else
+  # in the suite loads rstan, and loading it after stan_fun() has exposed the
+  # shared model segfaults on Linux (the CmdStan CI job, 0.3.6).
+  stanfit <- methods::setClass("cogmod_test_stanfit", slots = c(sim = "list"),
+                               where = new.env())
   chain <- function(txt) structure(data.frame(a = 1), adaptation_info = txt)
-  sf <- methods::new(methods::getClass("stanfit", where = asNamespace("rstan")),
-                     sim = list(samples = list(chain(adaptation_text(0.1, c(1, 2))),
-                                               chain(adaptation_text(0.3, c(3, 4))))))
+  sf <- stanfit(sim = list(samples = list(chain(adaptation_text(0.1, c(1, 2))),
+                                          chain(adaptation_text(0.3, c(3, 4))))))
   ad <- cogmod:::.warmstart_adaptation(sf)
   expect_equal(ad$step_size, c(0.1, 0.3))
   expect_equal(ad$inv_metric, list(c(1, 2), c(3, 4)))
