@@ -60,6 +60,16 @@
   the two terms stay as they were, since there it is the `expm1()` form that
   cancels. The values move by at most 1.6e-13 elsewhere.
 
+* **`cogmod_inits()` keeps a one-element container one-dimensional.** A
+  parameter declared `vector[1]`, which `brms` makes the `sd_k` of a
+  group-level term on its own such as `(1 | Study)`, the `bs` of a single
+  smooth or its `sds_k`, came out as a bare number. `cmdstanr` boxes such a
+  value itself before writing its JSON, so nothing showed there. A backend
+  that passes R values through as they are reads it as a scalar: stanli 0.31.0
+  stopped with `dims declared=(1); dims found=()`. It now carries `dim = 1`.
+  Longer vectors stay plain vectors, and declared scalars stay scalars. The
+  same goes for `cogmod_warmstart()`'s `init`, which is built the same way.
+
 ## Documentation
 
 * The performance article's `stanli` section now fits with `brms`'s own
