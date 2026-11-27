@@ -98,7 +98,7 @@
 #' on 0.25%, with 95% between 0.035% and 1.7%, which is where the empirical
 #' estimates sit: Miller (2024) puts the outlier proportion below 0.5% across
 #' four lexical-decision megastudies, and the untrimmed data of the
-#' [outliers article](https://dominiquemakowski.github.io/cogmod/articles/outliers.html)
+#' [outliers article](https://dominiquemakowski.com/cogmod/articles/outliers.html)
 #' agree. If the data were trimmed before fitting, tighten the prior
 #' (`normal(-7, 0.5)`) rather than fixing `poutlier = 0`, which brings the hard
 #' min-RT boundary back; see the *Trimmed data* section of [cogmod_lognormal()].
@@ -198,7 +198,7 @@
 #' No prior is set on the shape of [cogmod_weibull()] or [cogmod_gamma()],
 #' although a shape below 2 makes their `ndt` gradient unbounded: the
 #' likelihood itself prefers that region, by around 100 log units on the data
-#' in the [RT models article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
+#' in the [RT models article](https://dominiquemakowski.com/cogmod/articles/rt_models.html),
 #' so a prior weak enough to be a default could only bias it.
 #' `?rcogmod_weibull` sets out what to do instead.
 #'

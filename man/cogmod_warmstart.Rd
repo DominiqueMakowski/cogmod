@@ -197,7 +197,7 @@ a good position. Once a Stan release carries the fix, a 100-iteration
 warmup will replace the supplied metric with one estimated from 75 of its
 own draws, and these figures will need measuring again. Details and the
 benchmark are in the
-\href{https://dominiquemakowski.github.io/cogmod/articles/performance.html}{performance article}.
+\href{https://dominiquemakowski.com/cogmod/articles/performance.html}{performance article}.
 }
 
 \examples{
@@ -247,5 +247,5 @@ if (requireNamespace("cmdstanr", quietly = TRUE) &&
 }
 \seealso{
 \code{\link[=cogmod_inits]{cogmod_inits()}}, which supplies the starting values used where
-the source has none, and the \href{https://dominiquemakowski.github.io/cogmod/articles/performance.html}{performance article}.
+the source has none, and the \href{https://dominiquemakowski.com/cogmod/articles/performance.html}{performance article}.
 }

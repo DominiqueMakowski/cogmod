@@ -129,7 +129,7 @@
 #' error accumulator started too fast sits hundreds of log-density units above
 #' the posterior, and a cold chain's first trajectory can convert that into a
 #' run down the flat `driftone` direction from which it never returns. On the
-#' benchmark data of the [performance article](https://dominiquemakowski.github.io/cogmod/articles/performance.html) that froze one chain in four;
+#' benchmark data of the [performance article](https://dominiquemakowski.com/cogmod/articles/performance.html) that froze one chain in four;
 #' the slower start removed it.
 #'
 #' [cogmod_priors()] is not a convenience here either. Beyond `ndt` and
@@ -156,7 +156,7 @@
 #' wins sometimes - but once `driftone` is a few hundredths the likelihood stops
 #' changing, while the `softplus` link puts that whole region at minus
 #' infinity. Left flat, the two-participant data of the
-#' [decision-making article](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html),
+#' [decision-making article](https://dominiquemakowski.com/cogmod/articles/decision_making.html),
 #' whose Accuracy condition carries about 75 errors, ran it down to 0.0001 with
 #' half of the transitions divergent. [cogmod_priors()] fences it with
 #' `normal(3, 2)`, and `normal(0, 2)` on its slopes. That prior sits well above

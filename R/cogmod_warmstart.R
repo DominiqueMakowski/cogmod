@@ -132,7 +132,7 @@
 #' warmup will replace the supplied metric with one estimated from 75 of its
 #' own draws, and these figures will need measuring again. Details and the
 #' benchmark are in the
-#' [performance article](https://dominiquemakowski.github.io/cogmod/articles/performance.html).
+#' [performance article](https://dominiquemakowski.com/cogmod/articles/performance.html).
 #'
 #' @param x The source: a `brmsfit` sampled with `backend = "cmdstanr"` or
 #'   `backend = "stanli"`, a `cogmod_warmstart` object, the data frame
@@ -174,7 +174,7 @@
 #' }
 #'
 #' @seealso [cogmod_inits()], which supplies the starting values used where
-#'   the source has none, and the [performance article](https://dominiquemakowski.github.io/cogmod/articles/performance.html).
+#'   the source has none, and the [performance article](https://dominiquemakowski.com/cogmod/articles/performance.html).
 #'
 #' @examples
 #' \donttest{
