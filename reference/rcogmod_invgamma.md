@@ -120,7 +120,7 @@ posterior_epred_cogmod_invgamma(prep, predict_outliers = NULL)
   `poutlier` to zero for prediction, so predictions describe the
   decision process alone; the likelihood is always the full mixture
   either way. See
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md).
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md).
 
 - i, prep:
 
@@ -162,15 +162,15 @@ decision time, whose mean is `sigma / (mu - 1)` and exists only for
 `mu > 1`.
 
 `ndt` and `poutlier` mean exactly what they do in
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
 and
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 all work here too. See
-[`?rcogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`?rcogmod_lognormal`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 for why `ndt` is expressed directly in seconds rather than as a fraction
 of the fastest observed response, what the half Normal outlier component
 is for, and why the outlier component's scale is a constant rather than
@@ -180,7 +180,7 @@ a `dpar`, and why reaction times have to be in seconds.
 returns `Inf` where `mu <= 1`, because the inverse Gamma has no mean
 there. The right tail is a power law, so this family is the one to reach
 for when the slow tail is heavy;
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
 covers the same territory continuously through negative `shape`.
 
 ## Examples

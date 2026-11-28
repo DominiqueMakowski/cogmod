@@ -156,7 +156,7 @@ less autocorrelated.
 
 The argument goes straight through
 [`brm()`](https://paulbuerkner.com/brms/reference/brm.html) to
-`cmdstanr` (with the `rstan` backend it is
+`cmdstanr` (with the `rstan` and `stanli` backends it is
 `control = list(metric = "dense_e")`):
 
 ``` r
@@ -178,7 +178,7 @@ multiplies by a `d x d` matrix rather than a vector, and warmup has to
 pin down `d(d+1)/2` covariances rather than `d` variances from the same
 number of warmup iterations. For a handful of population-level
 parameters, as in the [decision making
-models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.md),
+models](https://dominiquemakowski.com/cogmod/articles/decision_making.md),
 both costs are negligible and the LBA there samples about twice as fast.
 For a hierarchy with hundreds of participant-level parameters, the
 covariance estimate gets noisy, the per-step cost is felt, and the
@@ -322,21 +322,35 @@ ends, and both can be supplied to the next run instead of being learned
 again. Stan exposes them as the `init`, `inv_metric` and `step_size`
 arguments of the sampler, and
 [`brm()`](https://paulbuerkner.com/brms/reference/brm.html) forwards any
-argument it does not recognize to `cmdstanr`, so no custom Stan is
-involved. The sampler keeps adapting from the supplied values during
-whatever warmup remains, so the result is a head start rather than a
-fixed setting, and nothing about it changes the posterior being sampled:
-a poor warm start costs speed, not correctness. The usual checks
-(`Rhat`, divergences, effective sample size) remain the judge of the
-run.
+argument it does not recognize to the backend’s sampler (`cmdstanr`, or
+`stanli` as described [below](#an-experimental-backend-stanli)), so no
+custom Stan is involved.
+
+What the sampler then does with a supplied metric depends on the length
+of the warmup. Stan learns the metric in a series of adaptation windows,
+which by default need 150 iterations. A warmup that long or longer
+re-estimates the metric from the run’s own draws at the end of each
+window, so the supplied one is a head start that only has to carry the
+sampler through the first. A shorter warmup, such as the 100 iterations
+used below, never re-estimates it: Stan shrinks the windows to fit and
+then, through a bug
+([stan-dev/stan#3441](https://github.com/stan-dev/stan/pull/3441), in no
+CmdStan release up to 2.39, and copied by `stanli`), never closes them.
+Only the step size adapts, and the supplied metric is used as is - which
+also means that a cold start with so short a warmup samples with Stan’s
+default unit metric, adapted to nothing. Either way nothing about a warm
+start changes the posterior being sampled: a poor one costs speed, not
+correctness. The usual checks (`Rhat`, divergences, effective sample
+size) remain the judge of the run.
 
 ### From a previous fit of the same model
 
 The simplest source is a previous fit of the same model: a pilot run, a
 fit that needs more draws, or the same model under a slightly different
-prior or seed. `brms` keeps the adapted quantities of each chain in the
-fit’s metadata (`attr(m$fit, "metadata")`), and
-[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+prior or seed. Each chain’s adapted quantities stay in the fit
+(`cmdstanr` keeps them in its metadata, `stanli` as the text Stan prints
+after warmup), and
+[`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
 reads them back, averaged over the chains, together with the posterior
 means as starting values. Passing them to a new run lets its warmup
 shrink to what the step size needs:
@@ -356,7 +370,7 @@ m_more <- brm(fit = m,      # reuse the compiled model
 
 The metric must match the previous run’s shape: a `diag_e` fit stores a
 vector of variances, a `dense_e` fit a full matrix, and
-[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+[`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
 handles only the former.
 
 In our local benchmarking demo
@@ -387,7 +401,7 @@ never saw take the average of the pilot’s `z` variances for the same
 term (they are standardized effects, so the average is a fair guess).
 Initial values are built the same way from the pilot’s posterior means,
 with the new participants starting at `z = 0`.
-[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+[`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
 does all of this, in two steps. After the pilot, extract what its warmup
 learned as a small table, labelled by Stan parameter name, and keep it:
 
@@ -399,9 +413,9 @@ write.csv(warmstart, "pilot_warmstart.csv", row.names = FALSE)
 
 Then, for the full model, hand that table to the three helpers that
 mirror
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 and
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md) -
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md) -
 the model’s formula and data first, the table under `warmstart` - one
 per argument of
 [`brm()`](https://paulbuerkner.com/brms/reference/brm.html):
@@ -438,7 +452,7 @@ it takes from the pilot. The same works with a changed formula:
 same data, whose shared parameters start where the first fit left them.
 Anything the source never had, such as a predictor added to the formula,
 gets Stan’s default variance and the generic starting value
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 would give it; many such entries mean the two formulas differ more than
 intended.
 
@@ -456,30 +470,34 @@ four to six times those of a cold start with the same short warmup:
 | LNR | Reference, cold start | 8 | 500 | 112 s | 589 | 5.2 |
 | LNR | Cold start, short warmup | 8 | 100 | 247 s | 522 | 2.1 |
 | LNR | Pilot initial values only | 8 | 100 | 265 s | 569 | 2.2 |
-| LNR | [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md): initial values, metric and step size | 8 | 100 | 65 s | 603 | 9.3 |
+| LNR | [`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md): initial values, metric and step size | 8 | 100 | 65 s | 603 | 9.3 |
 | DDM | Pilot fit | 4 | 500 | 4.4 min | 337 | 1.29 |
 | DDM | Reference, cold start | 8 | 500 | 11.2 min | 276 | 0.41 |
 | DDM | Cold start, short warmup | 8 | 100 | 29.2 min | 246 | 0.14 |
 | DDM | Pilot initial values only | 8 | 100 | 28.4 min | 298 | 0.18 |
-| DDM | [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md): initial values, metric and step size | 8 | 100 | 4.1 min | 209 | 0.85 |
+| DDM | [`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md): initial values, metric and step size | 8 | 100 | 4.1 min | 209 | 0.85 |
 
 Two things stand out. First, the initial values alone are worth nothing:
 the runs that started from the pilot’s posterior means but let the
 sampler find its own metric were as slow as the cold ones. A short
 warmup does not hurt because the chains start in the wrong place, they
-start close enough either way, but because the step size is left
-unadapted, and the sampler then pays for it on every iteration of the
-sampling phase, here with wall times two and a half times the
-reference’s. Second, the pilot’s metric does not have to be right to
-help. Its population-level variances were two to three times the full
-fit’s (a posterior narrows as participants are added, and the LNR
-pilot’s step size was accordingly smaller, 0.05 against 0.09), yet 100
-iterations of adaptation from that start were enough. The
-population-level estimates of every run agreed to two decimals. Note
-that this is the diagonal metric; a `dense_e` pilot would need the same
-treatment on a matrix, with zero covariances for the new participants,
-which
-[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+start close enough either way, but because a 100-iteration warmup adapts
+no metric (see above). Those runs sampled with the unit metric and paid
+for it on every iteration of the sampling phase, here with wall times
+two and a half times the reference’s. Second, the pilot’s metric does
+not have to be right to help. Its population-level variances were two to
+three times the full fit’s (a posterior narrows as participants are
+added, and the LNR pilot’s step size was accordingly smaller, 0.05
+against 0.09). The warm-started runs sampled with that metric exactly as
+it was, only the step size adapting to it, and were still the fastest.
+The population-level estimates of every run agreed to two decimals.
+These figures rest on the bug described above: once a CmdStan release
+carries its fix, a 100-iteration warmup will replace the pilot’s metric
+with one estimated from 75 of the run’s own draws, and they will need
+measuring again. Note that this is the diagonal metric; a `dense_e`
+pilot would need the same treatment on a matrix, with zero covariances
+for the new participants, which
+[`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
 does not do.
 
 ### From a Pathfinder approximation
@@ -537,13 +555,21 @@ for a net loss of about 10%. The arithmetic favours the warm start as
 models grow, since Pathfinder scales gently with the number of
 parameters while warmup for a poorly conditioned posterior does not, and
 since a bad random initialization on a large model can waste far more
-than the approximation costs. What one must **not** do is fix the metric
-to the approximation (Stan allows it, by setting `init_buffer` to the
-whole warmup so that no adaptation window runs). Pathfinder’s covariance
-was, as the previous section showed, several times too small on most
-parameters, and a sampler that believes it takes tiny steps and hits the
-maximum treedepth: that run took 15 min, diverged on a third of its
-transitions, and returned an effective sample size of 10.
+than the approximation costs.
+
+We also tried to hold the metric at Pathfinder’s covariance, by setting
+`init_buffer` to the whole warmup with no window and no terminal buffer
+(`init_buffer = 100, window = 0, term_buffer = 0`), and that run went
+badly: 15 min, a third of its transitions divergent, and an effective
+sample size of 10. Pathfinder was not to blame. With those settings Stan
+closes one empty adaptation window on the last warmup iteration and
+replaces the metric with 0.001 on every parameter, with no correlations,
+leaving the step size no iterations to adapt to it. We checked this
+afterwards on a smaller model, with both the diagonal and the dense
+metric. These settings do not hold a metric fixed, then, and how
+Pathfinder’s covariance would do as a fixed metric is untested; the
+previous section found it several times too small on most parameters,
+which does not bode well.
 
 ## High-Performance Clusters (HPCs)
 
@@ -609,16 +635,18 @@ the time a single node’s chains would have taken.
 > **Warning**
 >
 > **Very experimental.** `stanli` is young (a new release most weeks),
-> it is not a `brms` backend yet, and we have measured it on one family
-> only. Treat this section as something to try, not a recommendation.
-> The figures below were obtained with `brms` as released, which
-> computes an intercept-only parameter such as `sigmazero ~ 1` once per
-> observation rather than once per evaluation;
+> and its `brms` backend is younger still: it was merged into the
+> development version of `brms` in November 2026
+> ([brms#1966](https://github.com/paul-buerkner/brms/pull/1966)) and is
+> not on CRAN yet. The nutpie sampler described below arrived in
+> `stanli` only with version 0.26.0, the same month. Treat this section
+> as something to try, not a recommendation. The figures below were
+> obtained with `brms` as it stands, which computes an intercept-only
+> parameter such as `sigmazero ~ 1` once per observation rather than
+> once per evaluation;
 > [brms#1946](https://github.com/paul-buerkner/brms/pull/1946) would
 > change that for every backend, and with it the figures, so this
-> section will be updated if it is merged. The steps themselves would
-> shrink to one argument if `brms` gains a `backend = "stanli"`
-> ([brms#1911](https://github.com/paul-buerkner/brms/pull/1911)).
+> section will be updated if it is merged.
 
 [stanli](https://github.com/seantalts/stanli) runs Stan programs without
 compiling them: it interprets the program over precompiled Stan Math
@@ -629,38 +657,28 @@ density and gradient, to within a few units in the last place) and runs
 the same sampler, so what can change is the cost of each gradient
 evaluation, not the posterior.
 
-`brms` writes the Stan program and the data, `stanli` samples them, and
-`brms`’s own `"mock"` backend turns the finished fit into a `brmsfit`:
+With the development version of `brms`, it is one argument:
 
 ``` r
 
+# remotes::install_github("paul-buerkner/brms")  # backend = "stanli" is not on CRAN yet
 # install.packages("stanli", repos = c("https://seantalts.r-universe.dev", "https://cloud.r-project.org"))
 # stanli::stanli_install()  # once: downloads stanli's prebuilt runtime
-library(stanli)
 
-prior <- cogmod_priors(f, df)
-stanvars <- cogmod_stanvars(f)
-
-# 1. brms writes the Stan program and the data; stanli builds the model (no C++ compilation)
-scode <- stancode(f, data = df, prior = prior, stanvars = stanvars)
-sdata <- standata(f, data = df, prior = prior, stanvars = stanvars)
-model <- stanli_model(code = scode, data = sdata)
-
-# 2. cogmod's initial values, one row per chain on Stan's unconstrained scale
-inits <- cogmod_inits(f, df)
-init <- do.call(rbind, lapply(1:4, function(chain) unconstrain(model, inits(chain))))
-
-# 3. Sample, chains in parallel
-fit <- sample_model(model, chains = 4, parallel_chains = 4,
-                    warmup = 1000, samples = 1000, init = init)
-
-# 4. Back into brms (the "mock" backend takes a finished fit; needs rstan installed)
-m <- brm(f, data = df, prior = prior, stanvars = stanvars,
-         backend = "mock", mock_fit = as_stanfit(fit))
+m <- brm(f,
+  data = df,
+  prior = cogmod_priors(f, df),
+  init = cogmod_inits(f, df),
+  stanvars = cogmod_stanvars(f),
+  backend = "stanli",
+  chains = 4, cores = 4
+)
 ```
 
-Everything that works from the posterior draws works on the result as
-with any other backend:
+As with the other backends, `cores` is what runs the chains in parallel.
+
+The result is a `brmsfit` like any other. Everything that works from the
+posterior draws works as with the other backends:
 [`summary()`](https://rdrr.io/r/base/summary.html),
 [`loo()`](https://mc-stan.org/loo/reference/loo.html) and
 [`loo_compare()`](https://mc-stan.org/loo/reference/loo_compare.html),
@@ -668,45 +686,123 @@ with any other backend:
 [`hypothesis()`](https://paulbuerkner.com/brms/reference/hypothesis.brmsfit.html),
 prior sensitivity with `priorsense`, and marginal means and contrasts
 with `modelbased`, `marginaleffects` or `emmeans` (where the family
-provides expectations, as with any backend). What needs the model itself
-does not, until `brms` has a `stanli` backend, because it does not know
-how the fit was made: refitting
+provides expectations, as with any backend). So does what needs the
+model itself, still without a C++ compiler: refitting
 ([`update()`](https://rdrr.io/r/stats/update.html),
-[`kfold()`](https://mc-stan.org/loo/reference/kfold-generic.html),
-`reloo`), [`loo()`](https://mc-stan.org/loo/reference/loo.html)’s moment
-matching, and bridge sampling
+[`kfold()`](https://mc-stan.org/loo/reference/kfold-generic.html)),
+[`loo()`](https://mc-stan.org/loo/reference/loo.html)’s moment matching,
+and bridge sampling
 ([`bayes_factor()`](https://rdrr.io/pkg/bridgesampling/man/bf.html),
 [`post_prob()`](https://rdrr.io/pkg/bridgesampling/man/post_prob.html)).
-For those, fit the same model with `backend = "cmdstanr"`, or try the
-unofficial [brm_stanli](https://github.com/StaffanBetner/brm_stanli)
-wrapper, which adds moment matching and
-[`update()`](https://rdrr.io/r/stats/update.html) (we have not tested
-it). Before relying on `stanli` for a model, compare its result with a
-short CmdStan run of the same model.
+[`brm()`](https://paulbuerkner.com/brms/reference/brm.html)’s `control`
+reaches `stanli`’s sampler, `metric = "dense_e"` included (see *Mass
+Matrix Adaptation* above), and `brms` warns about any setting it
+ignores. Warm starts work both ways:
+[`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
+reads a `stanli` fit, and its `init`, `inv_metric` and `step_size` go to
+`backend = "stanli"` as they go to `cmdstanr`, so a pilot fitted with
+either backend can start a fit with either. What does not work is
+[`expose_functions()`](https://paulbuerkner.com/brms/reference/expose_functions.brmsfit.html).
+Before relying on `stanli` for a model, compare its result with a short
+CmdStan run of the same model.
 
-In our local benchmarking demo ([scripts and full
-results](https://github.com/DominiqueMakowski/cogmod/tree/main/benchmarks/stanli)),
-on the LNR of the [decision making
-models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.md)
-(4620 trials) with `stanli` 0.20.0, we found the same posterior as with
-CmdStan, the same number of leapfrog steps per effective draw, and a
-faster run on every measure (ratios to CmdStan; 16 seeds on the
-cluster):
+### A different sampler: nutpie
 
-|                              | Windows laptop | Linux cluster |
-|:-----------------------------|:--------------:|:-------------:|
-| Time per gradient evaluation |      0.42      | 0.75 to 0.77  |
-| Wall time of a 4-chain fit   |  0.43 to 0.46  |     0.74      |
-| Effective draws per second   |   2.7 to 2.8   |      1.2      |
+`stanli` can also hand its model to the sampler of
+[nutpie](https://github.com/andytimm/nutpieR) (through the `nutpieR`
+package). The log density and its gradient are still `stanli`’s; only
+the sampler changes. nutpie runs the same kind of NUTS sampler, but its
+warmup also learns from the gradients. It settles on steps 2 to 4.5
+times larger than Stan’s, so a fit needs far fewer gradient evaluations.
 
-The gain is largest where the system’s maths library is slow, as on
-Windows, since `stanli` brings its own. Rewriting the family’s Stan code
-by hand to suit the interpreter bought another 1.3x in `stanli` but cost
-CmdStan up to 1.9x, so `cogmod` keeps a single Stan program for both.
-`stanli`’s own test suite includes every `cogmod` family, and its
-developer’s measurements found most of them cheaper per gradient than in
-CmdStan (the beta-gate dearer), but only the LNR has been fitted end to
-end here.
+`brms`’s backend does not offer nutpie, so it takes the long way round:
+`brms` writes the Stan program and the data, `stanli` builds the model,
+nutpie samples it, and `brms`’s own `"mock"` backend turns the finished
+fit into a `brmsfit`:
+
+``` r
+
+# install.packages("nutpieR", repos = c("https://andytimm.r-universe.dev", "https://cloud.r-project.org"))
+library(stanli)
+
+prior <- cogmod_priors(f, df)
+stanvars <- cogmod_stanvars(f)
+
+# 1. brms writes the Stan program and the data; stanli builds the model
+model <- stanli_model(
+  code = stancode(f, data = df, prior = prior, stanvars = stanvars),
+  data = standata(f, data = df, prior = prior, stanvars = stanvars)
+)
+
+# 2. Sample with nutpie, from cogmod's starting values (chains run in parallel by default)
+fit <- sample_nutpie(model, chains = 4, warmup = 1000, samples = 1000,
+                     init = cogmod_inits(f, df))
+
+# 3. Back into brms (the "mock" backend takes a finished fit; needs rstan installed)
+m <- brm(f, data = df, prior = prior, stanvars = stanvars,
+         backend = "mock", mock_fit = as_stanfit(fit))
+```
+
+A fit made this way supports everything that works from the posterior
+draws, but not what needs the model itself
+([`update()`](https://rdrr.io/r/stats/update.html),
+[`kfold()`](https://mc-stan.org/loo/reference/kfold-generic.html),
+[`loo()`](https://mc-stan.org/loo/reference/loo.html)’s moment matching,
+bridge sampling), since `brms` does not know how it was made. For those,
+fit the same model with `backend = "stanli"`.
+
+### How much faster?
+
+In our benchmarks
+([stanli](https://github.com/DominiqueMakowski/cogmod/tree/main/benchmarks/stanli),
+[nutpie](https://github.com/DominiqueMakowski/cogmod/tree/main/benchmarks/nutpieR)),
+every fit gave the same posterior as CmdStan.
+
+**On a real data set.** On the LNR of the [decision making
+models](https://dominiquemakowski.com/cogmod/articles/decision_making.md)
+(4620 trials), with `stanli` 0.20.0, a 4-chain fit took 0.43-0.46x
+CmdStan’s time on a Windows laptop and 0.74x on a Linux cluster. The
+gain is largest where the system’s maths library is slow, as on Windows,
+since `stanli` brings its own. One run through `backend = "stanli"`,
+with `stanli` 0.26.0 on the same laptop, took 0.29x CmdStan’s time
+(compilation aside), for the same posterior.
+
+**On five multilevel models.** These are 10 participants x 100 simulated
+trials, 18 runs each, on a Linux cluster, with `stanli` 0.26.0. The
+table gives effective draws per second of sampling, as a ratio to
+CmdStan. Compilation is not counted, which would add about 40 s to every
+CmdStan fit.
+
+| Model                      | `stanli` | `stanli` + nutpie |
+|:---------------------------|:--------:|:-----------------:|
+| LNR                        |   1.6    |        2.8        |
+| RDM                        |   1.6    |        3.4        |
+| LBA                        |   1.6    |        1.6        |
+| DDM                        |   1.1    |        1.7        |
+| DDM with drift variability |   1.0    |        2.0        |
+
+**Where nutpie’s speed comes from.** nutpie gets fewer effective draws
+out of every draw than Stan’s sampler. It comes out ahead anyway because
+it takes so many fewer steps. Its weak spot is the population-level
+intercepts. On the LBA it gets a quarter to half of Stan’s effective
+draws on them, which is why it gains nothing there.
+
+**Reasons for caution.**
+
+- nutpie diverged more often. On the LBA, it diverged 25 times in 13 of
+  18 fits, against 6-7 times for Stan’s sampler.
+- On the LBA and RDM, its effective sample sizes looked slightly
+  optimistic. Its differences from CmdStan spread up to 9% wider than
+  its Monte Carlo errors allow.
+- Its low-rank mass matrix (`adaptation = "low_rank"`) was worse on
+  every count, so we do not recommend it.
+
+Rewriting the family’s Stan code by hand to suit the interpreter bought
+another 1.3x in `stanli`, but cost CmdStan up to 1.9x, so `cogmod` keeps
+a single Stan program for both. `stanli`’s own test suite includes every
+`cogmod` family. Its developer’s measurements found most of them cheaper
+per gradient than in CmdStan (the beta-gate dearer). Of those, we have
+fitted the LNR, RDM, LBA and DDM end to end here.
 
 ## Future Directions
 

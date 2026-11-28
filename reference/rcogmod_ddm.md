@@ -22,7 +22,7 @@ Functions:
 - `cogmod_ddm_stanvars()`: Generates the `stanvars` to pass to
   [`brm()`](https://paulbuerkner.com/brms/reference/brm.html).
 
-- [`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md):
+- [`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md):
   Per-trial posterior probability of being an outlier.
 
 `pcogmod_ddm()` is the cumulative distribution function: the probability
@@ -201,7 +201,7 @@ posterior_epred_cogmod_ddm(prep, predict_outliers = NULL)
   diffusion alone; the likelihood is always the full mixture either way.
   On the prediction methods themselves the default is `NULL`, which
   defers to the flag carried on the model - see
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md).
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md).
   See Details.
 
 - i, prep:
@@ -308,27 +308,28 @@ altogether *estimates* it, which is not the same thing. All three are
 hard to recover even from a lot of data, and each has a flat direction
 at its own floor - the link only reaches zero at minus infinity, and the
 likelihood stops changing well before then - so
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 gives all three deliberately tight priors. Fixing the ones a design
 cannot identify is usually better than estimating them behind a prior.
 
 `boundary` and `bias` have no such direction, but `brms` would leave
 them flat, so
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 fills those too: `normal(1, 1)` on the `boundary` intercept, on its
 `softplus` link - a median separation of 1.31, with 95% between 0.32 and
 3.0 - and `normal(0, 0.5)` on the slopes of both. The `bias` intercept
 keeps `brms`'s `logistic(0, 1)`, uniform on the probability scale.
 
 There is a cost argument too, and it is a cliff rather than a slope. The
-Stan density has a closed form for `sigmadrift`, so estimating it costs
-about 3.5 times the classic model per gradient evaluation. `sigmabias`
-and `sigmandt` have no closed form: Stan integrates them out
-numerically, once for the density and once more for each partial
-derivative, at every observation and every leapfrog step. Measured
-against the `sigmadrift`-only model, estimating *one* of them costs
-about 18 times as much per gradient and estimating *both* about 30 times
-(55 before the tolerance the package now passes to `wiener_lpdf()`).
+density has a closed form in `sigmadrift`, so estimating it costs about
+1.2 to 1.6 times the classic model per gradient evaluation, depending on
+the data (it was 3.5 before 0.3.6). `sigmabias` and `sigmandt` have no
+closed form: Stan integrates them out numerically, once for the density
+and once more for each partial derivative, at every observation and
+every leapfrog step. Measured against the `sigmadrift`-only model on 300
+trials, estimating *one* of them costs about 60 to 70 times as much per
+gradient and estimating *both* about 250 times. The multiples move with
+the data and the parameter values, since the integration adapts to them.
 Nothing in between exists: the fast path is a test for exactly zero, so
 a tight prior does not buy it back - a `sigmandt` estimated at 1e-5
 costs the same as one at 0.05 s. Only `sigmandt = 0` in
@@ -358,19 +359,19 @@ options; without it it would come to `1 + poutlier`.
 `poutlier` is a *rate*, not a classification: the model never labels
 individual trials, it estimates what share of them came from elsewhere.
 Use
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 for per-trial posterior probabilities.
 
 ## Reaction times must be in seconds
 
 The outlier component's scale is a constant in seconds, and so are the
 priors
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 supplies. There is no argument for changing the unit. Millisecond data
 fails silently rather than loudly - the outlier component contributes
 nothing and the min-RT boundary comes back. See the corresponding
 section of
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 for the full account, which applies unchanged here.
 
 ## Implementation
@@ -395,17 +396,21 @@ drawing the per-trial parameters, and evaluated by combining a
 closed-form drift correction with Gauss-Legendre quadrature over the
 starting point and non-decision time, also in log space.
 
-In Stan the decision component is `wiener_lpdf()`, called with its own
-non-decision time set to zero because the shift is applied by the
-mixture around it, and short-circuited to the cheaper 4- and 5-parameter
-forms whenever the start-point and non-decision-time ranges both vanish.
-The cheapest of the three, Stan's classic 4-parameter density, is used
-only where it is sound: it returns `-inf` with **NaN** derivatives once
-the rescaled decision time `t / boundary^2` falls below about `6.6e-4`,
-or once the density underflows, and a NaN derivative on a trial the
-mixture gives no weight to still turns the gradient of the whole model
-to NaN. Those calls go to the `sv`-capable form instead, which the two
-agree with to `1e-13` where they meet.
+In Stan, whenever `sigmabias` and `sigmandt` are both zero, the decision
+component is the same series written in the Stan language, with
+`sigmadrift` in closed form. The two sides agree to about `1e-11`, so
+the density a model is fitted with is the one
+[`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html) and
+[`loo()`](https://mc-stan.org/loo/reference/loo.html) score it by, on
+every version of Stan and every backend. Stan's own `wiener_lpdf()` is
+used only for the 7-parameter form, called with its own non-decision
+time set to zero because the shift is applied by the mixture around it.
+Its 5-parameter form, which the package used before 0.3.6, controls its
+error in absolute terms, so it was off by up to a log unit per trial in
+the tails, and it computes the density and each derivative as separate
+series, which made a model with `sigmadrift` about 3.4 times as costly
+per gradient as it is now (`benchmarks/wiener_stan/` in the source
+repository).
 
 ## Fitting
 
@@ -418,7 +423,7 @@ agree with to `1e-13` where they meet.
               stanvars = cogmod_stanvars(f))
 
 Use
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 rather than `init = 0`. `brms` initialises on the unconstrained scale,
 so `init = 0` puts `ndt` at `exp(0) = 1` second - above nearly every
 sub-second RT, which leaves every response attributed to the outlier
@@ -432,11 +437,11 @@ and
 describe the **diffusion alone** by default, as if `poutlier` were zero,
 because the outlier component is a fixed regularizer rather than a claim
 about how guesses are distributed. Use
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
 for the fitted mixture - chiefly for
 [`brms::pp_check()`](https://mc-stan.org/bayesplot/reference/pp_check.html) -
 and
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
 to go back.
 [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html) is
 always the full mixture.
@@ -476,7 +481,7 @@ the probability of that boundary, given by
 defective survival `P(RT > q, choice = response)`, so the two add to
 that response's own probability rather than to one. Marginally
 (`response = NULL`) they add to one as usual.
-[`pcogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+[`pcogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
 follows the same convention.
 
 ## Predicting many observations at once
@@ -519,9 +524,9 @@ The other choice families' methods accept a vector `i` in the same way.
 
 ## See also
 
-[`rcogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
-[`rcogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md),
-[`rcogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+[`rcogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md),
+[`rcogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md),
+[`rcogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)
 
 ## Examples
 

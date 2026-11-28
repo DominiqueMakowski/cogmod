@@ -17,9 +17,17 @@ for what the pilot never saw.
              init = ws$init, inv_metric = ws$inv_metric, step_size = ws$step_size,
              warmup = 100, iter = 600, backend = "cmdstanr")
 
-The sampler keeps adapting from the supplied values during whatever
-warmup remains, so a poor warm start costs speed, not correctness.
-Nothing about it changes the posterior being sampled.
+What the sampler does with the supplied metric depends on the warmup
+length. With Stan's default adaptation windows, 150 warmup iterations or
+more re-estimate the metric from the run's own draws, so the supplied
+one only has to carry the sampler to the end of the first window. A
+shorter warmup, such as the 100 above, never re-estimates it: only the
+step size adapts, and the supplied metric is used as is. That is a Stan
+bug ([stan-dev/stan#3441](https://github.com/stan-dev/stan/pull/3441),
+in no CmdStan release up to 2.39), and the figures under *What it is
+worth* below were measured with it. Either way a poor warm start costs
+speed, not correctness: nothing about it changes the posterior being
+sampled.
 
 ## Usage
 
@@ -41,8 +49,8 @@ print(x, ...)
 
 - x:
 
-  The source: a `brmsfit` fitted with `backend = "cmdstanr"`, a
-  `cogmod_warmstart` object, the data frame
+  The source: a `brmsfit` sampled with `backend = "cmdstanr"` or
+  `backend = "stanli"`, a `cogmod_warmstart` object, the data frame
   [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) makes
   of one, or the path to a CSV file holding that data frame.
 
@@ -59,7 +67,7 @@ print(x, ...)
 
   SD of the noise added to the starting values on the unconstrained
   scale, so that chains start at different points. Smaller than
-  [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)'s
+  [`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)'s
   default because the values come from a converged posterior; `0` gives
   identical starts. As there, one number is the SD for the
   population-level blocks and the group-level and smooth blocks get a
@@ -129,7 +137,7 @@ variances (one vector per chain, averaged here) and the step size in the
 fit's metadata. To move them to another model they are first labelled
 with the Stan parameter names - `Intercept`, `sd_1[1]`, `z_1[1,3]`, and
 so on - which are read off the generated program, the same way
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 does it. The target model's labels are built the same way, and the two
 are joined:
 
@@ -146,7 +154,7 @@ are joined:
 - **Anything without a counterpart** - a predictor or a group-level term
   the pilot did not have - gets Stan's default variance of 1 and the
   generic starting value
-  [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  [`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   would give it. A count is reported by
   [`print()`](https://rdrr.io/r/base/print.html); a large one usually
   means the two formulas differ more than intended.
@@ -170,14 +178,18 @@ data - the pilot-to-full-sample case. With only `formula`, it is that
 model on the source's data - a variant of the model, say with one more
 predictor, whose shared parameters can start where the first fit left
 them. A table or file source carries neither and needs both. Any `brms`
-model fitted with the `cmdstanr` backend and the default diagonal metric
-can be a source; a `dense_e` fit is refused, and so is the `rstan`
-backend, which does not store the adaptation.
+model sampled with the default diagonal metric by the `cmdstanr` or the
+`stanli` backend can be a source, and a `dense_e` fit is refused.
+`cmdstanr` keeps the adaptation in the fit's metadata, `stanli` as the
+text Stan prints after warmup; either is read, to the 6 significant
+digits both carry. Either backend can take the result, through the same
+three [`brm()`](https://paulbuerkner.com/brms/reference/brm.html)
+arguments.
 
-The `inv_metric` returned is a plain vector, as `cmdstanr` wants it; the
-labels are in `ws$table`. The metric must match the target program
-exactly, which is why `formula` and `data` are needed rather than just a
-count of participants: `brms` decides the layout from both.
+The `inv_metric` returned is a plain vector, as `cmdstanr` and `stanli`
+want it; the labels are in `ws$table`. The metric must match the target
+program exactly, which is why `formula` and `data` are needed rather
+than just a count of participants: `brms` decides the layout from both.
 
 ## Storing it, and the four helpers
 
@@ -202,7 +214,7 @@ data first, the source under `warmstart` - each give one argument of the
 
 The first of those is the odd one out and is **not** part of a warm
 start in the sense the rest of this page uses.
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 re-centres the priors on the source's posterior median and SD, which
 changes the model rather than the path the sampler takes through it -
 and double-counts the source's data if the new model contains it. Its
@@ -223,17 +235,20 @@ On an LNR and a DDM with participant random intercepts, a pilot on 4 of
 8 participants warm-started the full fit to about twice the effective
 draws per second of a cold start with a 500-iteration warmup, and four
 to six times those of a cold start with the same 100-iteration warmup.
-The starting values alone bought nothing: what a short warmup lacks is
-an adapted step size and metric, not a good position. Details and the
-benchmark are in the [performance
-article](https://dominiquemakowski.github.io/cogmod/articles/performance.html).
+The starting values alone bought nothing: what a 100-iteration warmup
+lacks is an adapted metric (Stan estimates none in so short a warmup, as
+above), not a good position. Once a Stan release carries the fix, a
+100-iteration warmup will replace the supplied metric with one estimated
+from 75 of its own draws, and these figures will need measuring again.
+Details and the benchmark are in the [performance
+article](https://dominiquemakowski.com/cogmod/articles/performance.html).
 
 ## See also
 
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md),
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md),
 which supplies the starting values used where the source has none, and
 the [performance
-article](https://dominiquemakowski.github.io/cogmod/articles/performance.html).
+article](https://dominiquemakowski.com/cogmod/articles/performance.html).
 
 ## Examples
 

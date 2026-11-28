@@ -47,7 +47,7 @@ m <- brm(
 The pattern is the same for every model: name the family in
 [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html), then
 let
-[`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md)
+[`cogmod_stanvars()`](https://dominiquemakowski.com/cogmod/reference/cogmod_stanvars.md)
 supply the Stan code that goes with it. Two companions follow the same
 shape - `cogmod_priors(f, df)` for the priors `brms` would otherwise
 leave flat, and `cogmod_inits(f, df)` for starting values on the
@@ -56,27 +56,27 @@ families whose default start is a bad one.
 ## Where to go next
 
 The [function
-reference](https://dominiquemakowski.github.io/cogmod/reference/index.html)
+reference](https://dominiquemakowski.com/cogmod/reference/index.html)
 lists every model with its parameterisation. Worked, end-to-end analyses
 live on the package website, where they can be built with fitted models
 that would be too slow to include here:
 
 - [Subjective
-  Ratings](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html) -
+  Ratings](https://dominiquemakowski.com/cogmod/articles/subjective_ratings.html) -
   Beta-Gate and CHOCO on rating data, compared against ZOIB and ordinal
   alternatives.
 - [How to Properly Analyze Reaction Times
-  Data](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html) -
+  Data](https://dominiquemakowski.com/cogmod/articles/rt_models.html) -
   why linear models on mean RT mislead, and how the RT-only families
   compare.
 - [Decision Making
-  Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html) -
+  Models](https://dominiquemakowski.com/cogmod/articles/decision_making.html) -
   fitting and comparing DDM, LBA, RDM and LNR on choice-RT data.
 - [Assessing
-  Reliability](https://dominiquemakowski.github.io/cogmod/articles/reliability.html) -
+  Reliability](https://dominiquemakowski.com/cogmod/articles/reliability.html) -
   interindividual variability and reliability of model parameters.
 - [Comparison with Other
-  Packages](https://dominiquemakowski.github.io/cogmod/articles/comparison.html) -
+  Packages](https://dominiquemakowski.com/cogmod/articles/comparison.html) -
   how `cogmod` relates to `brms`’s native families and to `bmm`, and
   when each is the better choice.
 
@@ -88,7 +88,7 @@ citation("cogmod")
 #> To cite cogmod in publications use:
 #> 
 #>   Makowski, D. (2026). cogmod: Cognitive Models for Subjective Scales
-#>   and Decision Making Tasks. R package version 0.3.5.
+#>   and Decision Making Tasks. R package version 0.3.6.
 #>   https://github.com/DominiqueMakowski/cogmod
 #> 
 #> A BibTeX entry for LaTeX users is
@@ -97,7 +97,7 @@ citation("cogmod")
 #>     title = {{cogmod}: Cognitive Models for Subjective Scales and Decision Making Tasks},
 #>     author = {Dominique Makowski},
 #>     year = {2026},
-#>     note = {R package version 0.3.5},
+#>     note = {R package version 0.3.6},
 #>     url = {https://github.com/DominiqueMakowski/cogmod},
 #>   }
 ```

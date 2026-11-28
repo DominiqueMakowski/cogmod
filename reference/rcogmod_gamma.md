@@ -119,7 +119,7 @@ posterior_epred_cogmod_gamma(prep, predict_outliers = NULL)
   `poutlier` to zero for prediction, so predictions describe the
   decision process alone; the likelihood is always the full mixture
   either way. See
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md).
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md).
 
 - i, prep:
 
@@ -161,24 +161,24 @@ time is `ndt` plus the Gamma median.
 The Gamma is not merely a convenient skewed shape: Tejo et al. (2019)
 derive it as a first-passage time for an accumulator whose **starting
 point varies across trials**, which places it beside
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
 (diffusion from a fixed start) and
-[`cogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md)
+[`cogmod_bisa()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_bisa.md)
 (one-directional discrete cycles). The drift rate is not identified from
 the fit though - it enters only the back-calculation of the implied
 starting-point distribution - so `mu` and `sigma` stay a shape and a
 scale here rather than becoming a drift and a boundary.
 
 `ndt` and `poutlier` mean exactly what they do in
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
 and
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 all work here too. See
-[`?rcogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`?rcogmod_lognormal`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 for why `ndt` is expressed directly in seconds rather than as a fraction
 of the fastest observed response, what the half Normal outlier component
 is for, and why the outlier component's scale is a constant rather than
@@ -191,9 +191,9 @@ adds density rather than capping it. Less obviously, a shape anywhere
 **below 2** leaves the derivative of the log-likelihood with respect to
 `ndt` unbounded at every observation, which costs sampling time rather
 than correctness - see the shape section of
-[`?rcogmod_weibull`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md),
+[`?rcogmod_weibull`](https://dominiquemakowski.com/cogmod/reference/rcogmod_weibull.md),
 where the same three regimes are set out and measured.
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
 nests this family at `shape = sigma` and lets the data choose the shape
 instead of fixing it.
 
@@ -202,7 +202,7 @@ Do **not** fit this with `init = 0`, for two reasons at once: it puts
 shape at `softplus(0) = 0.69`, inside the unbounded region above. No
 single scalar avoids both - `ndt = exp(c)` wants `c` near `-1.6` while
 `shape = softplus(c)` wants `c` above `1.9`. Use
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md),
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md),
 which sets them separately:
 
     brms::brm(f, data = df, prior = cogmod_priors(f, df),
@@ -214,7 +214,7 @@ effective sample size of 3 after 306 seconds; an informative prior on
 the shape did *not* rescue it, because a prior cannot move a chain whose
 gradient is zero. The `brms` default `init = "random"` also works, at 14
 seconds. See
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 for the full account.
 
 ## References

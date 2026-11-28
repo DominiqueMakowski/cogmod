@@ -49,7 +49,7 @@ cogmod_priors(formula, data, ..., warmstart = NULL, prior_scale = 3)
   Optional. A previous fit to centre the priors on: a `brmsfit`, a
   `cogmod_warmstart` object, its data frame, or the path to a CSV of it,
   as
-  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  [`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
   takes. `NULL` (the default) leaves the priors where this function put
   them. **Changes the posterior** - see *Centring the priors on a
   previous fit*.
@@ -96,32 +96,32 @@ entry is added for another slot:
 The family is read off `formula`, so build it with
 `brms::bf(..., family = cogmod_lognormal())`. Covered: every family with
 an `ndt` + `poutlier` component -
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
-[`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md),
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md),
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
-[`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md),
-[`cogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md),
-[`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md),
-[`cogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md),
-[`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md),
-[`cogmod_invweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md),
-[`cogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md),
-[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
+[`cogmod_logstudent()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logstudent.md),
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md),
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md),
+[`cogmod_exwald()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exwald.md),
+[`cogmod_bisa()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_bisa.md),
+[`cogmod_gamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_gamma.md),
+[`cogmod_invgamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgamma.md),
+[`cogmod_weibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_weibull.md),
+[`cogmod_invweibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invweibull.md),
+[`cogmod_logweibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logweibull.md),
+[`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)
 and the choice-and-RT families
-[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
-[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
-[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+[`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md),
+[`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md),
+[`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)
 and
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) -
+[`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md) -
 plus
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md),
-[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+[`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md),
+[`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md)
 and the rating-scale families
-[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md),
-[`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
+[`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md),
+[`cogmod_betagate()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.md)
 and
-[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md).
+[`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md).
 Any other family, or a formula carrying none, gets a message and
 `brms`'s defaults unchanged, so the call is safe to leave in a script.
 
@@ -142,19 +142,19 @@ For each parameter in the table under *The priors*:
 - its **smooth terms** follow *Smooth terms*, as every smooth does.
 
 Parameters not in the table, such as
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)'s
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)'s
 `sigma`, keep `brms`'s defaults, and so does the response's own `mu`:
 its slopes are the effects being estimated, and `brms`'s `student_t()`
 default is a fair intercept prior on most links. Two exceptions.
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+[`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
 and
-[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+[`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md)
 give `mu` an intercept prior, because there it is a time in seconds on
 an `identity` link. And in the race families,
-[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
-[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+[`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md),
+[`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
 and
-[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md),
+[`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md),
 `mu` is the rate of one accumulator, so its group-level SD gets the
 `exponential(1)` the other accumulator's gets and swapping the `dec()`
 coding does not change what the priors say.
@@ -166,20 +166,20 @@ on an `ndt` left out of
 [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html), the
 min-RT bound the outlier component exists to remove; `gamma(0.01, 0.01)`
 on
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)'s
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)'s
 `shape`, which must be free to go negative; and `student_t(3, 0, 2.5)`
 and the like on the `sigma` of
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+[`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
 and
-[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md),
+[`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md),
 the `shape` of
-[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+[`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md)
 and the `phi` of
-[`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
+[`cogmod_betagate()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.md)
 and
-[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md) -
+[`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md) -
 a Gaussian SD wider than most whole RT distributions, or on
-[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)'s
+[`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md)'s
 `log` link a precision reaching 2853.
 
 ## ndt and poutlier
@@ -194,11 +194,11 @@ it on 0.25%, with 95% between 0.035% and 1.7%, which is where the
 empirical estimates sit: Miller (2024) puts the outlier proportion below
 0.5% across four lexical-decision megastudies, and the untrimmed data of
 the [outliers
-article](https://dominiquemakowski.github.io/cogmod/articles/outliers.html)
+article](https://dominiquemakowski.com/cogmod/articles/outliers.html)
 agree. If the data were trimmed before fitting, tighten the prior
 (`normal(-7, 0.5)`) rather than fixing `poutlier = 0`, which brings the
 hard min-RT boundary back; see the *Trimmed data* section of
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md).
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md).
 
 ## The priors
 
@@ -213,33 +213,33 @@ left out of the formula*).
 | Parameter | Families | In [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) | Left out | Slopes |
 | `ndt` | all with `ndt` | `normal(-1.2, 0.5)` | `lognormal(-1.2, 0.5)` | `normal(0, 0.2)` |
 | `poutlier` | all with `ndt` | `normal(-6, 1)` | `exponential(280)` | `normal(0, 0.2)` |
-| `sigmabias` | [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md), [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md) | `normal(0, 1)` | `lognormal(-0.35, 0.75)` | `normal(0, 0.5)` |
-| `dof` | [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md) | `normal(1.8, 0.7)` | `lognormal(1.8, 0.7)` | `normal(0, 0.3)` |
-| `shape` | [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md) | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.2)` |
-| `boundary` | [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md), [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md), [`cogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md) | `normal(0.5, 1)` | `lognormal(0, 0.6)` | `normal(0, 0.5)` |
-| `sigmadrift` | [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` | `normal(0, 0.5)` |
-| `sigmandt` | [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md), [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) | `normal(-3, 1)` | `lognormal(-3, 1)` | `normal(0, 0.5)` |
-| `tau` | [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md), [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md), [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` | `normal(0, 0.5)` |
-| `sigmabias`, `boundary` | [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md), [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md), [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` | `normal(0, 0.5)` |
-| `sigmazero`, `sigmaone` | [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md), [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` | `normal(0, 0.5)` |
-| `nuone` | [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` | `normal(0, 0.5)` |
-| `driftone` | [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md) | `normal(3, 2)` | `lognormal(1, 0.75)` | `normal(0, 2)` |
-| `driftone` | [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md) | `normal(1, 2)` | `normal(1, 2)` | `normal(0, 1.5)` |
-| `boundary` | [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) | `normal(1, 1)` | `lognormal(0.27, 0.5)` | `normal(0, 0.5)` |
-| `bias` | [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) | `logistic(0, 1)` | `brms`'s `beta(1, 1)` | `normal(0, 0.5)` |
-| `sigmadrift` | [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) | `normal(0, 1)` | `lognormal(-1, 0.75)` | `normal(0, 0.5)` |
-| `sigmabias` | [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md) | `normal(-2, 1)` | `beta(1, 5)` | `normal(0, 0.5)` |
-| `mu` | [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md), [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md) | `normal(0.4, 0.25)` | \- | `brms`'s |
-| `sigma` | [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md), [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md) | `normal(-2.3, 0.7)` | `lognormal(-2.3, 0.7)` | `normal(0, 0.5)` |
-| `shape` | [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md) | `normal(0, 0.5)` | `lognormal(0, 0.5)` | `normal(0, 0.5)` |
-| `confright`, `confleft` | [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md) | `normal(0, 1)` | `beta(2, 2)` | `normal(0, 0.5)` |
-| `precright`, `precleft` | [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md) | `normal(2, 1.5)` | `lognormal(0.7, 0.7)` | `normal(0, 0.5)` |
-| `phi` | [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md) | `normal(2, 1.5)` | `lognormal(0.7, 0.7)` | `normal(0, 0.5)` |
-| `phi` | [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md) | `normal(0.7, 0.8)` | `lognormal(0.7, 0.8)` | `normal(0, 0.5)` |
-| `pex` | [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md), [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md) | `normal(-2, 1)` | `beta(2, 12)` | `normal(0, 0.5)` |
-| `bex` | [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md), [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md) | `normal(0, 1)` | `beta(2, 2)` | `normal(0, 0.5)` |
-| `pmid` | [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md) | `normal(-2.5, 1)` | `exponential(9)` | `normal(0, 0.5)` |
-| `pzero` | [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md) | `normal(-2.5, 1)` | `exponential(9)` | `normal(0, 0.5)` |
+| `sigmabias` | [`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md), [`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md) | `normal(0, 1)` | `lognormal(-0.35, 0.75)` | `normal(0, 0.5)` |
+| `dof` | [`cogmod_logstudent()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logstudent.md) | `normal(1.8, 0.7)` | `lognormal(1.8, 0.7)` | `normal(0, 0.3)` |
+| `shape` | [`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md) | `normal(0, 0.5)` | `normal(0, 0.5)` | `normal(0, 0.2)` |
+| `boundary` | [`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md), [`cogmod_exwald()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exwald.md), [`cogmod_bisa()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_bisa.md) | `normal(0.5, 1)` | `lognormal(0, 0.6)` | `normal(0, 0.5)` |
+| `sigmadrift` | [`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` | `normal(0, 0.5)` |
+| `sigmandt` | [`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md), [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md) | `normal(-3, 1)` | `lognormal(-3, 1)` | `normal(0, 0.5)` |
+| `tau` | [`cogmod_exwald()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exwald.md), [`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md), [`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md) | `normal(-1.5, 0.7)` | `lognormal(-1.5, 0.7)` | `normal(0, 0.5)` |
+| `sigmabias`, `boundary` | [`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md), [`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md), [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` | `normal(0, 0.5)` |
+| `sigmazero`, `sigmaone` | [`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md), [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md) | `normal(0, 1)` | `lognormal(-0.7, 0.75)` | `normal(0, 0.5)` |
+| `nuone` | [`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md) | `normal(0.7, 1.5)` | `normal(0.7, 1.5)` | `normal(0, 0.5)` |
+| `driftone` | [`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md) | `normal(3, 2)` | `lognormal(1, 0.75)` | `normal(0, 2)` |
+| `driftone` | [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md) | `normal(1, 2)` | `normal(1, 2)` | `normal(0, 1.5)` |
+| `boundary` | [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md) | `normal(1, 1)` | `lognormal(0.27, 0.5)` | `normal(0, 0.5)` |
+| `bias` | [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md) | `logistic(0, 1)` | `brms`'s `beta(1, 1)` | `normal(0, 0.5)` |
+| `sigmadrift` | [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md) | `normal(0, 1)` | `lognormal(-1, 0.75)` | `normal(0, 0.5)` |
+| `sigmabias` | [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md) | `normal(-2, 1)` | `beta(1, 5)` | `normal(0, 0.5)` |
+| `mu` | [`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md), [`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md) | `normal(0.4, 0.25)` | \- | `brms`'s |
+| `sigma` | [`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md), [`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md) | `normal(-2.3, 0.7)` | `lognormal(-2.3, 0.7)` | `normal(0, 0.5)` |
+| `shape` | [`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md) | `normal(0, 0.5)` | `lognormal(0, 0.5)` | `normal(0, 0.5)` |
+| `confright`, `confleft` | [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md) | `normal(0, 1)` | `beta(2, 2)` | `normal(0, 0.5)` |
+| `precright`, `precleft` | [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md) | `normal(2, 1.5)` | `lognormal(0.7, 0.7)` | `normal(0, 0.5)` |
+| `phi` | [`cogmod_betagate()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.md) | `normal(2, 1.5)` | `lognormal(0.7, 0.7)` | `normal(0, 0.5)` |
+| `phi` | [`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md) | `normal(0.7, 0.8)` | `lognormal(0.7, 0.8)` | `normal(0, 0.5)` |
+| `pex` | [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md), [`cogmod_betagate()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.md) | `normal(-2, 1)` | `beta(2, 12)` | `normal(0, 0.5)` |
+| `bex` | [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md), [`cogmod_betagate()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.md) | `normal(0, 1)` | `beta(2, 2)` | `normal(0, 0.5)` |
+| `pmid` | [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md) | `normal(-2.5, 1)` | `exponential(9)` | `normal(0, 0.5)` |
+| `pzero` | [`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md) | `normal(-2.5, 1)` | `exponential(9)` | `normal(0, 0.5)` |
 
 ## Parameters left out of the formula
 
@@ -275,7 +275,7 @@ the table for one of five reasons:
   ranges (`sigmabias`) and the LBA and RDM thresholds that share a ridge
   with them (`boundary`), the between-trial variabilities (`sigmadrift`,
   `sigmandt`), and
-  [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)'s
+  [`cogmod_logstudent()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logstudent.md)'s
   `dof`, which reaches the LogNormal only as `dof -> Inf`. Where the
   design cannot identify a range or a variability, fixing it in
   [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
@@ -284,11 +284,11 @@ the table for one of five reasons:
 - **An accumulator that stops winning.** Push a race accumulator's rate
   down far enough and the likelihood stops depending on it, or on its
   SD: `nuone` and the SDs in
-  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
+  [`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md),
   `driftone` in
-  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  [`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
   and
-  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md).
+  [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md).
   Under `dec(Error)` that is the error accumulator, and wherever errors
   are rare its posterior sits in the lower tail of the prior: the fence
   working, not a prior at odds with the data. `mu` has the mirror
@@ -296,7 +296,7 @@ the table for one of five reasons:
   it.
 
 - **An arbitrary scale.**
-  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)'s
+  [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)'s
   likelihood is exactly constant along a ray that rescales every
   evidence parameter. The priors on `sigmazero` and `sigmaone` make the
   posterior proper; only fixing one of them in
@@ -304,13 +304,13 @@ the table for one of five reasons:
   (`sigmazero = 1`) identifies the scale.
 
 - **A ridge with another parameter**: `tau` with `ndt` in
-  [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md),
+  [`cogmod_exwald()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exwald.md),
   `shape` with `mu` in
-  [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md),
+  [`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md),
   `dof` with `poutlier` at the fast end of
-  [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md);
+  [`cogmod_logstudent()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logstudent.md);
   and
-  [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)'s
+  [`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)'s
   `shape`, whose prior also keeps the sampler clear of
   `sigma * shape >= 1`, where the density is unbounded at the shift.
 
@@ -319,20 +319,20 @@ the table for one of five reasons:
   `bias`, and the ex-Gaussian and rating-scale parameters (below).
 
 No prior is set on the shape of
-[`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
+[`cogmod_weibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_weibull.md)
 or
-[`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md),
+[`cogmod_gamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_gamma.md),
 although a shape below 2 makes their `ndt` gradient unbounded: the
 likelihood itself prefers that region, by around 100 log units on the
 data in the [RT models
-article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
+article](https://dominiquemakowski.com/cogmod/articles/rt_models.html),
 so a prior weak enough to be a default could only bias it.
-[`?rcogmod_weibull`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
+[`?rcogmod_weibull`](https://dominiquemakowski.com/cogmod/reference/rcogmod_weibull.md)
 sets out what to do instead.
 
 ## The ex-Gaussian and the GEG
 
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+[`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
 has no `ndt`, but `mu`, `sigma` and `tau` are all lengths of time in
 seconds, which `brms` cannot know. On the `softplus` link, `sigma` (the
 Gaussian SD) gets 25 to 330 ms with a median of 96 ms, and `tau` (the
@@ -346,17 +346,17 @@ deliberately allows negative values: for fast, heavily tailed data the
 Gaussian component belongs near or below zero, with `tau` carrying the
 mass. It is the centre of the Gaussian alone, so the mean of the
 distribution is `mu + tau`.
-[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+[`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md)
 takes the same rows, and a `shape` centred on the ex-Gaussian it nests
 (`shape = 1`, with 95% between 0.37 and 2.7): `shape` and `mu` sit on a
 ridge, and the prior holds it.
 
 ## The rating-scale families
 
-[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md),
-[`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
+[`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md),
+[`cogmod_betagate()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.md)
 and
-[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)
+[`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md)
 have no infinite flat region of the RT kind, but every parameter arrives
 either flat or with a `brms` default meant for another parameterization.
 
@@ -383,7 +383,7 @@ either flat or with a `brms` default meant for another parameterization.
   ends, and a large one concentrates it sharply. `normal(2, 1.5)` on the
   `softplus` link spans 0.33 to 4.95, leaving 17% of its mass below 1,
   since a polarising item really can produce a U.
-  [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)'s
+  [`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md)'s
   `phi` is on a `log` link: `normal(0.7, 0.8)`, 0.42 to 9.7 with a
   median of 2.
 
@@ -421,7 +421,7 @@ is the slope prior `normal(0, s)` stated on the trend at a typical row,
 ## Centring the priors on a previous fit
 
 `warmstart` takes what
-[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+[`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
 takes - a `brmsfit`, the table
 [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) makes of
 one, or the path to a CSV of it - and replaces each prior with
@@ -430,13 +430,13 @@ same parameter. It applies to the population-level intercepts and
 coefficients, the group-level SDs and the parameters left out of the
 formula; correlations keep their LKJ. A parameter the source never saw
 keeps the prior it would get anyway, and
-[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)'s
+[`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)'s
 [`print()`](https://rdrr.io/r/base/print.html) says how many there are.
 
 **This changes the posterior.** Unlike
-[`cogmod_inv_metric()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+[`cogmod_inv_metric()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
 and
-[`cogmod_step_size()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md),
+[`cogmod_step_size()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md),
 which only change how the sampler moves, a prior is part of the model.
 **If the source was fitted to data the new model also contains, it
 counts those data twice**: a pilot on 5 of 10 participants used to
@@ -463,9 +463,9 @@ disagree to win.
 
 ## See also
 
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md),
-[`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md),
-[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md),
+[`cogmod_stanvars()`](https://dominiquemakowski.com/cogmod/reference/cogmod_stanvars.md),
+[`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
 
 ## Examples
 

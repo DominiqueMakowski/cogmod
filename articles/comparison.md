@@ -27,10 +27,11 @@ But it comes with limitations:
   2026](https://doi.org/10.31234/osf.io/kdcxa_v2)).
 - **Nothing for fast responses.** Very fast responses (below `ndt`) are
   not allowed, and will make the fitting fail, which requires extra
-  preprocessing (trimming the fast responses) and fidly parametrization.
+  preprocessing (trimming the fast responses) and fiddly
+  parametrization.
 - **Flat priors and random starts.** Several parameters are left with
-  flat priors, and chains start at random values that, leading to a lot
-  of initialization failures.
+  flat priors, and chains start at random values, leading to a lot of
+  initialization failures.
 
 This is why bespoke packages exist. They add models and make them
 convenient to use.
@@ -48,7 +49,7 @@ A `cogmod` model *is* a
 family goes in
 [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html) like
 any `brms` family, and the only extra bit is the need for a
-[`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md),
+[`cogmod_stanvars()`](https://dominiquemakowski.com/cogmod/reference/cogmod_stanvars.md),
 which adds the necessary Stan functions.
 
 ### Transparency
@@ -58,9 +59,9 @@ Nothing sits between you and the model.
 whole program, family functions included, and that program is the one
 that gets compiled. Priors and starting values are not applied behind
 the scenes:
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 and
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 return ordinary `brms` objects that you pass to
 [`brm()`](https://paulbuerkner.com/brms/reference/brm.html) yourself, so
 they are written into every script, and can be printed, inspected,
@@ -90,11 +91,11 @@ anything.
 ### A Minimal, Consistent API
 
 `cogmod`’s interface has essentially four functions. The family and
-[`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md)
+[`cogmod_stanvars()`](https://dominiquemakowski.com/cogmod/reference/cogmod_stanvars.md)
 are required.
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 and
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 are optional. The pattern is the same for every family.
 
 ### brms’ Quirks Are Inherited Too
@@ -140,7 +141,7 @@ models.
 
 ### Speed, Measured
 
-The giam of `cogmod` is to fit these models correctly *and* as fast as
+The aim of `cogmod` is to fit these models correctly *and* as fast as
 they can be fitted, and neither is assumed:
 
 - **Gradients are checked, not only values.** An R density and a Stan
@@ -151,12 +152,22 @@ they can be fitted, and neither is assumed:
 - **Every change to a Stan density is timed** against the version it
   replaces, and a slower gradient is treated as a regression and
   investigated.
-- **Features and documentation is there to help speed.**
-  [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+- **Built with `stanli` in mind.**
+  [`stanli`](https://github.com/seantalts/stanli), an experimental
+  `brms` backend that runs Stan programs without compiling them, offers
+  large speed-ups: in our benchmarks it fitted `cogmod` models up to
+  three times faster than CmdStan, before counting the compilation it
+  skips
+  ([Performance](https://dominiquemakowski.com/cogmod/articles/performance.html#an-experimental-backend-stanli)).
+  This is no accident. Much of `stanli`’s early development went into
+  making `cogmod`’s models as efficient as possible, and they are part
+  of its benchmarking suite.
+- **Features and documentation are there to help speed.**
+  [`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   starts chains in a sensible region, and
-  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  [`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
   reuses the adaptation of one fit for the next. The
-  [Performance](https://dominiquemakowski.github.io/cogmod/articles/performance.md)
+  [Performance](https://dominiquemakowski.com/cogmod/articles/performance.md)
   article covers the rest.
 
 ## Alternatives
@@ -165,7 +176,7 @@ they can be fitted, and neither is assumed:
 
 [`bmm`](https://popov-lab.github.io/bmm/) ([Frischkorn & Popov,
 2025](https://doi.org/10.3758/s13428-025-02643-0)) is a great
-atlernative, also built on `brms`, and differs from `cogmod` in design
+alternative, also built on `brms`, and differs from `cogmod` in design
 rather than in quality. It puts an interface between the user and
 `brms`. A model is written with its own formula function, `bmf()`, using
 the parameter names of the model’s literature, with the response

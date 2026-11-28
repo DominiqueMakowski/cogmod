@@ -112,13 +112,13 @@ posterior_epred_cogmod_betadiscrete(prep)
   [`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
   formula), it is estimated as a single, intercept-only value shared
   across all observations (as is done for `pmid` in
-  [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md));
+  [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md));
   it can instead be given predictors to let it vary (`pzero ~ x`), or
   fixed to a constant – e.g., `pzero = 0`, recovering the pure Discrete
   Beta model – directly in
   [`brms::bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html)
   (as is done for `pmid` in
-  [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)).
+  [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md)).
 
 - i, prep:
 

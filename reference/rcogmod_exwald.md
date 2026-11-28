@@ -108,7 +108,7 @@ posterior_epred_cogmod_exwald(prep, predict_outliers = NULL)
   `poutlier` to zero for prediction, so predictions describe the
   decision process alone; the likelihood is always the full mixture
   either way. See
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md).
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md).
 
 - i, prep:
 
@@ -147,27 +147,27 @@ The decision time is `Wald(mu, boundary) + Exponential(1 / tau)`:
 evidence accumulates at rate `mu` until it reaches `boundary`, and an
 exponentially distributed residual stage of mean `tau` follows. It is
 the **mechanistic counterpart of
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)**,
+[`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)**,
 whose first stage is a descriptive Gaussian rather than a decision
 process, and `tau` means the same thing in both.
 
 `ndt` and `poutlier` mean exactly what they do in
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
 and
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 all work here too. See
-[`?rcogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`?rcogmod_lognormal`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 for why `ndt` is expressed directly in seconds, what the outlier
 component is for, and why its scale is a constant rather than a `dpar`.
 
 The mean exists and is `ndt + boundary / mu + tau`, so
 [`posterior_epred()`](https://mc-stan.org/rstantools/reference/posterior_epred.html)
 returns a number - unlike
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
 once its drift varies.
 
 ## `ndt` and `tau`
@@ -177,7 +177,7 @@ a hard floor, `tau` a variable stage with an exponential spread. That
 makes them a ridge rather than a flat direction - the leading edge of
 the distribution identifies `ndt` - but a ridge all the same. The
 `normal(-1.2, 0.5)` that
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 puts on `ndt` is what holds it; widen it and expect the two to trade
 off. Schwarz's own model has no `ndt` at all, the exponential stage
 being the whole of the residual time, and fixing `ndt = 0` in
@@ -186,7 +186,7 @@ recovers exactly that.
 
 There is deliberately no `sigmadrift`. It and `tau` both fatten the
 right tail and are very hard to tell apart;
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
 is where the drift-variability route lives.
 
 ## Two ways to make a right tail
@@ -202,12 +202,12 @@ response times.
 More data does not remove the other solution. The posterior keeps a mode
 at each, and the valley between them deepens as trials are added. Chains
 started far from both, as
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 starts them, can settle in either, and chains that agree have not
 necessarily found the more probable one. If the estimates matter, start
 a few chains at a high drift and threshold with a long `tau` and see
 where they end. If the exponential stage is not the question, then
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
 is preferable.
 
 ## How the density is computed

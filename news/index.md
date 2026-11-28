@@ -1,11 +1,138 @@
 # Changelog
 
+## cogmod 0.3.6
+
+CRAN release: 2026-11-27
+
+### New features
+
+- **[`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
+  takes fits from `brms`’s new `stanli` backend.** `stanli` keeps each
+  chain’s adapted step size and metric as the text Stan prints after
+  warmup, not in the metadata `cmdstanr` writes, and that text is now
+  read. The `init`, `inv_metric` and `step_size` that come out go to
+  `brm(backend = "stanli")` as they go to `cmdstanr`, so a pilot fitted
+  with either backend can warm-start a fit with either.
+  [`cogmod_inv_metric()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
+  and
+  [`cogmod_step_size()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
+  follow. On a `cmdstanr` fit, which carries both, the text gives the
+  metadata’s values to the 6 significant digits both have.
+
+### Performance
+
+- **[`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
+  with `sigmadrift` estimated costs 0.29x what it did per gradient in
+  CmdStan, and the classic model 0.86x.** Whenever `sigmabias` and
+  `sigmandt` are both fixed at 0, the Stan likelihood no longer calls
+  Stan’s `wiener_lpdf()`. It evaluates the Navarro and Fuss (2009)
+  series the R side already used for
+  [`dcogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
+  and
+  [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html),
+  written in the Stan language, with `sigmadrift` in closed form. Stan’s
+  5-parameter form computes the density and each of its derivatives as
+  separate series; here autodiff takes every derivative through the one
+  series. Estimating `sigmadrift` now costs about 1.2 to 1.6 times the
+  classic model per gradient, down from about 3.5. On stanli the two
+  models cost 1.06x and 0.67x what they did, 0.76x and 0.24x of CmdStan
+  before the change. Measured on a model with 10 participants and 1000
+  trials (Windows, CmdStan 2.38.0, stanli 0.26.0);
+  `benchmarks/gradient_cost.R` gives 0.81 and 0.36. The 7-parameter
+  model, with `sigmabias` or `sigmandt` estimated, still uses Stan’s
+  `wiener_lpdf()`. The certificate and router that chose between Stan’s
+  two cheaper forms for the classic model are gone; the router remains
+  for the 7-parameter form. Details in `benchmarks/wiener_stan/`.
+
+### Bug fixes
+
+- **[`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)’s
+  Stan likelihood was off by up to a log unit per trial in the tails
+  when `sigmadrift` was estimated.** Stan’s 5-parameter `wiener_lpdf()`
+  controls its error in absolute terms on the density, so where the
+  density is small its log can be badly wrong. Against an independent
+  reference it was off by 0.47 log units at a log density of -28, and by
+  up to 1.1 per trial (13.6 summed over 1000 trials) at a tail point of
+  a 10-participant model. Its partial derivatives were off by up to 84
+  times their size in the tails. At vanishing boundaries it returned a
+  finite gradient that was wrong: -11 for the log decision time, where
+  the true value is about -1.4e191. The classic model was off by up to
+  6.6e-4, wherever the start point lay near the far boundary. The new
+  density agrees with that reference to about 1e-11, and so does
+  [`dcogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md).
+  So
+  [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html),
+  [`loo()`](https://mc-stan.org/loo/reference/loo.html) and
+  [`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
+  now score each trial by the density the model was fitted with. Across
+  boundaries from 1e-160 to 1e80 it never gives a non-finite derivative,
+  where the old code did at up to 2,252 of 5,000 points. Away from the
+  tails nothing moves: at the posterior draws of a 1000-trial model, the
+  total log density changed by 7e-9 for the classic model and 2e-13 with
+  `sigmadrift`.
+
+- **[`dcogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
+  keeps its relative precision with the start point next to the far
+  boundary.** Two sums in the Navarro and Fuss series cancel there. On
+  that side, the small-time series’ two leading terms are now taken
+  together through [`expm1()`](https://rdrr.io/r/base/Log.html), and the
+  large-time series takes its sines at the start point’s distance from
+  the nearer boundary. Next to the boundary that is hit the two terms
+  stay as they were, since there it is the
+  [`expm1()`](https://rdrr.io/r/base/Log.html) form that cancels. The
+  values move by at most 1.6e-13 elsewhere.
+
+- **[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
+  keeps a one-element container one-dimensional.** A parameter declared
+  `vector[1]`, which `brms` makes the `sd_k` of a group-level term on
+  its own such as `(1 | Study)`, the `bs` of a single smooth or its
+  `sds_k`, came out as a bare number. `cmdstanr` boxes such a value
+  itself before writing its JSON, so nothing showed there. A backend
+  that passes R values through as they are reads it as a scalar: stanli
+  0.31.0 stopped with `dims declared=(1); dims found=()`. It now carries
+  `dim = 1`. Longer vectors stay plain vectors, and declared scalars
+  stay scalars. The same goes for
+  [`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)’s
+  `init`, which is built the same way.
+
+### Documentation
+
+- The performance article’s `stanli` section now fits with `brms`’s own
+  `backend = "stanli"` (in `brms`’s development version since
+  brms#1966), where it took four steps through the `"mock"` backend.
+  With it, [`update()`](https://rdrr.io/r/stats/update.html),
+  [`kfold()`](https://mc-stan.org/loo/reference/kfold-generic.html),
+  [`loo()`](https://mc-stan.org/loo/reference/loo.html)’s moment
+  matching and bridge sampling work too, as does
+  `control = list(metric = "dense_e")`; checked on the decision-making
+  article’s LNR. The nutpie sampler keeps the longer route, which the
+  article now spells out.
+
+- **The warm-start documentation misdescribed what a short warmup
+  does.**
+  [`?cogmod_warmstart`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
+  and the performance article said the sampler goes on adapting the
+  supplied metric during the remaining warmup. With the 100-iteration
+  warmup they recommend, Stan never re-estimates the metric at all: with
+  fewer than 150 warmup iterations it shrinks its adaptation windows
+  and, through a bug (stan-dev/stan#3441), never closes them. The
+  supplied metric is used as is and only the step size adapts, and a
+  cold start with the same warmup samples with the unit metric. Checked
+  on CmdStan 2.38.0 and stanli 0.26.0, with both the diagonal and the
+  dense metric. The article’s reading of its warm-start benchmarks now
+  says so; the figures themselves are unchanged, and are flagged for a
+  rerun once a CmdStan release carries the fix. The article also blamed
+  Pathfinder’s covariance for its run with the metric “held fixed”. The
+  window settings that run used in fact replace the metric with 0.001 on
+  every parameter at the end of warmup, so the article now says that,
+  and that the covariance itself was never tested as a fixed metric.
+
 ## cogmod 0.3.5
 
 ### Breaking changes
 
 All three change the priors
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 returns, so a model refitted under 0.3.5 is not the model it was under
 0.3.4.
 
@@ -24,7 +151,7 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   centre every time and past its 1st percentile in nine. The advice for
   trimmed data, `normal(-7, 0.5)`, is unchanged.
 
-- **[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)’s
+- **[`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)’s
   `boundary` and `bias` get priors.** `brms` left `boundary` flat,
   intercept and slopes - an improper prior on a `softplus` link, which
   `brms` refuses to sample from with `sample_prior = "only"` - and the
@@ -38,10 +165,10 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   `exponential(1)`, as every other parameter the family names does,
   instead of `brms`’s `student_t(3, 0, 2.5)`.
 
-- **[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
-  [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md)
+- **[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md),
+  [`cogmod_exwald()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exwald.md)
   and
-  [`cogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md)
+  [`cogmod_bisa()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_bisa.md)
   give `boundary` a prior,** for the same reason: `normal(0.5, 1)` on
   the `softplus` link, a median threshold of 0.97 with 95% between 0.21
   and 2.5 (`lognormal(0, 0.6)` when left out of
@@ -51,7 +178,7 @@ returns, so a model refitted under 0.3.5 is not the model it was under
 
 ### Bug fixes
 
-- **[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)’s
+- **[`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)’s
   density could be NaN.** The LBA’s closed form needs the difference of
   two normal densities, `phi(z1) - phi(z2)`, and took it as `phi(z1)`
   times `-expm1()` of their log ratio, whichever of the two was the
@@ -72,12 +199,12 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   gradient and 14 a `-Inf` value with a non-finite partial - a NaN
   gradient for the whole model once `log_mix()` weights that component
   by zero - and now none do. R’s
-  [`dcogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+  [`dcogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)
   had the same formula, and there the NaN reached a mask and errored
   (“NAs are not allowed in subscripted assignments”);
   [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html)
   and
-  [`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+  [`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
   call the same density.
 
 - **The LBAs’ densities no longer fall to `-Inf` where they are merely
@@ -97,54 +224,54 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   under both, the median change is 0 and the 99th percentile 6e-14; of
   the 56 that moved by more than 1e-12, the 20 that moved most all moved
   onto a quadrature of the density, to within 1e-5.
-  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+  [`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)
   shares the density and gets the same fix.
 
 - **The LBAs’ gradients are exact in the tails.** The truncation
   constant `log P(v > 0)`, paid on every observation, was Stan’s
   `std_normal_lcdf()`, whose value is right but whose partials are
   approximate, and
-  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)’s
+  [`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)’s
   was `log1m_exp(std_normal_lcdf(-x))`, the same thing the long way
   round. Both now go through `cogmod_log_Phi()`, except where the
   loser’s survival has just formed `Phi(drift / sigma)` itself and takes
   its log directly: exact partials either way, and that reuse is what
   keeps the fix at the old cost (`cogmod_log_Phi()` for both
   accumulators measured 1.09 and 1.12 times the old cost on
-  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)).
+  [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)).
   Over the gradient check’s grid (`benchmarks/gradient_check.R`) the
   worst error against central differences goes from 2.6e-5 to 2.1e-6 for
-  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md),
+  [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md),
   and 21 of its 22 points from around 1e-6 to around 1e-9; the remaining
   point, and
-  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)’s
+  [`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)’s
   worst at 1.2e-6, are the same to the last digit before and after, so
   they come from elsewhere in the density. Nothing got dearer: per
   gradient evaluation
-  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+  [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)
   costs 0.98 and 1.02 times what it did, and
-  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md),
+  [`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md),
   where one function replaces two, 0.92 and 0.93, over two runs of
   `benchmarks/gradient_cost.R` (5,000 trials, median of 21 alternating
   blocks).
 
-- **[`dcogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+- **[`dcogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)
   with a negative drift.** Its truncation constant was
   `log1p(-exp(log Phi(-drift / sigma)))`, which loses digits below a
   drift ratio of about -6 and is `-Inf` beyond -8.3, taking the density
   with it; it is now `pnorm(drift / sigma, log.p = TRUE)`.
-  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+  [`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)
   puts a `softplus` link on the drift, so fitted models were not
   affected.
 
 ### Changes to starting values
 
-- **[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)’s
+- **[`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)’s
   error accumulator starts slower than the correct one,** at `nuone = 0`
   against `mu = 0.7`, as
-  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)’s
+  [`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)’s
   and
-  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)’s
+  [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)’s
   already do. The old equal start was a 50/50 race; the new one implies
   16% errors. This is for consistency, not speed: refitted cold on three
   models, 4 seeds each, the closer start changed the median warmup cost
@@ -153,11 +280,11 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   unchanged, and starting values do not change a posterior, so no fitted
   model needs revisiting.
 
-- **[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+- **[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   now covers
-  [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md),**
+  [`cogmod_betagate()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.md),**
   which it refused (“nothing to offer”) although
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   covered it, so every family one function supports the other now does
   too. `phi` starts at 1, the Uniform at `mu = 0.5`, rather than the
   U-shaped Beta `init = 0` gives it on its `softplus` link, `pex` at 0.2
@@ -172,7 +299,7 @@ returns, so a model refitted under 0.3.5 is not the model it was under
 ### Performance
 
 - **The classic
-  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
   costs 0.77x what it did per gradient in CmdStan, and 0.83x in
   stanli,** with the same log density and gradient to the last bit.
   “Classic” means `sigmadrift`, `sigmabias` and `sigmandt` all fixed at
@@ -190,7 +317,7 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   gives 0.77 too (`benchmarks/ddm_router/`). The cost of estimating
   `sigmadrift`, relative to the classic model, goes from about 2.8x to
   about 3.5x in
-  [`?cogmod_ddm`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md),
+  [`?cogmod_ddm`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md),
   because the classic model got cheaper.
 
 ### Documentation
@@ -198,14 +325,14 @@ returns, so a model refitted under 0.3.5 is not the model it was under
 - New article, *Comparison with Other Packages*, setting `cogmod` beside
   `brms`’s native families and `bmm`.
 
-- [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+- [`?cogmod_priors`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   said the RDM’s drift rates were left alone, which stopped being true
   when `driftone` got its prior; it now documents that prior, and its
   table of omitted parameters has the new rows.
-  [`?rcogmod_rdm`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  [`?rcogmod_rdm`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
   now explains the `driftone` prior that the decision-making article
   sends readers to.
-  [`?rcogmod_exwald`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md)
+  [`?rcogmod_exwald`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exwald.md)
   quoted the `ndt` prior as `normal(-1.2, 0.2)`; it is
   `normal(-1.2, 0.5)`.
 
@@ -214,10 +341,10 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   accumulator, and wherever errors are rare its posterior sits in the
   lower tail of its prior - on 324,000 Illusion Game trials at prior
   quantiles down to 3e-6.
-  [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md),
-  [`?rcogmod_rdm`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  [`?cogmod_priors`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md),
+  [`?rcogmod_rdm`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
   and
-  [`?rcogmod_lba2`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+  [`?rcogmod_lba2`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)
   now say that this is the fence working: below a drift of a few
   hundredths the likelihood is flat, and nothing observable depends on
   where on the plateau the drift sits. Priors centred on the error
@@ -229,7 +356,7 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   between 5 in 12 and 10 in 11.
 
 - **Why
-  [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md)’s
+  [`cogmod_exwald()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exwald.md)’s
   chains can disagree.** The ex-Wald can make a right tail in two ways:
   from the Wald itself, at a low drift with a short `tau`, or from a
   long exponential stage behind a nearly Gaussian Wald, an ex-Gaussian
@@ -238,7 +365,7 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   a separate mode of the posterior, more data separates them further
   rather than merging them, and a chain settles in whichever its warmup
   reaches.
-  [`?rcogmod_exwald`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md)
+  [`?rcogmod_exwald`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exwald.md)
   and the RT article now say so.
 
   The measurements are in `benchmarks/exwald_modes/`. The split the
@@ -248,11 +375,11 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   ex-Wald itself the second mode was present in every data set from
   2,000 to 32,000 trials, and its valley grew with the data.
 
-- **[`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+- **[`?cogmod_priors`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   and
-  [`?cogmod_inits`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  [`?cogmod_inits`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   are rewritten to be read.**
-  [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`?cogmod_priors`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   now has one table of every prior it sets - the parameter, its
   families, the prior in
   [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html),
@@ -261,16 +388,16 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   tables. It sorts the reasons into five kinds rather than a paragraph
   per family, each family’s own page keeping the full account. It also
   stops saying five things that were not true: it left
-  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+  [`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)
   out of the families covered, sent
-  [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+  [`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md)
   readers to a section that did not exist, said `shape` existed only in
-  [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md),
+  [`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md),
   and said an omitted `shape` was left flat, where `brms` gives it
   `gamma(0.01, 0.01)`, which
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   replaces. With
-  [`?rcogmod_exgaussian`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md),
+  [`?rcogmod_exgaussian`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md),
   it also said `brms`’s default intercept for the ex-Gaussian’s `mu` was
   centred on zero seconds. It is centred on the median response; the
   trouble is its scale of 2.5 s, and under `0 + Intercept` there is no
@@ -281,7 +408,7 @@ returns, so a model refitted under 0.3.5 is not the model it was under
 
 ### Breaking changes
 
-- **[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+- **[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   now states the SD of a smooth term (`sds`) in link units, whatever the
   basis.** One unit of `sds` moves the linear predictor by an amount set
   by the basis `mgcv` builds: about 0.45 link units for `s(x)`, 6 for
@@ -300,11 +427,11 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   324,000-trial study the posterior `sds` ran from 0.4 to 37 (median 7)
   across four families, where `exponential(1)` puts 0.1% of its mass
   above 7. Any model with a smooth gets different priors from 0.3.3.
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   now builds the basis of each distinct smooth term once (1.8 s for a
   [`t2()`](https://paulbuerkner.com/brms/reference/s.html) on 324,000
   rows). See the *Smooth terms* section of
-  [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md).
+  [`?cogmod_priors`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md).
 
 - **The unpenalised part of a smooth on a dpar the family names gets the
   dpar’s slope prior stated in link units.** `brms` reports those
@@ -326,10 +453,10 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   0.3.3.
 
 - **In
-  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
-  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  [`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md),
+  [`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
   and
-  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md),
+  [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md),
   `mu`’s group-level SD gets the same prior as the other
   accumulator’s.** In a race `mu` is the rate of accumulator 0, and the
   `dec()` coding decides which accumulator that is, so `brms`’s
@@ -340,7 +467,7 @@ returns, so a model refitted under 0.3.5 is not the model it was under
 
 ### Changes to starting values
 
-- **[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+- **[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   starts a smooth’s SD at 0.1 link units of wiggle** instead of
   `sds = 0.05`, for the reason above: 0.05 was 0.3 link units on
   `s(x, bs = "cr")` and 0.004 on the
@@ -348,7 +475,7 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   posterior `sds` sat five or six log units above the start. The smooth
   coefficients still start at zero, so the starting smooth stays flat.
 
-- **[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+- **[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   scales the jitter on regression coefficients by how far their design
   columns reach.** The noise that disperses the chains is 0.25 on every
   population-level parameter, argued as “a quarter of a link unit”. For
@@ -367,10 +494,10 @@ returns, so a model refitted under 0.3.5 is not the model it was under
   covariate keeps its 0.25; a slope on an unstandardised one (age in
   years) no longer has an SD of six link units at the extremes.
 
-- **[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)’s
+- **[`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)’s
   error accumulator starts slower than the correct one,** at
   `driftone = 1` against `mu = 3`, as
-  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)’s
+  [`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)’s
   has since 0.3.2. The old equal start was a 50/50 race. On simulated
   data with error rates from 3% to 43% it was the costliest of the
   starts 3, 2, 1 and 0 every time, and moving it to 1 took 2,400-3,800
@@ -380,7 +507,7 @@ returns, so a model refitted under 0.3.5 is not the model it was under
 
 ### Documentation
 
-- [`?rcogmod_lba2`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+- [`?rcogmod_lba2`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)
   now opens its *Negative drift rates* section with the advice the rest
   of it explains: wherever one response is rare in some condition, keep
   the drift SD of its accumulator free of predictors (`sigmaone ~ 1`, or
@@ -411,30 +538,30 @@ CRAN release: 2026-09-25
   observation belonging to that component has zero probability and the
   log-likelihood is `-Inf` everywhere - which CmdStan reports only as
   `Initialization failed after 100 attempts`, naming nothing.
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   now errors first, saying how many rows are involved and how to
   proceed. Eleven combinations are covered: for
-  [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md),
+  [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md),
   `pmid = 0` with a response exactly at the midpoint, `pmid = 1` with
   one anywhere else, `pex = 0` with an exact 0 or 1, `bex = 0` with a 1
   and `bex = 1` with a 0; for
-  [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
+  [`cogmod_betagate()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.md)
   the same `pex = 0` and `bex` cases plus `pex = 1` with any interior
   response; and for
-  [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md),
+  [`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md),
   `pzero = 0` with a 0 and `pzero = 1` with any rating. The first and
   the last are the ones the documentation invites -
-  [`?rcogmod_betadiscrete`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)
+  [`?rcogmod_betadiscrete`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md)
   offers `pzero = 0` as the way to say a scale has no zero category, and
-  [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`?cogmod_priors`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   suggests fixing `pmid` or `pzero` at 0 to switch the parameter off.
 
-- **[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+- **[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   now covers
-  [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md),
-  [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
+  [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md),
+  [`cogmod_betagate()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.md)
   and
-  [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md).**
+  [`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md).**
   Every distributional parameter of the three bounded-scale rating
   families previously arrived either flat - improper - or with a `brms`
   default aimed at a different parameterization. Two of those were worse
@@ -451,9 +578,9 @@ CRAN release: 2026-09-25
   -5.15, `Rhat` 1.00, ESS 3000-4000, no divergences. `phi` arrived with
   `student_t(3, 0, 2.5)`, which `brms` supplies because it recognises
   the name from its own beta family - the same trap
-  [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)’s
+  [`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)’s
   `sigma` falls into; on
-  [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md)’s
+  [`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md)’s
   `log` link that prior’s 95% interval runs to `phi = 2853`, where the
   Beta has collapsed onto a single rating category, so it is overridden
   rather than filled. The Beta precisions are fenced away from both
@@ -461,14 +588,14 @@ CRAN release: 2026-09-25
   a large one narrows it sharply. `mu` is left to `brms` in all three,
   since on a `logit` link its `student_t(3, 0, 2.5)` is the standard
   weakly informative choice. See
-  [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`?cogmod_priors`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   for the full table and the reasoning behind each number.
 
-- **[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+- **[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   now covers
-  [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)
+  [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md)
   and
-  [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md).**
+  [`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md).**
   Both are bounded-scale families for subjective ratings, and neither
   has a flat region of the kind that makes an init mandatory for the RT
   families - every start is a proper density and a chain begun at the
@@ -476,7 +603,7 @@ CRAN release: 2026-09-25
   rating scale that no data set matches. The logit origin puts `pmid`
   and `pzero` at 0.5, i.e. half of every response exactly on the
   midpoint or outside the scale altogether; they now start at 0.05.
-  [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)’s
+  [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md)’s
   two Beta precisions are behind a `softplus` link, so
   `softplus(0) = 0.69` puts both Beta shapes below 1 - a U-shaped rating
   distribution, unbounded at both ends of each half of the scale; they
@@ -484,21 +611,21 @@ CRAN release: 2026-09-25
   insensitive to the exact value. `pex` starts at 0.1 rather than 0.5.
   On a 2000-trial slider data set the old start sat about 1900
   log-likelihood units from the new one, 983 of them `pmid` alone. For
-  [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md),
+  [`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md),
   `phi = 1` with `mu = 0.5` is the discrete Uniform, which is where the
   origin already is - it is named so that `init = "random"`, which draws
   `phi` anywhere from 0.14 to 7.4, no longer decides it. So this buys
   warmup rather than a fit that would otherwise fail.
 
-- **[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+- **[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   lists
-  [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+  [`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md)
   among the families it supports.** It had targets for it but was not
   naming it, so the error message for an unsupported family said
   cogmod_geg() was one. The supported list is now derived from the
   targets rather than kept beside them.
 
-- **[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+- **[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   jitters the hierarchical blocks a fifth as much as the
   population-level ones, and starts smooths flat.** One `jitter`
   (default 0.25) now applies to intercepts and slopes; the standardized
@@ -517,11 +644,11 @@ CRAN release: 2026-09-25
   the outlier component; at 0.05 on those blocks the same model started
   where the targets say. Chains still start apart where it matters for
   Rhat, on the intercepts and slopes. Warm starts
-  ([`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md),
+  ([`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md),
   `warmstart =`) use the same rule at their smaller default.
 
 - **The 7-parameter
-  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
   is 1.7x cheaper per gradient when both `sigmabias` and `sigmandt` are
   estimated.** Stan’s 7-parameter `wiener_lpdf()` integrates the
   start-point and non-decision-time ranges out by adaptive cubature -
@@ -556,7 +683,7 @@ CRAN release: 2026-09-25
   cost 8.3 ms per observation at Stan’s default tolerance, thirty times
   the 274 us of the benign benchmark point. The same cost measurements
   are now in
-  [`?cogmod_ddm`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md),
+  [`?cogmod_ddm`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md),
   under the between-trial variability section: estimating `sigmadrift`
   costs about 2.8x the classic model per gradient, estimating one of
   `sigmabias` / `sigmandt` about 18x and both about 30x, and the fast
@@ -568,10 +695,10 @@ CRAN release: 2026-09-25
 
 ### Bug fixes
 
-- **[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+- **[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   now sets the wiggliness prior (`sds`) of a smooth on a distributional
   parameter.** The table in
-  [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`?cogmod_priors`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   has always listed `sds` alongside `sd` at `exponential(1)`, but brms
   fills a smooth’s blanket `sds` row itself and leaves the per-term rows
   empty, so a function that fills only what arrives empty never reached
@@ -581,11 +708,11 @@ CRAN release: 2026-09-25
   seven or walk a `sigmabias` across its range, behind an intercept the
   family had deliberately fenced. The blanket row is now replaced, for
   every family and every dpar
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   handles; the response’s own smooth is left to brms, as its slopes are.
   Group-level `sd` rows were never affected.
 
-- **[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)’s
+- **[`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)’s
   gradient is now exact.** Every normal tail in the RDM’s Stan code went
   through Stan’s `std_normal_lcdf()`, whose value is right but whose
   partial derivatives are an approximation, and in a race those partials
@@ -601,7 +728,7 @@ CRAN release: 2026-09-25
   prelude of its own (`.LOG_PHI_STAN_PRELUDE`) so that any family can
   take it; the LogNormal’s and the RDM’s preludes both start with it.
 
-- **[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)’s
+- **[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)’s
   gradient is now exact.** The same defect as the RDM’s, in the family’s
   own Stan code: every normal tail of the Wald - the two terms of its
   CDF and survival, the two integrated ones a non-decision range needs,
@@ -616,11 +743,11 @@ CRAN release: 2026-09-25
   truncation factors lose a round trip through `log1m_exp()` in the
   bargain, since `log1m_exp(std_normal_lcdf(-z))` is `cogmod_log_Phi(z)`
   written the long way.
-  [`cogmod_exwald()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exwald.md)
+  [`cogmod_exwald()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exwald.md)
   builds on the same prelude and gets the same fix. Values are
   unchanged.
 
-- **[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)’s
+- **[`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md)’s
   CDF term is no longer Stan’s `exp_mod_normal_lcdf()`.** The
   alpha-power construction puts `(shape - 1) * log F_EG` inside the
   *density*, so the ex-Gaussian CDF is differentiated on every
@@ -642,25 +769,25 @@ CRAN release: 2026-09-25
   half again the cost of the inline form, through the autodiff-stack
   allocation it makes on every call.
 
-- **[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)’s
+- **[`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)’s
   Stan density, CDF and survival go through `cogmod_log_Phi()`.** The
   density is the same expression as before - `exp_mod_normal_lpdf()` and
-  [`dcogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+  [`dcogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
   in R evaluate it too, and log-probabilities are unchanged to every
   digit that matters - but it is now written out over
   `cogmod_log_Phi()`, so it stays finite about 38 standardized units
   into the left tail where the built-in’s bare `erfc` underflows, and it
   shares its normal tail with the CDF that
-  [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+  [`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md)
   is built on. The `cens()` path gets the accurate CDF with it:
   `cogmod_exgaussian_lcdf()` was `exp_mod_normal_lcdf()` and had the
   same wrong partials as the GEG’s, and `cogmod_exgaussian_lccdf()` was
   on `std_normal_lcdf()`. About 10% per gradient evaluation, the cost of
   `cogmod_log_Phi()` over the built-in.
 
-- **[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+- **[`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)
   and
-  [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+  [`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
   no longer hand Stan a non-finite gradient in the tails.**
   `cogmod_lognormal_ldiff_Phi()` formed `log(Phi(y + c) - Phi(y))` from
   `erfc` as `log(u1) + log1m(u2 / u1)`, and the `A == 0` branch of
@@ -707,7 +834,7 @@ CRAN release: 2026-09-25
   now take the single tail they were asked for when `sigmabias = 0`,
   instead of building the pair and discarding one: the two share no work
   there, and
-  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+  [`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)
   reads the survival alone. On 20000 responses a gradient of the plain
   LNR came out about 20% cheaper than before and one with a start-point
   range about 15% dearer, the latter buying the corrected gradient
@@ -721,7 +848,7 @@ CRAN release: 2026-09-25
   call failed.
 
 - The
-  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  [`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
   example is now self-contained and runs (with CmdStan): it simulates
   its data, fits the pilot and the warm-started model, and writes the
   warm-start table to a temporary file rather than to the working
@@ -731,16 +858,16 @@ CRAN release: 2026-09-25
 
 ### New features
 
-- **[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+- **[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
   gains `sigmabias`**, the same between-trial start-point range as the
   LNR’s below: the decision time is the LogNormal multiplied by a
   `Uniform(1, 1 + sigmabias)` distance, which is the single-accumulator
   LBA with a LogNormal drift rate and its threshold offset pinned at 1.
   At `sigmabias = 0` - the default of
-  [`rcogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
-  [`dcogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+  [`rcogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
+  [`dcogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
   and
-  [`pcogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+  [`pcogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
   placed after `ndt` and before `poutlier` as the Wald’s `sigmadrift`
   is, and the value to fix in the formula unless the design speaks to
   start-point variability - the family is the shifted LogNormal exactly
@@ -751,28 +878,28 @@ CRAN release: 2026-09-25
   functions all carry the range, and agree with quadrature over the
   start point to `1e-7` and with each other to `1e-10`. The kernels are
   shared with
-  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
+  [`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md),
   which is now a race of two of these accumulators in code as well as in
   theory. As for the LNR, a formula that omits `sigmabias` estimates it,
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   fences the flat direction at zero, and fits made with earlier versions
   have to be refit; the two vignette LogNormal models were.
-  [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)
+  [`cogmod_logstudent()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logstudent.md)
   and
-  [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+  [`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
   do not get the parameter: the density needs a partial first moment of
   the rate distribution, which does not exist for a Student-t on the log
   scale and needs incomplete gamma functions for the log-Gamma.
 
-- **[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+- **[`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)
   gains `sigmabias`**, a between-trial start-point range: each
   accumulator now starts at `Uniform(0, sigmabias)` and runs to a
   threshold `1 + sigmabias` at its LogNormal rate, so its finishing time
   is the distance divided by the rate rather than the reciprocal of the
   rate alone. At `sigmabias = 0` - the default of
-  [`rcogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+  [`rcogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)
   and
-  [`dcogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
+  [`dcogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md),
   and the value to fix in the formula unless the design can identify a
   start-point range - the family is the LNR exactly as before, bit for
   bit and at the same cost, since both the R and the Stan kernels take
@@ -791,24 +918,24 @@ CRAN release: 2026-09-25
   from a series below a start-point range of about `1e-4 * sigma` and
   from ratios of log-CDFs in the tails, and both agree with
   one-dimensional quadrature over the start point to `1e-7`.
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   fences the flat direction at zero the way it does for
-  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)’s
+  [`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)’s
   `sigmabias`, and
-  [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  [`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   starts it at 0.5. A formula that omits `sigmabias` now estimates it,
   as `brms` does with any dpar; fits made with earlier versions cannot
   be post-processed, because their family carries no `sigmabias`, and
   have to be refit. In
-  [`rcogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+  [`rcogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)
   and
-  [`dcogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+  [`dcogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)
   the argument sits between `ndt` (or `response`) and `poutlier`, where
   the DDM keeps its between-trial variabilities, so a call that passed
   `poutlier` by position needs it named. The vignette LNR model pins it
   at zero and was refit.
 
-- **[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+- **[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   gains `warmstart`**, which re-centres the priors on a previous fit:
   every population-level intercept and coefficient, every group-level
   SD, and every dpar left out of the formula gets
@@ -819,7 +946,7 @@ CRAN release: 2026-09-25
   is about is the parameter the source sampled, the `Intercept` prior
   being stated on the centred intercept in both - so the scales line up
   by construction.
-  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  [`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
   extracts the posterior median and SD alongside the means for this,
   [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) carries
   them in two new columns, and a table written before they existed still
@@ -832,14 +959,14 @@ CRAN release: 2026-09-25
   that half twice. `prior_scale`, 3 by default, is what stands between a
   prior that only says roughly where the parameter lives and one that is
   the source’s posterior outright;
-  [`?cogmod_priors`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`?cogmod_priors`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   says when the argument is and is not legitimate.
 
 ### Bug fixes
 
-- **[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+- **[`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
   no longer freezes one chain in four on a cold start.**
-  [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  [`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   started both drifts at 3; the error accumulator now starts at 1. The
   failure looked like a stuck chain - every transition at the maximum
   treedepth, step size a thousand times smaller than the other chains’,
@@ -850,7 +977,7 @@ CRAN release: 2026-09-25
   400 log-density units above the posterior. The first trajectory
   converted that into momentum along the flat `driftone` direction (the
   plateau
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   fences, where the likelihood no longer changes) and carried the chain
   from a link value of +3 to -20 in eight leapfrog steps; the step size
   then collapsed to 1e-5 within a dozen iterations and the metric
@@ -868,7 +995,7 @@ CRAN release: 2026-09-25
   correct one the start is off by a factor of three on the cheap side,
   which costs a few dozen units and changes nothing.
 
-- **[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+- **[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   now starts `ndt` at half the first percentile of the observed response
   times instead of a fixed 0.1 s.** Same mechanism as the previous item,
   other cold start. The fixed value was a third of the prior median and
@@ -876,7 +1003,7 @@ CRAN release: 2026-09-25
   on data whose non-decision time is 0.6 s it sat half a second low,
   every decision time looked far too long, a driftless race then fit
   better than a fast one, and the first trajectory of a cold
-  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  [`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
   chain threw both drifts onto their flat regions - three chains in four
   on the benchmark’s `shifted` target when handed a metric adapted to
   the bulk. Half the first percentile is still below essentially every
@@ -895,7 +1022,7 @@ CRAN release: 2026-09-25
   or more demanding responses - 3.5 SDs from the centre, and on the
   warm-start benchmark’s `shifted` target (`vignette("performance")`),
   whose non-decision time is about 0.6 s,
-  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  [`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
   produced divergent transitions in every run with that prior, the
   600-warmup reference included; the wider prior removed them (Rhat 1.06
   and a minimum ESS of 67 became 1.01 and 392 on the same seed). The
@@ -912,7 +1039,7 @@ CRAN release: 2026-09-25
 ### New features
 
 - **New
-  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)**
+  [`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)**
   turns what a previous fit’s warmup produced - the adapted inverse
   metric, the step size and the posterior means - into the `init`,
   `inv_metric` and `step_size` arguments of a new
@@ -921,7 +1048,7 @@ CRAN release: 2026-09-25
   shorter warmup. Stan adapts one variance per unconstrained parameter,
   and the function labels each with its Stan name (read off the
   generated program with the parser
-  [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  [`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   already has) and joins the two models on those names: population-level
   entries carry over, a pilot participant’s standardized effects follow
   it by level name to its position in the bigger model, new participants
@@ -935,11 +1062,11 @@ CRAN release: 2026-09-25
   [`write.csv()`](https://rdrr.io/r/utils/write.table.html) and can be
   passed back as a file path, so a pilot fitted on a laptop can
   warm-start an array job on a cluster. On the other side,
-  [`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+  [`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
   gains a `warmstart` argument and the new
-  [`cogmod_inv_metric()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  [`cogmod_inv_metric()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
   and
-  [`cogmod_step_size()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  [`cogmod_step_size()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
   share its signature - the model’s formula and data, then the source,
   be it a fit, a table or a file - so that each argument of
   [`brm()`](https://paulbuerkner.com/brms/reference/brm.html) has one
@@ -953,18 +1080,18 @@ CRAN release: 2026-09-25
   values alone bought nothing, so the metric and step size are the
   product (`vignette("performance")`).
 
-- **[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+- **[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
   gains `sigmandt`**, the between-trial range of the non-decision time
   (`st0`): each trial’s non-decision time is drawn from
   `Uniform(ndt, ndt + sigmandt)`, so `ndt` becomes its lower bound,
   exactly as in
-  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md).
+  [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md).
   Spreading the shift turns the Wald density into a difference of two
   CDFs and the CDF into a difference of two integrated CDFs, both closed
   form at a fixed drift, so the parameter costs a few normal CDFs per
   observation, works with `cens()` unchanged, and rides the existing
   drift quadrature when `sigmadrift > 0` too. It is on a `log` link with
-  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)’s
+  [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)’s
   prior for the same quantity. **It is hard to estimate and should be
   fixed at zero for most applications** (`sigmandt = 0` in
   [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html));
@@ -976,10 +1103,10 @@ CRAN release: 2026-09-25
   fit one more parameter unless they add `sigmandt = 0`, and fits made
   before this version cannot be post-processed with it; the vignette
   models were refit.
-  [`rcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
-  [`dcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+  [`rcogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md),
+  [`dcogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
   and
-  [`pcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+  [`pcogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
   take `sigmandt` right after `sigmadrift`, so a `poutlier` passed by
   position moves along one.
 
@@ -988,7 +1115,7 @@ CRAN release: 2026-09-25
   *right-censored correct response*: its RT is a lower bound on when the
   correct process would have finished, so it contributes that process’s
   survival rather than its density. On
-  [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+  [`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
   this is the *simple* censored shifted Wald of [Miller et
   al. (2018)](https://doi.org/10.1177/0146621617710465), their Eq. 4,
   the `version = "simple"` of the `cswald` model in
@@ -997,21 +1124,21 @@ CRAN release: 2026-09-25
   drifts `v` and `-v`, as implemented in `rtdists` and `bmm`’s
   `version = "crisk"`), which is a choice model rather than a censoring
   construction;
-  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
   with `bias` fixed at 0.5 covers that ground. Here censoring is not a
   family but a construction, so the same formula works on every RT-only
   family with a closed-form CDF:
-  [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
-  [`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md),
-  [`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md),
-  [`cogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md),
-  [`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md),
-  [`cogmod_invweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md),
-  [`cogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md),
-  [`cogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md),
-  [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+  [`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
+  [`cogmod_logstudent()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logstudent.md),
+  [`cogmod_gamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_gamma.md),
+  [`cogmod_invgamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgamma.md),
+  [`cogmod_weibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_weibull.md),
+  [`cogmod_invweibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invweibull.md),
+  [`cogmod_logweibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logweibull.md),
+  [`cogmod_bisa()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_bisa.md),
+  [`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
   and
-  [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md).
+  [`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md).
   Left- and interval-censoring come with it, and
   [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html) -
   hence [`loo()`](https://mc-stan.org/loo/reference/loo.html) - honours
@@ -1019,18 +1146,18 @@ CRAN release: 2026-09-25
   [`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
   predicts the latent, uncensored RT, as `brms` does for its own
   families.
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   and
-  [`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md)
+  [`cogmod_stanvars()`](https://dominiquemakowski.com/cogmod/reference/cogmod_stanvars.md)
   refuse `cens()` on the families that cannot take it, and
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   warns above 20% censored trials - a threshold that is exact for
   timeouts and omissions at any rate but lenient for commission errors,
   where the construction is biased well before it (see
-  [`?rcogmod_invgaussian`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)).
+  [`?rcogmod_invgaussian`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)).
   What the model is for, what it assumes and the one check to run before
   using it are in
-  [`?rcogmod_invgaussian`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+  [`?rcogmod_invgaussian`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
   and the *Censored Shifted Wald* section of `vignette("rt_models")`.
 
   Under the hood every censorable family gets a `<family>_lcdf` and a
@@ -1044,23 +1171,23 @@ CRAN release: 2026-09-25
   the drift, in R and Stan alike off one node table.
 
 - **`pcogmod_*()` for every censorable family.**
-  [`pcogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
-  [`pcogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md),
-  [`pcogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md),
-  [`pcogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md),
-  [`pcogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md),
-  [`pcogmod_invweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invweibull.md),
-  [`pcogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md),
-  [`pcogmod_bisa()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_bisa.md)
+  [`pcogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
+  [`pcogmod_logstudent()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logstudent.md),
+  [`pcogmod_gamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_gamma.md),
+  [`pcogmod_invgamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgamma.md),
+  [`pcogmod_weibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_weibull.md),
+  [`pcogmod_invweibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invweibull.md),
+  [`pcogmod_logweibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logweibull.md),
+  [`pcogmod_bisa()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_bisa.md)
   and
-  [`pcogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+  [`pcogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
   join
-  [`pcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
+  [`pcogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md),
   with `lower.tail` and `log.p`. The upper tail is computed *as* the
   upper tail rather than as `1 - CDF`; these are the R side of the Stan
   `_lcdf`/`_lccdf` pair, and the tests hold the two to each other.
 
-- **[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+- **[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   now checks the response before returning.** Everything in this package
   is stated in seconds and none of it is unit-equivariant - the `ndt`
   prior means 170-300 ms, `.POUTLIER_SCALE` is 0.2 s - but `brms` fills
@@ -1074,11 +1201,11 @@ CRAN release: 2026-09-25
   wrong in a way `Stan` cannot report: a non-positive reaction time
   under a family that places no density below `ndt`; a response outside
   `[0, 1]` for
-  [`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md)
+  [`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md)
   or
-  [`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md);
+  [`cogmod_betagate()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.md);
   a non-integer rating for
-  [`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md);
+  [`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md);
   a non-numeric response; and a third level in `dec()`, which the choice
   families would otherwise fold silently into option 1, since their Stan
   code tests `dec == 0` and takes the else branch for everything else.
@@ -1094,9 +1221,9 @@ CRAN release: 2026-09-25
   the warning sits at 5%.
 
   Families with neither `ndt` nor `poutlier` -
-  [`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+  [`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
   and
-  [`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md) -
+  [`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md) -
   are exempted from the tail checks, and a non-positive response is a
   warning rather than an error there, their support being the whole real
   line. A formula or family the check cannot read is passed through
@@ -1104,13 +1231,13 @@ CRAN release: 2026-09-25
 
 ### Bug fixes
 
-- **[`dcogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+- **[`dcogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
   and everything built on it
   ([`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html),
   [`loo()`](https://mc-stan.org/loo/reference/loo.html),
-  [`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md),
+  [`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md),
   the other R-side post-processing of
-  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
   fits) are now accurate when the `sigmandt` range reaches down to fast
   decision times.** The R density integrates the non-decision time out
   with a fixed 25-node Gauss-Legendre rule, and when that range covers
@@ -1140,7 +1267,7 @@ CRAN release: 2026-09-25
   density test is tightened from a relative 1e-4 to 1e-5 accordingly,
   which is Stan’s own tolerance.
 
-- **[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+- **[`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
   no longer produces divergent transitions by the hundred on healthy
   posteriors.** The Stan log-survival of the losing accumulator formed
   its reflection term as `log_diff_exp(log R(b), log R(k))`, and for a
@@ -1167,7 +1294,7 @@ CRAN release: 2026-09-25
   test guards it, gated behind `COGMOD_TEST_SLOW` like the other tests
   that compile a model of their own.
 
-- **[`rcogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+- **[`rcogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
   no longer returns the odd 10-40 s response in place of a fast one.**
   The sampler inverts the CDF with Newton’s method, and took a step
   under `1e-10` in log time as convergence. A pass that lands far in the
@@ -1177,7 +1304,7 @@ CRAN release: 2026-09-25
   draw in 4,000 to 20,000 at short boundaries or strong drifts
   (`boundary = 0.3`, `bias = 0.3`, `drift = -5` is one such cell;
   `boundary = 2`, `bias = 0.7`, `drift = 6` another), which is rare in
-  [`rcogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  [`rcogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
   and a handful of absurd draws per observation in
   [`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html),
   where every observation gets thousands. Convergence now also requires
@@ -1186,11 +1313,11 @@ CRAN release: 2026-09-25
 
 ### Performance
 
-- **[`rcogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+- **[`rcogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
   is 3x faster, and
   [`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
   on a
-  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+  [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
   model up to 16x.** The sampler inverts a series whose length is set by
   the fastest response it could be asked for, and used that length for
   every draw: 41 terms at the default start point where the median draw
@@ -1216,7 +1343,7 @@ CRAN release: 2026-09-25
   again; predicting in chunks of ~50 observations from a prepared
   `brmsprep` instead runs a posterior predictive check on 2,500 DDM
   trials in about a third of the time. The recipe is in
-  [`?posterior_predict_cogmod_ddm`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md).
+  [`?posterior_predict_cogmod_ddm`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md).
   The DDM sampler’s own fixed cost per call is also down by about 15%,
   from indexed assignment in place of
   [`ifelse()`](https://rdrr.io/r/base/ifelse.html) and no column copies
@@ -1224,11 +1351,11 @@ CRAN release: 2026-09-25
 
 - **The R-side DDM density no longer goes through
   [`brms::dwiener()`](https://paulbuerkner.com/brms/reference/Wiener.html).**
-  [`dcogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md),
+  [`dcogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md),
   and with it
   [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html),
   [`loo()`](https://mc-stan.org/loo/reference/loo.html),
-  [`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+  [`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
   and every other post-processing method that evaluates the likelihood
   in R, now use a vectorised Navarro and Fuss (2009) series written in
   log space. The 4-parameter density is about eight times cheaper per
@@ -1276,7 +1403,7 @@ CRAN release: 2026-09-25
 
 ### Breaking changes
 
-- **[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+- **[`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)
   now truncates each drift rate at zero**, the convention of `rtdists`
   (`posdrift = TRUE`), `DMC`, `EMC2` and `ggdmc`. Previously the pair of
   drifts was conditioned on at least one being positive and a losing
@@ -1286,7 +1413,7 @@ CRAN release: 2026-09-25
   choice probabilities a few percentage points apart. The change makes
   `cogmod` LBA estimates directly comparable with those packages and
   with the literature built on them, and
-  [`dcogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+  [`dcogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)
   now reproduces
   [`rtdists::dLBA()`](https://rdrr.io/pkg/rtdists/man/LBA.html) at the
   same parameter values. It also simplifies the sampler, which draws
@@ -1299,23 +1426,23 @@ CRAN release: 2026-09-25
   digits, so the density stays accurate for a loser with a strongly
   negative drift, where both quantities are tiny, and in the far tail,
   where `1 - CDF` would cancel.
-  [`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+  [`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)
   is unaffected: with one accumulator the two conventions coincide.
 
   The truncation has one cost, and
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   now covers it: once an accumulator rarely wins, its `drift` and
   `sigma` are identified only through `|drift| / sigma^2` (the truncated
   Normal converges to an Exponential along that ray), so a flat prior
   lets the drift run off - the vignette’s error accumulator sat at `-12`
   with an interval of `-23` to `-6.5`.
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   therefore puts `normal(1, 2)` on `driftone` and `normal(0, 1.5)` on
   its slopes, the treatment
-  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)’s
+  [`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)’s
   `nuone` already had. Existing formulas that left `driftone` to `brms`
   get this prior on their next
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   call.
 
 ## cogmod 0.3.0

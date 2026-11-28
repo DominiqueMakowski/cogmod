@@ -48,13 +48,13 @@ cogmod_inits(formula = NULL, data = NULL, jitter = NULL, warmstart = NULL, ...)
 
   A previous fit to start from instead of the family's generic values: a
   `brmsfit`, a
-  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+  [`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
   object, the data frame
   [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) makes
   of one, or the path to a CSV file of it. The starting values are its
   posterior means, mapped onto this model by parameter name (a pilot on
   fewer participants included; see
-  [`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md));
+  [`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md));
   whatever it has no value for keeps the value this function would give
   it anyway.
 
@@ -84,9 +84,9 @@ both are easy to start inside.
   gradient is exactly zero.
 
 - **Shape below 1.** For
-  [`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
+  [`cogmod_gamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_gamma.md)
   and
-  [`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
+  [`cogmod_weibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_weibull.md)
   the density is unbounded at `ndt` whenever the shape is below 1, and
   `init = 0` starts a `softplus` shape at `log(2) = 0.69`, inside that
   region.
@@ -120,10 +120,10 @@ partial list:
   removes the gradient.
 
 - **The error accumulator** of
-  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
-  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+  [`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md),
+  [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)
   and
-  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+  [`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)
   starts slower than the correct one (`driftone = 1` against `mu = 3`,
   `nuone = 0` against `mu = 0.7`): few data sets are a 50/50 race, and
   for the Wald and the LBA a start too fast costs far more than one too
@@ -135,7 +135,7 @@ partial list:
   one, the identity for a Cholesky factor. A smooth's SD (`sds`) starts
   where its smooth is nearly flat, at 0.1 link units of wiggle, a
   different value on every basis; see *Smooth terms* in
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md).
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md).
 
 Each chain gets a different draw. The noise is added on the
 unconstrained scale, so a value can never leave its bounds. For a
@@ -149,27 +149,27 @@ units at the oldest participant.
 
 The family is read off `formula`, so build it with
 `brms::bf(..., family = cogmod_gamma())`. The families are those of
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md),
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md),
 listed in its *Supported families* section: every family with an `ndt` +
 `poutlier` component;
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+[`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
 and
-[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md),
+[`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md),
 whose parameters are lengths of time that the default start puts at 0 s
 or 0.69 s; and the rating-scale families
-[`cogmod_choco()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md),
-[`cogmod_betagate()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.md)
+[`cogmod_choco()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md),
+[`cogmod_betagate()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.md)
 and
-[`cogmod_betadiscrete()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betadiscrete.md),
+[`cogmod_betadiscrete()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_betadiscrete.md),
 where it describes a scale nobody uses - half the responses on the
 midpoint or at an endpoint, or a U-shaped Beta. Any other family is an
 error.
 
 ## See also
 
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md),
-[`cogmod_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_stanvars.md),
-[`cogmod_warmstart()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_warmstart.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md),
+[`cogmod_stanvars()`](https://dominiquemakowski.com/cogmod/reference/cogmod_stanvars.md),
+[`cogmod_warmstart()`](https://dominiquemakowski.com/cogmod/reference/cogmod_warmstart.md)
 
 ## Examples
 

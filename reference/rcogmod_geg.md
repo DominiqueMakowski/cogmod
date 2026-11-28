@@ -12,7 +12,7 @@ so that the density is
 f\_{EG}(x)\$\$
 
 At `shape = 1` this is the ex-Gaussian exactly - not approximately - so
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+[`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
 is nested inside it and
 [`loo_compare()`](https://mc-stan.org/loo/reference/loo_compare.html)
 between the two is like-for-like.
@@ -105,7 +105,7 @@ posterior_epred_cogmod_geg(prep)
   `shape` is on a `log` link so that zero on the link scale is
   `shape = 1`, the ex-Gaussian. A prior centred at zero is then a prior
   centred on the nested model, which is what
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   supplies.
 
 - i, prep:
@@ -172,16 +172,16 @@ ex-Gaussian worth using as a *descriptive* model.
   the same bulk-and-tail split.
 
 The practical consequence is that
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 gives `shape` a deliberately informative prior centred on the
 ex-Gaussian, and that `mu`, `sigma` and `tau` should not be read as the
 Gaussian centre, the Gaussian SD and the mean of the tail once `shape`
 is free. If those quantities are the point of the analysis, fit
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+[`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
 instead. If a better-fitting descriptive family is the point,
-[`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)
+[`cogmod_logstudent()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logstudent.md)
 and
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
 decouple skew from tail weight with parameters that stay interpretable.
 
 ## Construction
@@ -190,7 +190,7 @@ The power transform is Durrans' alpha-power (or "exponentiated") family,
 and for integer `shape` it is the distribution of the maximum of `shape`
 independent ex-Gaussian draws. That is a mathematical device rather than
 an account of a process, so unlike
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)'s
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)'s
 `sigmadrift` there is no mechanism attached to it.
 
 ## References

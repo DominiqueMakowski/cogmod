@@ -91,7 +91,7 @@ m_xbx <- brms::add_criterion(m_xbx, "loo")  # For later model comparison
 #### Beta-Gate Model
 
 The [**Beta-Gate
-model**](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_betagate.html)
+model**](https://dominiquemakowski.com/cogmod/reference/rcogmod_betagate.html)
 corresponds to a reparametrized Ordered Beta model ([Kubinec,
 2023](https://doi.org/10.1017/pan.2022.20)). In this model, observed 0s
 and 1s represent instances where the underlying continuous response
@@ -118,7 +118,7 @@ m_betagate <- brms::add_criterion(m_betagate, "loo")  # For later model comparis
 #### CHOCO Model
 
 See the
-[**documentation**](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.html)
+[**documentation**](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.html)
 of the Choice-Confidence (CHOCO).
 
 ``` r

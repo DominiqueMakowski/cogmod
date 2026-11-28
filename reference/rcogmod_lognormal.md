@@ -23,7 +23,7 @@ Functions:
 - `cogmod_lognormal_stanvars()`: Generates the `stanvars` to pass to
   [`brm()`](https://paulbuerkner.com/brms/reference/brm.html).
 
-- [`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md):
+- [`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md):
   Per-trial posterior probability of being an outlier.
 
 ## Usage
@@ -156,7 +156,7 @@ posterior_epred_cogmod_lognormal(prep, predict_outliers = NULL)
   always the full mixture either way. On the prediction methods
   themselves the default is `NULL`, which defers to the flag carried on
   the model - see
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
   to change it after fitting. See Details.
 
 - i, prep:
@@ -206,7 +206,7 @@ next section for what a positive `sigmabias` adds.
 ## The start-point range
 
 The shifted LogNormal is a single-accumulator LBA
-([`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md))
+([`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md))
 with a LogNormal rather than truncated-Normal rate and no start-point
 variability: evidence runs from zero to a threshold at a rate
 `v ~ LogNormal(-mu, sigma)`, and the finishing time `1 / v` is
@@ -220,7 +220,7 @@ trial starts at `z ~ Uniform(0, sigmabias)` and runs to the threshold
 A Uniform distance compresses the fast tail and blunts the mode without
 touching the slow tail, a shape the LogNormal alone cannot produce. The
 same accumulator, raced against a second one, is
-[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md),
+[`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md),
 whose `nu` is `-mu`; the two families share their kernels and their
 `sigmabias`.
 
@@ -234,12 +234,12 @@ that offset: `sigmabias = 1` says the start point varies over as wide a
 band as the one above it.
 
 Estimating `sigmabias` is treacherous in the same way as in
-[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md).
+[`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md).
 As it approaches zero the likelihood goes flat - the model is converging
 to the LogNormal and once the range is small enough making it smaller
 changes nothing - while the softplus link reaches zero only at minus
 infinity. Left flat that is an improper posterior;
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 fences it. On RT-only data the range is identified through shape alone,
 more weakly than in the race where accuracy helps, and the general
 density costs about four normal CDFs where the LogNormal costs one. Fix
@@ -248,9 +248,9 @@ variability; at zero the family computes exactly what it computed before
 the parameter existed, at the same cost.
 
 Neither
-[`cogmod_logstudent()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logstudent.md)
+[`cogmod_logstudent()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logstudent.md)
 nor
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
 has a `sigmabias`: the density needs a partial first moment of the rate
 distribution, which does not exist for a Student-t on the log scale and
 needs incomplete gamma functions for the log-Gamma.
@@ -290,18 +290,18 @@ by the outlier component than by the model: at `poutlier = 0.02` a 5 s
 response would be attributed to it with probability 0.86, and `ndt`
 pulled up behind it. The slow tail belongs to the decision family, which
 is what
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)'s
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)'s
 `shape` and
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)'s
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)'s
 `sigmadrift` are for.
 
 ## Reaction times must be in seconds
 
 The outlier component's scale is a **constant in seconds**, and so are
 the priors
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 supplies - `ndt` centred on 0.30 s, `sigmandt` in
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+[`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
 at 0.05 s, and so on. There is no argument for changing the unit, and no
 unit conversion anywhere in the package.
 
@@ -318,7 +318,7 @@ A scale argument in the unit of the data would make the likelihood
 equivariant to that unit, and there deliberately is none: the
 equivariance would be lost again in the priors, which are stated in
 seconds throughout, and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 is not optional.
 
 Divide by 1000 before fitting, and multiply `ndt` back afterwards if you
@@ -327,14 +327,14 @@ want the answer in milliseconds.
 `poutlier` is a *rate*, not a classification: the model never labels
 individual trials, it estimates what share of them came from elsewhere.
 Use
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 for per-trial posterior probabilities.
 
 ## Trimmed data: pin `poutlier` down, but not to zero
 
 `poutlier` is only weakly identified when there is little to identify it
 *from* - which is why
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 gives it an informative prior rather than leaving it flat. If the data
 have already been trimmed, or only a handful of implausibly fast
 responses remain, it is reasonable to stop asking the data to estimate a
@@ -394,9 +394,9 @@ simulating from something the model does not assert.
     marginaleffects::avg_predictions(m, by = "Condition")
 
 Use
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
 for the fitted mixture, and
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
 to go back. The one case that genuinely wants the mixture is a posterior
 predictive check, since on untrimmed data the decision-only predictive
 has no fast spike to match the one in the data:
@@ -436,7 +436,7 @@ and
 from [`loo()`](https://mc-stan.org/loo/reference/loo.html), not just
 hand-rolled checks - anything that compares a simulated replicate
 against the likelihood should be run on
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md).
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md).
 
 ## Censoring
 
@@ -448,7 +448,7 @@ error trial can be kept as a lower bound on the correct response's time
 rather than dropped. The full account - what it is for, what it assumes,
 and the one check to run before using it - is in the *Censoring* section
 of
-[`rcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
+[`rcogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md),
 where the construction is the simple censored shifted Wald of Miller et
 al. (2018).
 

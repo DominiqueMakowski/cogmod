@@ -120,7 +120,7 @@ posterior_epred_cogmod_weibull(prep, predict_outliers = NULL)
   `poutlier` to zero for prediction, so predictions describe the
   decision process alone; the likelihood is always the full mixture
   either way. See
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md).
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md).
 
 - i, prep:
 
@@ -160,15 +160,15 @@ of expected reaction times.
 time, whose mean is `sigma * gamma(1 + 1 / mu)`.
 
 `ndt` and `poutlier` mean exactly what they do in
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
 and
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 all work here too. See
-[`?rcogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`?rcogmod_lognormal`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 for why `ndt` is expressed directly in seconds rather than as a fraction
 of the fastest observed response, what the half Normal outlier component
 is for, and why the outlier component's scale is a constant rather than
@@ -197,11 +197,11 @@ observation. Three regimes, in order of severity:
 
 The middle regime is the one to watch, because nothing warns about it.
 On the 4285-trial lexical-decision data in the [RT models
-article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html)
+article](https://dominiquemakowski.com/cogmod/articles/rt_models.html)
 the shape comes out at 1.4, `ndt` lands at 0.40 s inside the dense left
 edge of the data, and the sampler's step size collapses to 0.005 against
 0.19 for
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 on the same data: mean treedepth 8.1 against 3.9, which is 19x the
 gradient evaluations and 19x the wall time, with `Rhat` 1.18 on `ndt`.
 The density itself is cheap; **all** of the cost is geometry.
@@ -236,7 +236,7 @@ unsound wherever the outlier component is doing its job. On the data
 above the fastest response is 71 ms, which is not a decision; the
 mixture is there precisely so that an order statistic of the sample is
 not treated as a bound. See
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md).
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md).
 
 Note also what is *not* wrong: `ndt` and the shape are jointly
 identified, and sharply so - the posterior SD on `ndt` is 3 ms. This is
@@ -247,23 +247,23 @@ simply sits on a ridge that is not smooth.
 ### What to do instead
 
 Treat a fitted shape below 2 as the diagnostic it is, and use
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md),
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md),
 which nests this family at `shape = 1` and lets the data choose the
 shape rather than having the family fix it. On the data above it samples
 in a third of the time with no divergences.
 
 The slow sampling and the poor fit are the same fact, not two problems.
 Across the ten families fitted in the [RT models
-article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html)
+article](https://dominiquemakowski.com/cogmod/articles/rt_models.html)
 the Weibull comes **last** by `loo`, 196 elpd (SE 21) behind
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
 and 95 behind the next worst. What the sampler struggles with is the
 model contorting itself - pushing the shift up into the data, pulling
 the shape toward 1 - to represent a left edge it cannot otherwise reach.
 That does not make the Weibull useless for reaction times in general;
 where the shape comes out above 2 the family is perfectly well behaved,
 as
-[`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
+[`cogmod_gamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_gamma.md)
 is on these same data at a shape of 2.2. It does mean a shape below 2
 should be read as the model telling you to use a different one.
 
@@ -276,16 +276,16 @@ approached 1, which damped exactly this gradient.
 Do **not** fit this with `init = 0`: it puts `ndt` at `exp(0) = 1`
 second and the shape at `softplus(0) = 0.69`, inside the `mu < 1` regime
 above, and no single scalar avoids both. Use
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md),
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md),
 which sets them separately:
 
     brms::brm(f, data = df, prior = cogmod_priors(f, df),
               stanvars = cogmod_stanvars(f), init = cogmod_inits(f, df))
 
 See
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 for why, and
-[`?rcogmod_gamma`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
+[`?rcogmod_gamma`](https://dominiquemakowski.com/cogmod/reference/rcogmod_gamma.md)
 for what it costs when ignored.
 
 ## Examples

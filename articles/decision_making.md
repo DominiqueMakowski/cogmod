@@ -2439,7 +2439,7 @@ Decision making models jointly account for the **choice** that was made
 and the **response time (RT)** it took to make it. Rather than
 simulating data, we re-use the Wagenmakers et al. (2008) lexical
 decision data (see the [RT-only
-Models](https://dominiquemakowski.github.io/cogmod/articles/rt_models.md)
+Models](https://dominiquemakowski.com/cogmod/articles/rt_models.md)
 vignette) - but this time, instead of discarding the errors, we model
 **choice** as *correct* vs. *error* responses. This is a common strategy
 in the decision-making literature when the task itself does not have a
@@ -2516,9 +2516,9 @@ capped at the fastest observed response. The outlier component is a half
 Normal with a fixed scale of 0.2 s, so **reaction times must be in
 seconds**.
 
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 and
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 read the family off the formula, so the same three lines set up any of
 them. Both are worth using rather than hand-written priors and
 `init = 0`: on a log link `init = 0` starts `ndt` at `exp(0) = 1`
@@ -2642,16 +2642,16 @@ here, which is the LNR proper: a start-point range is hard to identify
 from the shape of the RT distribution alone and adds a flat direction to
 the likelihood at zero, so it is worth estimating only with a lot of
 data or a specific hypothesis about start-point variability (see
-[`?cogmod_lnr`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)).
+[`?cogmod_lnr`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)).
 
 Like every family in this package, the LNR is fit with `ndt` and
 `poutlier`: `ndt` is estimated in seconds, with no upper bound tied to
 the fastest observed response, and `poutlier` is the proportion of
 trials attributed to a contaminant guessing process (see
 `vignette("outliers")`).
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 and
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 both read the family off `f`, so they need no family-specific setup -
 and `init = 0` is actively harmful here: on the log link it starts `ndt`
 at `exp(0) = 1` second, above nearly every observed RT.
@@ -2698,7 +2698,7 @@ identifies the scale.
 Two more things are worth knowing before reading the estimates. First,
 each drift rate is a Normal **truncated at zero** (the convention of
 `rtdists`, `DMC` and `EMC2`; see
-[`?rcogmod_lba2`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)),
+[`?rcogmod_lba2`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)),
 and for an accumulator that rarely wins - the error accumulator here,
 with a 5% error rate - the truncated Normal’s location and scale are
 identified only through their ratio. `driftone` will therefore come out
@@ -2715,7 +2715,7 @@ for low-dimensional posteriors with strong correlations, for a hierarchy
 with hundreds of participant-level parameters the dense matrix has more
 entries to estimate than warmup can pin down, and the default might be
 the safer choice. The
-[performance](https://dominiquemakowski.github.io/cogmod/articles/performance.md)
+[performance](https://dominiquemakowski.com/cogmod/articles/performance.md)
 article explains the trade-off and reports what it bought across the
 families in a local benchmark.
 
@@ -2811,7 +2811,7 @@ ridge with weakly-informative priors and partial pooling across
 participants and conditions rather than pin the split down directly.
 `cogmod` takes the same route at the level of a single fit: a prior on
 `sigmabias` might help, and for the RDM
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 supplies a weakly informative one (`normal(0, 1)`) on the softplus
 scale.
 
@@ -2826,19 +2826,19 @@ that process is informed by almost nothing. On the Accuracy condition of
 these data, which carries about 75 errors, an RDM left to itself runs
 `driftone` down to the floor of its link (a drift of 0.0001) with half
 of the transitions divergent;
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 fences that with a prior on the error drift (see
-[`?rcogmod_rdm`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)).
+[`?rcogmod_rdm`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)).
 The structural alternative is to stop modelling the error process
 altogether and fit the RT-only family with the errors as
 **right-censored** correct responses, `bf(RT | cens(Error) ~ ...)`: an
 error then says only that the correct process had not finished yet, so
 there is no error accumulator to run away. On
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
 this is the censored shifted Wald of Miller et
 al. ([2018](https://doi.org/10.1177/0146621617710465)). It is described
 in the *Censored Shifted Wald* section of the [RT-only
-Models](https://dominiquemakowski.github.io/cogmod/articles/rt_models.md)
+Models](https://dominiquemakowski.com/cogmod/articles/rt_models.md)
 vignette, together with the one check to run first: censoring can only
 produce errors *slower* than correct responses, so where errors are
 faster - a low boundary, a biased start point - stay with the race.

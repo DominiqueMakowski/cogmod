@@ -4,9 +4,9 @@ Returns the `stanvars` argument for
 [`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), for
 whichever `cogmod` family the model uses. It is a front end to the
 per-family `<family>_stanvars()` functions -
-[`cogmod_lognormal_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
-[`cogmod_choco_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_choco.md),
-[`cogmod_ddm_stanvars()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+[`cogmod_lognormal_stanvars()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
+[`cogmod_choco_stanvars()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_choco.md),
+[`cogmod_ddm_stanvars()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
 and the rest - which remain available and unchanged.
 
 ## Usage
@@ -50,9 +50,9 @@ rather than twice:
 
 ## A warning it may emit
 
-[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+[`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)
 and
-[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+[`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)
 have a likelihood that is *exactly* constant along the ray that
 multiplies the drift rates, their SDs, the start-point range and the
 threshold offset by a common factor. If the formula pins none of them to
@@ -74,8 +74,8 @@ formula carrying the family, the family object itself, or a fitted
 
 ## See also
 
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md),
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md),
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 
 ## Examples
 

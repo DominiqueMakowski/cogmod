@@ -1,10 +1,10 @@
 # cogmod
 
-[![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
+[![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.com/cogmod/)
 [![CRAN
 status](https://img.shields.io/cran/v/cogmod.svg)](https://cran.r-project.org/package=cogmod)
 [![R-CMD-check](https://github.com/DominiqueMakowski/cogmod/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/DominiqueMakowski/cogmod/actions/workflows/R-CMD-check.yaml)
-[![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
+[![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.com/cogmod/reference/index.html)
 [![CRAN
 downloads](https://cranlogs.r-pkg.org/badges/grand-total/cogmod.svg)](https://cran.r-project.org/package=cogmod)
 
@@ -22,10 +22,10 @@ touch](https://github.com/DominiqueMakowski/cogmod/issues)!
 ## Features
 
 [![interactive visualization of evidence accumulation models of
-cogmod](reference/figures/anim_widget.gif)](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
+cogmod](reference/figures/anim_widget.gif)](https://dominiquemakowski.com/cogmod/articles/decision_making.html)
 
 [**Models for Reaction
-Times**](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html)
+Times**](https://dominiquemakowski.com/cogmod/articles/rt_models.html)
 
 Ex-Gaussian model (with the classical parameterization in which `mu` and
 `sigma` index the Gaussian component alone and `tau` the exponential
@@ -50,7 +50,7 @@ Weibull, LogWeibull (Gumbel), Inverse Weibull (Fréchet)
 Gamma, Inverse Gamma, Shifted LogGamma (Generalized Gamma)
 
 [**Models for Decision Making (Choice +
-RT)**](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
+RT)**](https://dominiquemakowski.com/cogmod/articles/decision_making.html)
 
 Drift Diffusion Model (DDM)
 
@@ -63,7 +63,7 @@ Racing Diffusion Model (RDM, [Tillman et al.,
 2020](https://doi.org/10.3758/s13423-020-01719-6))
 
 [**Models for Subjective Ratings Data (Likert/Slider
-Scales)**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
+Scales)**](https://dominiquemakowski.com/cogmod/articles/subjective_ratings.html)
 
 Choice-Confidence (CHOCO) models (Bi-modal Beta)
 
@@ -154,9 +154,9 @@ to set up CmdStan.
 Using a `cogmod` model requires two arguments beyond a standard
 [`brm()`](https://paulbuerkner.com/brms/reference/brm.html) call:
 `family` and `stanvars`. Two further helpers,
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 and
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md),
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md),
 are strictly speaking optional but should be treated as part of the
 call: they provide adapted chain-initialization values and weakly
 informative priors on the sensitive parameters to limit convergence
@@ -189,11 +189,11 @@ m <- brm(
 
 We can then analyze its results, and check its predictions like with any
 other models. See the [Subjective
-Ratings](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html),
+Ratings](https://dominiquemakowski.com/cogmod/articles/subjective_ratings.html),
 [RT-only
-Models](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
+Models](https://dominiquemakowski.com/cogmod/articles/rt_models.html),
 and [Decision Making
-Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
+Models](https://dominiquemakowski.com/cogmod/articles/decision_making.html)
 vignettes for more detailed examples.
 
 ![](reference/figures/decision_making1.png)![](reference/figures/rt_models1.png)
@@ -225,14 +225,14 @@ every family its closed form.
 **Shifted sinh-arcsinh (log-SHASH)** ([Jones & Pewsey,
 2009](https://doi.org/10.1093/biomet/asp053)) - location, scale,
 skewness and tail weight as four separate parameters. Where
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
 ties skew and tail weight together through one `shape`, SHASH decouples
 them.
 
 Add and check
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 and
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 for subjective scale models.
 
 Go/No-go models:
@@ -242,9 +242,9 @@ Go/No-go models:
 2015](https://doi.org/10.1016/j.jmp.2015.09.002)).
 
 The **LogNormal** variant is done: it is
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 and
-[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+[`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)
 with `sigmabias > 0`, since the shifted LogNormal and the LNR are that
 LBA with the start point removed, and adding the start-point range back
 was one dpar on each rather than new families. Two lessons from it carry

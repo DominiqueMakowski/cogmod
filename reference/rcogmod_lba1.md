@@ -128,7 +128,7 @@ posterior_epred_cogmod_lba1(prep, predict_outliers = NULL)
   `poutlier` to zero for prediction, so predictions describe the
   decision process alone; the likelihood is always the full mixture
   either way. See
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md).
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md).
 
 - i, prep:
 
@@ -180,7 +180,7 @@ rather than the absolute threshold `rtdists` estimates. The threshold
 has to sit above the highest possible starting point, and the offset
 makes `b > sigmabias` hold automatically for any positive value instead
 of needing an order constraint between two estimated parameters. See
-[`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md)
+[`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md)
 for the full note. The cost is that `boundary` alone is not the quantity
 to read off a fitted model; `boundary + sigmabias` is.
 
@@ -214,13 +214,13 @@ scale ray rather than pinning it:
 
 Because `sigmabias` is then a constant rather than a parameter, none of
 the trouble described next applies to it, and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 emits no row for it.
 
 ## The same accumulator with a LogNormal rate
 
 The other single-accumulator LBA in the package is
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md):
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md):
 the same start point `Uniform(0, sigmabias)` and the same threshold
 offset, with a LogNormal rather than a truncated-Normal rate, so its
 `sigmabias = 0` limit is the shifted LogNormal where this family's is
@@ -229,7 +229,7 @@ LogNormal rate's `sigma` is untouched by rescaling the evidence axis, so
 the threshold offset has to be the pin (it is fixed at 1 there) where
 here `sigma = 1` does the job. Two such accumulators raced against each
 other are
-[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md).
+[`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md).
 
 ## Estimating the start-point range
 
@@ -240,7 +240,7 @@ the likelihood goes **flat**. On a `softplus` link zero is at minus
 infinity, so a flat prior there leaves the posterior improper, and the
 symptom is a chain that wanders off rather than one that fails. Fitted
 without priors on the 4285-trial data in the [RT models
-article](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
+article](https://dominiquemakowski.com/cogmod/articles/rt_models.html),
 `sigmabias` for one condition ran to `softplus(-10.4) = 3e-05` with
 `Rhat` 1.69 and an effective sample size of 6.
 
@@ -248,7 +248,7 @@ There are two ways out, and the choice is a modelling decision rather
 than a technical one. Pin `sigmabias = 0` and fit the recinormal, which
 is the honest option when the design cannot identify a start-point
 range. Or keep it free and fence the flat direction off with a prior:
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 does this for both `sigmabias` and `boundary` - the threshold is
 `b = sigmabias + boundary`, so the two share the ridge - in the same way
 and for the same reason it fences off `ndt` and `poutlier`. Pass
@@ -260,14 +260,14 @@ are nested, so
 the two fits is a like-for-like comparison through the same likelihood.
 
 `ndt` and `poutlier` mean exactly what they do in
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
 and
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
 and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 work here too. See
-[`?rcogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`?rcogmod_lognormal`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 for the full account.
 
 Note that

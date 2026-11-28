@@ -86,7 +86,7 @@ posterior_epred_cogmod_logstudent(prep, predict_outliers = NULL)
 
   Degrees of freedom of the Student-t on the log scale. Must be
   positive. Smaller is heavier-tailed; `dof -> Inf` is
-  [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md).
+  [`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md).
 
 - ndt:
 
@@ -136,7 +136,7 @@ posterior_epred_cogmod_logstudent(prep, predict_outliers = NULL)
   `poutlier` to zero for prediction, so predictions describe the
   decision process alone; the likelihood is always the full mixture
   either way. See
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md).
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md).
 
 - i, prep:
 
@@ -177,11 +177,11 @@ draws instead.
 `log(RT - ndt)` follows a **Student-t** distribution with location `mu`,
 scale `sigma` and `dof` degrees of freedom. As `dof` grows the Student-t
 becomes the Normal, so
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 is the `dof -> Inf` limit: this family varies **kurtosis** where
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
 varies skew. It has no `sigmabias`: the start-point range of
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 needs a partial first moment of the rate distribution, and
 [`exp()`](https://rdrr.io/r/base/Log.html) of a Student-t has no moments
 at all.
@@ -189,23 +189,23 @@ at all.
 `dof` is what
 [`brms::student()`](https://paulbuerkner.com/brms/reference/brmsfamily.html)
 calls `nu`. It is renamed here because
-[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+[`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)
 already spends `nuzero` and `nuone` on drift rates, and because `brms`
 recognises the name `nu` and supplies opinionated defaults for it; `dof`
 arrives flat like every other parameter this package defines, so
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 simply fills it.
 
 `ndt` and `poutlier` mean exactly what they do in
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
 and
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 all work here too. See
-[`?rcogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`?rcogmod_lognormal`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 for why `ndt` is expressed directly in seconds rather than as a fraction
 of the fastest observed response, what the outlier component is for, and
 why its scale is a constant rather than a `dpar`.
@@ -216,9 +216,9 @@ The outlier component behind `poutlier` is a half Normal, which by
 construction cannot explain a *slow* response: its density at 5 s is
 effectively zero, so a long right tail is the decision family's own
 business.
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)'s
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)'s
 `shape` and
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)'s
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)'s
 `sigmadrift` are two ways of providing one. `dof` is a third, and the
 most direct: it absorbs slow contaminants into the likelihood rather
 than into a mixture component. At `dof = 5` the probability of a
@@ -232,7 +232,7 @@ with `T` a Student-t diverges because the t has polynomial tails and
 [`exp()`](https://rdrr.io/r/base/Log.html) outruns them - there is no
 region of the parameter space where this family has an expectation,
 unlike
-[`cogmod_logweibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_logweibull.md),
+[`cogmod_logweibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_logweibull.md),
 whose mean exists below `sigma = 1`.
 [`posterior_epred()`](https://mc-stan.org/rstantools/reference/posterior_epred.html)
 therefore errors rather than returning a number. The **median is
@@ -246,16 +246,16 @@ where a LogNormal decays to zero. The spike is integrable for every
 `dof > 0`, so the posterior stays proper, but the likelihood has no
 maximum and the prior on `ndt` is what keeps the sampler off `min(RT)`.
 This is the same situation as
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
 above `sigma * shape = 1`, and the reason
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 is not optional here.
 
 A Student-t is symmetric **on the log scale**, so a small `dof` fattens
 both tails rather than only the slow one. At `dof = 2` some 1.5% of the
 decision distribution falls below 0.05 s, against a LogNormal's 5e-9 -
 territory `poutlier` also claims, so the two trade off.
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 centres `dof` at 6 with 95% of its mass between 1.5 and 24, which keeps
 the fast-side spike under a tenth of a percent while leaving the slow
 tail worth having.

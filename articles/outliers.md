@@ -116,9 +116,9 @@ knitr::kable(props, col.names = c("g", "flatness at 0.05 / 0.15 / 0.25 s",
   pulled up behind it. The half-Cauchy and the wide uniform fail this
   worse. The slow tail belongs to the decision family - that is what
   `shape` in
-  [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+  [`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
   and `sigmadrift` in
-  [`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+  [`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
   are for.
 - **Strictly positive everywhere.** The whole point of mixing `g` in is
   that no response should ever have zero density; a single one that does
@@ -165,15 +165,15 @@ late `ndt` of 0.42 s still has a log-density of -4.6.
 The scale is not an argument in the unit of the data, although one would
 make the likelihood **equivariant** to that unit, because the
 equivariance would be fictional end to end:
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 could shift only the `ndt` prior with it, while the `sigmandt` priors of
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+[`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
 and
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md),
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md),
 the `sigmadrift` prior of
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
 and the `mu` priors are all stated in seconds outright - and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 is not optional. The package works in seconds, and the constant says so.
 
 Feeding it milliseconds fails **silently**, which is worth knowing
@@ -523,7 +523,7 @@ half-`normal(0, 1)` on that SD is in the right range.
 >
 > This is not confined to awkward datasets: a clean simulation with a
 > single shift and 2% fast contamination fails the same way. Use
-> [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md).
+> [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md).
 
 The likelihood has **two flat directions**, and a flat prior turns each
 of them into an improper posterior.
@@ -549,7 +549,7 @@ reason a prior on `poutlier` **alone is not enough**.
 sharp likelihood penalty that a hard boundary would supply. Only the
 prior discourages an implausibly long non-decision time.
 
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 fills in every `ndt` and `poutlier` slot `brms` would leave flat, for
 the model you are actually fitting:
 
@@ -659,7 +659,7 @@ conclusions, the model is under-identified for a reason worth finding.
 >
 > Two of these are location priors on **intercepts**, so they describe
 > the reference level only.
-> [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+> [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 > also fills in slopes, with `normal(0, 0.2)` on `class = "b"` for `ndt`
 > and `poutlier` - tighter than the intercept prior, since on a log or
 > logit link a slope of that size already moves the parameter across
@@ -787,7 +787,7 @@ Both recover, at a short non-decision time and a long one, with
 `poutlier` is a rate, not a classification. The mixture nonetheless
 assigns each response a posterior probability of having come from the
 outlier component, returned by
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md):
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md):
 
 ``` r
 
@@ -806,7 +806,7 @@ head(p_outlier(m))
 That probability is the mixture *responsibility*, and it is a
 deterministic function of the parameters, so its shape can be drawn
 without fitting anything. The curve below uses the same expression
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 evaluates, at illustrative values (`mu = -0.9`, `sigma = 0.5`,
 `ndt = 0.25`, giving a median RT of 0.66 s), for three different rates.
 
@@ -903,9 +903,9 @@ the packages built on `brms`, like `modelbased` or `marginaleffects`.
 
 In the case where one wants the full mixture, for instance for posterior
 predictive checks, cogmod implements the
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
 function to restore it (and
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
 to reverse it). The same flag can be set up front with
 `cogmod_lognormal(predict_outliers = TRUE)` during model fitting.
 
@@ -974,7 +974,7 @@ for you.
 - Priors on `ndt` and `poutlier` are required, not advisory: `brms`
   leaves both flat and the likelihood has two flat directions, so the
   posterior is improper without them.
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   fills them in.
 - Accuracy confirms the premise independently: fast responses climb
   toward chance across three very different paradigms.
@@ -986,7 +986,7 @@ for you.
   task, which is why the model estimates a rate instead of applying a
   threshold.
 - Predictions exclude the outlier component by default;
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
   puts it back for a like-for-like posterior predictive check.
 - `ndt` moves ~10 ms across wildly different components; `poutlier` does
   not transfer between them and should be reported with its component.

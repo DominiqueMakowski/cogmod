@@ -21,7 +21,7 @@ Functions:
 - `cogmod_lba2_stanvars()`: Generates the `stanvars` to pass to
   [`brm()`](https://paulbuerkner.com/brms/reference/brm.html).
 
-- [`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md):
+- [`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md):
   Per-trial posterior probability of being an outlier.
 
 ## Usage
@@ -99,7 +99,7 @@ posterior_epred_cogmod_lba2(prep)
   means both accumulators start at zero on every trial, so only the
   drift rates vary - the choice counterpart of the recinormal special
   case described in
-  [`rcogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md).
+  [`rcogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md).
 
 - boundary:
 
@@ -159,7 +159,7 @@ posterior_epred_cogmod_lba2(prep)
   alone; the likelihood is always the full mixture either way. On the
   prediction method itself the default is `NULL`, which defers to the
   flag carried on the model - see
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
   to change it after fitting. See Details.
 
 - i, prep:
@@ -291,14 +291,14 @@ error accumulator in a task with a 5% error rate is exactly such a case:
 left flat, its drift wandered to `-12` with an interval of `-23` to
 `-6.5`, on an evidence scale where the correct accumulator's drift is
 `3`.
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 therefore puts `normal(1, 2)` on `driftone` and `normal(0, 1.5)` on its
 slopes: a fence, of the kind
-[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)'s
+[`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)'s
 `nuone` gets. Under `dec(Error)`, the coding every example here uses,
 `driftone` is the *error* accumulator, and wherever errors are rare its
 posterior will sit in that prior's lower tail. As for
-[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
+[`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md),
 that is the fence working rather than a prior at odds with the data. If
 the *rarely* chosen option is the one on `mu`, mirror that prior onto
 `mu` by hand. Fixing both SDs (`sigmazero = 1, sigmaone = 1`, a single
@@ -322,7 +322,7 @@ is unchanged. The likelihood is therefore **exactly** constant along
 that ray, which runs to infinity in both directions: the six parameters
 are identified only up to a common scale factor.
 
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 puts priors on all four positive parameters, which makes the posterior
 proper and the sampler well behaved, but a prior does not *identify* a
 direction the likelihood cannot see. If the individual parameters are to
@@ -338,9 +338,9 @@ A second, milder flat direction remains either way: `sigmabias` and
 `boundary` enter only through the sum `b = boundary + sigmabias`, so
 they trade off along a ridge. The sum is the trustworthy quantity to
 interpret and to compare across conditions.
-[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+[`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)
 and
-[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+[`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
 share it.
 
 ## The outlier component
@@ -365,19 +365,19 @@ options; without it it would come to `1 + poutlier`.
 `poutlier` is a *rate*, not a classification: the model never labels
 individual trials, it estimates what share of them came from elsewhere.
 Use
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 for per-trial posterior probabilities.
 
 ## Reaction times must be in seconds
 
 The outlier component's scale is a constant in seconds, and so are the
 priors
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 supplies. There is no argument for changing the unit. Millisecond data
 fails silently rather than loudly - the outlier component contributes
 nothing and the min-RT boundary comes back. See the corresponding
 section of
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 for the full account, which applies unchanged here.
 
 ## Fitting
@@ -395,7 +395,7 @@ it the predictors the drifts have.
 
 The `brms` family names the drift of the first accumulator `mu` (as
 `brms` requires) and that of the second `driftone`. Use
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 rather than `init = 0`: `brms` initialises on the unconstrained scale,
 so `init = 0` puts `ndt` at `exp(0) = 1` second - above nearly every
 sub-second RT, which leaves every response attributed to the outlier
@@ -407,11 +407,11 @@ component and the race parameters with no gradient at all.
 describes the **race alone** by default, as if `poutlier` were zero,
 because the outlier component is a fixed regularizer rather than a claim
 about how guesses are distributed. Use
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
 for the fitted mixture - chiefly for
 [`brms::pp_check()`](https://mc-stan.org/bayesplot/reference/pp_check.html) -
 and
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
 to go back.
 [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html) is
 always the full mixture.
@@ -432,9 +432,9 @@ draws.
 
 ## See also
 
-[`rcogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md),
-[`rcogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
-[`rcogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)
+[`rcogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md),
+[`rcogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md),
+[`rcogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)
 
 ## Examples
 

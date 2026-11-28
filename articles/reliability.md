@@ -265,7 +265,7 @@ instead of separating them after the fact.
 ## Modeling
 
 We now fit a **mixed [shifted LogNormal
-model](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html#shifted-lognormal)**,
+model](https://dominiquemakowski.com/cogmod/articles/rt_models.html#shifted-lognormal)**,
 which mirrors the way the data were generated: the effect of `Condition`
 is estimated at the population level (fixed effects) *and* allowed to
 vary across participants (random slopes).

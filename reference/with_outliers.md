@@ -1,9 +1,9 @@
 # Include or exclude the outlier component in predictions
 
 Switches the `predict_outliers` flag on a model fitted with
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 or
-[`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md),
+[`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md),
 controlling whether
 [`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
 and
@@ -62,13 +62,13 @@ without_outliers(object)
 - object:
 
   A `brmsfit` fitted with
-  [`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
-  [`cogmod_loggamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+  [`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
+  [`cogmod_loggamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
   or any other family built on the outlier mixture - see the *Supported
   families* section of
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   for the full list, which includes the choice-and-RT families such as
-  [`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md).
+  [`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md).
 
 ## Value
 

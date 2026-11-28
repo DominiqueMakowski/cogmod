@@ -123,7 +123,7 @@ posterior_epred_cogmod_bisa(prep, predict_outliers = NULL)
   `poutlier` to zero for prediction, so predictions describe the
   decision process alone; the likelihood is always the full mixture
   either way. See
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md).
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md).
 
 - i, prep:
 
@@ -159,22 +159,22 @@ draws x observations matrix of expected reaction times.
 ## Details
 
 The Birnbaum-Saunders distribution is the near neighbour of the Wald
-([`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)),
+([`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)),
 and this family is deliberately parameterized so that the two can be
 compared directly: `mu` is a drift rate and `boundary` a decision
 threshold in both, meaning the same thing, so the *only* thing that
 differs between them is how the evidence arrives.
 
 `ndt` and `poutlier` mean exactly what they do in
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
 and
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 all work here too. See
-[`?rcogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`?rcogmod_lognormal`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 for why `ndt` is expressed directly in seconds, what the outlier
 component is for, and why its scale is a constant rather than a `dpar`.
 
@@ -242,7 +242,7 @@ s against the Wald's 0.167, and its SD 0.184 against 0.136. In general
 both always finite, so
 [posterior_epred()](https://paulbuerkner.com/brms/reference/posterior_epred.brmsfit.html)
 always has a number to return - unlike
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
 once its drift varies. The median is exactly `boundary / mu`, which is
 the Wald's *mean*: do not read the two families' parameters as
 describing the same central tendency.
@@ -252,13 +252,13 @@ order as the Wald's and much lighter than a LogNormal's, and the density
 vanishes at the shift with all its derivatives. `ndt` is therefore as
 well behaved here as it is for the Wald, with no unbounded-likelihood
 boundary of the kind
-[`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
+[`cogmod_gamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_gamma.md)
 and
-[`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
+[`cogmod_weibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_weibull.md)
 have at shape `< 1`.
 
 There is no `sigmadrift`. Across-trial drift variability is what
-[`cogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+[`cogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
 is for; here the extra dispersion comes from the mixture structure
 instead, at no cost in parameters.
 

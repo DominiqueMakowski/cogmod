@@ -97,7 +97,7 @@ posterior_epred_cogmod_exgaussian(prep)
   `P[X > q]` - the survival, which is what a right-censored response
   contributes to the likelihood under `brms::bf(rt | cens(x) ~ ...)`.
   See the *Censoring* section of
-  [`rcogmod_invgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md).
+  [`rcogmod_invgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md).
 
 - log.p:
 
@@ -196,7 +196,7 @@ values are directly comparable.
 The cost is that `brms`'s default intercept prior is no longer sensible
 for `mu` (a `student_t()` with a scale of 2.5 s, or none at all under
 `0 + Intercept`), which is why
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 now supplies one.
 
 ## References

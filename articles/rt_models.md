@@ -22,8 +22,8 @@ and what has always been done: fit a (mixed) linear model.
 
 The data are bundled with `cogmod` as `badlm` - 20 participants, 25
 trials in each of two conditions. See
-[`?badlm`](https://dominiquemakowski.github.io/cogmod/reference/badlm.md)
-(or `data-raw/badlm.R`) for how they were generated.
+[`?badlm`](https://dominiquemakowski.com/cogmod/reference/badlm.md) (or
+`data-raw/badlm.R`) for how they were generated.
 
 ``` r
 
@@ -342,7 +342,7 @@ inferences about the underlying process than effects estimated on the
 classical `mu`.
 
 For this reason, `cogmod` provides its own
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+[`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
 custom family, in which `mu` and `sigma` are the mean and SD of the
 Gaussian component and `tau` is the mean of the exponential tail -
 directly matching the classical parameterization.
@@ -350,16 +350,16 @@ directly matching the classical parameterization.
 Note that `cogmod` also implements the **Generalised Ex-Gaussian**
 ([Marmolejo-Ramos et al.,
 2023](https://doi.org/10.1007/s11571-022-09813-2)),
-[`cogmod_geg()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md),
+[`cogmod_geg()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md),
 which adds a `shape` parameter that raises the ex-Gaussian’s CDF to a
 power. It reaches distributions the ex-Gaussian cannot - including
 negatively skewed ones - and `shape = 1` recovers
-[`cogmod_exgaussian()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_exgaussian.md)
+[`cogmod_exgaussian()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_exgaussian.md)
 exactly, so the two can be compared with
 [`loo_compare()`](https://mc-stan.org/loo/reference/loo_compare.html).
 The cost is parameter interpretability: with `shape` free the mean is no
 longer `mu + tau`, and `shape` is strongly confounded with `mu`. See
-[`?cogmod_geg`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_geg.md)
+[`?cogmod_geg`](https://dominiquemakowski.com/cogmod/reference/rcogmod_geg.md)
 for the details.
 
 ``` r
@@ -387,16 +387,16 @@ Note that every model below is fitted with `init = cogmod_inits(f, df)`.
 starts `ndt` at `exp(0) = 1` second - above most sub-second reaction
 times, which leaves every response attributed to the outlier component
 and the decision parameters with no gradient to move on. For
-[`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
+[`cogmod_gamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_gamma.md)
 and
-[`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
+[`cogmod_weibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_weibull.md)
 that is fatal (the chain never moves at all); for the others it merely
 wastes warmup walking `ndt` back down, which on a 1500-trial LogNormal
 cost about 3x the sampling time.
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 sets each parameter separately and leaves everything it does not
 recognise to Stan. See
-[`?cogmod_inits`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md).
+[`?cogmod_inits`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md).
 
 ### Shifted LogNormal
 
@@ -437,7 +437,7 @@ mechanism: it makes the LogNormal a well-motivated default, but it does
 not turn `mu` and `sigma` into cognitive parameters.
 
 Similarly to most implementations,
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 parametrizes `mu` and `sigma` as the mean and SD of the distribution *on
 the log scale* (so that the median of the distribution is
 `ndt + exp(mu)`). The **shifted** version adds a third ingredient: a
@@ -459,7 +459,7 @@ multiplicative random processes. However, despite capturing the shape of
 RT distributions very well, its two parameters `mu` and `sigma` are not,
 in themselves, cognitive quantities. It does, however, sit at the base
 of a proper process model - the Lognormal Race (see
-[`cogmod_lnr()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lnr.md)),
+[`cogmod_lnr()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lnr.md)),
 in which several LogNormal accumulators compete and the fastest one
 determines both the response and the RT.
 
@@ -480,7 +480,7 @@ through a single location parameter.
 The family also has a `sigmabias` parameter, a start-point range that
 turns it into the single-accumulator LBA with a LogNormal drift rate
 (see the LBA below, and
-[`?cogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)).
+[`?cogmod_lognormal`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)).
 It is fixed at zero here, which is the shifted LogNormal proper: on
 RT-only data a start-point range is identified through the shape of the
 distribution alone and adds a flat direction to the likelihood at zero,
@@ -1119,7 +1119,7 @@ converges to the *recinormal* - the LATER model, in which
 which means the likelihood becomes **flat** in `sigmabias` once the
 range is small enough. On a `softplus` link zero sits at minus infinity,
 so a flat prior over a flat likelihood is an improper posterior.
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 supplies weak `normal(0, 1)` priors on `sigmabias` and `boundary` for
 exactly this reason - the threshold is `b = sigmabias + boundary`, so
 the two share the ridge - which brings that same fit to `Rhat` 1.02, an
@@ -3633,7 +3633,7 @@ same extension the oculomotor literature arrived at independently, the
 two differing mainly in the distribution assumed for the starting level.
 
 There is no separate family for this: LATER **is**
-[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+[`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)
 with `sigmabias` fixed at zero. Two parameters have to be fixed rather
 than one. As the evidence scale is arbitrary in the sense described
 above - multiplying `mu`, `sigma`, `sigmabias` and `boundary` by any
@@ -3685,7 +3685,7 @@ off as the square of the scaling factor), so it is not something you fix
 in the formula, but it is worth knowing it is there: it means that large
 values of all three parameters describe very nearly the same
 distribution as small ones, which is a ridge, and part of why
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 puts a prior on `sigmadrift`.
 
 The family has one more variability parameter, `sigmandt`, which spreads
@@ -3695,7 +3695,7 @@ zero because its effect can be confounded with that of other parameters
 (the leading edge of the distibution is also affected by `ndt` and
 `poutlier`). It is hard to estimate, and should only be freed (e.g.,
 `sigmandt ~ 1`) with a lot of data and/or a strong prior (see
-[`?rcogmod_invgaussian`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)).
+[`?rcogmod_invgaussian`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)).
 
 ``` r
 
@@ -3841,14 +3841,14 @@ in both conditions, and equal speed is the signature of a single
 diffusion process, and the errors here are 5% (accuracy) and 10% (speed)
 of the trials, which suggests this model is not appropriate for this
 data set. The fit above is shown for its syntax only; but [*Decision
-Making*](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
+Making*](https://dominiquemakowski.com/cogmod/articles/decision_making.html)
 models are the best tool for this data, and even more so if the errors
 are *faster* than the correct responses, the signature of a low boundary
 or a biased start point. Where errors are clearly slower, or where there
 is no error response at all - go/no-go, deadlines, omissions - a
 non-response genuinely is a right-censored draw from one accumulator and
 censoring is the exact model rather than an approximation.
-[`?rcogmod_invgaussian`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgaussian.md)
+[`?rcogmod_invgaussian`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgaussian.md)
 has Miller et al.’s demonstration: a Wald with a virtual deadline, where
 dropping the timed-out trials or keeping the deadline as if it were an
 RT biases every parameter and censoring recovers them.
@@ -4104,7 +4104,7 @@ The flexibility is not free. `shape` is only weakly identified without a
 decent number of trials per cell, it trades off against `sigma` and
 `ndt`, and the region `sigma * shape >= 1` is degenerate (the density
 becomes unbounded at `ndt`), so starting values matter here. See
-[`?rcogmod_loggamma`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_loggamma.md)
+[`?rcogmod_loggamma`](https://dominiquemakowski.com/cogmod/reference/rcogmod_loggamma.md)
 for the details.
 
 ``` r

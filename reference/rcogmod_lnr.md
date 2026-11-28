@@ -21,7 +21,7 @@ Functions:
 - `cogmod_lnr_stanvars()`: Generates the `stanvars` to pass to
   [`brm()`](https://paulbuerkner.com/brms/reference/brm.html).
 
-- [`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md):
+- [`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md):
   Per-trial posterior probability of being an outlier.
 
 ## Usage
@@ -157,7 +157,7 @@ posterior_epred_cogmod_lnr(prep)
   alone; the likelihood is always the full mixture either way. On the
   prediction method itself the default is `NULL`, which defers to the
   flag carried on the model - see
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
   to change it after fitting. See Details.
 
 - i, prep:
@@ -194,7 +194,7 @@ and choices simulated for observation `i` - or, given a vector of
 observation indices, a `(draws * length(i))` x 2 matrix with the draws
 for `i[1]` first, which predicts many observations in one vectorised
 call; see
-[`posterior_predict_cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+[`posterior_predict_cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
 for the recipe. `posterior_epred_cogmod_lnr()` returns nothing: the
 expected reaction time of a race has no closed form, so it errors rather
 than report one - summarise
@@ -218,7 +218,7 @@ got there first.
 ## The start-point range
 
 The LNR is the LBA
-([`rcogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md))
+([`rcogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md))
 with LogNormal drift rates and the start point removed. In an LBA the
 finishing time is the distance to the threshold divided by the rate; if
 both are LogNormal the ratio is LogNormal too, with the two
@@ -239,14 +239,14 @@ fix nothing. `sigmabias` is therefore read in units of that offset:
 one above it.
 
 Estimating `sigmabias` is treacherous in the same way as in
-[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md).
+[`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md).
 As it approaches zero the likelihood goes flat - the model is converging
 to the LNR and once the range is small enough making it smaller changes
 nothing
 
 - while the softplus link reaches zero only at minus infinity. Left flat
   that is an improper posterior;
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   fences it. A start-point range is also hard to identify from RT shape
   alone, and the general density costs about four normal CDFs per
   accumulator where the LNR costs one density and one survival. Fix
@@ -295,19 +295,19 @@ it with `curve(2 * dnorm(x, 0, 0.2), 0, 3)`.
 `poutlier` is a *rate*, not a classification: the model never labels
 individual trials, it estimates what share of them came from elsewhere.
 Use
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 for per-trial posterior probabilities.
 
 ## Reaction times must be in seconds
 
 The outlier component's scale is a constant in seconds, and so are the
 priors
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 supplies. There is no argument for changing the unit. Millisecond data
 fails silently rather than loudly - the outlier component contributes
 nothing and the min-RT boundary comes back. See the corresponding
 section of
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 for the full account, which applies unchanged here.
 
 ## Fitting
@@ -322,13 +322,13 @@ for the full account, which applies unchanged here.
               stanvars = cogmod_stanvars(f))
 
 Use
-[`cogmod_inits()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_inits.md)
+[`cogmod_inits()`](https://dominiquemakowski.com/cogmod/reference/cogmod_inits.md)
 rather than `init = 0`. `brms` initialises on the unconstrained scale,
 so `init = 0` puts `ndt` at `exp(0) = 1` second - above nearly every
 sub-second RT, which leaves every response attributed to the outlier
 component and the race parameters with no gradient at all.
 
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 is not a convenience here either. Beyond `ndt` and `poutlier`, a race
 has a flat direction of its own: push an accumulator's rate far enough
 down and it stops finishing first *ever*, so the density depends on it
@@ -344,13 +344,13 @@ Without it, an accumulator that never wins would still have to explain
 the trials on which the *other* one lost, and the likelihood would
 object. With it, those trials are floored by the contaminant instead, so
 the plateau is there even when both responses are well represented.
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 fences off `nuone`, `sigmazero` and `sigmaone` for this reason.
 
 `mu` is `nuzero` and has the mirror-image plateau, but it is the
 response's own intercept, so `brms` already gives it a proper
 `student_t` default and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 leaves it alone. If one option is chosen only rarely, the accumulator
 that loses is the one at risk, and it is worth putting the same prior on
 both by hand:
@@ -365,11 +365,11 @@ both by hand:
 describes the **race alone** by default, as if `poutlier` were zero,
 because the outlier component is a fixed regularizer rather than a claim
 about how guesses are distributed. Use
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
 for the fitted mixture - chiefly for
 [`brms::pp_check()`](https://mc-stan.org/bayesplot/reference/pp_check.html) -
 and
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md)
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md)
 to go back.
 [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html) is
 always the full mixture.

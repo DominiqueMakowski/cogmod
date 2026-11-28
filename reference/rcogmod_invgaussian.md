@@ -152,7 +152,7 @@ posterior_epred_cogmod_invgaussian(prep, predict_outliers = NULL)
   `sigmadrift` and `sigmandt` are legitimately zero, which is the
   classic Wald, and are fixed there by writing `sigmadrift = 0` and
   `sigmandt = 0` in the formula. `sigmandt` is on a `log` link, as
-  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)'s
+  [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)'s
   is: it is the same quantity in the same unit, and at the tens of
   milliseconds it lives at a `log` and a `softplus` link agree to within
   a few percent, so what decides it is that a normal prior on the log
@@ -170,7 +170,7 @@ posterior_epred_cogmod_invgaussian(prep, predict_outliers = NULL)
   `poutlier` to zero for prediction, so predictions describe the
   decision process alone; the likelihood is always the full mixture
   either way. See
-  [`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md).
+  [`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md).
 
 - i, prep:
 
@@ -220,15 +220,15 @@ distribution with mean `boundary / drift` and shape `boundary^2`. In the
 parameter of that name.
 
 `ndt` and `poutlier` mean exactly what they do in
-[`cogmod_lognormal()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md),
+[`cogmod_lognormal()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md),
 and
-[`with_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`without_outliers()`](https://dominiquemakowski.github.io/cogmod/reference/with_outliers.md),
-[`p_outlier()`](https://dominiquemakowski.github.io/cogmod/reference/p_outlier.md)
+[`with_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`without_outliers()`](https://dominiquemakowski.com/cogmod/reference/with_outliers.md),
+[`p_outlier()`](https://dominiquemakowski.com/cogmod/reference/p_outlier.md)
 and
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 all work here too. See
-[`?rcogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)
+[`?rcogmod_lognormal`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)
 for why `ndt` is expressed directly in seconds rather than as a fraction
 of the fastest observed response, what the half Normal outlier component
 is for, and why the outlier component's scale is a constant rather than
@@ -237,9 +237,9 @@ a `dpar`, and why reaction times have to be in seconds.
 The Wald density vanishes at the shift with all derivatives, like the
 LogNormal, so `ndt` is well behaved here and there is no
 unbounded-likelihood boundary of the kind
-[`cogmod_gamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_gamma.md)
+[`cogmod_gamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_gamma.md)
 and
-[`cogmod_weibull()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_weibull.md)
+[`cogmod_weibull()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_weibull.md)
 have at shape `< 1`.
 
 The random generation algorithm is that of Michael, Schucany, and Haas
@@ -253,9 +253,9 @@ and the model is the classic Wald. Above zero, each trial draws its own
 drift from a `Normal(mu, sigmadrift)` **truncated at zero**, which is
 what lets the model produce the long right tails empirical RT
 distributions have, and is the single-accumulator counterpart of what
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+[`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
 calls `sigmadrift` and
-[`cogmod_lba1()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba1.md)
+[`cogmod_lba1()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba1.md)
 calls `sigma`. Marginalising over that draw is a Gaussian integral, so
 the density stays closed form and costs two normal CDFs.
 
@@ -264,7 +264,7 @@ drift never terminates, so an untruncated Normal would leave the density
 defective: it integrates to 0.99 at
 `mu = 3, boundary = 0.5, sigmadrift = 1.5`, and to 0.69 at
 `mu = 0.5, boundary = 1, sigmadrift = 2`.
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+[`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
 needs no such truncation, a diffusion between two boundaries always
 absorbing at one of them.
 
@@ -291,7 +291,7 @@ weight absorbs most of the difference. And scaling `mu`, `boundary` and
 reciprocal-normal (LATER) limit, where the within-trial noise stops
 mattering and `RT = boundary / drift` exactly - so large values of all
 three describe nearly the same distribution.
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 gives `sigmadrift` a deliberately informative prior to fence off both,
 and `boundary` a weakly informative one - `normal(0.5, 1)` on its
 `softplus` link, a median threshold of 0.97 - which helps hold the same
@@ -302,7 +302,7 @@ density decays as `t^-2`, because drifts arbitrarily close to zero take
 arbitrarily long, so **the mean does not exist**.
 [posterior_epred()](https://paulbuerkner.com/brms/reference/posterior_epred.brmsfit.html)
 returns `Inf`, as it does for
-[`cogmod_invgamma()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_invgamma.md)
+[`cogmod_invgamma()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_invgamma.md)
 at `shape <= 1`. Use
 [posterior_predict()](https://paulbuerkner.com/brms/reference/posterior_predict.brmsfit.html)
 and summarise the draws with a median or a quantile instead.
@@ -311,7 +311,7 @@ and summarise the draws with a median or a quantile instead.
 
 `sigmandt` is the between-trial *range* of the non-decision time, `st0`
 in the usual notation, and the single-boundary counterpart of
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)'s
+[`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)'s
 `sigmandt`. At `sigmandt = 0`, its default, every trial has the same
 non-decision time `ndt`. Above zero each trial draws its own from
 `Uniform(ndt, ndt + sigmandt)`, so `ndt` becomes the **lower bound** of
@@ -331,9 +331,9 @@ of it, and they trade off against one another on any dataset without a
 sharp onset. `st0` is also the parameter the DDM literature agrees is
 recovered worst. Estimate it only with a lot of data, a strong prior, or
 both -
-[`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+[`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
 gives it the same deliberately tight prior as
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)'s -
+[`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)'s -
 and otherwise write `sigmandt = 0` in
 [`bf()`](https://paulbuerkner.com/brms/reference/brmsformula.html),
 which removes it from the model altogether. As with `sigmadrift`,
@@ -360,15 +360,15 @@ between two Wald accumulators with drifts `v` and `-v`, each response
 scored with its own defective density. That is the model implemented in
 `rtdists` and in `bmm`'s `version = "crisk"`, and it is a choice model
 of the same kind as
-[`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md),
+[`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md),
 not a censoring construction - `cens()` does not fit it. Where it is
 wanted,
-[`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md)
+[`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md)
 with `bias` fixed at 0.5 covers the same ground. Here censoring is not a
 separate family but a construction: no new parameter, no new syntax, and
 the same `cens()` works on every RT-only family with a closed-form CDF
 (see
-[`?rcogmod_lognormal`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lognormal.md)).
+[`?rcogmod_lognormal`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lognormal.md)).
 Left-censoring (`error = -1` or `"left"`) and interval-censoring
 (`cens(x, y2)`) work the same way, and
 [`log_lik()`](https://mc-stan.org/rstantools/reference/log_lik.html) -
@@ -386,7 +386,7 @@ Three things follow from the construction:
   two-accumulator race, by contrast, has to estimate an error process,
   and when errors are few that process is identified by nothing (see the
   `driftone` discussion in
-  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md));
+  [`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md));
   censoring has no error accumulator to run away.
 
 - **What it assumes.** Non-informative censoring: that an error says
@@ -402,7 +402,7 @@ Three things follow from the construction:
   10%, and with 10% errors by about 30% and 15%, which is why Miller et
   al. argue for the simple censored Wald only above roughly 95%
   accuracy.
-  [`cogmod_priors()`](https://dominiquemakowski.github.io/cogmod/reference/cogmod_priors.md)
+  [`cogmod_priors()`](https://dominiquemakowski.com/cogmod/reference/cogmod_priors.md)
   warns past 20% censored trials, the threshold `bmm` uses, but for
   commission errors the model is on firm ground only well below that.
 
@@ -414,10 +414,10 @@ Three things follow from the construction:
   a single diffusion process, and faster errors that of a low boundary
   or a biased start point. In both of the latter cases use a race that
   models the error response:
-  [`cogmod_ddm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_ddm.md),
-  [`cogmod_rdm()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_rdm.md)
+  [`cogmod_ddm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_ddm.md),
+  [`cogmod_rdm()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_rdm.md)
   or
-  [`cogmod_lba2()`](https://dominiquemakowski.github.io/cogmod/reference/rcogmod_lba2.md).
+  [`cogmod_lba2()`](https://dominiquemakowski.com/cogmod/reference/rcogmod_lba2.md).
 
 [`posterior_predict()`](https://mc-stan.org/rstantools/reference/posterior_predict.html)
 predicts the latent, uncensored reaction time, as `brms` does for its
