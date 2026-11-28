@@ -125,7 +125,7 @@ responses, and still a fence against \code{ndt -> 0}.
 on 0.25\%, with 95\% between 0.035\% and 1.7\%, which is where the empirical
 estimates sit: Miller (2024) puts the outlier proportion below 0.5\% across
 four lexical-decision megastudies, and the untrimmed data of the
-\href{https://dominiquemakowski.github.io/cogmod/articles/outliers.html}{outliers article}
+\href{https://dominiquemakowski.com/cogmod/articles/outliers.html}{outliers article}
 agree. If the data were trimmed before fitting, tighten the prior
 (\code{normal(-7, 0.5)}) rather than fixing \code{poutlier = 0}, which brings the hard
 min-RT boundary back; see the \emph{Trimmed data} section of \code{\link[=cogmod_lognormal]{cogmod_lognormal()}}.
@@ -225,7 +225,7 @@ ex-Gaussian and rating-scale parameters (below).
 No prior is set on the shape of \code{\link[=cogmod_weibull]{cogmod_weibull()}} or \code{\link[=cogmod_gamma]{cogmod_gamma()}},
 although a shape below 2 makes their \code{ndt} gradient unbounded: the
 likelihood itself prefers that region, by around 100 log units on the data
-in the \href{https://dominiquemakowski.github.io/cogmod/articles/rt_models.html}{RT models article},
+in the \href{https://dominiquemakowski.com/cogmod/articles/rt_models.html}{RT models article},
 so a prior weak enough to be a default could only bias it.
 \code{?rcogmod_weibull} sets out what to do instead.
 }

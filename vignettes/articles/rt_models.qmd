@@ -956,7 +956,7 @@ On these data the errors have the same median as the correct responses in
 both conditions, and equal speed is the signature
 of a single diffusion process, and the errors here are 5% (accuracy) and 10%
 (speed) of the trials, which suggests this model is not appropriate for this data set.
-The fit above is shown for its syntax only; but [*Decision Making*](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
+The fit above is shown for its syntax only; but [*Decision Making*](https://dominiquemakowski.com/cogmod/articles/decision_making.html)
 models are the best tool for this data, and even more so if the errors are *faster*
 than the correct responses, the signature of a low boundary or a biased start point.
 Where errors are clearly slower, or where there is no error response at all -

@@ -346,13 +346,65 @@ test_that("it refuses what it cannot use", {
   expect_error(cogmod_warmstart(42, f, d_full), "must be a brmsfit")
   expect_error(cogmod_warmstart("no-such-file.csv", f, d_full), "No such file")
 
-  # a fit without adaptation (rstan backend, or an approximation)
+  # a fit without adaptation (an approximation, say)
   bare <- structure(list(fit = structure(list(), class = "stanfit")), class = "brmsfit")
   expect_error(cogmod_warmstart(bare), "no adaptation")
   # a dense metric
   dense <- bare
   attr(dense$fit, "metadata") <- list(inv_metric = list(diag(3)), step_size = list(0.1))
   expect_error(cogmod_warmstart(dense), "dense")
+})
+
+
+# Reading a fit's adaptation -------------------------------------------------
+
+# A stanli fit has no cmdstanr metadata: each chain keeps its adaptation as
+# the text Stan prints after warmup, and that text is what gets read.
+adaptation_text <- function(step, v, terminated = TRUE) {
+  paste0(if (terminated) "# Adaptation terminated\n",
+         "# Step size = ", step, "\n# Diagonal elements of inverse mass matrix:\n# ",
+         paste(v, collapse = ", "), "\n")
+}
+
+test_that("one chain's adaptation text is read back", {
+  p <- cogmod:::.parse_adaptation_info(adaptation_text(0.0932521, c(0.145774, 0.0580678, 1.13681)))
+  expect_equal(p$step_size, 0.0932521)
+  expect_equal(p$inv_metric, c(0.145774, 0.0580678, 1.13681))
+  # as rstan reads it from a CmdStan CSV: no "terminated" line, no final newline
+  p <- cogmod:::.parse_adaptation_info(
+    "# Step size = 0.104075\n# Diagonal elements of inverse mass matrix:\n# 0.16016, 0.112857")
+  expect_equal(p$inv_metric, c(0.16016, 0.112857))
+  # a dense metric comes back as a matrix, for the caller to refuse
+  dense <- "# Step size = 0.5\n# Elements of inverse mass matrix:\n# 1, 0.2\n# 0.2, 2\n"
+  expect_equal(cogmod:::.parse_adaptation_info(dense)$inv_metric, matrix(c(1, 0.2, 0.2, 2), 2))
+  # nothing usable: a chain that did not adapt, a ragged matrix, a lost line
+  expect_null(cogmod:::.parse_adaptation_info(""))
+  expect_null(cogmod:::.parse_adaptation_info(NULL))
+  expect_null(cogmod:::.parse_adaptation_info(
+    "# Step size = 0.5\n# Elements of inverse mass matrix:\n# 1, 0.2\n# 0.2\n"))
+  expect_null(cogmod:::.parse_adaptation_info(
+    "# Step size = 0.5\n# Diagonal elements of inverse mass matrix:\n"))
+})
+
+test_that("a stanfit without metadata gives every chain's adaptation, or none", {
+  # A stand-in with the one slot that is read, not rstan's class: nothing else
+  # in the suite loads rstan, and loading it after stan_fun() has exposed the
+  # shared model segfaults on Linux (the CmdStan CI job, 0.3.6).
+  stanfit <- methods::setClass("cogmod_test_stanfit", slots = c(sim = "list"),
+                               where = new.env())
+  chain <- function(txt) structure(data.frame(a = 1), adaptation_info = txt)
+  sf <- stanfit(sim = list(samples = list(chain(adaptation_text(0.1, c(1, 2))),
+                                          chain(adaptation_text(0.3, c(3, 4))))))
+  ad <- cogmod:::.warmstart_adaptation(sf)
+  expect_equal(ad$step_size, c(0.1, 0.3))
+  expect_equal(ad$inv_metric, list(c(1, 2), c(3, 4)))
+  # cmdstanr's metadata, where there is some, is read first
+  attr(sf, "metadata") <- list(inv_metric = list(c(5, 6)), step_size = list(0.2))
+  expect_equal(cogmod:::.warmstart_adaptation(sf)$step_size, 0.2)
+  attr(sf, "metadata") <- NULL
+  # one chain that did not adapt spoils the lot: half a metric is no metric
+  sf@sim$samples[[2]] <- chain("")
+  expect_null(cogmod:::.warmstart_adaptation(sf))
 })
 
 
@@ -398,4 +450,36 @@ test_that("a fitted pilot warm-starts the full model", {
   ))
   expect_s3_class(m, "brmsfit")
   expect_length(attr(m$fit, "metadata")$inv_metric[[1]], length(ws$inv_metric))
+})
+
+test_that("a stanli pilot warm-starts a stanli fit", {
+  skip_on_cran()
+  skip_if_not_installed("stanli")
+  skip_if(utils::packageVersion("brms") < "2.23.2", "this brms has no stanli backend")
+  skip_if_not(stanli::stanli_available(), "the stanli runtime is not installed")
+  skip_if_not_slow()
+
+  pilot <- suppressWarnings(suppressMessages(brms::brm(
+    f, data = d_pilot, prior = cogmod_priors(f, d_pilot), init = cogmod_inits(f, d_pilot),
+    stanvars = cogmod_stanvars(f), backend = "stanli", chains = 2, iter = 300,
+    warmup = 200, refresh = 0, silent = 2, seed = 1
+  )))
+  ad <- cogmod:::.warmstart_adaptation(pilot$fit)
+  expect_length(ad$inv_metric, 2)
+  ws0 <- cogmod_warmstart(pilot, jitter = 0)
+  expect_equal(ws0$inv_metric, Reduce(`+`, ad$inv_metric) / 2)
+  expect_equal(ws0$step_size, mean(ad$step_size))
+
+  ws <- cogmod_warmstart(pilot, data = d_full)
+  expect_equal(ws$counts[["new level"]], 2 * 2 + 2)
+  # with adapt_metric = FALSE stanli keeps the metric it is given, so the fit
+  # reports back the one that went in
+  m <- suppressWarnings(suppressMessages(brms::brm(
+    f, data = d_full, prior = cogmod_priors(f, d_full), stanvars = cogmod_stanvars(f),
+    init = ws$init, inv_metric = ws$inv_metric, step_size = ws$step_size, adapt_metric = FALSE,
+    backend = "stanli", chains = 2, iter = 200, warmup = 100, refresh = 0, silent = 2,
+    seed = 2
+  )))
+  expect_equal(m$fit@stan_args[[1]]$control$stepsize, ws$step_size)
+  expect_equal(cogmod_warmstart(m, jitter = 0)$inv_metric, ws$inv_metric, tolerance = 1e-5)
 })

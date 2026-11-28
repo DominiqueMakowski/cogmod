@@ -65,6 +65,29 @@ test_that("cogmod_inits matches the declared dimensions", {
 })
 
 
+test_that("cogmod_inits keeps a one-element container one-dimensional", {
+  # `(1 | id)` alone declares `vector<lower=0>[M_2] sd_2` with M_2 = 1. A bare
+  # length-1 number is a scalar to a backend that does not box it (stanli
+  # 0.31.0 refused one), so it carries dim 1. Longer vectors stay plain, and a
+  # declared scalar stays a scalar.
+  f <- brms::bf(RT ~ Condition + (Condition | id), ndt ~ (1 | id),
+                family = cogmod_lognormal())
+  sdata <- suppressWarnings(
+    brms::make_standata(f, data = d_ig, family = f$family)
+  )
+  expect_equal(sdata$M_2, 1)
+  for (jit in list(NULL, 0)) {
+    vals <- cogmod_inits(f, d_ig, jitter = jit)(1)
+    expect_equal(dim(vals$sd_2), 1L)
+    expect_true(vals$sd_2 > 0)
+    expect_null(dim(vals$sd_1))
+    expect_length(vals$sd_1, 2)
+    expect_null(dim(vals$Intercept))
+    expect_null(dim(vals$Intercept_ndt))
+  }
+})
+
+
 # cogmod_inits: values ----------------------------------------------------
 
 test_that("cogmod_inits puts the targets on the right scale", {
@@ -122,7 +145,8 @@ test_that("cogmod_inits does not mistake a spline coefficient for a dpar", {
   dd <- cbind(d_ig, x = rnorm(nrow(d_ig)))
   f <- brms::bf(RT ~ s(x), boundary ~ 1, ndt ~ 1, family = cogmod_invgaussian())
   vals <- cogmod_inits(f, dd, jitter = 0)(1)
-  expect_equal(vals$bs, 0)
+  # `vector[1] bs`, so it carries dim 1 (see "one-element container" above)
+  expect_equal(as.vector(vals$bs), 0)
   expect_equal(vals$Intercept_boundary, log(expm1(0.5)))
 })
 
@@ -205,7 +229,8 @@ test_that("cogmod_inits jitters the hierarchical blocks less", {
   sdata <- brms::make_standata(f, data = dd)
   scale <- sqrt(mean(rowSums(sdata$Zs_1_1^2)))
   expect_length(fixed$sds_1, 1)
-  expect_equal(fixed$sds_1, 0.1 / scale)
+  expect_equal(dim(fixed$sds_1), 1L)
+  expect_equal(as.vector(fixed$sds_1), 0.1 / scale)
   expect_true(all(fixed$sd_1 == 0.25))
 
   # two numbers set the tiers directly

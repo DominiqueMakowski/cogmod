@@ -338,7 +338,7 @@ Wald density is thin on the fast side and flat on the slow side, so an
 error accumulator started too fast sits hundreds of log-density units above
 the posterior, and a cold chain's first trajectory can convert that into a
 run down the flat \code{driftone} direction from which it never returns. On the
-benchmark data of the \href{https://dominiquemakowski.github.io/cogmod/articles/performance.html}{performance article} that froze one chain in four;
+benchmark data of the \href{https://dominiquemakowski.com/cogmod/articles/performance.html}{performance article} that froze one chain in four;
 the slower start removed it.
 
 \code{\link[=cogmod_priors]{cogmod_priors()}} is not a convenience here either. Beyond \code{ndt} and
@@ -365,7 +365,7 @@ zero is legitimate - driftless Brownian motion still finishes, and still
 wins sometimes - but once \code{driftone} is a few hundredths the likelihood stops
 changing, while the \code{softplus} link puts that whole region at minus
 infinity. Left flat, the two-participant data of the
-\href{https://dominiquemakowski.github.io/cogmod/articles/decision_making.html}{decision-making article},
+\href{https://dominiquemakowski.com/cogmod/articles/decision_making.html}{decision-making article},
 whose Accuracy condition carries about 75 errors, ran it down to 0.0001 with
 half of the transitions divergent. \code{\link[=cogmod_priors]{cogmod_priors()}} fences it with
 \code{normal(3, 2)}, and \code{normal(0, 2)} on its slopes. That prior sits well above

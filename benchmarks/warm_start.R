@@ -21,8 +21,9 @@
 #    its draws mapped to the unconstrained space, a starting dense metric.
 #    Model: DDM with participant random intercepts. Runs: reference (cogmod
 #    inits, diag_e, warmup 500), warm start with the metric left to adapt
-#    (warmup 300), and warm start with the metric held fixed (warmup 100,
-#    init_buffer = warmup so that no adaptation window runs). Laplace and
+#    (warmup 300), and warm start with the metric meant to be held fixed
+#    (warmup 100, init_buffer = warmup so that no adaptation window runs -
+#    which does NOT hold it; see the comment at that run). Laplace and
 #    Pathfinder are also compared with MCMC on the population-level
 #    parameters, and the warm-started run is wrapped back into a brmsfit to
 #    check that post-processing works.
@@ -137,6 +138,15 @@ fit_warm <- mod$sample(data = sdata, init = pf, chains = chains, parallel_chains
 record("B", "warm, metric adapted", cmd_wall(fit_warm), cmd_draws(fit_warm), cmd_div(fit_warm),
        warmup = 300, approx_s = t_pf)
 
+# These buffers do not hold the metric. They fill the warmup exactly, so Stan
+# takes its normal schedule and closes one EMPTY window on the last warmup
+# iteration, which regularizes the metric to 0.001 on every parameter (no
+# correlations) and leaves the step size no iterations to adapt. Checked
+# 2026-11-17 on the warm-start test LNR (CmdStan 2.38.0, diag and dense):
+# 0.001 everywhere, step sizes 2-5, 24-52% divergent. This row's failure is
+# that, not Pathfinder's covariance. Today, the way to keep a supplied
+# metric is a warmup under 150 with the default windows, where Stan never
+# re-estimates it (stan-dev/stan#3441, unfixed in any release up to 2.39).
 fit_fixed <- mod$sample(data = sdata, init = pf, chains = chains, parallel_chains = cores,
                         iter_warmup = 100, iter_sampling = 500, seed = 1, refresh = 0,
                         metric = "dense_e", inv_metric = inv_metric,

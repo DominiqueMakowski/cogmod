@@ -1,3 +1,102 @@
+# cogmod 0.3.6
+
+## New features
+
+* **`cogmod_warmstart()` takes fits from `brms`'s new `stanli` backend.**
+  `stanli` keeps each chain's adapted step size and metric as the text Stan
+  prints after warmup, not in the metadata `cmdstanr` writes, and that text
+  is now read. The `init`, `inv_metric` and `step_size` that come out go to
+  `brm(backend = "stanli")` as they go to `cmdstanr`, so a pilot fitted with
+  either backend can warm-start a fit with either. `cogmod_inv_metric()` and
+  `cogmod_step_size()` follow. On a `cmdstanr` fit, which carries both, the
+  text gives the metadata's values to the 6 significant digits both have.
+
+## Performance
+
+* **`cogmod_ddm()` with `sigmadrift` estimated costs 0.29x what it did per
+  gradient in CmdStan, and the classic model 0.86x.** Whenever `sigmabias` and
+  `sigmandt` are both fixed at 0, the Stan likelihood no longer calls Stan's
+  `wiener_lpdf()`. It evaluates the Navarro and Fuss (2009) series the R side
+  already used for `dcogmod_ddm()` and `log_lik()`, written in the Stan
+  language, with `sigmadrift` in closed form. Stan's 5-parameter form computes
+  the density and each of its derivatives as separate series; here autodiff
+  takes every derivative through the one series. Estimating `sigmadrift` now
+  costs about 1.2 to 1.6 times the classic model per gradient, down from
+  about 3.5. On stanli the two models cost 1.06x and 0.67x what they did,
+  0.76x and 0.24x of CmdStan before the change. Measured on a model with 10
+  participants and 1000 trials (Windows, CmdStan 2.38.0, stanli 0.26.0);
+  `benchmarks/gradient_cost.R` gives 0.81 and 0.36. The 7-parameter
+  model, with `sigmabias` or `sigmandt` estimated, still uses Stan's
+  `wiener_lpdf()`. The certificate and router that chose between Stan's two
+  cheaper forms for the classic model are gone; the router remains for the
+  7-parameter form. Details in `benchmarks/wiener_stan/`.
+
+## Bug fixes
+
+* **`cogmod_ddm()`'s Stan likelihood was off by up to a log unit per trial in
+  the tails when `sigmadrift` was estimated.** Stan's 5-parameter
+  `wiener_lpdf()` controls its error in absolute terms on the density, so where
+  the density is small its log can be badly wrong. Against an independent
+  reference it was off by 0.47 log units at a log density of -28, and by up to
+  1.1 per trial (13.6 summed over 1000 trials) at a tail point of a
+  10-participant model. Its partial derivatives were off by up to 84 times
+  their size in the tails. At vanishing boundaries it returned a finite
+  gradient that was wrong: -11 for the log decision time, where the true value
+  is about -1.4e191. The classic model was off by up to 6.6e-4, wherever the
+  start point lay near the far boundary. The new density agrees with that
+  reference to about 1e-11, and so does `dcogmod_ddm()`. So `log_lik()`,
+  `loo()` and `p_outlier()` now score each trial by the density the model was
+  fitted with. Across boundaries from 1e-160 to 1e80 it never gives a
+  non-finite derivative, where the old code did at up to 2,252 of 5,000
+  points. Away from the tails nothing moves: at the posterior draws of a
+  1000-trial model, the total log density changed by 7e-9 for the classic
+  model and 2e-13 with `sigmadrift`.
+
+* **`dcogmod_ddm()` keeps its relative precision with the start point next to
+  the far boundary.** Two sums in the Navarro and Fuss series cancel there. On
+  that side, the small-time series' two leading terms are now taken together
+  through `expm1()`, and the large-time series takes its sines at the start
+  point's distance from the nearer boundary. Next to the boundary that is hit
+  the two terms stay as they were, since there it is the `expm1()` form that
+  cancels. The values move by at most 1.6e-13 elsewhere.
+
+* **`cogmod_inits()` keeps a one-element container one-dimensional.** A
+  parameter declared `vector[1]`, which `brms` makes the `sd_k` of a
+  group-level term on its own such as `(1 | Study)`, the `bs` of a single
+  smooth or its `sds_k`, came out as a bare number. `cmdstanr` boxes such a
+  value itself before writing its JSON, so nothing showed there. A backend
+  that passes R values through as they are reads it as a scalar: stanli 0.31.0
+  stopped with `dims declared=(1); dims found=()`. It now carries `dim = 1`.
+  Longer vectors stay plain vectors, and declared scalars stay scalars. The
+  same goes for `cogmod_warmstart()`'s `init`, which is built the same way.
+
+## Documentation
+
+* The performance article's `stanli` section now fits with `brms`'s own
+  `backend = "stanli"` (in `brms`'s development version since brms#1966),
+  where it took four steps through the `"mock"` backend. With it, `update()`,
+  `kfold()`, `loo()`'s moment matching and bridge sampling work too, as does
+  `control = list(metric = "dense_e")`; checked on the decision-making
+  article's LNR. The nutpie sampler keeps the longer route, which the
+  article now spells out.
+
+* **The warm-start documentation misdescribed what a short warmup does.**
+  `?cogmod_warmstart` and the performance article said the sampler goes on
+  adapting the supplied metric during the remaining warmup. With the
+  100-iteration warmup they recommend, Stan never re-estimates the metric at
+  all: with fewer than 150 warmup iterations it shrinks its adaptation
+  windows and, through a bug (stan-dev/stan#3441), never closes them. The
+  supplied metric is used as is and only the step size adapts, and a cold
+  start with the same warmup samples with the unit metric. Checked on
+  CmdStan 2.38.0 and stanli 0.26.0, with both the diagonal and the dense
+  metric. The article's reading of its warm-start benchmarks now says so;
+  the figures themselves are unchanged, and are flagged for a rerun once a
+  CmdStan release carries the fix. The article also blamed Pathfinder's
+  covariance for its run with the metric "held fixed". The window settings
+  that run used in fact replace the metric with 0.001 on every parameter at
+  the end of warmup, so the article now says that, and that the covariance
+  itself was never tested as a fixed metric.
+
 # cogmod 0.3.5
 
 ## Breaking changes

@@ -2,11 +2,11 @@
 
 # cogmod <img src="man/figures/logo.png" align="right" height="200" alt="cogmod logo" />
 
-[![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.github.io/cogmod/)
+[![Documentation](https://img.shields.io/badge/documentation-cogmod-orange.svg?colorB=E91E63)](https://dominiquemakowski.com/cogmod/)
 [![CRAN
 status](https://img.shields.io/cran/v/cogmod.svg)](https://cran.r-project.org/package=cogmod)
 [![R-CMD-check](https://github.com/DominiqueMakowski/cogmod/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/DominiqueMakowski/cogmod/actions/workflows/R-CMD-check.yaml)
-[![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.github.io/cogmod/reference/index.html)
+[![Models](https://img.shields.io/badge/models-list-orange.svg?colorB=2196F3)](https://dominiquemakowski.com/cogmod/reference/index.html)
 [![CRAN
 downloads](https://cranlogs.r-pkg.org/badges/grand-total/cogmod.svg)](https://cran.r-project.org/package=cogmod)
 
@@ -23,10 +23,10 @@ touch](https://github.com/DominiqueMakowski/cogmod/issues)!
 
 ## Features
 
-<a href="https://dominiquemakowski.github.io/cogmod/articles/decision_making.html"><img src="man/figures/anim_widget.gif" align="right" height="350" alt="interactive visualization of evidence accumulation models of cogmod" /></a>
+<a href="https://dominiquemakowski.com/cogmod/articles/decision_making.html"><img src="man/figures/anim_widget.gif" align="right" height="350" alt="interactive visualization of evidence accumulation models of cogmod" /></a>
 
 - [**Models for Reaction
-  Times**](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html)
+  Times**](https://dominiquemakowski.com/cogmod/articles/rt_models.html)
   - [x] Ex-Gaussian model (with the classical parameterization in which
     `mu` and `sigma` index the Gaussian component alone and `tau` the
     exponential tail - unlike `brms`’s native `exgaussian()`, whose `mu`
@@ -44,7 +44,7 @@ touch](https://github.com/DominiqueMakowski/cogmod/issues)!
   - [x] Weibull, LogWeibull (Gumbel), Inverse Weibull (Fréchet)
   - [x] Gamma, Inverse Gamma, Shifted LogGamma (Generalized Gamma)
 - [**Models for Decision Making (Choice +
-  RT)**](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
+  RT)**](https://dominiquemakowski.com/cogmod/articles/decision_making.html)
   - [x] Drift Diffusion Model (DDM)
   - [x] Linear Ballistic Accumulator (LBA)
   - [x] LogNormal Race (LNR), optionally with a start-point range, which
@@ -52,7 +52,7 @@ touch](https://github.com/DominiqueMakowski/cogmod/issues)!
   - [x] Racing Diffusion Model (RDM, [Tillman et al.,
     2020](https://doi.org/10.3758/s13423-020-01719-6))
 - [**Models for Subjective Ratings Data (Likert/Slider
-  Scales)**](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html)
+  Scales)**](https://dominiquemakowski.com/cogmod/articles/subjective_ratings.html)
   - [x] Choice-Confidence (CHOCO) models (Bi-modal Beta)
   - [x] Beta-gate (Ordered Beta, [Kubinec,
     2023](https://doi.org/10.1017/pan.2022.20))
@@ -161,11 +161,11 @@ m <- brm(
 
 We can then analyze its results, and check its predictions like with any
 other models. See the [Subjective
-Ratings](https://dominiquemakowski.github.io/cogmod/articles/subjective_ratings.html),
+Ratings](https://dominiquemakowski.com/cogmod/articles/subjective_ratings.html),
 [RT-only
-Models](https://dominiquemakowski.github.io/cogmod/articles/rt_models.html),
+Models](https://dominiquemakowski.com/cogmod/articles/rt_models.html),
 and [Decision Making
-Models](https://dominiquemakowski.github.io/cogmod/articles/decision_making.html)
+Models](https://dominiquemakowski.com/cogmod/articles/decision_making.html)
 vignettes for more detailed examples.
 
 ![](man/figures/decision_making1.png) ![](man/figures/rt_models1.png)

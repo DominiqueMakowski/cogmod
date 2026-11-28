@@ -238,7 +238,14 @@ cogmod_inits <- function(
           v # "fixed": a structured value that jitter would invalidate
         )
       }
-      if (length(e$dim) > 1) {
+      # A matrix or array keeps its declared shape, and so does a container
+      # of one element: a `vector[1]` (the `sd_k` of a group-level term on its
+      # own, say) would otherwise leave as a bare number, which a backend
+      # passing R values through as they are reads as a scalar. stanli 0.31.0
+      # then stops ("dims declared=(1); dims found=()"). cmdstanr boxes these
+      # itself before writing its JSON, and only these: a longer vector is
+      # unambiguous, so it stays a plain vector.
+      if (length(e$dim) > 1 || (length(e$dim) == 1 && e$dim[1] == 1)) {
         dim(v) <- e$dim
       }
       v

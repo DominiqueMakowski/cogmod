@@ -255,15 +255,16 @@ between 0.32 and 3.0 - and \code{normal(0, 0.5)} on the slopes of both. The
 scale.
 
 There is a cost argument too, and it is a cliff rather than a slope. The
-Stan density has a closed form for \code{sigmadrift}, so estimating it costs
-about 3.5 times the classic model per gradient evaluation. \code{sigmabias} and
-\code{sigmandt} have no closed form: Stan integrates them out numerically, once
-for the density and once more for each partial derivative, at every
-observation and every leapfrog step. Measured against the \code{sigmadrift}-only
-model, estimating \emph{one} of them costs about 18 times as much per gradient
-and estimating \emph{both} about 30 times (55 before the tolerance the package
-now passes to \code{wiener_lpdf()}). Nothing in between exists: the fast path is
-a test for exactly zero, so a tight prior does not buy it back - a
+density has a closed form in \code{sigmadrift}, so estimating it costs about 1.2
+to 1.6 times the classic model per gradient evaluation, depending on the data
+(it was 3.5 before 0.3.6). \code{sigmabias} and \code{sigmandt} have no closed form:
+Stan integrates them out numerically, once for the density and once more for
+each partial derivative, at every observation and every leapfrog step.
+Measured against the \code{sigmadrift}-only model on 300 trials, estimating \emph{one}
+of them costs about 60 to 70 times as much per gradient and estimating \emph{both}
+about 250 times. The multiples move with the data and the parameter values,
+since the integration adapts to them. Nothing in between exists: the fast
+path is a test for exactly zero, so a tight prior does not buy it back - a
 \code{sigmandt} estimated at 1e-5 costs the same as one at 0.05 s. Only
 \code{sigmandt = 0} in \code{bf()} does. On a few thousand trials this is the
 difference between minutes and hours; on a few hundred thousand, between a
@@ -320,17 +321,18 @@ per-trial parameters, and evaluated by combining a closed-form drift
 correction with Gauss-Legendre quadrature over the starting point and
 non-decision time, also in log space.
 
-In Stan the decision component is \code{wiener_lpdf()}, called with its own
-non-decision time set to zero because the shift is applied by the mixture
-around it, and short-circuited to the cheaper 4- and 5-parameter forms
-whenever the start-point and non-decision-time ranges both vanish. The
-cheapest of the three, Stan's classic 4-parameter density, is used only where
-it is sound: it returns \code{-inf} with \strong{NaN} derivatives once the rescaled
-decision time \code{t / boundary^2} falls below about \code{6.6e-4}, or once the density
-underflows, and a NaN derivative on a trial the mixture gives no weight to
-still turns the gradient of the whole model to NaN. Those calls go to the
-\code{sv}-capable form instead, which the two agree with to \code{1e-13} where they
-meet.
+In Stan, whenever \code{sigmabias} and \code{sigmandt} are both zero, the decision
+component is the same series written in the Stan language, with \code{sigmadrift}
+in closed form. The two sides agree to about \code{1e-11}, so the density a model
+is fitted with is the one \code{log_lik()} and \code{loo()} score it by, on every
+version of Stan and every backend. Stan's own \code{wiener_lpdf()} is used only for
+the 7-parameter form, called with its own non-decision time set to zero
+because the shift is applied by the mixture around it. Its 5-parameter form,
+which the package used before 0.3.6, controls its error in absolute terms, so
+it was off by up to a log unit per trial in the tails, and it computes the
+density and each derivative as separate series, which made a model with
+\code{sigmadrift} about 3.4 times as costly per gradient as it is now
+(\verb{benchmarks/wiener_stan/} in the source repository).
 }
 
 \section{Fitting}{

@@ -1,7 +1,7 @@
 Package: cogmod
 Type: Package
 Title: Cognitive Models for Subjective Scales and Decision Making Tasks
-Version: 0.3.5
+Version: 0.3.6
 Authors@R: c(
     person(
       "Dominique", "Makowski",
@@ -27,7 +27,7 @@ Description: Implements cognitive models for data from subjective (Likert or
     Kubinec (2023) <doi:10.1017/pan.2022.20>, and Sciandra et al. (2024)
     <doi:10.1007/s10651-023-00592-5>.
 URL: https://github.com/DominiqueMakowski/cogmod,
-    https://dominiquemakowski.github.io/cogmod/
+    https://dominiquemakowski.com/cogmod/
 BugReports: https://github.com/DominiqueMakowski/cogmod/issues
 License: MIT + file LICENSE
 Encoding: UTF-8
